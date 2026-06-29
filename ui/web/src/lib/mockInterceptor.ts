@@ -46,7 +46,7 @@ export function initializeMockInterceptor() {
         const staticIds = new Set(MOCK_CLAIMS.map((c) => c.id));
         const filteredBackend = backendClaims.filter((c: any) => c && c.id && !staticIds.has(c.id));
 
-        const mergedClaims = [...MOCK_CLAIMS, ...filteredBackend];
+        const mergedClaims = [...filteredBackend, ...MOCK_CLAIMS];
         const mergedTotal = mergedClaims.length;
 
         const mergedData = Array.isArray(data)

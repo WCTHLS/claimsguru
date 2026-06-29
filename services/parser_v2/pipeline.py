@@ -871,8 +871,23 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
             "pre auth",
             "gross total",
         )
-        if any(term in desc for term in blacklist):
-            return False
+        def _is_medical_procedure(desc_str: str) -> bool:
+            desc_l = str(desc_str).lower()
+            procedure_keywords = [
+                "laparoscopic", "hysterectomy", "replacement", "thyroidectomy", "colectomy",
+                "gastrectomy", "mastectomy", "surgery", "operation", "procedure", "excision",
+                "resection", "reconstruction", "arthroplasty", "delivery", "salpingectomy",
+                "cholecystectomy", "appendectomy", "microdiscectomy", "discectomy", "implantation",
+                "graft", "bypass", "angioplasty"
+            ]
+            return any(kw in desc_l for kw in procedure_keywords)
+
+        for term in blacklist:
+            if term == "total":
+                if "total" in desc and not _is_medical_procedure(desc):
+                    return False
+            elif term in desc:
+                return False
 
         # Final length guard: descriptions longer than 300 characters are always
         # concatenated garbage (e.g. declaration blocks merged into a single row).

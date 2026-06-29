@@ -12,7 +12,7 @@ from PIL import Image
 from services.parser.app.config import settings
 
 from .models import DocumentStructure, Region, TableRegion
-from .schema_normalizer import normalize_fields, normalize_tables
+from .schema_normalizer import normalize_fields, normalize_tables, _is_medical_procedure
 from .semantic_backends import SemanticBackendRegistry, SemanticRequest
 from .semantic_models import SemanticDocumentOutput, SemanticFieldOutput, SemanticRegionOutput, SemanticTableOutput, SemanticTableRowOutput
 
@@ -241,12 +241,20 @@ def _table_to_expenses(table: SemanticTableOutput, source_page: int | None) -> l
         normalized_description = description.lower().strip()
         normalized_category = category.lower().strip()
 
-        # Structural guardrail: reject rows that are clearly metadata, labels,
-        # or summary rows even if the model marked them as expenses.
-        if not description or any(
-            normalized_description.startswith(prefix) or prefix in normalized_description
-            for prefix in _NON_EXPENSE_ROW_PREFIXES
-        ):
+        is_bad_prefix = False
+        if not description:
+            is_bad_prefix = True
+        else:
+            for prefix in _NON_EXPENSE_ROW_PREFIXES:
+                if prefix == "total":
+                    if (normalized_description.startswith("total") or "total" in normalized_description) and not _is_medical_procedure(normalized_description):
+                        is_bad_prefix = True
+                        break
+                else:
+                    if normalized_description.startswith(prefix) or prefix in normalized_description:
+                        is_bad_prefix = True
+                        break
+        if is_bad_prefix:
             logger.debug(f"[EXPENSE_FILTER] Skipping summary/label row: {category} - {description}")
             continue
 
@@ -977,6 +985,13 @@ def extract_semantics(
         source_page = None
         if table.source_region_id and table.source_region_id in region_by_id:
             source_page = region_by_id[table.source_region_id].page
+        if source_page is None:
+            tokens = getattr(table, "source_tokens", []) or []
+            for token in tokens:
+                p = getattr(token, "page", None) if not isinstance(token, dict) else token.get("page")
+                if p is not None:
+                    source_page = p
+                    break
 
         if table.table_kind in SEMANTIC_EXPENSE_TABLE_KINDS:
             semantic_expenses.extend(_table_to_expenses(table, source_page))

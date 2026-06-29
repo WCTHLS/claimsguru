@@ -74,6 +74,18 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
     return normalized
 
 
+def _is_medical_procedure(desc: str) -> bool:
+    desc_lower = str(desc).lower()
+    procedure_keywords = [
+        "laparoscopic", "hysterectomy", "replacement", "thyroidectomy", "colectomy",
+        "gastrectomy", "mastectomy", "surgery", "operation", "procedure", "excision",
+        "resection", "reconstruction", "arthroplasty", "delivery", "salpingectomy",
+        "cholecystectomy", "appendectomy", "microdiscectomy", "discectomy", "implantation",
+        "graft", "bypass", "angioplasty"
+    ]
+    return any(kw in desc_lower for kw in procedure_keywords)
+
+
 def _is_invalid_expense_row(description: str, amount: str = "") -> bool:
     import re
     desc_lower = str(description).lower().strip()
@@ -146,6 +158,9 @@ def _is_invalid_expense_row(description: str, amount: str = "") -> bool:
     for term in blacklist:
         if term == "age":
             if re.search(r"\bage\b", desc_lower):
+                return True
+        elif term == "total":
+            if "total" in desc_lower and not _is_medical_procedure(desc_lower):
                 return True
         elif term in desc_lower:
             return True
@@ -548,7 +563,11 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                     "payable_amount": amount,
                     "amount": amount,
                     "category": category,
-                    "page": table.rows[0].cells[0].tokens[0].page if table.rows[0].cells and table.rows[0].cells[0].tokens else 1,
+                    "page": (
+                        getattr(table, "page", None)
+                        or (table.get("page") if isinstance(table, dict) else None)
+                        or (table.rows[0].cells[0].tokens[0].page if table.rows[0].cells and table.rows[0].cells[0].tokens else 1)
+                    ),
                     "heuristic_source": "table",
                 })
                 previous_expense = all_expenses[-1]
