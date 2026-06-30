@@ -146,6 +146,18 @@ export default function TpaClaimDetail() {
   const [chatSessionId] = useState(() => `tpa-${claimId}-${Date.now()}`);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Lock body scrolling when a modal overlay is active
+  useEffect(() => {
+    const shouldLock = showSubmitModal || !!showActionModal;
+    if (shouldLock) {
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalStyle;
+      };
+    }
+  }, [showSubmitModal, showActionModal]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {

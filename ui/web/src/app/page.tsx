@@ -589,6 +589,18 @@ export default function Home() {
   // Initialize session ID once with UUID for uniqueness
   const sessionId = useRef(`general_${crypto.randomUUID()}`);
 
+  // Lock body scrolling when a modal or preview overlay is active
+  useEffect(() => {
+    const shouldLock = !!pdfPreviewUrl || showPreview || showTpaModal || shortcutsOpen || cmdOpen || notifOpen;
+    if (shouldLock) {
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalStyle;
+      };
+    }
+  }, [pdfPreviewUrl, showPreview, showTpaModal, shortcutsOpen, cmdOpen, notifOpen]);
+
   async function openClaimInRightPanel(claimId: string, notice?: string) {
     setPanelNotice(notice || null);
     setActiveClaim(claimId);

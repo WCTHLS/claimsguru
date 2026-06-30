@@ -212,6 +212,8 @@ export function initializeMockInterceptor() {
       }
 
       // GET /claims/{id}/tpa-pdf or /irda-pdf
+      // (Commented out to let them fall through to the real backend for styled PDF rendering)
+      /*
       if (url.includes(`/tpa-pdf`)) {
         console.log(`[ClaimGPT Interceptor] Serving mock TPA PDF for ${claimId}`);
         const pdfBlob = generateMockPdf(claimId, "tpa");
@@ -229,6 +231,7 @@ export function initializeMockInterceptor() {
           headers: { "Content-Type": "application/pdf" },
         });
       }
+      */
 
       // GET /claims/{id}/file
       if (url.includes(`/file`)) {
@@ -271,7 +274,9 @@ export function initializeMockInterceptor() {
       }
 
       // GET /claims/{id} (Basic metadata fetch for individual claim)
-      if (method === "GET") {
+      // Ensure we only intercept the base claim metadata request and not sub-resources (like /tpa-pdf)
+      const hasSubpath = url.split(claimId)[1]?.replace(/^\//, "").split("?")[0];
+      if (method === "GET" && !hasSubpath) {
         const metadata = MOCK_CLAIMS.find((c) => c.id === claimId);
         return new Response(JSON.stringify(metadata), {
           status: 200,

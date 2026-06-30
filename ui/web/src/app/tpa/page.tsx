@@ -152,6 +152,18 @@ export default function TpaDashboard() {
   /* ── Edits modal state (shows original vs corrected field values) ── */
   const [editsModalClaim, setEditsModalClaim] = useState<EnrichedClaim | null>(null);
 
+  // Lock body scrolling when a modal or preview overlay is active
+  useEffect(() => {
+    const shouldLock = !!docsModalClaimId || !!summaryClaimId || !!actionClaimId || !!sendMoneyClaim || !!msgClaim || !!editsModalClaim;
+    if (shouldLock) {
+      const originalStyle = window.getComputedStyle(document.body).overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = originalStyle;
+      };
+    }
+  }, [docsModalClaimId, summaryClaimId, actionClaimId, sendMoneyClaim, msgClaim, editsModalClaim]);
+
 
 
   async function enrichClaims(rawClaims: Claim[]): Promise<EnrichedClaim[]> {
