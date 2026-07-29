@@ -54,7 +54,7 @@ app = FastAPI(title="ClaimGPT Chat Service")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origin_regex="https://.*",
+    allow_origin_regex="https://.*|http://localhost:.*|http://127.0.0.1:.*",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

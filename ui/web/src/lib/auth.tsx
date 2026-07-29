@@ -1,10 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { initializeMockInterceptor } from "./mockInterceptor";
-
-// Initialize global mock interceptor for client demo
-initializeMockInterceptor();
+import "@/lib/demoClaims"; // installs demo fetch interceptor when AUTH_DEV_MODE
 
 /* ── Types ── */
 export interface AuthUser {
@@ -216,11 +213,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     idpHint?: string,
     prefill?: SignupPrefill,
   ) => {
-    /* Always bypass Keycloak and directly show the role selection modal */
-    setShowDevLogin(true);
-    return;
-
     /*
+     * In dev mode, always probe Keycloak first — even when an idpHint is
+     * provided. Without this check, clicking any SSO button (Google, MS,
+     * SAML, …) in a local environment without Keycloak running would
+     * redirect the browser to a broken /realms/…/protocol/openid-connect/auth
+     * URL. With it, we transparently drop into the dev login picker.
+     */
+    if (DEV_MODE) {
+      const reachable = await isKeycloakReachable();
+      if (!reachable) {
+        setShowDevLogin(true);
+        return;
+      }
+    }
+
     const codeVerifier = generateRandomString(64);
     const codeChallenge = await generateCodeChallenge(codeVerifier);
     const state = generateRandomString(32);
@@ -232,15 +239,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       response_type: "code",
       client_id: CLIENT_ID,
       redirect_uri: REDIRECT_URI,
-      scope: "openid email profile",
+      scope: "openid email profile roles",
       state,
       code_challenge: codeChallenge,
       code_challenge_method: "S256",
     });
-    // Enterprise SSO: route directly to selected IdP, skipping Keycloak login UI
+    /* Enterprise SSO: route directly to selected IdP, skipping Keycloak login UI */
     if (idpHint) params.set("kc_idp_hint", idpHint);
 
-    // Pre-fill the Keycloak registration form (Keycloak >= 19 supports these)
+    /* Pre-fill the Keycloak registration form (Keycloak >= 19 supports these) */
     if (mode === "signup" && prefill) {
       if (prefill.email) params.set("login_hint", prefill.email);
       if (prefill.firstName) params.set("firstName", prefill.firstName);
@@ -249,7 +256,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const endpoint = mode === "signup" ? REGISTER_ENDPOINT : AUTH_ENDPOINT;
     window.location.href = `${endpoint}?${params.toString()}`;
-    */
   }, []);
 
   const login = useCallback((idpHint?: string) => startOAuth("login", idpHint), [startOAuth]);
@@ -375,15 +381,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const state = url.searchParams.get("state");
       const oauthError = url.searchParams.get("error");
 
-      // Handle IdP-side errors (user cancelled, access denied, scope errors, etc.)
+      // Handle IdP-side errors (user cancelled, access denied, etc.)
       if (oauthError) {
         const desc = url.searchParams.get("error_description");
         console.warn(`OAuth error: ${oauthError}`, desc || "");
         sessionStorage.removeItem("pkce_code_verifier");
         sessionStorage.removeItem("oauth_state");
         window.history.replaceState({}, document.title, window.location.pathname);
-        // Fall back to dev mock login on Keycloak request or scope failures
-        setShowDevLogin(true);
         setLoading(false);
         return;
       }
@@ -451,23 +455,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{ user, token, loading, login, signup, logout, isAuthenticated: !!user, ssoProviders: SSO_PROVIDERS, hasRole, hasAnyRole }}>
       {children}
 
-      {/* Role selector login modal */}
+      {/* Dev mode login modal */}
       {showDevLogin && (
         <div style={{
-          position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.4)",
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999,
-          backdropFilter: "blur(8px)",
+          backdropFilter: "blur(4px)",
         }}>
           <div style={{
-            background: "#fff", borderRadius: 20, padding: "36px 32px", width: 380,
-            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-            border: "1px solid rgba(226, 232, 240, 0.8)",
+            background: "#fff", borderRadius: 16, padding: "32px 28px", width: 360,
+            boxShadow: "0 24px 80px rgba(0,0,0,0.2)",
           }}>
-            <div style={{ textAlign: "center", marginBottom: 24 }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>💼</div>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.025em" }}>Select Workspace Role</h2>
-              <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b", lineHeight: "1.4" }}>
-                Choose your role type to access the ClaimGPT workspace
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 28, marginBottom: 4 }}>🔐</div>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>Dev Sign In</h2>
+              <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b" }}>
+                Keycloak not available — pick a dev user
               </p>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

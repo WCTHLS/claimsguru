@@ -79,10 +79,7 @@ export default function ChatPage() {
     try {
       const resp = await fetch(`${CHAT_BASE}/${sessionId.current}/stream`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "true",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMsg, claim_id: claimId || undefined }),
       });
 
@@ -143,10 +140,7 @@ export default function ChatPage() {
       try {
         const resp2 = await fetch(`${CHAT_BASE}/${sessionId.current}/message`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "ngrok-skip-browser-warning": "true",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ message: userMsg, claim_id: claimId || undefined }),
         });
         if (resp2.ok) {
@@ -179,7 +173,7 @@ export default function ChatPage() {
 
   return (
     <div className="container">
-      <a href="/" style={{ color: "var(--accent)", marginBottom: "1rem", display: "block" }}>← Home</a>
+      <a href="/app" style={{ color: "var(--accent)", marginBottom: "1rem", display: "block" }}>← Home</a>
       <h1 style={{ fontSize: "1.5rem", marginBottom: "0.5rem" }}>Chat Assistant</h1>
       <p style={{ color: "var(--muted)", marginBottom: "1rem", fontSize: "0.875rem" }}>
         Ask questions about your claims, billing, coding, or submission status

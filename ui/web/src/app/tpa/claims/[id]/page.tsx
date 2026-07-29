@@ -146,18 +146,6 @@ export default function TpaClaimDetail() {
   const [chatSessionId] = useState(() => `tpa-${claimId}-${Date.now()}`);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Lock body scrolling when a modal overlay is active
-  useEffect(() => {
-    const shouldLock = showSubmitModal || !!showActionModal;
-    if (shouldLock) {
-      const originalStyle = window.getComputedStyle(document.body).overflow;
-      document.body.style.overflow = "hidden";
-      return () => {
-        document.body.style.overflow = originalStyle;
-      };
-    }
-  }, [showSubmitModal, showActionModal]);
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -256,10 +244,7 @@ export default function TpaClaimDetail() {
           ? `${SUBMISSION_API}/claims/${claimId}/tpa-pdf`
           : `${SUBMISSION_API}/claims/${claimId}/irda-pdf`;
       const res = await fetch(url, {
-        headers: {
-          "ngrok-skip-browser-warning": "true",
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        },
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error("Download failed");
       const blob = await res.blob();
@@ -335,7 +320,6 @@ export default function TpaClaimDetail() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "true",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ message: msg, claim_id: claimId, language: lang }),
@@ -396,7 +380,6 @@ export default function TpaClaimDetail() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "ngrok-skip-browser-warning": "true",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({ message: prompt, claim_id: claimId, language: lang }),
@@ -423,11 +406,8 @@ export default function TpaClaimDetail() {
     setAnnotationMode(false);
     if (docBlobRef.current) URL.revokeObjectURL(docBlobRef.current);
     try {
-      const res = await fetch(`${API_BASE}/claims/${claimId}/file?filename=${encodeURIComponent(doc.file_name)}`, {
-        headers: {
-          "ngrok-skip-browser-warning": "true",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+      const res = await fetch(`${API_BASE}/claims/${claimId}/file`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error("Failed to fetch");
       const blob = await res.blob();
@@ -1070,7 +1050,7 @@ export default function TpaClaimDetail() {
                             ↩ Undo
                           </button>
                         )}
-                        <a href={`${API_BASE}/claims/${claimId}/file?filename=${encodeURIComponent(viewingDoc.file_name)}`} target="_blank" rel="noopener noreferrer" className="tpa-btn tpa-btn-sm">Open in New Tab</a>
+                        <a href={`${API_BASE}/claims/${claimId}/file`} target="_blank" rel="noopener noreferrer" className="tpa-btn tpa-btn-sm">Open in New Tab</a>
                         {docBlobUrl && <a href={docBlobUrl} download={viewingDoc.file_name} className="tpa-btn tpa-btn-sm">Download</a>}
                         <button className="tpa-btn tpa-btn-sm" onClick={closeDocViewer}>Close</button>
                       </div>

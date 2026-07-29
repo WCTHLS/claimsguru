@@ -95,7 +95,7 @@ class DocumentProcessor:
                 page = section.get("page", 1)
                 region_tokens = [Token(**t) for t in section.get("tokens", [])]
                 
-                if region_type == "table":
+                if region_type in ["table", "expense_table", "bill_table"]:
                     # Reconstruct TableRegion from PP-Structure cell output
                     table = DocumentProcessor._map_table_region(section, page)
                     doc.tables.append(table)

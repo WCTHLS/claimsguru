@@ -520,6 +520,20 @@ def _write_parse_debug_dump(
         logger.error(f"Failed to write parser debug dump: {e}", exc_info=True)
 
 
+def _is_digital_pdf(local_path: str) -> bool:
+    """Check if the PDF has digitally extractable text (meaning it's not a scanned image)."""
+    try:
+        import fitz
+        doc = fitz.open(local_path)
+        for page in doc[:3]:  # Check first few pages
+            txt = page.get_text() or ""
+            if len(txt.strip()) > 50:
+                return True
+    except Exception as e:
+        logger.warning(f"Error checking if PDF is digital {local_path}: {e}")
+    return False
+
+
 # ------------------------------------------------------------------ background worker
 
 def _run_parse_job(job_id: uuid.UUID) -> None:
@@ -670,11 +684,17 @@ def _run_parse_job(job_id: uuid.UUID) -> None:
 
                         logger.info(f"[PHASE_3_IMAGE_LOAD] doc.file_name={doc.file_name}, minio_path={doc.minio_path}, local_path={local_path}, exists={os.path.exists(local_path) if local_path else 'N/A'}")
                         if local_path and os.path.exists(local_path):
-                            doc_paths.append(str(os.path.abspath(local_path)))
                             try:
-                                # If it's a PDF, we might need pdf2image
+                                # Check if it contains digitally extractable text to bypass layout model CPU overhead
+                                is_digital = False
                                 if doc.file_type == "application/pdf":
-                                    try:
+                                    is_digital = _is_digital_pdf(local_path)
+                                
+                                if is_digital:
+                                    logger.info(f"[PARSER] PDF {doc.file_name} has extractable digital text. Bypassing image conversion and PP-DocLayoutV3 model to save CPU overhead.")
+                                else:
+                                    doc_paths.append(str(os.path.abspath(local_path)))
+                                    if doc.file_type == "application/pdf":
                                         from pdf2image import convert_from_path
                                         imgs = convert_from_path(local_path)
                                         for i, img in enumerate(imgs):
@@ -682,16 +702,14 @@ def _run_parse_job(job_id: uuid.UUID) -> None:
                                             if g_page:
                                                 page_images[g_page] = img
                                         logger.info(f"[PHASE_3_PDF_LOADED] {doc.file_name}: {len(imgs)} pages extracted via pdf2image")
-                                    except Exception as e:
-                                        logger.warning(f"pdf2image failed for {local_path}: {e}. Will try direct PDF model inference.")
-                                else:
-                                    img = Image.open(local_path)
-                                    g_page = doc_page_to_global.get((str(doc.id), 1))
-                                    if g_page:
-                                        page_images[g_page] = img
-                                    logger.info(f"[PHASE_3_IMAGE_LOADED] {doc.file_name}: loaded as PIL Image at global page {g_page}")
+                                    else:
+                                        img = Image.open(local_path)
+                                        g_page = doc_page_to_global.get((str(doc.id), 1))
+                                        if g_page:
+                                            page_images[g_page] = img
+                                        logger.info(f"[PHASE_3_IMAGE_LOADED] {doc.file_name}: loaded as PIL Image at global page {g_page}")
                             except Exception as e:
-                                logger.warning(f"Failed to load image {local_path}: {e}")
+                                logger.warning(f"Failed to load image/PDF {local_path}: {e}")
                         else:
                             logger.warning(f"[PHASE_3_SKIPPED] {doc.file_name}: minio_path invalid or file missing")
 

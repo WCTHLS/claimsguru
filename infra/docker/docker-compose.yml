@@ -51,6 +51,7 @@ services:
       - ../../tmp:/app/tmp
       - ../../services:/app/services
       - ../../libs:/app/libs
+      - ../../main.py:/app/main.py
     depends_on:
       redis:
         condition: service_healthy

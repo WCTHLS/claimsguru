@@ -884,7 +884,7 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
 
         for term in blacklist:
             if term == "total":
-                if "total" in desc and not _is_medical_procedure(desc):
+                if (desc == "total" or any(phrase in desc for phrase in ["total amount", "grand total", "total claimed", "total billed", "total charges", "gross total", "subtotal", "sub-total"])) and not _is_medical_procedure(desc):
                     return False
             elif term in desc:
                 return False

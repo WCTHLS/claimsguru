@@ -143,6 +143,10 @@ def _merge_multiline_rows(raw_rows: List[List[Token]], stats: Dict[str, float]) 
             and (
                 (overlap_ratio >= 0.75 and indent_delta <= stats["median_width"] * 0.15)
                 or (overlap_ratio >= 0.6 and width_similar and indent_delta <= stats["median_width"] * 0.25)
+                or (overlap_ratio >= 0.75 and (
+                    (prev_left >= table_left + table_width * 0.15 and not _has_right_amount(prev_row))
+                    or (cur_left >= table_left + table_width * 0.15 and not _has_right_amount(row))
+                ))
             )
         )
         if is_continuation:

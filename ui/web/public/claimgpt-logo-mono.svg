@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 96" role="img" aria-label="claimgpt">
+  <title>claimgpt</title>
+  <g color="#0A0A0A" font-family="'Inter','SF Pro Display','Segoe UI',system-ui,-apple-system,Helvetica,Arial,sans-serif">
+    <text x="20" y="64"
+          font-size="52" font-weight="700" letter-spacing="-2.4"
+          fill="currentColor">claimgpt</text>
+    <circle cx="296" cy="60" r="7" fill="currentColor"/>
+  </g>
+</svg>

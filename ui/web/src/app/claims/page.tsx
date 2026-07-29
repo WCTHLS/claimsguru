@@ -17,9 +17,7 @@ export default function ClaimsListPage() {
   const [total, setTotal] = useState(0);
 
   useEffect(() => {
-    fetch(`${API_BASE}/claims?limit=50`, {
-      headers: { "ngrok-skip-browser-warning": "true" }
-    })
+    fetch(`${API_BASE}/claims?limit=50`)
       .then((r) => r.json())
       .then((data) => {
         setClaims(data.claims || []);
@@ -30,12 +28,12 @@ export default function ClaimsListPage() {
 
   return (
     <div className="container">
-      <a href="/" style={{ color: "var(--accent)", marginBottom: "1rem", display: "block" }}>← Home</a>
+      <a href="/app" style={{ color: "var(--accent)", marginBottom: "1rem", display: "block" }}>← Home</a>
       <h1 style={{ fontSize: "1.5rem", marginBottom: "1rem" }}>My Claims ({total})</h1>
 
       {claims.length === 0 ? (
         <div className="card" style={{ textAlign: "center", color: "var(--muted)" }}>
-          No claims found. <a href="/">Submit your first claim</a>
+          No claims found. <a href="/app">Submit your first claim</a>
         </div>
       ) : (
         claims.map((c) => (

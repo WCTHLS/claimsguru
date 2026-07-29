@@ -149,11 +149,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = useCallback(async () => {
-    /* Always bypass Keycloak and directly show the role selection modal */
-    setShowDevLogin(true);
-    return;
+    /* In dev mode, check if Keycloak is reachable; if not, show mock login */
+    if (DEV_MODE) {
+      const reachable = await isKeycloakReachable();
+      if (!reachable) {
+        setShowDevLogin(true);
+        return;
+      }
+    }
 
-    /*
     const codeVerifier = generateRandomString(64);
     const codeChallenge = await generateCodeChallenge(codeVerifier);
     const state = generateRandomString(32);
@@ -165,14 +169,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       response_type: "code",
       client_id: CLIENT_ID,
       redirect_uri: REDIRECT_URI,
-      scope: "openid email profile",
+      scope: "openid email profile roles",
       state,
       code_challenge: codeChallenge,
       code_challenge_method: "S256",
     });
 
     window.location.href = `${AUTH_ENDPOINT}?${params.toString()}`;
-    */
   }, []);
 
   const logout = useCallback(() => {
@@ -345,23 +348,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{ user, token, loading, login, logout, isAuthenticated: !!user }}>
       {children}
 
-      {/* Role selector login modal */}
+      {/* Dev mode login modal */}
       {showDevLogin && (
         <div style={{
-          position: "fixed", inset: 0, background: "rgba(15, 23, 42, 0.4)",
+          position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)",
           display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999,
-          backdropFilter: "blur(8px)",
+          backdropFilter: "blur(4px)",
         }}>
           <div style={{
-            background: "#fff", borderRadius: 20, padding: "36px 32px", width: 380,
-            boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
-            border: "1px solid rgba(226, 232, 240, 0.8)",
+            background: "#fff", borderRadius: 16, padding: "32px 28px", width: 360,
+            boxShadow: "0 24px 80px rgba(0,0,0,0.2)",
           }}>
-            <div style={{ textAlign: "center", marginBottom: 24 }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>💼</div>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#0f172a", letterSpacing: "-0.025em" }}>Select Workspace Role</h2>
-              <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b", lineHeight: "1.4" }}>
-                Choose your role type to access the ClaimGPT workspace
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <div style={{ fontSize: 28, marginBottom: 4 }}>🔐</div>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#0f172a" }}>Dev Sign In</h2>
+              <p style={{ margin: "6px 0 0", fontSize: 13, color: "#64748b" }}>
+                Keycloak not available — pick a dev user
               </p>
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

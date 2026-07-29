@@ -160,7 +160,7 @@ def _is_invalid_expense_row(description: str, amount: str = "") -> bool:
             if re.search(r"\bage\b", desc_lower):
                 return True
         elif term == "total":
-            if "total" in desc_lower and not _is_medical_procedure(desc_lower):
+            if (desc_lower == "total" or any(phrase in desc_lower for phrase in ["total amount", "grand total", "total claimed", "total billed", "total charges", "gross total", "subtotal", "sub-total"])) and not _is_medical_procedure(desc_lower):
                 return True
         elif term in desc_lower:
             return True
@@ -458,7 +458,7 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                 return "Service Charges"
             return "Miscellaneous"
 
-        rows_iter = rows_list[1:] if header_map and rows_list else rows_list
+        rows_iter = rows_list[1:] if is_expense_like_header and rows_list else rows_list
         previous_expense = None
         for row in rows_iter:
             if not row.cells:
@@ -474,7 +474,12 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
             numeric_cell_count = sum(1 for cell in cells if _looks_numeric(str(cell.text or "").strip()))
             first_cell_text = row_text_chunks[0] if row_text_chunks else ""
             first_cell_is_serial = bool(re.fullmatch(r"\d+", first_cell_text))
-            if numeric_cell_count == 0 and row_text_chunks and not first_cell_is_serial and previous_expense is not None:
+            
+            # Check if this row is a summary footer row to prevent appending it to previous line item description.
+            row_text_joined = " ".join(row_text_chunks).lower()
+            is_summary_footer = any(kw in row_text_joined for kw in ["total bill", "total claimed", "less:", "excess", "non-medical", "balance payable", "amount payable", "admissible"])
+            
+            if numeric_cell_count == 0 and row_text_chunks and not first_cell_is_serial and not is_summary_footer and previous_expense is not None:
                 previous_expense["description"] = (previous_expense.get("description", "") + " " + " ".join(row_text_chunks)).strip()
                 continue
 
