@@ -137,6 +137,9 @@ class RobustFieldExtractor:
             r"(?im)\b(?:discharged\s+with\s+)?diagnosis\s+(?:of\s+)?([^\n\.]{3,200})(?:\s+(?:icd-?\d+|code:|managed|treated)\b|\.|\n|$)",
             # Format: within "CLINICAL SUMMARY" section
             r"(?im)^\s*clinical\s+summary\s*[:\-=|]?\s*(?:[^\n]*\n)?\s*([A-Z][^\n|]{3,200})\s*(?:\||$)",
+            # Fallback for maternity / obstetric summaries (e.g. "Indication: G3P1..." or "Indicatior G3P1...")
+            r"(?im)\b(?:indication|indicatior|indicaton)\s*[:\-=|]?\s*([^\n|]{3,200})\s*(?:\||$)",
+            r"(?im)\b(?:delivery\s+notes)\s*[:\-=|]?\s*(?:[^\n]*\n)?\s*([^\n|]{3,200})\s*(?:\||$)",
         ],
 
         "claimed_total": [

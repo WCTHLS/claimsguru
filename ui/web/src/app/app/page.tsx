@@ -337,11 +337,7 @@ export default function Home() {
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  /* ── upload queue state machine hooks ── */
-  const [uploadQueue, setUploadQueue] = useState<File[][]>([]);
-  const [currentlyUploadingFile, setCurrentlyUploadingFile] = useState<File | null>(null);
-  const [lastUploadedClaimId, setLastUploadedClaimId] = useState<string | null>(null);
-  const [queueTotalSize, setQueueTotalSize] = useState(0);
+  // Upload queue feature removed
   // ...existing code...
   const [showPreview, setShowPreview] = useState(false);
   const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
@@ -921,14 +917,8 @@ export default function Home() {
             ]);
           }
 
-          if (!appendToActive) {
-            setLastUploadedClaimId(claim.id);
-          }
         } catch {
           setUploadError("Failed to parse upload response");
-          if (!appendToActive) {
-            setLastUploadedClaimId(null);
-          }
         }
       } else {
         try {
@@ -942,12 +932,6 @@ export default function Home() {
         } catch {
           setUploadError(`Upload failed (${xhr.status})`);
         }
-        if (!appendToActive) {
-          setLastUploadedClaimId(null);
-        }
-      }
-      if (!appendToActive) {
-        setCurrentlyUploadingFile(null);
       }
     };
 
@@ -960,52 +944,11 @@ export default function Home() {
     xhr.send(fd);
   };
 
-  const performSingleUpload = (file: File) => {
-    performUploadImmediate([file], false);
-  };
-
   const upload = (files: File[], appendToActive = false) => {
     if (!files.length) return;
     setUploadError(null);
-
-    if (appendToActive) {
-      performUploadImmediate(files, true);
-    } else {
-      setUploadQueue((prev) => {
-        const next = [...prev, files];
-        setQueueTotalSize((oldSize) => (prev.length === 0 ? 1 : oldSize + 1));
-        return next;
-      });
-    }
+    performUploadImmediate(files, appendToActive);
   };
-
-  /* ── Sequential Upload Queue Machine ── */
-  useEffect(() => {
-    if (currentlyUploadingFile !== null) return;
-
-    if (lastUploadedClaimId !== null) {
-      const targetClaim = claims.find((c) => c.id === lastUploadedClaimId);
-      const isStillProcessing = targetClaim && PIPELINE_ACTIVE_STATUSES.has(targetClaim.status) && targetClaim.id.length === 36;
-      if (isStillProcessing) {
-        return;
-      } else {
-        setLastUploadedClaimId(null);
-        return;
-      }
-    }
-
-    if (uploadQueue.length > 0) {
-      const isAnyClaimProcessing = claims.some((c) => PIPELINE_ACTIVE_STATUSES.has(c.status) && c.id.length === 36);
-      if (isAnyClaimProcessing) return;
-
-      const nextBatch = uploadQueue[0];
-      setUploadQueue((prev) => prev.slice(1));
-      setCurrentlyUploadingFile(nextBatch[0] || null);
-      performUploadImmediate(nextBatch, false);
-    } else {
-      setQueueTotalSize(0);
-    }
-  }, [uploadQueue, currentlyUploadingFile, lastUploadedClaimId, claims]);
 
   /* ── drag handlers ── */
   const onDragOver = (e: DragEvent) => {
@@ -1718,8 +1661,7 @@ export default function Home() {
   }
 
   const isAnyClaimProcessing = claims.some((c) => PIPELINE_ACTIVE_STATUSES.has(c.status) && c.id.length === 36);
-  const isQueueActive = uploadQueue.length > 0 || currentlyUploadingFile !== null || lastUploadedClaimId !== null;
-  const isSystemBusy = isAnyClaimProcessing || isQueueActive;
+  const isSystemBusy = isAnyClaimProcessing;
 
   return (
     <div className="app-shell">
@@ -3033,15 +2975,11 @@ export default function Home() {
                 </div>
                 <p style={{ marginTop: "12px", color: "var(--accent)" }}>
                   <strong>
-                    {isQueueActive
-                      ? `Sequential Queue Active`
-                      : `Claim in Progress`}
+                    Claim in Progress
                   </strong>
                 </p>
                 <p className="hint" style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px" }}>
-                  {isQueueActive
-                    ? `Processing batch ${queueTotalSize - uploadQueue.length} of ${queueTotalSize} (${currentlyUploadingFile ? currentlyUploadingFile.name : (claims.find(c => c.id === lastUploadedClaimId)?.documents?.[0]?.file_name || "waiting...")})`
-                    : `Please wait for the current claim pipeline to finish.`}
+                  Please wait for the current claim pipeline to finish.
                 </p>
               </div>
             ) : (
