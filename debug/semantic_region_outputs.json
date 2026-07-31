@@ -1,694 +1,870 @@
 [
   {
-    "region_id": "2fb01b3e-3a61-419d-8a63-b0d54749376f",
-    "region_type": "other",
-    "semantic_type": "other",
-    "confidence": 0.0,
-    "source_page": 2,
-    "document_id": "4783206c-0080-40b8-9373-534ef913013a",
-    "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c",
-    "source_tokens": [
-      {
-        "text": "Thank You:",
-        "x0": 729.0,
-        "y0": 793.0,
-        "x1": 815.0,
-        "y1": 811.0,
-        "page": 2,
-        "document_id": "4783206c-0080-40b8-9373-534ef913013a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "GaetRALAYA",
-        "x0": 902.0,
-        "y0": 778.0,
-        "x1": 1083.0,
-        "y1": 833.0,
-        "page": 2,
-        "document_id": "4783206c-0080-40b8-9373-534ef913013a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Jez",
-        "x0": 828.0,
-        "y0": 797.0,
-        "x1": 919.0,
-        "y1": 840.0,
-        "page": 2,
-        "document_id": "4783206c-0080-40b8-9373-534ef913013a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "KAOBRNATpe",
-        "x0": 909.0,
-        "y0": 815.0,
-        "x1": 1101.0,
-        "y1": 875.0,
-        "page": 2,
-        "document_id": "4783206c-0080-40b8-9373-534ef913013a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Fibe:",
-        "x0": 849.0,
-        "y0": 831.0,
-        "x1": 916.0,
-        "y1": 860.0,
-        "page": 2,
-        "document_id": "4783206c-0080-40b8-9373-534ef913013a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "285344 FACTQEY",
-        "x0": 811.0,
-        "y0": 849.0,
-        "x1": 1006.0,
-        "y1": 890.0,
-        "page": 2,
-        "document_id": "4783206c-0080-40b8-9373-534ef913013a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Hosp. Reg: No: 67",
-        "x0": 877.0,
-        "y0": 871.0,
-        "x1": 1053.0,
-        "y1": 907.0,
-        "page": 2,
-        "document_id": "4783206c-0080-40b8-9373-534ef913013a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      }
-    ],
-    "fields": [],
-    "tables": [],
-    "model_name": "openrouter",
-    "notes": "",
-    "metadata": {
-      "region_type": "other",
-      "table_kind": "generic_table",
-      "confidence": 0.0,
-      "notes": "",
-      "fields": [],
-      "tables": []
-    }
-  },
-  {
-    "region_id": "425b50c9-767a-4c5b-b317-2863b121c91a",
+    "region_id": "0f64f921-030b-44a5-ac7c-8a07c55fde35",
     "region_type": "expense_table",
     "semantic_type": "expense_table",
-    "confidence": 0.0,
-    "source_page": 1,
-    "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-    "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c",
-    "source_tokens": [
-      {
-        "text": "Type Of Delivery: FTND â‚¬ EPISIOTOMY",
-        "x0": 94.0,
-        "y0": 826.0,
-        "x1": 384.0,
-        "y1": 852.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Sex: Male",
-        "x0": 97.0,
-        "y0": 849.0,
-        "x1": 171.0,
-        "y1": 869.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Weight 2800 gms",
-        "x0": 96.0,
-        "y0": 866.0,
-        "x1": 236.0,
-        "y1": 892.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Date: 09-04-2026",
-        "x0": 94.0,
-        "y0": 886.0,
-        "x1": 230.0,
-        "y1": 910.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Time: 06.24 PM",
-        "x0": 97.0,
-        "y0": 907.0,
-        "x1": 213.0,
-        "y1": 927.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "APGAR: At 1 min9/10",
-        "x0": 94.0,
-        "y0": 924.0,
-        "x1": 262.0,
-        "y1": 948.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "COURSE IN HOSPITAL STAY-UNEVENTFUL",
-        "x0": 94.0,
-        "y0": 954.0,
-        "x1": 408.0,
-        "y1": 980.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "CONDITION ON DISCHARGE: STABLE",
-        "x0": 93.0,
-        "y0": 990.0,
-        "x1": 390.0,
-        "y1": 1017.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "TREATMENT ON DICHARGE:",
-        "x0": 93.0,
-        "y0": 1026.0,
-        "x1": 322.0,
-        "y1": 1053.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Rx",
-        "x0": 97.0,
-        "y0": 1071.0,
-        "x1": 125.0,
-        "y1": 1087.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Type",
-        "x0": 282.0,
-        "y0": 1062.0,
-        "x1": 328.0,
-        "y1": 1086.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "APGAR: At 5 min9/10",
-        "x0": 275.0,
-        "y0": 925.0,
-        "x1": 437.0,
-        "y1": 945.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Drug Name",
-        "x0": 336.0,
-        "y0": 1061.0,
-        "x1": 432.0,
-        "y1": 1086.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Days",
-        "x0": 616.0,
-        "y0": 1061.0,
-        "x1": 663.0,
-        "y1": 1087.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Dose",
-        "x0": 555.0,
-        "y0": 1065.0,
-        "x1": 597.0,
-        "y1": 1081.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Qunt:",
-        "x0": 671.0,
-        "y0": 1063.0,
-        "x1": 719.0,
-        "y1": 1083.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "Instruction",
-        "x0": 747.0,
-        "y0": 1063.0,
-        "x1": 837.0,
-        "y1": 1083.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "TAB.",
-        "x0": 283.0,
-        "y0": 1099.0,
-        "x1": 321.0,
-        "y1": 1119.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "TAB:",
-        "x0": 283.0,
-        "y0": 1135.0,
-        "x1": 319.0,
-        "y1": 1155.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "TAB:",
-        "x0": 283.0,
-        "y0": 1171.0,
-        "x1": 319.0,
-        "y1": 1189.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "LYSER D",
-        "x0": 337.0,
-        "y0": 1099.0,
-        "x1": 401.0,
-        "y1": 1119.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "MACPOD 0",
-        "x0": 337.0,
-        "y0": 1135.0,
-        "x1": 425.0,
-        "y1": 1155.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "METRO ER",
-        "x0": 337.0,
-        "y0": 1169.0,
-        "x1": 417.0,
-        "y1": 1189.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "14",
-        "x0": 673.0,
-        "y0": 1101.0,
-        "x1": 695.0,
-        "y1": 1117.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "AFTER MEALS",
-        "x0": 753.0,
-        "y0": 1103.0,
-        "x1": 865.0,
-        "y1": 1123.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "AFTER MEALS",
-        "x0": 753.0,
-        "y0": 1139.0,
-        "x1": 865.0,
-        "y1": 1159.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "AFTER MEALS",
-        "x0": 753.0,
-        "y0": 1175.0,
-        "x1": 865.0,
-        "y1": 1195.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "DETTOL",
-        "x0": 337.0,
-        "y0": 1205.0,
-        "x1": 399.0,
-        "y1": 1225.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      },
-      {
-        "text": "10",
-        "x0": 619.0,
-        "y0": 1209.0,
-        "x1": 641.0,
-        "y1": 1225.0,
-        "page": 1,
-        "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-        "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-      }
-    ],
+    "confidence": 0.55,
+    "source_page": 2,
+    "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+    "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df",
+    "source_tokens": [],
     "fields": [],
     "tables": [
       {
         "table_kind": "expenses",
-        "confidence": 0.0,
-        "source_region_id": "425b50c9-767a-4c5b-b317-2863b121c91a",
+        "confidence": 0.55,
+        "source_region_id": "0f64f921-030b-44a5-ac7c-8a07c55fde35",
         "source_region_type": "expense_table",
         "source_tokens": [
           {
-            "text": "Type Of Delivery: FTND â‚¬ EPISIOTOMY",
-            "x0": 94.0,
-            "y0": 826.0,
-            "x1": 384.0,
-            "y1": 852.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Sr.",
+            "x0": 54.025064,
+            "y0": 54.072200000000066,
+            "x1": 64.030064,
+            "y1": 61.572200000000066,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "Sex: Male",
-            "x0": 97.0,
-            "y0": 849.0,
-            "x1": 171.0,
-            "y1": 869.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Category",
+            "x0": 123.56246999999999,
+            "y0": 54.072200000000066,
+            "x1": 156.06747,
+            "y1": 61.572200000000066,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "Weight 2800 gms",
-            "x0": 96.0,
-            "y0": 866.0,
-            "x1": 236.0,
-            "y1": 892.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Description",
+            "x0": 314.77679,
+            "y0": 54.072200000000066,
+            "x1": 356.03429,
+            "y1": 61.572200000000066,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "Date: 09-04-2026",
-            "x0": 94.0,
-            "y0": 886.0,
-            "x1": 230.0,
-            "y1": 910.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Amount",
+            "x0": 486.19753,
+            "y0": 54.072200000000066,
+            "x1": 514.5250299999999,
+            "y1": 61.572200000000066,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "Time: 06.24 PM",
-            "x0": 97.0,
-            "y0": 907.0,
-            "x1": 213.0,
-            "y1": 927.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "(Rs.)",
+            "x0": 516.6100299999999,
+            "y0": 54.072200000000066,
+            "x1": 533.2750299999999,
+            "y1": 61.572200000000066,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "APGAR: At 1 min9/10",
-            "x0": 94.0,
-            "y0": 924.0,
-            "x1": 262.0,
-            "y1": 948.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "1",
+            "x0": 47.51969,
+            "y0": 74.1757,
+            "x1": 51.96769,
+            "y1": 82.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "COURSE IN HOSPITAL STAY-UNEVENTFUL",
-            "x0": 94.0,
-            "y0": 954.0,
-            "x1": 408.0,
-            "y1": 980.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Room",
+            "x0": 81.53544,
+            "y0": 74.1757,
+            "x1": 102.87143999999999,
+            "y1": 82.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "CONDITION ON DISCHARGE: STABLE",
-            "x0": 93.0,
-            "y0": 990.0,
-            "x1": 390.0,
-            "y1": 1017.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Charges",
+            "x0": 105.09544,
+            "y0": 74.1757,
+            "x1": 135.32744,
+            "y1": 82.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "TREATMENT ON DICHARGE:",
-            "x0": 93.0,
-            "y0": 1026.0,
-            "x1": 322.0,
-            "y1": 1053.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Ward",
+            "x0": 209.09449,
+            "y0": 74.1757,
+            "x1": 228.20649,
+            "y1": 82.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "Rx",
-            "x0": 97.0,
-            "y0": 1071.0,
-            "x1": 125.0,
-            "y1": 1087.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "-",
+            "x0": 230.43049000000002,
+            "y0": 74.1757,
+            "x1": 233.09449,
+            "y1": 82.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "Type",
-            "x0": 282.0,
-            "y0": 1062.0,
-            "x1": 328.0,
-            "y1": 1086.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-          },
-          {
-            "text": "APGAR: At 5 min9/10",
-            "x0": 275.0,
-            "y0": 925.0,
-            "x1": 437.0,
-            "y1": 945.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
-          },
-          {
-            "text": "Drug Name",
-            "x0": 336.0,
-            "y0": 1061.0,
-            "x1": 432.0,
-            "y1": 1086.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "1",
+            "x0": 235.31849,
+            "y0": 74.1757,
+            "x1": 239.76649,
+            "y1": 82.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
             "text": "Days",
-            "x0": 616.0,
-            "y0": 1061.0,
-            "x1": 663.0,
-            "y1": 1087.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "x0": 241.99049000000002,
+            "y0": 74.1757,
+            "x1": 260.21449,
+            "y1": 82.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "Dose",
-            "x0": 555.0,
-            "y0": 1065.0,
-            "x1": 597.0,
-            "y1": 1081.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "4,000",
+            "x0": 526.73996,
+            "y0": 74.1757,
+            "x1": 546.75596,
+            "y1": 82.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "Qunt:",
-            "x0": 671.0,
-            "y0": 1063.0,
-            "x1": 719.0,
-            "y1": 1083.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "2",
+            "x0": 47.51969,
+            "y0": 94.1757,
+            "x1": 51.96769,
+            "y1": 102.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "Instruction",
-            "x0": 747.0,
-            "y0": 1063.0,
-            "x1": 837.0,
-            "y1": 1083.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Procedure",
+            "x0": 81.53544,
+            "y0": 94.1757,
+            "x1": 118.43943999999999,
+            "y1": 102.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "TAB.",
-            "x0": 283.0,
-            "y0": 1099.0,
-            "x1": 321.0,
-            "y1": 1119.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Charges",
+            "x0": 120.66344,
+            "y0": 94.1757,
+            "x1": 150.89544,
+            "y1": 102.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "TAB:",
-            "x0": 283.0,
-            "y0": 1135.0,
-            "x1": 319.0,
-            "y1": 1155.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Renal",
+            "x0": 209.09449,
+            "y0": 94.1757,
+            "x1": 229.99049000000002,
+            "y1": 102.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "TAB:",
-            "x0": 283.0,
-            "y0": 1171.0,
-            "x1": 319.0,
-            "y1": 1189.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "ultrasonography",
+            "x0": 232.21449,
+            "y0": 94.1757,
+            "x1": 289.57449,
+            "y1": 102.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "LYSER D",
-            "x0": 337.0,
-            "y0": 1099.0,
-            "x1": 401.0,
-            "y1": 1119.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "33,048",
+            "x0": 522.29196,
+            "y0": 94.1757,
+            "x1": 546.75596,
+            "y1": 102.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "MACPOD 0",
-            "x0": 337.0,
-            "y0": 1135.0,
-            "x1": 425.0,
-            "y1": 1155.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "3",
+            "x0": 47.51969,
+            "y0": 114.1757,
+            "x1": 51.96769,
+            "y1": 122.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "METRO ER",
-            "x0": 337.0,
-            "y0": 1169.0,
-            "x1": 417.0,
-            "y1": 1189.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Consultation",
+            "x0": 81.53544,
+            "y0": 114.1757,
+            "x1": 125.99943999999999,
+            "y1": 122.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "14",
-            "x0": 673.0,
-            "y0": 1101.0,
-            "x1": 695.0,
-            "y1": 1117.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "Specialist",
+            "x0": 209.09449,
+            "y0": 114.1757,
+            "x1": 243.32648999999998,
+            "y1": 122.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "AFTER MEALS",
-            "x0": 753.0,
-            "y0": 1103.0,
-            "x1": 865.0,
-            "y1": 1123.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "-",
+            "x0": 245.55049000000002,
+            "y0": 114.1757,
+            "x1": 248.21449,
+            "y1": 122.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "AFTER MEALS",
-            "x0": 753.0,
-            "y0": 1139.0,
-            "x1": 865.0,
-            "y1": 1159.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "3",
+            "x0": 250.43849,
+            "y0": 114.1757,
+            "x1": 254.88649,
+            "y1": 122.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "AFTER MEALS",
-            "x0": 753.0,
-            "y0": 1175.0,
-            "x1": 865.0,
-            "y1": 1195.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "visits",
+            "x0": 257.11049,
+            "y0": 114.1757,
+            "x1": 274.88649000000004,
+            "y1": 122.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "DETTOL",
-            "x0": 337.0,
-            "y0": 1205.0,
-            "x1": 399.0,
-            "y1": 1225.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "4,500",
+            "x0": 526.73996,
+            "y0": 114.1757,
+            "x1": 546.75596,
+            "y1": 122.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           },
           {
-            "text": "10",
-            "x0": 619.0,
-            "y0": 1209.0,
-            "x1": 641.0,
-            "y1": 1225.0,
-            "page": 1,
-            "document_id": "4ca79636-f00b-4a8f-bdc2-43521f2fc88a",
-            "claim_id": "a634b7f6-b9e8-4741-b15f-be7a36f99e0c"
+            "text": "4",
+            "x0": 47.51969,
+            "y0": 146.1757,
+            "x1": 51.96769,
+            "y1": 154.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Pharmacy",
+            "x0": 81.53544,
+            "y0": 146.1757,
+            "x1": 117.54344,
+            "y1": 154.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Acetaminophen",
+            "x0": 209.09449,
+            "y0": 134.1757,
+            "x1": 264.67849,
+            "y1": 142.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Hydrochlorothiazide",
+            "x0": 209.09449,
+            "y0": 146.1757,
+            "x1": 279.78249,
+            "y1": 154.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "300",
+            "x0": 266.90249,
+            "y0": 134.1757,
+            "x1": 280.24649,
+            "y1": 142.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "MG",
+            "x0": 282.47049000000004,
+            "y0": 134.1757,
+            "x1": 295.35849,
+            "y1": 142.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "+",
+            "x0": 297.58249,
+            "y0": 134.1757,
+            "x1": 302.25449000000003,
+            "y1": 142.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Hydrocodone",
+            "x0": 304.47849,
+            "y0": 134.1757,
+            "x1": 352.05449000000004,
+            "y1": 142.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Bitartrate",
+            "x0": 354.27849000000003,
+            "y0": 134.1757,
+            "x1": 386.73449000000005,
+            "y1": 142.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "5",
+            "x0": 388.95849000000004,
+            "y0": 134.1757,
+            "x1": 393.40649,
+            "y1": 142.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "MG,",
+            "x0": 395.63049,
+            "y0": 134.1757,
+            "x1": 410.74249000000003,
+            "y1": 142.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "25",
+            "x0": 282.00649000000004,
+            "y0": 146.1757,
+            "x1": 290.90249,
+            "y1": 154.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "MG",
+            "x0": 293.12649000000005,
+            "y0": 146.1757,
+            "x1": 306.01449,
+            "y1": 154.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "15,598",
+            "x0": 522.29196,
+            "y0": 146.1757,
+            "x1": 546.75596,
+            "y1": 154.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "5",
+            "x0": 47.51969,
+            "y0": 166.1757,
+            "x1": 51.96769,
+            "y1": 174.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Laboratory",
+            "x0": 81.53544,
+            "y0": 166.1757,
+            "x1": 119.77544,
+            "y1": 174.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Hemoglobin",
+            "x0": 209.09449,
+            "y0": 166.1757,
+            "x1": 251.77449000000001,
+            "y1": 174.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "A1c/Hemoglobin.total",
+            "x0": 253.99849,
+            "y0": 166.1757,
+            "x1": 330.03049000000004,
+            "y1": 174.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "in",
+            "x0": 332.25449000000003,
+            "y0": 166.1757,
+            "x1": 338.47848999999997,
+            "y1": 174.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Blood,",
+            "x0": 340.70249,
+            "y0": 166.1757,
+            "x1": 363.38249,
+            "y1": 174.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Glucose",
+            "x0": 365.60649,
+            "y0": 166.1757,
+            "x1": 394.95049,
+            "y1": 174.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "2,542",
+            "x0": 526.73996,
+            "y0": 166.1757,
+            "x1": 546.75596,
+            "y1": 174.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "6",
+            "x0": 47.51969,
+            "y0": 186.1757,
+            "x1": 51.96769,
+            "y1": 194.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Nursing",
+            "x0": 81.53544,
+            "y0": 186.1757,
+            "x1": 109.09544,
+            "y1": 194.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Nursing",
+            "x0": 209.09449,
+            "y0": 186.1757,
+            "x1": 236.65449,
+            "y1": 194.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "care",
+            "x0": 238.87849,
+            "y0": 186.1757,
+            "x1": 254.43849000000003,
+            "y1": 194.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "-",
+            "x0": 256.66249,
+            "y0": 186.1757,
+            "x1": 259.32649,
+            "y1": 194.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "1",
+            "x0": 261.55049,
+            "y0": 186.1757,
+            "x1": 265.99849,
+            "y1": 194.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "days",
+            "x0": 268.22249,
+            "y0": 186.1757,
+            "x1": 285.11849,
+            "y1": 194.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "1,200",
+            "x0": 526.73996,
+            "y0": 186.1757,
+            "x1": 546.75596,
+            "y1": 194.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "7",
+            "x0": 47.51969,
+            "y0": 206.1757,
+            "x1": 51.96769,
+            "y1": 214.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Consumables",
+            "x0": 81.53544,
+            "y0": 206.1757,
+            "x1": 130.43944,
+            "y1": 214.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Surgical",
+            "x0": 209.09449,
+            "y0": 206.1757,
+            "x1": 237.99049000000002,
+            "y1": 214.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "consumables,",
+            "x0": 240.21449,
+            "y0": 206.1757,
+            "x1": 289.56649,
+            "y1": 214.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "IV",
+            "x0": 291.79049,
+            "y0": 206.1757,
+            "x1": 299.35049000000004,
+            "y1": 214.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "lines",
+            "x0": 301.57449,
+            "y0": 206.1757,
+            "x1": 318.02249,
+            "y1": 214.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "11,933",
+            "x0": 522.29196,
+            "y0": 206.1757,
+            "x1": 546.75596,
+            "y1": 214.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "8",
+            "x0": 47.51969,
+            "y0": 226.1757,
+            "x1": 51.96769,
+            "y1": 234.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Miscellaneous",
+            "x0": 81.53544,
+            "y0": 226.1757,
+            "x1": 132.21544,
+            "y1": 234.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Admin,",
+            "x0": 209.09449,
+            "y0": 226.1757,
+            "x1": 233.99049,
+            "y1": 234.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Food,",
+            "x0": 236.21449,
+            "y0": 226.1757,
+            "x1": 256.67049000000003,
+            "y1": 234.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Transport",
+            "x0": 258.89449,
+            "y0": 226.1757,
+            "x1": 293.12649000000005,
+            "y1": 234.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "734",
+            "x0": 533.41196,
+            "y0": 226.1757,
+            "x1": 546.75596,
+            "y1": 234.1757,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Total",
+            "x0": 387.21449,
+            "y0": 252.05200000000013,
+            "x1": 408.71549000000005,
+            "y1": 261.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Bill",
+            "x0": 411.21749,
+            "y0": 252.05200000000013,
+            "x1": 425.22149,
+            "y1": 261.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Amount",
+            "x0": 427.72349,
+            "y0": 252.05200000000013,
+            "x1": 461.71649,
+            "y1": 261.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Rs.",
+            "x0": 502.72796,
+            "y0": 252.05200000000013,
+            "x1": 516.73196,
+            "y1": 261.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "73,555",
+            "x0": 519.23396,
+            "y0": 252.05200000000013,
+            "x1": 546.7559600000001,
+            "y1": 261.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Less:",
+            "x0": 343.67249000000004,
+            "y0": 272.05200000000013,
+            "x1": 367.1804900000001,
+            "y1": 281.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Non-Medical",
+            "x0": 369.68249000000003,
+            "y0": 272.05200000000013,
+            "x1": 423.1874900000001,
+            "y1": 281.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "/",
+            "x0": 425.68949000000003,
+            "y0": 272.05200000000013,
+            "x1": 428.19149000000004,
+            "y1": 281.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Excess",
+            "x0": 430.69349,
+            "y0": 272.05200000000013,
+            "x1": 461.7164900000001,
+            "y1": 281.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Rs.",
+            "x0": 525.24596,
+            "y0": 272.05200000000013,
+            "x1": 539.2499599999999,
+            "y1": 281.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "0",
+            "x0": 541.7519599999999,
+            "y0": 272.05200000000013,
+            "x1": 546.75596,
+            "y1": 281.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Total",
+            "x0": 366.20849,
+            "y0": 292.05200000000013,
+            "x1": 387.70949,
+            "y1": 301.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Claimed",
+            "x0": 390.21148999999997,
+            "y0": 292.05200000000013,
+            "x1": 425.22149,
+            "y1": 301.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Amount",
+            "x0": 427.72348999999997,
+            "y0": 292.05200000000013,
+            "x1": 461.71648999999996,
+            "y1": 301.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "Rs.",
+            "x0": 502.72796,
+            "y0": 292.05200000000013,
+            "x1": 516.73196,
+            "y1": 301.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
+          },
+          {
+            "text": "73,555",
+            "x0": 519.23396,
+            "y0": 292.05200000000013,
+            "x1": 546.7559600000001,
+            "y1": 301.05200000000013,
+            "page": 2,
+            "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+            "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df"
           }
         ],
         "headers": [
@@ -701,120 +877,93 @@
             "row_index": 0,
             "row_type": null,
             "cells": {
-              "category": "Medication",
-              "description": "TAB. LYSER D",
-              "amount": 0
+              "category": "Room Rent",
+              "description": "Room Charges Ward - 1 Days",
+              "amount": "4,000"
             },
-            "confidence": 0.0
+            "confidence": 0.55
           },
           {
             "row_index": 1,
             "row_type": null,
             "cells": {
-              "category": "Medication",
-              "description": "TAB: MACPOD",
-              "amount": 0
+              "category": "Surgery / OT",
+              "description": "Procedure Charges Renal ultrasonography",
+              "amount": "33,048"
             },
-            "confidence": 0.0
+            "confidence": 0.55
           },
           {
             "row_index": 2,
             "row_type": null,
             "cells": {
-              "category": "Medication",
-              "description": "TAB: METRO",
-              "amount": 0
+              "category": "Consultation",
+              "description": "Consultation Specialist - 3 visits",
+              "amount": "4,500"
             },
-            "confidence": 0.0
+            "confidence": 0.55
           },
           {
             "row_index": 3,
             "row_type": null,
             "cells": {
-              "category": "Supplies",
-              "description": "DETTOL",
-              "amount": 10
+              "category": "Pharmacy",
+              "description": "Pharmacy Acetaminophen Hydrochlorothiazide 300 MG + Hydrocodone Bitartrate 5 MG, 25 MG",
+              "amount": "15,598"
             },
-            "confidence": 0.0
+            "confidence": 0.55
+          },
+          {
+            "row_index": 4,
+            "row_type": null,
+            "cells": {
+              "category": "Laboratory",
+              "description": "Laboratory Hemoglobin A1c/Hemoglobin.total in Blood, Glucose",
+              "amount": "2,542"
+            },
+            "confidence": 0.55
+          },
+          {
+            "row_index": 5,
+            "row_type": null,
+            "cells": {
+              "category": "Nursing",
+              "description": "Nursing Nursing care - 1 days",
+              "amount": "1,200"
+            },
+            "confidence": 0.55
+          },
+          {
+            "row_index": 6,
+            "row_type": null,
+            "cells": {
+              "category": "Consumables",
+              "description": "Consumables Surgical consumables, IV lines",
+              "amount": "11,933"
+            },
+            "confidence": 0.55
+          },
+          {
+            "row_index": 7,
+            "row_type": null,
+            "cells": {
+              "category": "Miscellaneous",
+              "description": "Miscellaneous Admin, Food, Transport",
+              "amount": "734"
+            },
+            "confidence": 0.55
           }
         ],
-        "model_name": "openrouter",
+        "model_name": "heuristic-expense-bridge",
         "metadata": {
-          "raw": {
-            "table_kind": "expenses",
-            "headers": [
-              "category",
-              "description",
-              "amount"
-            ],
-            "rows": [
-              {
-                "category": "Medication",
-                "description": "TAB. LYSER D",
-                "amount": 0
-              },
-              {
-                "category": "Medication",
-                "description": "TAB: MACPOD",
-                "amount": 0
-              },
-              {
-                "category": "Medication",
-                "description": "TAB: METRO",
-                "amount": 0
-              },
-              {
-                "category": "Supplies",
-                "description": "DETTOL",
-                "amount": 10
-              }
-            ],
-            "confidence": 0.0
-          }
+          "source": "expense_fallback_bridge"
         }
       }
     ],
-    "model_name": "openrouter",
-    "notes": "",
+    "model_name": "heuristic-expense-bridge",
+    "notes": "semantic backend returned empty output; used expense fallback bridge",
     "metadata": {
-      "region_type": "expense_table",
-      "table_kind": "expenses",
-      "confidence": 0.0,
-      "notes": "",
-      "fields": [],
-      "tables": [
-        {
-          "table_kind": "expenses",
-          "headers": [
-            "category",
-            "description",
-            "amount"
-          ],
-          "rows": [
-            {
-              "category": "Medication",
-              "description": "TAB. LYSER D",
-              "amount": 0
-            },
-            {
-              "category": "Medication",
-              "description": "TAB: MACPOD",
-              "amount": 0
-            },
-            {
-              "category": "Medication",
-              "description": "TAB: METRO",
-              "amount": 0
-            },
-            {
-              "category": "Supplies",
-              "description": "DETTOL",
-              "amount": 10
-            }
-          ],
-          "confidence": 0.0
-        }
-      ]
+      "source": "expense_fallback_bridge"
     }
   }
 ]

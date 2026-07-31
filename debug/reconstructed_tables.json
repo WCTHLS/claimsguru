@@ -1,517 +1,93 @@
 [
   {
-    "region_id": "ca85adeb-4e7e-414c-92e6-99d9159a64c3",
+    "region_id": "0f64f921-030b-44a5-ac7c-8a07c55fde35",
     "bbox": [
-      94.0,
-      170.0,
-      1073.0,
-      686.0
-    ],
-    "table_kind": "medications",
-    "table_kind_confidence": 0.76,
-    "columns": [
-      {
-        "column_id": "col_0",
-        "column_index": 0,
-        "x_center": 252.82823903686605,
-        "x0": 78.22823903686606,
-        "x1": 383.53289955077116,
-        "rows_seen": 4,
-        "token_count": 23,
-        "alignment_score": 0.667
-      },
-      {
-        "column_id": "col_1",
-        "column_index": 1,
-        "x_center": 514.2375600646762,
-        "x0": 383.53289955077116,
-        "x1": 604.2055208262167,
-        "rows_seen": 6,
-        "token_count": 21,
-        "alignment_score": 1.0
-      },
-      {
-        "column_id": "col_2",
-        "column_index": 2,
-        "x_center": 694.1734815877571,
-        "x0": 604.2055208262167,
-        "x1": 801.6581693653071,
-        "rows_seen": 4,
-        "token_count": 6,
-        "alignment_score": 0.667
-      },
-      {
-        "column_id": "col_3",
-        "column_index": 3,
-        "x_center": 909.1428571428571,
-        "x0": 801.6581693653071,
-        "x1": 1083.742857142857,
-        "rows_seen": 4,
-        "token_count": 7,
-        "alignment_score": 0.667
-      }
-    ],
-    "multiline_merges": [
-      {
-        "from_row_index": 1,
-        "continuation_row_index": 2,
-        "gap": 2.11,
-        "overlap_ratio": 1.0,
-        "indent_delta": 0.03
-      },
-      {
-        "from_row_index": 2,
-        "continuation_row_index": 4,
-        "gap": 2.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 0.0
-      },
-      {
-        "from_row_index": 4,
-        "continuation_row_index": 7,
-        "gap": 6.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 2.0
-      },
-      {
-        "from_row_index": 4,
-        "continuation_row_index": 8,
-        "gap": 11.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 1.0
-      },
-      {
-        "from_row_index": 4,
-        "continuation_row_index": 9,
-        "gap": 11.0,
-        "overlap_ratio": 0.995,
-        "indent_delta": 3.0
-      },
-      {
-        "from_row_index": 4,
-        "continuation_row_index": 10,
-        "gap": 10.0,
-        "overlap_ratio": 0.997,
-        "indent_delta": 2.0
-      },
-      {
-        "from_row_index": 4,
-        "continuation_row_index": 11,
-        "gap": 11.0,
-        "overlap_ratio": 0.997,
-        "indent_delta": 2.0
-      },
-      {
-        "from_row_index": 5,
-        "continuation_row_index": 13,
-        "gap": 9.0,
-        "overlap_ratio": 0.981,
-        "indent_delta": 8.0
-      }
-    ],
-    "rows": [
-      {
-        "row_id": "row_0",
-        "row_index": 0,
-        "bbox": [
-          428.0,
-          170.0,
-          1007.0,
-          211.0
-        ],
-        "token_count": 2,
-        "cells": [
-          {
-            "cell_id": "row_0__col_1",
-            "row_id": "row_0",
-            "column_id": "col_1",
-            "text": "DISCHARGE SUMMARY",
-            "bbox": [
-              428.0,
-              170.0,
-              734.0,
-              202.0
-            ],
-            "token_count": 1
-          },
-          {
-            "cell_id": "row_0__col_3",
-            "row_id": "row_0",
-            "column_id": "col_3",
-            "text": "Original Copy",
-            "bbox": [
-              885.0,
-              183.0,
-              1007.0,
-              211.0
-            ],
-            "token_count": 1
-          }
-        ]
-      },
-      {
-        "row_id": "row_1",
-        "row_index": 1,
-        "bbox": [
-          104.04773641670128,
-          202.14487414671834,
-          1073.0,
-          306.0
-        ],
-        "token_count": 10,
-        "cells": [
-          {
-            "cell_id": "row_1__col_0",
-            "row_id": "row_1",
-            "column_id": "col_0",
-            "text": "Name- AMREEN AZHAR SHAIKH Age- 29 Years Sex- FEMALE",
-            "bbox": [
-              104.04773641670128,
-              202.14487414671834,
-              464.0,
-              290.0
-            ],
-            "token_count": 5
-          },
-          {
-            "cell_id": "row_1__col_1",
-            "row_id": "row_1",
-            "column_id": "col_1",
-            "text": "Occupation: HOUSE",
-            "bbox": [
-              458.0,
-              264.0,
-              654.0,
-              293.0
-            ],
-            "token_count": 1
-          },
-          {
-            "cell_id": "row_1__col_2",
-            "row_id": "row_1",
-            "column_id": "col_2",
-            "text": "WIFE",
-            "bbox": [
-              668.0,
-              264.0,
-              728.0,
-              290.0
-            ],
-            "token_count": 1
-          },
-          {
-            "cell_id": "row_1__col_3",
-            "row_id": "row_1",
-            "column_id": "col_3",
-            "text": "IPD REG NO- |-28/2026 DOA- 09-04-2026TIME 08.55 AM DOD- 10-04-2026TIME Oo.00.00",
-            "bbox": [
-              834.0,
-              216.0,
-              1073.0,
-              306.0
-            ],
-            "token_count": 3
-          }
-        ]
-      },
-      {
-        "row_id": "row_2",
-        "row_index": 2,
-        "bbox": [
-          105.0,
-          293.0,
-          970.0,
-          379.0
-        ],
-        "token_count": 3,
-        "cells": [
-          {
-            "cell_id": "row_2__col_0",
-            "row_id": "row_2",
-            "column_id": "col_0",
-            "text": "Address - BHAIGAON ROAD SHARDA NAGAR DIAGNOSIS- G3PILIAI 39WKS ZDAYS PREGNANCY IN LABOUR",
-            "bbox": [
-              105.0,
-              293.0,
-              719.0,
-              379.0
-            ],
-            "token_count": 2
-          },
-          {
-            "cell_id": "row_2__col_3",
-            "row_id": "row_2",
-            "column_id": "col_3",
-            "text": "FTND C EPISIOTOMY ON",
-            "bbox": [
-              724.0,
-              350.0,
-              970.0,
-              378.0
-            ],
-            "token_count": 1
-          }
-        ]
-      },
-      {
-        "row_id": "row_3",
-        "row_index": 3,
-        "bbox": [
-          250.0,
-          375.0,
-          708.0,
-          405.0
-        ],
-        "token_count": 1,
-        "cells": [
-          {
-            "cell_id": "row_3__col_1",
-            "row_id": "row_3",
-            "column_id": "col_1",
-            "text": "09/04/2026 AT 6 2aRM MALE BABYOF WT 2 8kG",
-            "bbox": [
-              250.0,
-              375.0,
-              708.0,
-              405.0
-            ],
-            "token_count": 1
-          }
-        ]
-      },
-      {
-        "row_id": "row_4",
-        "row_index": 4,
-        "bbox": [
-          94.0,
-          399.0,
-          1042.0,
-          630.0
-        ],
-        "token_count": 19,
-        "cells": [
-          {
-            "cell_id": "row_4__col_0",
-            "row_id": "row_4",
-            "column_id": "col_0",
-            "text": "C/0-1 H/O-AMMENORRHOEA PAST PyHYO-1.NIL F/H-NilOn MEDICATION-L. NIL VITALS P-88 /m,BP-121 SYSTEMIC EXAMINATION RS-BJL-Clear OBSTETRIC EXAMINATION:",
-            "bbox": [
-              94.0,
-              399.0,
-              405.0,
-              627.0
-            ],
-            "token_count": 9
-          },
-          {
-            "cell_id": "row_4__col_1",
-            "row_id": "row_4",
-            "column_id": "col_1",
-            "text": "2. CIO- PAIN IN ABDOMEN MONTH 2 DAYS 83 mmHg RR-16 /m,Temp-AFEBRILE and CVS-S1+S2+ PA OBS-Uterus height:-FT WEEKS Lie:-Longitudinal",
-            "bbox": [
-              286.0,
-              412.0,
-              706.0,
-              630.0
-            ],
-            "token_count": 6
-          },
-          {
-            "cell_id": "row_4__col_2",
-            "row_id": "row_4",
-            "column_id": "col_2",
-            "text": "GENERAL EXAMINATION FAIR PA- SOFT,LO,SO,KO",
-            "bbox": [
-              583.0,
-              531.0,
-              803.0,
-              589.0
-            ],
-            "token_count": 2
-          },
-          {
-            "cell_id": "row_4__col_3",
-            "row_id": "row_4",
-            "column_id": "col_3",
-            "text": "CNS Presentation:-Cephalic, FHS:-Present Normal",
-            "bbox": [
-              710.0,
-              567.0,
-              1042.0,
-              630.0
-            ],
-            "token_count": 2
-          }
-        ]
-      },
-      {
-        "row_id": "row_5",
-        "row_index": 5,
-        "bbox": [
-          96.0,
-          622.0,
-          853.0,
-          686.0
-        ],
-        "token_count": 6,
-        "cells": [
-          {
-            "cell_id": "row_5__col_0",
-            "row_id": "row_5",
-            "column_id": "col_0",
-            "text": "iqoer-Adequate, P/Sp LAB INVESTIGATION-BL GRA POSITIVE; HIV, HBSAG-",
-            "bbox": [
-              96.0,
-              622.0,
-              484.0,
-              686.0
-            ],
-            "token_count": 3
-          },
-          {
-            "cell_id": "row_5__col_1",
-            "row_id": "row_5",
-            "column_id": "col_1",
-            "text": "PN-Uterus height:-FT, OS:-Closed, NR",
-            "bbox": [
-              314.0,
-              624.0,
-              568.0,
-              683.0
-            ],
-            "token_count": 2
-          },
-          {
-            "cell_id": "row_5__col_2",
-            "row_id": "row_5",
-            "column_id": "col_2",
-            "text": "Membranes:-Present, Pelvis:-Adequate",
-            "bbox": [
-              572.0,
-              627.0,
-              853.0,
-              648.0
-            ],
-            "token_count": 1
-          }
-        ]
-      }
-    ]
-  },
-  {
-    "region_id": "425b50c9-767a-4c5b-b317-2863b121c91a",
-    "bbox": [
-      93.0,
-      826.0,
-      865.0,
-      1225.0
+      47.51969,
+      54.072200000000066,
+      546.7559600000001,
+      301.05200000000013
     ],
     "table_kind": "expenses",
-    "table_kind_confidence": 0.35,
+    "table_kind_confidence": 0.92,
     "columns": [
       {
         "column_id": "col_0",
         "column_index": 0,
-        "x_center": 159.07142857142858,
-        "x0": 79.87142857142858,
-        "x1": 218.14285714285717,
-        "rows_seen": 5,
-        "token_count": 7,
-        "alignment_score": 0.625
+        "x_center": 50.775231555555564,
+        "x0": 32.36483155555555,
+        "x1": 75.65833577777778,
+        "rows_seen": 9,
+        "token_count": 9,
+        "alignment_score": 0.75
       },
       {
         "column_id": "col_1",
         "column_index": 1,
-        "x_center": 277.2142857142857,
-        "x0": 218.14285714285717,
-        "x1": 324.8571428571429,
-        "rows_seen": 3,
-        "token_count": 7,
-        "alignment_score": 0.375
+        "x_center": 100.54144,
+        "x0": 75.65833577777778,
+        "x1": 162.43071500000002,
+        "rows_seen": 8,
+        "token_count": 8,
+        "alignment_score": 0.667
       },
       {
         "column_id": "col_2",
         "column_index": 2,
-        "x_center": 372.5,
-        "x0": 324.8571428571429,
-        "x1": 493.8333333333333,
-        "rows_seen": 3,
-        "token_count": 6,
-        "alignment_score": 0.375
+        "x_center": 224.31999000000002,
+        "x0": 162.43071500000002,
+        "x1": 234.82349,
+        "rows_seen": 7,
+        "token_count": 8,
+        "alignment_score": 0.583
       },
       {
         "column_id": "col_3",
         "column_index": 3,
-        "x_center": 615.1666666666666,
-        "x0": 493.8333333333333,
-        "x1": 652.3333333333333,
-        "rows_seen": 2,
-        "token_count": 3,
-        "alignment_score": 0.25
+        "x_center": 245.32699,
+        "x0": 234.82349,
+        "x1": 254.01874000000004,
+        "rows_seen": 5,
+        "token_count": 8,
+        "alignment_score": 0.417
       },
       {
         "column_id": "col_4",
         "column_index": 4,
-        "x_center": 689.5,
-        "x0": 652.3333333333333,
-        "x1": 747.125,
-        "rows_seen": 3,
-        "token_count": 2,
-        "alignment_score": 0.375
+        "x_center": 262.71049000000005,
+        "x0": 254.01874000000004,
+        "x1": 269.06449,
+        "rows_seen": 4,
+        "token_count": 5,
+        "alignment_score": 0.333
       },
       {
         "column_id": "col_5",
         "column_index": 5,
-        "x_center": 804.75,
-        "x0": 747.125,
-        "x1": 883.95,
-        "rows_seen": 2,
-        "token_count": 4,
-        "alignment_score": 0.25
+        "x_center": 275.41848999999996,
+        "x0": 269.06449,
+        "x1": 405.32778538461537,
+        "rows_seen": 4,
+        "token_count": 3,
+        "alignment_score": 0.333
+      },
+      {
+        "column_id": "col_6",
+        "column_index": 6,
+        "x_center": 535.2370807692307,
+        "x0": 405.32778538461537,
+        "x1": 553.6474807692307,
+        "rows_seen": 11,
+        "token_count": 13,
+        "alignment_score": 0.917
       }
     ],
     "multiline_merges": [
       {
-        "from_row_index": 5,
-        "continuation_row_index": 6,
-        "gap": 6.0,
+        "from_row_index": 4,
+        "continuation_row_index": 5,
+        "gap": 4.0,
         "overlap_ratio": 1.0,
-        "indent_delta": 0.0
-      },
-      {
-        "from_row_index": 5,
-        "continuation_row_index": 7,
-        "gap": 10.0,
-        "overlap_ratio": 0.997,
-        "indent_delta": 1.0
-      },
-      {
-        "from_row_index": 5,
-        "continuation_row_index": 8,
-        "gap": 9.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 0.0
-      },
-      {
-        "from_row_index": 5,
-        "continuation_row_index": 9,
-        "gap": 8.0,
-        "overlap_ratio": 0.988,
-        "indent_delta": 4.0
-      },
-      {
-        "from_row_index": 6,
-        "continuation_row_index": 11,
-        "gap": 12.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 0.0
-      },
-      {
-        "from_row_index": 6,
-        "continuation_row_index": 12,
-        "gap": 10.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 0.0
+        "indent_delta": 161.57
       }
     ],
     "rows": [
@@ -519,25 +95,64 @@
         "row_id": "row_0",
         "row_index": 0,
         "bbox": [
-          94.0,
-          826.0,
-          384.0,
-          852.0
+          54.025064,
+          54.072200000000066,
+          533.2750299999999,
+          61.572200000000066
         ],
-        "token_count": 1,
+        "token_count": 5,
         "cells": [
           {
             "cell_id": "row_0__col_0",
             "row_id": "row_0",
             "column_id": "col_0",
-            "text": "Type Of Delivery: FTND \u00e2\u201a\u00ac EPISIOTOMY",
+            "text": "Sr.",
             "bbox": [
-              94.0,
-              826.0,
-              384.0,
-              852.0
+              54.025064,
+              54.072200000000066,
+              64.030064,
+              61.572200000000066
             ],
             "token_count": 1
+          },
+          {
+            "cell_id": "row_0__col_1",
+            "row_id": "row_0",
+            "column_id": "col_1",
+            "text": "Category",
+            "bbox": [
+              123.56246999999999,
+              54.072200000000066,
+              156.06747,
+              61.572200000000066
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_0__col_5",
+            "row_id": "row_0",
+            "column_id": "col_5",
+            "text": "Description",
+            "bbox": [
+              314.77679,
+              54.072200000000066,
+              356.03429,
+              61.572200000000066
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_0__col_6",
+            "row_id": "row_0",
+            "column_id": "col_6",
+            "text": "Amount (Rs.)",
+            "bbox": [
+              486.19753,
+              54.072200000000066,
+              533.2750299999999,
+              61.572200000000066
+            ],
+            "token_count": 2
           }
         ]
       },
@@ -545,23 +160,75 @@
         "row_id": "row_1",
         "row_index": 1,
         "bbox": [
-          97.0,
-          849.0,
-          171.0,
-          869.0
+          47.51969,
+          74.1757,
+          546.75596,
+          82.1757
         ],
-        "token_count": 1,
+        "token_count": 8,
         "cells": [
           {
             "cell_id": "row_1__col_0",
             "row_id": "row_1",
             "column_id": "col_0",
-            "text": "Sex: Male",
+            "text": "1",
             "bbox": [
-              97.0,
-              849.0,
-              171.0,
-              869.0
+              47.51969,
+              74.1757,
+              51.96769,
+              82.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_1",
+            "row_id": "row_1",
+            "column_id": "col_1",
+            "text": "Room Charges",
+            "bbox": [
+              81.53544,
+              74.1757,
+              135.32744,
+              82.1757
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_2",
+            "row_id": "row_1",
+            "column_id": "col_2",
+            "text": "Ward -",
+            "bbox": [
+              209.09449,
+              74.1757,
+              233.09449,
+              82.1757
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_3",
+            "row_id": "row_1",
+            "column_id": "col_3",
+            "text": "1 Days",
+            "bbox": [
+              235.31849,
+              74.1757,
+              260.21449,
+              82.1757
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_6",
+            "row_id": "row_1",
+            "column_id": "col_6",
+            "text": "4,000",
+            "bbox": [
+              526.73996,
+              74.1757,
+              546.75596,
+              82.1757
             ],
             "token_count": 1
           }
@@ -571,23 +238,75 @@
         "row_id": "row_2",
         "row_index": 2,
         "bbox": [
-          96.0,
-          866.0,
-          236.0,
-          892.0
+          47.51969,
+          94.1757,
+          546.75596,
+          102.1757
         ],
-        "token_count": 1,
+        "token_count": 6,
         "cells": [
           {
             "cell_id": "row_2__col_0",
             "row_id": "row_2",
             "column_id": "col_0",
-            "text": "Weight 2800 gms",
+            "text": "2",
             "bbox": [
-              96.0,
-              866.0,
-              236.0,
-              892.0
+              47.51969,
+              94.1757,
+              51.96769,
+              102.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_2__col_1",
+            "row_id": "row_2",
+            "column_id": "col_1",
+            "text": "Procedure Charges",
+            "bbox": [
+              81.53544,
+              94.1757,
+              150.89544,
+              102.1757
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_2__col_2",
+            "row_id": "row_2",
+            "column_id": "col_2",
+            "text": "Renal",
+            "bbox": [
+              209.09449,
+              94.1757,
+              229.99049000000002,
+              102.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_2__col_5",
+            "row_id": "row_2",
+            "column_id": "col_5",
+            "text": "ultrasonography",
+            "bbox": [
+              232.21449,
+              94.1757,
+              289.57449,
+              102.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_2__col_6",
+            "row_id": "row_2",
+            "column_id": "col_6",
+            "text": "33,048",
+            "bbox": [
+              522.29196,
+              94.1757,
+              546.75596,
+              102.1757
             ],
             "token_count": 1
           }
@@ -597,23 +316,88 @@
         "row_id": "row_3",
         "row_index": 3,
         "bbox": [
-          94.0,
-          886.0,
-          230.0,
-          910.0
+          47.51969,
+          114.1757,
+          546.75596,
+          122.1757
         ],
-        "token_count": 1,
+        "token_count": 7,
         "cells": [
           {
             "cell_id": "row_3__col_0",
             "row_id": "row_3",
             "column_id": "col_0",
-            "text": "Date: 09-04-2026",
+            "text": "3",
             "bbox": [
-              94.0,
-              886.0,
-              230.0,
-              910.0
+              47.51969,
+              114.1757,
+              51.96769,
+              122.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_3__col_1",
+            "row_id": "row_3",
+            "column_id": "col_1",
+            "text": "Consultation",
+            "bbox": [
+              81.53544,
+              114.1757,
+              125.99943999999999,
+              122.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_3__col_2",
+            "row_id": "row_3",
+            "column_id": "col_2",
+            "text": "Specialist",
+            "bbox": [
+              209.09449,
+              114.1757,
+              243.32648999999998,
+              122.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_3__col_3",
+            "row_id": "row_3",
+            "column_id": "col_3",
+            "text": "- 3",
+            "bbox": [
+              245.55049000000002,
+              114.1757,
+              254.88649,
+              122.1757
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_3__col_4",
+            "row_id": "row_3",
+            "column_id": "col_4",
+            "text": "visits",
+            "bbox": [
+              257.11049,
+              114.1757,
+              274.88649000000004,
+              122.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_3__col_6",
+            "row_id": "row_3",
+            "column_id": "col_6",
+            "text": "4,500",
+            "bbox": [
+              526.73996,
+              114.1757,
+              546.75596,
+              122.1757
             ],
             "token_count": 1
           }
@@ -623,23 +407,75 @@
         "row_id": "row_4",
         "row_index": 4,
         "bbox": [
-          97.0,
-          907.0,
-          213.0,
-          927.0
+          47.51969,
+          134.1757,
+          546.75596,
+          154.1757
         ],
-        "token_count": 1,
+        "token_count": 14,
         "cells": [
           {
             "cell_id": "row_4__col_0",
             "row_id": "row_4",
             "column_id": "col_0",
-            "text": "Time: 06.24 PM",
+            "text": "4",
             "bbox": [
-              97.0,
-              907.0,
-              213.0,
-              927.0
+              47.51969,
+              146.1757,
+              51.96769,
+              154.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_4__col_1",
+            "row_id": "row_4",
+            "column_id": "col_1",
+            "text": "Pharmacy",
+            "bbox": [
+              81.53544,
+              146.1757,
+              117.54344,
+              154.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_4__col_2",
+            "row_id": "row_4",
+            "column_id": "col_2",
+            "text": "Acetaminophen Hydrochlorothiazide",
+            "bbox": [
+              209.09449,
+              134.1757,
+              279.78249,
+              154.1757
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_4__col_5",
+            "row_id": "row_4",
+            "column_id": "col_5",
+            "text": "300 MG + Hydrocodone Bitartrate 5 MG, 25 MG",
+            "bbox": [
+              266.90249,
+              134.1757,
+              410.74249000000003,
+              154.1757
+            ],
+            "token_count": 9
+          },
+          {
+            "cell_id": "row_4__col_6",
+            "row_id": "row_4",
+            "column_id": "col_6",
+            "text": "15,598",
+            "bbox": [
+              522.29196,
+              146.1757,
+              546.75596,
+              154.1757
             ],
             "token_count": 1
           }
@@ -649,36 +485,36 @@
         "row_id": "row_5",
         "row_index": 5,
         "bbox": [
-          93.0,
-          924.0,
-          837.0,
-          1087.0
+          47.51969,
+          166.1757,
+          546.75596,
+          174.1757
         ],
-        "token_count": 12,
+        "token_count": 8,
         "cells": [
           {
             "cell_id": "row_5__col_0",
             "row_id": "row_5",
             "column_id": "col_0",
-            "text": "APGAR: At 1 min9/10 COURSE IN HOSPITAL STAY-UNEVENTFUL CONDITION ON DISCHARGE: STABLE TREATMENT ON DICHARGE: Rx",
+            "text": "5",
             "bbox": [
-              93.0,
-              924.0,
-              408.0,
-              1087.0
+              47.51969,
+              166.1757,
+              51.96769,
+              174.1757
             ],
-            "token_count": 5
+            "token_count": 1
           },
           {
             "cell_id": "row_5__col_1",
             "row_id": "row_5",
             "column_id": "col_1",
-            "text": "Type",
+            "text": "Laboratory",
             "bbox": [
-              282.0,
-              1062.0,
-              328.0,
-              1086.0
+              81.53544,
+              166.1757,
+              119.77544,
+              174.1757
             ],
             "token_count": 1
           },
@@ -686,38 +522,12 @@
             "cell_id": "row_5__col_2",
             "row_id": "row_5",
             "column_id": "col_2",
-            "text": "APGAR: At 5 min9/10 Drug Name",
+            "text": "Hemoglobin",
             "bbox": [
-              275.0,
-              925.0,
-              437.0,
-              1086.0
-            ],
-            "token_count": 2
-          },
-          {
-            "cell_id": "row_5__col_3",
-            "row_id": "row_5",
-            "column_id": "col_3",
-            "text": "Days Dose",
-            "bbox": [
-              555.0,
-              1061.0,
-              663.0,
-              1087.0
-            ],
-            "token_count": 2
-          },
-          {
-            "cell_id": "row_5__col_4",
-            "row_id": "row_5",
-            "column_id": "col_4",
-            "text": "Qunt:",
-            "bbox": [
-              671.0,
-              1063.0,
-              719.0,
-              1083.0
+              209.09449,
+              166.1757,
+              251.77449000000001,
+              174.1757
             ],
             "token_count": 1
           },
@@ -725,12 +535,25 @@
             "cell_id": "row_5__col_5",
             "row_id": "row_5",
             "column_id": "col_5",
-            "text": "Instruction",
+            "text": "A1c/Hemoglobin.total in Blood, Glucose",
             "bbox": [
-              747.0,
-              1063.0,
-              837.0,
-              1083.0
+              253.99849,
+              166.1757,
+              394.95049,
+              174.1757
+            ],
+            "token_count": 4
+          },
+          {
+            "cell_id": "row_5__col_6",
+            "row_id": "row_5",
+            "column_id": "col_6",
+            "text": "2,542",
+            "bbox": [
+              526.73996,
+              166.1757,
+              546.75596,
+              174.1757
             ],
             "token_count": 1
           }
@@ -740,64 +563,103 @@
         "row_id": "row_6",
         "row_index": 6,
         "bbox": [
-          283.0,
-          1099.0,
-          865.0,
-          1195.0
+          47.51969,
+          186.1757,
+          546.75596,
+          194.1757
         ],
-        "token_count": 10,
+        "token_count": 8,
         "cells": [
+          {
+            "cell_id": "row_6__col_0",
+            "row_id": "row_6",
+            "column_id": "col_0",
+            "text": "6",
+            "bbox": [
+              47.51969,
+              186.1757,
+              51.96769,
+              194.1757
+            ],
+            "token_count": 1
+          },
           {
             "cell_id": "row_6__col_1",
             "row_id": "row_6",
             "column_id": "col_1",
-            "text": "TAB. TAB: TAB:",
+            "text": "Nursing",
             "bbox": [
-              283.0,
-              1099.0,
-              321.0,
-              1189.0
+              81.53544,
+              186.1757,
+              109.09544,
+              194.1757
             ],
-            "token_count": 3
+            "token_count": 1
           },
           {
             "cell_id": "row_6__col_2",
             "row_id": "row_6",
             "column_id": "col_2",
-            "text": "LYSER D MACPOD 0 METRO ER",
+            "text": "Nursing",
             "bbox": [
-              337.0,
-              1099.0,
-              425.0,
-              1189.0
+              209.09449,
+              186.1757,
+              236.65449,
+              194.1757
             ],
-            "token_count": 3
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_6__col_3",
+            "row_id": "row_6",
+            "column_id": "col_3",
+            "text": "care",
+            "bbox": [
+              238.87849,
+              186.1757,
+              254.43849000000003,
+              194.1757
+            ],
+            "token_count": 1
           },
           {
             "cell_id": "row_6__col_4",
             "row_id": "row_6",
             "column_id": "col_4",
-            "text": "14",
+            "text": "- 1",
             "bbox": [
-              673.0,
-              1101.0,
-              695.0,
-              1117.0
+              256.66249,
+              186.1757,
+              265.99849,
+              194.1757
             ],
-            "token_count": 1
+            "token_count": 2
           },
           {
             "cell_id": "row_6__col_5",
             "row_id": "row_6",
             "column_id": "col_5",
-            "text": "AFTER MEALS AFTER MEALS AFTER MEALS",
+            "text": "days",
             "bbox": [
-              753.0,
-              1103.0,
-              865.0,
-              1195.0
+              268.22249,
+              186.1757,
+              285.11849,
+              194.1757
             ],
-            "token_count": 3
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_6__col_6",
+            "row_id": "row_6",
+            "column_id": "col_6",
+            "text": "1,200",
+            "bbox": [
+              526.73996,
+              186.1757,
+              546.75596,
+              194.1757
+            ],
+            "token_count": 1
           }
         ]
       },
@@ -805,239 +667,388 @@
         "row_id": "row_7",
         "row_index": 7,
         "bbox": [
-          337.0,
-          1205.0,
-          641.0,
-          1225.0
+          47.51969,
+          206.1757,
+          546.75596,
+          214.1757
         ],
-        "token_count": 2,
+        "token_count": 7,
         "cells": [
           {
-            "cell_id": "row_7__col_2",
+            "cell_id": "row_7__col_0",
             "row_id": "row_7",
-            "column_id": "col_2",
-            "text": "DETTOL",
+            "column_id": "col_0",
+            "text": "7",
             "bbox": [
-              337.0,
-              1205.0,
-              399.0,
-              1225.0
+              47.51969,
+              206.1757,
+              51.96769,
+              214.1757
             ],
             "token_count": 1
           },
           {
-            "cell_id": "row_7__col_3",
+            "cell_id": "row_7__col_1",
             "row_id": "row_7",
-            "column_id": "col_3",
-            "text": "10",
+            "column_id": "col_1",
+            "text": "Consumables",
             "bbox": [
-              619.0,
-              1209.0,
-              641.0,
-              1225.0
+              81.53544,
+              206.1757,
+              130.43944,
+              214.1757
             ],
             "token_count": 1
+          },
+          {
+            "cell_id": "row_7__col_2",
+            "row_id": "row_7",
+            "column_id": "col_2",
+            "text": "Surgical",
+            "bbox": [
+              209.09449,
+              206.1757,
+              237.99049000000002,
+              214.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_7__col_5",
+            "row_id": "row_7",
+            "column_id": "col_5",
+            "text": "consumables, IV lines",
+            "bbox": [
+              240.21449,
+              206.1757,
+              318.02249,
+              214.1757
+            ],
+            "token_count": 3
+          },
+          {
+            "cell_id": "row_7__col_6",
+            "row_id": "row_7",
+            "column_id": "col_6",
+            "text": "11,933",
+            "bbox": [
+              522.29196,
+              206.1757,
+              546.75596,
+              214.1757
+            ],
+            "token_count": 1
+          }
+        ]
+      },
+      {
+        "row_id": "row_8",
+        "row_index": 8,
+        "bbox": [
+          47.51969,
+          226.1757,
+          546.75596,
+          234.1757
+        ],
+        "token_count": 6,
+        "cells": [
+          {
+            "cell_id": "row_8__col_0",
+            "row_id": "row_8",
+            "column_id": "col_0",
+            "text": "8",
+            "bbox": [
+              47.51969,
+              226.1757,
+              51.96769,
+              234.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_8__col_1",
+            "row_id": "row_8",
+            "column_id": "col_1",
+            "text": "Miscellaneous",
+            "bbox": [
+              81.53544,
+              226.1757,
+              132.21544,
+              234.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_8__col_2",
+            "row_id": "row_8",
+            "column_id": "col_2",
+            "text": "Admin,",
+            "bbox": [
+              209.09449,
+              226.1757,
+              233.99049,
+              234.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_8__col_3",
+            "row_id": "row_8",
+            "column_id": "col_3",
+            "text": "Food,",
+            "bbox": [
+              236.21449,
+              226.1757,
+              256.67049000000003,
+              234.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_8__col_5",
+            "row_id": "row_8",
+            "column_id": "col_5",
+            "text": "Transport",
+            "bbox": [
+              258.89449,
+              226.1757,
+              293.12649000000005,
+              234.1757
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_8__col_6",
+            "row_id": "row_8",
+            "column_id": "col_6",
+            "text": "734",
+            "bbox": [
+              533.41196,
+              226.1757,
+              546.75596,
+              234.1757
+            ],
+            "token_count": 1
+          }
+        ]
+      },
+      {
+        "row_id": "row_9",
+        "row_index": 9,
+        "bbox": [
+          387.21449,
+          252.05200000000013,
+          546.7559600000001,
+          261.05200000000013
+        ],
+        "token_count": 5,
+        "cells": [
+          {
+            "cell_id": "row_9__col_5",
+            "row_id": "row_9",
+            "column_id": "col_5",
+            "text": "Total",
+            "bbox": [
+              387.21449,
+              252.05200000000013,
+              408.71549000000005,
+              261.05200000000013
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_9__col_6",
+            "row_id": "row_9",
+            "column_id": "col_6",
+            "text": "Bill Amount Rs. 73,555",
+            "bbox": [
+              411.21749,
+              252.05200000000013,
+              546.7559600000001,
+              261.05200000000013
+            ],
+            "token_count": 4
+          }
+        ]
+      },
+      {
+        "row_id": "row_10",
+        "row_index": 10,
+        "bbox": [
+          343.67249000000004,
+          272.05200000000013,
+          546.75596,
+          281.05200000000013
+        ],
+        "token_count": 6,
+        "cells": [
+          {
+            "cell_id": "row_10__col_5",
+            "row_id": "row_10",
+            "column_id": "col_5",
+            "text": "Less: Non-Medical",
+            "bbox": [
+              343.67249000000004,
+              272.05200000000013,
+              423.1874900000001,
+              281.05200000000013
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_10__col_6",
+            "row_id": "row_10",
+            "column_id": "col_6",
+            "text": "/ Excess Rs. 0",
+            "bbox": [
+              425.68949000000003,
+              272.05200000000013,
+              546.75596,
+              281.05200000000013
+            ],
+            "token_count": 4
+          }
+        ]
+      },
+      {
+        "row_id": "row_11",
+        "row_index": 11,
+        "bbox": [
+          366.20849,
+          292.05200000000013,
+          546.7559600000001,
+          301.05200000000013
+        ],
+        "token_count": 5,
+        "cells": [
+          {
+            "cell_id": "row_11__col_5",
+            "row_id": "row_11",
+            "column_id": "col_5",
+            "text": "Total",
+            "bbox": [
+              366.20849,
+              292.05200000000013,
+              387.70949,
+              301.05200000000013
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_11__col_6",
+            "row_id": "row_11",
+            "column_id": "col_6",
+            "text": "Claimed Amount Rs. 73,555",
+            "bbox": [
+              390.21148999999997,
+              292.05200000000013,
+              546.7559600000001,
+              301.05200000000013
+            ],
+            "token_count": 4
           }
         ]
       }
     ]
   },
   {
-    "region_id": "6df0b109-1ae2-4315-9b6c-1da838a3ac04",
+    "region_id": "8c7edaab-1f9e-452f-b967-8eb29a147546",
     "bbox": [
-      104.06525555323951,
-      242.0,
-      1017.0,
-      643.0
+      48.51969,
+      324.18360000000007,
+      394.97339000000005,
+      433.18360000000007
     ],
-    "table_kind": "expenses",
-    "table_kind_confidence": 0.92,
+    "table_kind": "medications",
+    "table_kind_confidence": 0.35,
     "columns": [
       {
         "column_id": "col_0",
         "column_index": 0,
-        "x_center": 146.71428571428572,
-        "x0": 88.21428571428572,
-        "x1": 223.9126984126984,
-        "rows_seen": 2,
-        "token_count": 7,
-        "alignment_score": 0.4
+        "x_center": 63.11769,
+        "x0": 43.90809000000001,
+        "x1": 72.04969,
+        "rows_seen": 5,
+        "token_count": 6,
+        "alignment_score": 0.833
       },
       {
         "column_id": "col_1",
         "column_index": 1,
-        "x_center": 301.1111111111111,
-        "x0": 223.9126984126984,
-        "x1": 344.18055555555554,
-        "rows_seen": 3,
-        "token_count": 9,
-        "alignment_score": 0.6
+        "x_center": 80.98169,
+        "x0": 72.04969,
+        "x1": 88.61202333333334,
+        "rows_seen": 2,
+        "token_count": 2,
+        "alignment_score": 0.333
       },
       {
         "column_id": "col_2",
         "column_index": 2,
-        "x_center": 387.25,
-        "x0": 344.18055555555554,
-        "x1": 428.125,
+        "x_center": 96.24235666666668,
+        "x0": 88.61202333333334,
+        "x1": 160.91117333333335,
         "rows_seen": 3,
-        "token_count": 4,
-        "alignment_score": 0.6
+        "token_count": 3,
+        "alignment_score": 0.5
       },
       {
         "column_id": "col_3",
         "column_index": 3,
-        "x_center": 469.0,
-        "x0": 428.125,
-        "x1": 511.0,
-        "rows_seen": 1,
-        "token_count": 1,
-        "alignment_score": 0.2
+        "x_center": 225.57999,
+        "x0": 160.91117333333335,
+        "x1": 234.65219,
+        "rows_seen": 4,
+        "token_count": 5,
+        "alignment_score": 0.667
       },
       {
         "column_id": "col_4",
         "column_index": 4,
-        "x_center": 553.0,
-        "x0": 511.0,
-        "x1": 585.5357142857142,
-        "rows_seen": 2,
+        "x_center": 243.72438999999997,
+        "x0": 234.65219,
+        "x1": 262.93399,
+        "rows_seen": 3,
         "token_count": 2,
-        "alignment_score": 0.4
-      },
-      {
-        "column_id": "col_5",
-        "column_index": 5,
-        "x_center": 618.0714285714286,
-        "x0": 585.5357142857142,
-        "x1": 677.1107142857143,
-        "rows_seen": 3,
-        "token_count": 7,
-        "alignment_score": 0.6
-      },
-      {
-        "column_id": "col_6",
-        "column_index": 6,
-        "x_center": 736.15,
-        "x0": 677.1107142857143,
-        "x1": 768.075,
-        "rows_seen": 3,
-        "token_count": 10,
-        "alignment_score": 0.6
-      },
-      {
-        "column_id": "col_7",
-        "column_index": 7,
-        "x_center": 800.0,
-        "x0": 768.075,
-        "x1": 860.8958333333333,
-        "rows_seen": 2,
-        "token_count": 1,
-        "alignment_score": 0.4
-      },
-      {
-        "column_id": "col_8",
-        "column_index": 8,
-        "x_center": 921.7916666666666,
-        "x0": 860.8958333333333,
-        "x1": 980.2916666666666,
-        "rows_seen": 4,
-        "token_count": 12,
-        "alignment_score": 0.8
+        "alignment_score": 0.5
       }
     ],
-    "multiline_merges": [
-      {
-        "from_row_index": 1,
-        "continuation_row_index": 2,
-        "gap": 0.0,
-        "overlap_ratio": 0.998,
-        "indent_delta": 2.0
-      },
-      {
-        "from_row_index": 1,
-        "continuation_row_index": 3,
-        "gap": 0.12,
-        "overlap_ratio": 0.998,
-        "indent_delta": 1.93
-      },
-      {
-        "from_row_index": 2,
-        "continuation_row_index": 5,
-        "gap": 0.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 1.0
-      },
-      {
-        "from_row_index": 2,
-        "continuation_row_index": 6,
-        "gap": 3.0,
-        "overlap_ratio": 0.999,
-        "indent_delta": 1.0
-      },
-      {
-        "from_row_index": 3,
-        "continuation_row_index": 8,
-        "gap": 2.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 0.0
-      },
-      {
-        "from_row_index": 3,
-        "continuation_row_index": 9,
-        "gap": 2.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 0.0
-      },
-      {
-        "from_row_index": 3,
-        "continuation_row_index": 10,
-        "gap": 2.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 0.0
-      },
-      {
-        "from_row_index": 3,
-        "continuation_row_index": 11,
-        "gap": 2.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 4.0
-      },
-      {
-        "from_row_index": 4,
-        "continuation_row_index": 13,
-        "gap": 2.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 0.0
-      },
-      {
-        "from_row_index": 4,
-        "continuation_row_index": 14,
-        "gap": 0.0,
-        "overlap_ratio": 1.0,
-        "indent_delta": 2.0
-      }
-    ],
+    "multiline_merges": [],
     "rows": [
       {
         "row_id": "row_0",
         "row_index": 0,
         "bbox": [
-          512.0,
-          242.0,
-          592.0,
-          266.0
+          50.51969,
+          324.18360000000007,
+          119.41568999999998,
+          332.18360000000007
         ],
-        "token_count": 1,
+        "token_count": 3,
         "cells": [
           {
-            "cell_id": "row_0__col_4",
+            "cell_id": "row_0__col_0",
             "row_id": "row_0",
-            "column_id": "col_4",
-            "text": "IPD BiLL",
+            "column_id": "col_0",
+            "text": "5. RISK",
             "bbox": [
-              512.0,
-              242.0,
-              592.0,
-              266.0
+              50.51969,
+              324.18360000000007,
+              78.52768999999999,
+              332.18360000000007
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_0__col_2",
+            "row_id": "row_0",
+            "column_id": "col_2",
+            "text": "FACTORS",
+            "bbox": [
+              80.75169,
+              324.18360000000007,
+              119.41568999999998,
+              332.18360000000007
             ],
             "token_count": 1
           }
@@ -1047,116 +1058,38 @@
         "row_id": "row_1",
         "row_index": 1,
         "bbox": [
-          104.06525555323951,
-          262.0,
-          983.0,
-          359.0
+          107.13656,
+          345.0801000000001,
+          394.97339000000005,
+          352.5801000000001
         ],
-        "token_count": 18,
+        "token_count": 3,
         "cells": [
-          {
-            "cell_id": "row_1__col_0",
-            "row_id": "row_1",
-            "column_id": "col_0",
-            "text": "Bill No. Patient Name Reg: No_",
-            "bbox": [
-              104.06525555323951,
-              262.0,
-              218.0,
-              355.8754975214474
-            ],
-            "token_count": 4
-          },
-          {
-            "cell_id": "row_1__col_1",
-            "row_id": "row_1",
-            "column_id": "col_1",
-            "text": "26 AMREEN AZHAR SHAIKH 1-28/2026",
-            "bbox": [
-              247.0,
-              271.0,
-              433.0,
-              359.0
-            ],
-            "token_count": 3
-          },
           {
             "cell_id": "row_1__col_2",
             "row_id": "row_1",
             "column_id": "col_2",
-            "text": "Age.",
+            "text": "Risk Factor",
             "bbox": [
-              401.0,
-              341.0,
-              437.0,
-              359.0
+              107.13656,
+              345.0801000000001,
+              147.98156,
+              352.5801000000001
             ],
-            "token_count": 1
-          },
-          {
-            "cell_id": "row_1__col_3",
-            "row_id": "row_1",
-            "column_id": "col_3",
-            "text": "29",
-            "bbox": [
-              457.0,
-              341.0,
-              481.0,
-              357.0
-            ],
-            "token_count": 1
+            "token_count": 2
           },
           {
             "cell_id": "row_1__col_4",
             "row_id": "row_1",
             "column_id": "col_4",
-            "text": "Sex_",
+            "text": "Details",
             "bbox": [
-              539.0,
-              341.0,
-              569.0,
-              357.0
+              370.38089,
+              345.0801000000001,
+              394.97339000000005,
+              352.5801000000001
             ],
             "token_count": 1
-          },
-          {
-            "cell_id": "row_1__col_5",
-            "row_id": "row_1",
-            "column_id": "col_5",
-            "text": "FEMALE",
-            "bbox": [
-              595.0,
-              339.0,
-              657.0,
-              357.0
-            ],
-            "token_count": 1
-          },
-          {
-            "cell_id": "row_1__col_6",
-            "row_id": "row_1",
-            "column_id": "col_6",
-            "text": "UID: Bill Date Adm Date",
-            "bbox": [
-              695.0,
-              279.0,
-              781.0,
-              355.0
-            ],
-            "token_count": 4
-          },
-          {
-            "cell_id": "row_1__col_8",
-            "row_id": "row_1",
-            "column_id": "col_8",
-            "text": "Initial 10-04-2026 9/4/2026",
-            "bbox": [
-              841.0,
-              275.0,
-              983.0,
-              359.0
-            ],
-            "token_count": 3
           }
         ]
       },
@@ -1164,88 +1097,62 @@
         "row_id": "row_2",
         "row_index": 2,
         "bbox": [
-          108.0,
-          357.0,
-          1017.0,
-          450.0
+          48.51969,
+          365.18360000000007,
+          242.16639,
+          373.18360000000007
         ],
-        "token_count": 13,
+        "token_count": 5,
         "cells": [
           {
             "cell_id": "row_2__col_0",
             "row_id": "row_2",
             "column_id": "col_0",
-            "text": "Address Consultant Sr. No_",
+            "text": "Length",
             "bbox": [
-              108.0,
-              357.0,
-              202.0,
-              443.0
+              48.51969,
+              365.18360000000007,
+              72.98369,
+              373.18360000000007
             ],
-            "token_count": 3
+            "token_count": 1
           },
           {
             "cell_id": "row_2__col_1",
             "row_id": "row_2",
             "column_id": "col_1",
-            "text": "BHAIGAON ROAD SHARDA NAGAR DR. SUNITA AJAY BURANDE Description:",
+            "text": "of",
             "bbox": [
-              235.0,
-              370.0,
-              511.0,
-              449.0
-            ],
-            "token_count": 3
-          },
-          {
-            "cell_id": "row_2__col_5",
-            "row_id": "row_2",
-            "column_id": "col_5",
-            "text": "Charges",
-            "bbox": [
-              580.0,
-              430.0,
-              645.0,
-              450.0
+              75.20769,
+              365.18360000000007,
+              81.87969,
+              373.18360000000007
             ],
             "token_count": 1
           },
           {
-            "cell_id": "row_2__col_6",
+            "cell_id": "row_2__col_2",
             "row_id": "row_2",
-            "column_id": "col_6",
-            "text": "Discharge. Referring Doctor Days / Qty_",
+            "column_id": "col_2",
+            "text": "Stay",
             "bbox": [
-              691.0,
-              364.0,
-              824.0,
-              449.0
-            ],
-            "token_count": 3
-          },
-          {
-            "cell_id": "row_2__col_7",
-            "row_id": "row_2",
-            "column_id": "col_7",
-            "text": "Date",
-            "bbox": [
-              781.0,
-              371.0,
-              819.0,
-              387.0
+              84.10369,
+              365.18360000000007,
+              100.11169000000001,
+              373.18360000000007
             ],
             "token_count": 1
           },
           {
-            "cell_id": "row_2__col_8",
+            "cell_id": "row_2__col_3",
             "row_id": "row_2",
-            "column_id": "col_8",
-            "text": "10/4/2026 Total Charges_",
+            "column_id": "col_3",
+            "text": "1 days",
             "bbox": [
-              844.0,
-              366.0,
-              1017.0,
-              445.0
+              218.59839,
+              365.18360000000007,
+              242.16639,
+              373.18360000000007
             ],
             "token_count": 2
           }
@@ -1255,64 +1162,64 @@
         "row_id": "row_3",
         "row_index": 3,
         "bbox": [
-          233.0,
-          455.0,
-          955.0,
-          565.0
+          48.51969,
+          385.18360000000007,
+          307.53439000000003,
+          393.18360000000007
         ],
-        "token_count": 16,
+        "token_count": 5,
         "cells": [
           {
-            "cell_id": "row_3__col_1",
+            "cell_id": "row_3__col_0",
             "row_id": "row_3",
-            "column_id": "col_1",
-            "text": "DELIVERY CHARGES LABOUR ROOM CHARGES NURSING CHARGES OXYGEN CHARGES SPECIAL ROOM",
+            "column_id": "col_0",
+            "text": "Diagnosis",
             "bbox": [
-              233.0,
-              457.0,
-              421.0,
-              565.0
+              48.51969,
+              385.18360000000007,
+              83.63969,
+              393.18360000000007
             ],
-            "token_count": 5
+            "token_count": 1
           },
           {
             "cell_id": "row_3__col_2",
             "row_id": "row_3",
             "column_id": "col_2",
-            "text": "CHARGES",
+            "text": "Count",
             "bbox": [
-              365.0,
-              547.0,
-              439.0,
-              565.0
+              85.86369,
+              385.18360000000007,
+              107.20769,
+              393.18360000000007
             ],
             "token_count": 1
           },
           {
-            "cell_id": "row_3__col_5",
+            "cell_id": "row_3__col_3",
             "row_id": "row_3",
-            "column_id": "col_5",
-            "text": "16500 2000 500 500 1500",
+            "column_id": "col_3",
+            "text": "6",
             "bbox": [
-              597.0,
-              457.0,
-              649.0,
-              565.0
+              218.59839,
+              385.18360000000007,
+              223.04639,
+              393.18360000000007
             ],
-            "token_count": 5
+            "token_count": 1
           },
           {
-            "cell_id": "row_3__col_8",
+            "cell_id": "row_3__col_4",
             "row_id": "row_3",
-            "column_id": "col_8",
-            "text": "16500 2000 500 500 1500",
+            "column_id": "col_4",
+            "text": "documented conditions",
             "bbox": [
-              901.0,
-              455.0,
-              955.0,
-              565.0
+              225.27039,
+              385.18360000000007,
+              307.53439000000003,
+              393.18360000000007
             ],
-            "token_count": 5
+            "token_count": 2
           }
         ]
       },
@@ -1320,36 +1227,752 @@
         "row_id": "row_4",
         "row_index": 4,
         "bbox": [
-          693.0,
-          575.0,
-          961.0,
-          643.0
+          48.51969,
+          405.18360000000007,
+          298.18239000000005,
+          413.18360000000007
         ],
-        "token_count": 5,
+        "token_count": 4,
         "cells": [
           {
-            "cell_id": "row_4__col_6",
+            "cell_id": "row_4__col_0",
             "row_id": "row_4",
-            "column_id": "col_6",
-            "text": "Grand Total Deposits Net Payable",
+            "column_id": "col_0",
+            "text": "Medications",
             "bbox": [
-              693.0,
-              579.0,
-              785.0,
-              643.0
+              48.51969,
+              405.18360000000007,
+              91.19969,
+              413.18360000000007
             ],
-            "token_count": 3
+            "token_count": 1
           },
           {
-            "cell_id": "row_4__col_8",
+            "cell_id": "row_4__col_3",
             "row_id": "row_4",
-            "column_id": "col_8",
-            "text": "21000 21000",
+            "column_id": "col_3",
+            "text": "15",
             "bbox": [
-              903.0,
-              575.0,
-              961.0,
-              619.0
+              218.59839,
+              405.18360000000007,
+              227.49439,
+              413.18360000000007
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_4__col_4",
+            "row_id": "row_4",
+            "column_id": "col_4",
+            "text": "active prescriptions",
+            "bbox": [
+              229.71839,
+              405.18360000000007,
+              298.18239000000005,
+              413.18360000000007
+            ],
+            "token_count": 2
+          }
+        ]
+      },
+      {
+        "row_id": "row_5",
+        "row_index": 5,
+        "bbox": [
+          48.51969,
+          425.18360000000007,
+          240.38239000000002,
+          433.18360000000007
+        ],
+        "token_count": 3,
+        "cells": [
+          {
+            "cell_id": "row_5__col_0",
+            "row_id": "row_5",
+            "column_id": "col_0",
+            "text": "Policy",
+            "bbox": [
+              48.51969,
+              425.18360000000007,
+              69.85569,
+              433.18360000000007
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_5__col_1",
+            "row_id": "row_5",
+            "column_id": "col_1",
+            "text": "Status",
+            "bbox": [
+              72.07969,
+              425.18360000000007,
+              94.75969,
+              433.18360000000007
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_5__col_3",
+            "row_id": "row_5",
+            "column_id": "col_3",
+            "text": "Active",
+            "bbox": [
+              218.59839,
+              425.18360000000007,
+              240.38239000000002,
+              433.18360000000007
+            ],
+            "token_count": 1
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "region_id": "1b3dbec4-3d2c-426c-99bf-dc065fc2f306",
+    "bbox": [
+      50.51969,
+      457.52220000000005,
+      520.9996899999992,
+      500.52220000000005
+    ],
+    "table_kind": "generic_table",
+    "table_kind_confidence": 0.35,
+    "columns": [
+      {
+        "column_id": "col_0",
+        "column_index": 0,
+        "x_center": 52.74369,
+        "x0": 39.73689000000003,
+        "x1": 59.85769,
+        "rows_seen": 2,
+        "token_count": 2,
+        "alignment_score": 1.0
+      },
+      {
+        "column_id": "col_1",
+        "column_index": 1,
+        "x_center": 66.97169,
+        "x0": 59.85769,
+        "x1": 79.12235666666666,
+        "rows_seen": 1,
+        "token_count": 2,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_2",
+        "column_index": 2,
+        "x_center": 91.27302333333334,
+        "x0": 79.12235666666666,
+        "x1": 102.79735666666667,
+        "rows_seen": 2,
+        "token_count": 3,
+        "alignment_score": 1.0
+      },
+      {
+        "column_id": "col_3",
+        "column_index": 3,
+        "x_center": 114.32169000000002,
+        "x0": 102.79735666666667,
+        "x1": 125.27069000000002,
+        "rows_seen": 1,
+        "token_count": 2,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_4",
+        "column_index": 4,
+        "x_center": 136.21969,
+        "x0": 125.27069000000002,
+        "x1": 145.77969000000002,
+        "rows_seen": 1,
+        "token_count": 2,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_5",
+        "column_index": 5,
+        "x_center": 155.33969000000005,
+        "x0": 145.77969000000002,
+        "x1": 165.67869000000005,
+        "rows_seen": 1,
+        "token_count": 2,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_6",
+        "column_index": 6,
+        "x_center": 176.01769000000004,
+        "x0": 165.67869000000005,
+        "x1": 191.97069000000005,
+        "rows_seen": 1,
+        "token_count": 2,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_7",
+        "column_index": 7,
+        "x_center": 207.92369000000008,
+        "x0": 191.97069000000005,
+        "x1": 218.60369000000009,
+        "rows_seen": 1,
+        "token_count": 2,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_8",
+        "column_index": 8,
+        "x_center": 229.2836900000001,
+        "x0": 218.60369000000009,
+        "x1": 238.27969000000007,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_9",
+        "column_index": 9,
+        "x_center": 247.27569000000005,
+        "x0": 238.27969000000007,
+        "x1": 253.62169000000006,
+        "rows_seen": 1,
+        "token_count": 2,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_10",
+        "column_index": 10,
+        "x_center": 259.96769000000006,
+        "x0": 253.62169000000006,
+        "x1": 268.62869000000006,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_11",
+        "column_index": 11,
+        "x_center": 277.28969000000006,
+        "x0": 268.62869000000006,
+        "x1": 285.79169,
+        "rows_seen": 1,
+        "token_count": 2,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_12",
+        "column_index": 12,
+        "x_center": 294.29369,
+        "x0": 285.79169,
+        "x1": 302.14269,
+        "rows_seen": 1,
+        "token_count": 2,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_13",
+        "column_index": 13,
+        "x_center": 309.99169,
+        "x0": 302.14269,
+        "x1": 316.76068999999995,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_14",
+        "column_index": 14,
+        "x_center": 323.52968999999996,
+        "x0": 316.76068999999995,
+        "x1": 330.9926899999999,
+        "rows_seen": 1,
+        "token_count": 2,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_15",
+        "column_index": 15,
+        "x_center": 338.4556899999999,
+        "x0": 330.9926899999999,
+        "x1": 343.90168999999986,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_16",
+        "column_index": 16,
+        "x_center": 349.34768999999983,
+        "x0": 343.90168999999986,
+        "x1": 362.6856899999998,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_17",
+        "column_index": 17,
+        "x_center": 376.0236899999998,
+        "x0": 362.6856899999998,
+        "x1": 390.03168999999974,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_18",
+        "column_index": 18,
+        "x_center": 404.03968999999967,
+        "x0": 390.03168999999974,
+        "x1": 413.8236899999996,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_19",
+        "column_index": 19,
+        "x_center": 423.6076899999996,
+        "x0": 413.8236899999996,
+        "x1": 430.61168999999956,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_20",
+        "column_index": 20,
+        "x_center": 437.6156899999995,
+        "x0": 430.61168999999956,
+        "x1": 446.2876899999995,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_21",
+        "column_index": 21,
+        "x_center": 454.95968999999945,
+        "x0": 446.2876899999995,
+        "x1": 464.74368999999945,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_22",
+        "column_index": 22,
+        "x_center": 474.52768999999944,
+        "x0": 464.74368999999945,
+        "x1": 480.0876899999994,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_23",
+        "column_index": 23,
+        "x_center": 485.6476899999994,
+        "x0": 480.0876899999994,
+        "x1": 496.4316899999993,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      },
+      {
+        "column_id": "col_24",
+        "column_index": 24,
+        "x_center": 507.21568999999926,
+        "x0": 496.4316899999993,
+        "x1": 520.2224899999992,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.5
+      }
+    ],
+    "multiline_merges": [
+      {
+        "from_row_index": 1,
+        "continuation_row_index": 2,
+        "gap": 4.0,
+        "overlap_ratio": 1.0,
+        "indent_delta": 0.0
+      }
+    ],
+    "rows": [
+      {
+        "row_id": "row_0",
+        "row_index": 0,
+        "bbox": [
+          50.51969,
+          457.52220000000005,
+          117.63168999999999,
+          465.52220000000005
+        ],
+        "token_count": 2,
+        "cells": [
+          {
+            "cell_id": "row_0__col_0",
+            "row_id": "row_0",
+            "column_id": "col_0",
+            "text": "6.",
+            "bbox": [
+              50.51969,
+              457.52220000000005,
+              57.191689999999994,
+              465.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_0__col_2",
+            "row_id": "row_0",
+            "column_id": "col_2",
+            "text": "DECLARATION",
+            "bbox": [
+              59.41569,
+              457.52220000000005,
+              117.63168999999999,
+              465.52220000000005
+            ],
+            "token_count": 1
+          }
+        ]
+      },
+      {
+        "row_id": "row_1",
+        "row_index": 1,
+        "bbox": [
+          50.51969,
+          480.52220000000005,
+          520.9996899999992,
+          500.52220000000005
+        ],
+        "token_count": 36,
+        "cells": [
+          {
+            "cell_id": "row_1__col_0",
+            "row_id": "row_1",
+            "column_id": "col_0",
+            "text": "I",
+            "bbox": [
+              50.51969,
+              480.52220000000005,
+              52.74369,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_1",
+            "row_id": "row_1",
+            "column_id": "col_1",
+            "text": "hereby providing",
+            "bbox": [
+              50.51969,
+              480.52220000000005,
+              82.97569000000001,
+              500.52220000000005
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_10",
+            "row_id": "row_1",
+            "column_id": "col_10",
+            "text": "and",
+            "bbox": [
+              253.29569000000006,
+              480.52220000000005,
+              266.6396900000001,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_11",
+            "row_id": "row_1",
+            "column_id": "col_11",
+            "text": "correct for",
+            "bbox": [
+              268.82369000000006,
+              480.52220000000005,
+              293.31169000000006,
+              500.52220000000005
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_12",
+            "row_id": "row_1",
+            "column_id": "col_12",
+            "text": "to claim",
+            "bbox": [
+              280.38369,
+              480.52220000000005,
+              302.20769,
+              500.52220000000005
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_13",
+            "row_id": "row_1",
+            "column_id": "col_13",
+            "text": "the processing.",
+            "bbox": [
+              301.27169000000004,
+              480.52220000000005,
+              342.17569,
+              500.52220000000005
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_14",
+            "row_id": "row_1",
+            "column_id": "col_14",
+            "text": "best",
+            "bbox": [
+              317.77568999999994,
+              480.52220000000005,
+              332.8956899999999,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_15",
+            "row_id": "row_1",
+            "column_id": "col_15",
+            "text": "of",
+            "bbox": [
+              335.1196899999999,
+              480.52220000000005,
+              341.79168999999985,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_16",
+            "row_id": "row_1",
+            "column_id": "col_16",
+            "text": "my",
+            "bbox": [
+              344.01568999999984,
+              480.52220000000005,
+              354.6796899999998,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_17",
+            "row_id": "row_1",
+            "column_id": "col_17",
+            "text": "knowledge",
+            "bbox": [
+              356.90368999999987,
+              480.52220000000005,
+              395.14368999999976,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_18",
+            "row_id": "row_1",
+            "column_id": "col_18",
+            "text": "and",
+            "bbox": [
+              397.3676899999997,
+              480.52220000000005,
+              410.71168999999963,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_19",
+            "row_id": "row_1",
+            "column_id": "col_19",
+            "text": "belief.",
+            "bbox": [
+              412.9356899999997,
+              480.52220000000005,
+              434.27968999999956,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_2",
+            "row_id": "row_1",
+            "column_id": "col_2",
+            "text": "declare my",
+            "bbox": [
+              81.64769,
+              480.52220000000005,
+              107.87969000000001,
+              500.52220000000005
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_20",
+            "row_id": "row_1",
+            "column_id": "col_20",
+            "text": "I",
+            "bbox": [
+              436.50368999999955,
+              480.52220000000005,
+              438.72768999999954,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_21",
+            "row_id": "row_1",
+            "column_id": "col_21",
+            "text": "consent",
+            "bbox": [
+              440.95168999999953,
+              480.52220000000005,
+              468.96768999999944,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_22",
+            "row_id": "row_1",
+            "column_id": "col_22",
+            "text": "to",
+            "bbox": [
+              471.1916899999994,
+              480.52220000000005,
+              477.86368999999945,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_23",
+            "row_id": "row_1",
+            "column_id": "col_23",
+            "text": "the",
+            "bbox": [
+              480.0876899999994,
+              480.52220000000005,
+              491.2076899999994,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_24",
+            "row_id": "row_1",
+            "column_id": "col_24",
+            "text": "hospital",
+            "bbox": [
+              493.4316899999993,
+              480.52220000000005,
+              520.9996899999992,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_3",
+            "row_id": "row_1",
+            "column_id": "col_3",
+            "text": "that medical",
+            "bbox": [
+              98.08769000000001,
+              480.52220000000005,
+              125.64769,
+              500.52220000000005
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_4",
+            "row_id": "row_1",
+            "column_id": "col_4",
+            "text": "the records",
+            "bbox": [
+              125.67169000000004,
+              480.52220000000005,
+              154.54369,
+              500.52220000000005
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_5",
+            "row_id": "row_1",
+            "column_id": "col_5",
+            "text": "details to",
+            "bbox": [
+              139.01569000000006,
+              480.52220000000005,
+              163.43969,
+              500.52220000000005
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_6",
+            "row_id": "row_1",
+            "column_id": "col_6",
+            "text": "furnished the",
+            "bbox": [
+              164.35969000000006,
+              480.52220000000005,
+              197.26369000000008,
+              500.52220000000005
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_7",
+            "row_id": "row_1",
+            "column_id": "col_7",
+            "text": "above TPA/Insurance",
+            "bbox": [
+              179.00769000000003,
+              480.52220000000005,
+              231.91969000000006,
+              500.52220000000005
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_1__col_8",
+            "row_id": "row_1",
+            "column_id": "col_8",
+            "text": "are",
+            "bbox": [
+              223.5036900000001,
+              480.52220000000005,
+              235.0636900000001,
+              488.52220000000005
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_9",
+            "row_id": "row_1",
+            "column_id": "col_9",
+            "text": "true company",
+            "bbox": [
+              234.14369000000005,
+              480.52220000000005,
+              266.59969000000007,
+              500.52220000000005
             ],
             "token_count": 2
           }
@@ -1358,12 +1981,12 @@
     ]
   },
   {
-    "region_id": "2fb01b3e-3a61-419d-8a63-b0d54749376f",
+    "region_id": "26992487-701b-4176-9cd4-ec6468aeef51",
     "bbox": [
-      729.0,
-      778.0,
-      1101.0,
-      907.0
+      50.51969,
+      526.7573,
+      419.39779,
+      580.0678
     ],
     "table_kind": "generic_table",
     "table_kind_confidence": 0.35,
@@ -1371,22 +1994,92 @@
       {
         "column_id": "col_0",
         "column_index": 0,
-        "x_center": 772.0,
-        "x0": 613.6,
-        "x1": 854.9166666666667,
-        "rows_seen": 0,
-        "token_count": 1,
-        "alignment_score": 0.0
+        "x_center": 62.523439999999994,
+        "x0": 39.118489999999994,
+        "x1": 78.46319,
+        "rows_seen": 2,
+        "token_count": 2,
+        "alignment_score": 0.667
       },
       {
         "column_id": "col_1",
         "column_index": 1,
-        "x_center": 937.8333333333334,
-        "x0": 854.9166666666667,
-        "x1": 1096.2333333333333,
-        "rows_seen": 0,
-        "token_count": 6,
-        "alignment_score": 0.0
+        "x_center": 94.40294,
+        "x0": 78.46319,
+        "x1": 111.341315,
+        "rows_seen": 3,
+        "token_count": 4,
+        "alignment_score": 1.0
+      },
+      {
+        "column_id": "col_2",
+        "column_index": 2,
+        "x_center": 128.27969,
+        "x0": 111.341315,
+        "x1": 142.1323775,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.333
+      },
+      {
+        "column_id": "col_3",
+        "column_index": 3,
+        "x_center": 155.985065,
+        "x0": 142.1323775,
+        "x1": 237.1394275,
+        "rows_seen": 2,
+        "token_count": 2,
+        "alignment_score": 0.667
+      },
+      {
+        "column_id": "col_4",
+        "column_index": 4,
+        "x_center": 318.29379,
+        "x0": 237.1394275,
+        "x1": 324.97078999999997,
+        "rows_seen": 3,
+        "token_count": 3,
+        "alignment_score": 1.0
+      },
+      {
+        "column_id": "col_5",
+        "column_index": 5,
+        "x_center": 331.64779,
+        "x0": 324.97078999999997,
+        "x1": 342.9006025,
+        "rows_seen": 2,
+        "token_count": 1,
+        "alignment_score": 0.667
+      },
+      {
+        "column_id": "col_6",
+        "column_index": 6,
+        "x_center": 354.153415,
+        "x0": 342.9006025,
+        "x1": 362.4789775,
+        "rows_seen": 2,
+        "token_count": 2,
+        "alignment_score": 0.667
+      },
+      {
+        "column_id": "col_7",
+        "column_index": 7,
+        "x_center": 370.80454,
+        "x0": 362.4789775,
+        "x1": 384.05929,
+        "rows_seen": 2,
+        "token_count": 2,
+        "alignment_score": 0.667
+      },
+      {
+        "column_id": "col_8",
+        "column_index": 8,
+        "x_center": 397.31404,
+        "x0": 384.05929,
+        "x1": 420.71898999999996,
+        "rows_seen": 1,
+        "token_count": 1,
+        "alignment_score": 0.333
       }
     ],
     "multiline_merges": [],
@@ -1395,38 +2088,90 @@
         "row_id": "row_0",
         "row_index": 0,
         "bbox": [
-          729.0,
-          778.0,
-          1083.0,
-          840.0
+          50.51969,
+          526.7573,
+          419.39779,
+          534.2573
         ],
-        "token_count": 3,
+        "token_count": 6,
         "cells": [
-          {
-            "cell_id": "row_0__col_0",
-            "row_id": "row_0",
-            "column_id": "col_0",
-            "text": "Thank You:",
-            "bbox": [
-              729.0,
-              793.0,
-              815.0,
-              811.0
-            ],
-            "token_count": 1
-          },
           {
             "cell_id": "row_0__col_1",
             "row_id": "row_0",
             "column_id": "col_1",
-            "text": "GaetRALAYA Jez",
+            "text": "PATIENT/ATTENDANT",
             "bbox": [
-              828.0,
-              778.0,
-              1083.0,
-              840.0
+              50.51969,
+              526.7573,
+              130.51469,
+              534.2573
             ],
-            "token_count": 2
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_0__col_3",
+            "row_id": "row_0",
+            "column_id": "col_3",
+            "text": "SIGNATURE",
+            "bbox": [
+              132.59969,
+              526.7573,
+              176.76719,
+              534.2573
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_0__col_4",
+            "row_id": "row_0",
+            "column_id": "col_4",
+            "text": "HOSPITAL",
+            "bbox": [
+              305.63779,
+              526.7573,
+              343.55778999999995,
+              534.2573
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_0__col_6",
+            "row_id": "row_0",
+            "column_id": "col_6",
+            "text": "SEAL",
+            "bbox": [
+              345.64279,
+              526.7573,
+              365.64529,
+              534.2573
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_0__col_7",
+            "row_id": "row_0",
+            "column_id": "col_7",
+            "text": "&",
+            "bbox": [
+              367.73028999999997,
+              526.7573,
+              373.14529,
+              534.2573
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_0__col_8",
+            "row_id": "row_0",
+            "column_id": "col_8",
+            "text": "SIGNATURE",
+            "bbox": [
+              375.23028999999997,
+              526.7573,
+              419.39779,
+              534.2573
+            ],
+            "token_count": 1
           }
         ]
       },
@@ -1434,25 +2179,168 @@
         "row_id": "row_1",
         "row_index": 1,
         "bbox": [
-          811.0,
-          815.0,
-          1101.0,
-          907.0
+          50.51969,
+          549.0678,
+          375.67579,
+          558.0678
         ],
         "token_count": 4,
         "cells": [
           {
+            "cell_id": "row_1__col_0",
+            "row_id": "row_1",
+            "column_id": "col_0",
+            "text": "Date:",
+            "bbox": [
+              50.51969,
+              549.0678,
+              72.02968999999999,
+              558.0678
+            ],
+            "token_count": 1
+          },
+          {
             "cell_id": "row_1__col_1",
             "row_id": "row_1",
             "column_id": "col_1",
-            "text": "KAOBRNATpe Fibe: 285344 FACTQEY Hosp. Reg: No: 67",
+            "text": "10-04-2026",
             "bbox": [
-              811.0,
-              815.0,
-              1101.0,
-              907.0
+              74.53169,
+              549.0678,
+              120.55769,
+              558.0678
             ],
-            "token_count": 4
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_4",
+            "row_id": "row_1",
+            "column_id": "col_4",
+            "text": "Date:",
+            "bbox": [
+              305.63779,
+              549.0678,
+              327.14779,
+              558.0678
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_1__col_6",
+            "row_id": "row_1",
+            "column_id": "col_6",
+            "text": "10-04-2026",
+            "bbox": [
+              329.64979,
+              549.0678,
+              375.67579,
+              558.0678
+            ],
+            "token_count": 1
+          }
+        ]
+      },
+      {
+        "row_id": "row_2",
+        "row_index": 2,
+        "bbox": [
+          50.51969,
+          571.0678,
+          401.19079000000005,
+          580.0678
+        ],
+        "token_count": 8,
+        "cells": [
+          {
+            "cell_id": "row_2__col_0",
+            "row_id": "row_2",
+            "column_id": "col_0",
+            "text": "Name:",
+            "bbox": [
+              50.51969,
+              571.0678,
+              77.02468999999999,
+              580.0678
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_2__col_1",
+            "row_id": "row_2",
+            "column_id": "col_1",
+            "text": "Mr. Irvin",
+            "bbox": [
+              79.52669,
+              571.0678,
+              112.02569000000001,
+              580.0678
+            ],
+            "token_count": 2
+          },
+          {
+            "cell_id": "row_2__col_2",
+            "row_id": "row_2",
+            "column_id": "col_2",
+            "text": "Patrick",
+            "bbox": [
+              114.52768999999999,
+              571.0678,
+              142.03169,
+              580.0678
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_2__col_3",
+            "row_id": "row_2",
+            "column_id": "col_3",
+            "text": "Brown",
+            "bbox": [
+              144.53368999999998,
+              571.0678,
+              170.03968999999998,
+              580.0678
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_2__col_4",
+            "row_id": "row_2",
+            "column_id": "col_4",
+            "text": "Reg",
+            "bbox": [
+              305.63779,
+              571.0678,
+              322.14379,
+              580.0678
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_2__col_5",
+            "row_id": "row_2",
+            "column_id": "col_5",
+            "text": "No:",
+            "bbox": [
+              324.64579,
+              571.0678,
+              338.64979,
+              580.0678
+            ],
+            "token_count": 1
+          },
+          {
+            "cell_id": "row_2__col_7",
+            "row_id": "row_2",
+            "column_id": "col_7",
+            "text": "ACI/1996/9076",
+            "bbox": [
+              341.15179,
+              571.0678,
+              401.19079000000005,
+              580.0678
+            ],
+            "token_count": 1
           }
         ]
       }

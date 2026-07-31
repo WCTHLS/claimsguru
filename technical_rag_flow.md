@@ -69,3 +69,44 @@ When a clean diagnosis term like `"pregnancy in labour"` is processed, it runs t
 2. **Lexical Safeguard:** Vector search can sometimes hallucinate semantically similar but incorrect codes. BM25 guarantees that if a specific term (like an exact drug abbreviation or code number) appears, it is retrieved.
 3. **RRF Rank Fusion:** RRF is parameter-free and extremely robust; it merges semantic and keyword rankings perfectly without needing complex score calibration.
 4. **Cross-Encoder Precision:** By comparing query and description pairwise, it eliminates false positives and ensures the primary diagnostic code is clinically accurate.
+
+---
+
+## 4. How the Database/CSV is converted to RAG Indices
+
+The pre-computed FAISS (dense) and BM25 (sparse) indices are built using the [build_index()](file:///c:/Project/ClaimGPT-feature/services/coding/app/icd10_rag.py#L679) function in the coding service. Here is the step-by-step compilation flow:
+
+### Step A: Source Extraction
+The function first checks if a user-supplied CSV catalog exists at `services/coding/app/rag_data/input/icd10.csv`.
+* **If CSV exists:** It parses the CSV file columns to load code entries.
+* **If PDF fallback:** It extracts the text chapters directly from the bundled ICD-10 PDF (`icd-10-medical-diagnosis-codes.pdf`) using PyMuPDF page text parses.
+
+### Step B: FAISS (Dense Vector) Index Construction
+1. **Load SentenceTransformer:** Loads the PubMedBERT model.
+2. **Batch Encoding:** Converts the list of text entries into standard float arrays using the model:
+   * *Code Reference:* [icd10_rag.py:L715](file:///c:/Project/ClaimGPT-feature/services/coding/app/icd10_rag.py#L715)
+   ```python
+   icd10_vectors = _encode_texts_with_progress(model, icd10_texts, "ICD-10 codes", batch_size=256)
+   ```
+3. **Inner-Product (IP) Normalization:** Normalizes all vectors to unit length so that computing the inner product during FAISS searches acts as an exact Cosine Similarity metric.
+4. **Index Initialization & Creation:** Creates a FAISS flat index, writes it, and dumps the code metadata (names, descriptions, page offsets) into a JSON cache:
+   * *Code Reference:* [icd10_rag.py:L717-722](file:///c:/Project/ClaimGPT-feature/services/coding/app/icd10_rag.py#L717-L722)
+   ```python
+   icd10_index = faiss.IndexFlatIP(icd10_vectors.shape[1])
+   icd10_index.add(icd10_vectors)
+   faiss.write_index(icd10_index, str(_ICD10_INDEX_PATH))
+   ```
+
+### Step C: BM25 (Sparse Lexical) Index Construction
+1. **Tokenization:** Converts each code description into a list of word tokens.
+2. **Index Compilation:** Initializes the **BM25Okapi** ranker instance over the tokenized corpus.
+3. **Serialization:** Pickles the compiled BM25 class directly to disk (`icd10_bm25.pkl`) so it can load instantly on server startup:
+   * *Code Reference:* [icd10_rag.py:L728-734](file:///c:/Project/ClaimGPT-feature/services/coding/app/icd10_rag.py#L728-L734)
+   ```python
+   from rank_bm25 import BM25Okapi
+   icd10_tokens = [_tokenize(t) for t in icd10_texts]
+   icd10_bm25 = BM25Okapi(icd10_tokens)
+   with open(_ICD10_BM25_PATH, "wb") as f:
+       pickle.dump(icd10_bm25, f, protocol=pickle.HIGHEST_PROTOCOL)
+   ```
+
