@@ -63,15 +63,25 @@ interface SignupModalProps {
   open: boolean;
   onClose: () => void;
   ssoProviders: SsoProvider[];
+  activeRole?: "patient" | "tpa";
 }
 
-function SignupModal({ open, onClose, ssoProviders }: SignupModalProps) {
+function SignupModal({ open, onClose, ssoProviders, activeRole = "patient" }: SignupModalProps) {
   const { signup } = useAuth();
   const [busy, setBusy] = useState<string | null>(null);
 
+  /* Registration Form States */
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [signupEmail, setSignupEmail] = useState("");
+  const [dob, setDob] = useState("");
+  const [gender, setGender] = useState("Male");
+  const [insurer, setInsurer] = useState("Star Health");
+  const [policyNo, setPolicyNo] = useState("");
+  const [sumInsured, setSumInsured] = useState("");
+  const [policyDoc, setPolicyDoc] = useState<File | null>(null);
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [organization, setOrganization] = useState("");
   const [orgRole, setOrgRole] = useState("Claims Reviewer");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -103,14 +113,29 @@ function SignupModal({ open, onClose, ssoProviders }: SignupModalProps) {
 
     if (firstName.trim().length < 2) return setFormError("Please enter your first name.");
     if (lastName.trim().length < 2) return setFormError("Please enter your last name.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signupEmail)) return setFormError("Please enter a valid work email.");
-    if (organization.trim().length < 2) return setFormError("Please enter your organization name.");
+    if (!signupEmail.trim()) return setFormError("Please enter your email address or mobile number.");
+    
+    if (activeRole === "patient") {
+      if (password && password !== confirmPassword) {
+        return setFormError("Passwords do not match.");
+      }
+    } else {
+      if (organization.trim().length < 2) return setFormError("Please enter your organization name.");
+    }
+
     if (!acceptedTerms) return setFormError("You must accept the Terms of Service and Privacy Policy.");
 
     try {
       sessionStorage.setItem(
         "signup_meta",
-        JSON.stringify({ organization: organization.trim(), role: orgRole, ts: Date.now() }),
+        JSON.stringify({ 
+          organization: organization.trim() || "Patient Portal", 
+          role: activeRole === "patient" ? "Patient" : orgRole,
+          policyNo: policyNo.trim(),
+          insurer: insurer,
+          sumInsured: sumInsured,
+          ts: Date.now() 
+        }),
       );
     } catch { /* storage unavailable */ }
 
@@ -130,7 +155,7 @@ function SignupModal({ open, onClose, ssoProviders }: SignupModalProps) {
       aria-labelledby="signup-modal-title"
       onClick={onClose}
     >
-      <div className="signup-modal-card" onClick={(e) => e.stopPropagation()}>
+      <div className="signup-modal-card" onClick={(e) => e.stopPropagation()} style={{ maxWidth: "560px" }}>
         <button
           type="button"
           className="signup-modal-close"
@@ -152,14 +177,11 @@ function SignupModal({ open, onClose, ssoProviders }: SignupModalProps) {
             </svg>
           </span>
           <div className="signup-modal-head-text">
-            <span className="signup-modal-step" aria-label="Step 1 of 2">
-              <span className="signup-modal-step-num">1</span>
-              <span className="signup-modal-step-sep" aria-hidden />
-              <span className="signup-modal-step-num signup-modal-step-num-dim">2</span>
-              <span className="signup-modal-step-text">Your details</span>
-            </span>
-            <h2 id="signup-modal-title">Create your ClaimGPT account</h2>
-            <p>Tell us a bit about yourself. You&rsquo;ll set a secure password on the next step.</p>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "6px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: "11px", fontWeight: "700", padding: "3px 8px", borderRadius: "12px", marginBottom: "6px" }}>
+              <span>{activeRole === "patient" ? "👤 Account Role: User / Patient" : "🏢 Account Role: TPA Adjuster"}</span>
+            </div>
+            <h2 id="signup-modal-title">Create Account</h2>
+            <p>Fill in your details below to register your account.</p>
           </div>
         </div>
 
@@ -182,14 +204,15 @@ function SignupModal({ open, onClose, ssoProviders }: SignupModalProps) {
             ))}
           </div>
 
-          <div className="sso-divider"><span>or use your work email</span></div>
+          <div className="sso-divider"><span>or fill in your details</span></div>
 
           <form className="sso-signup-form" onSubmit={onSubmit} noValidate>
+            {/* ── Name Row ── */}
             <div className="sso-form-grid">
               <div className="sso-field">
                 <label htmlFor="su-fname" className="sso-label">First name<span className="sso-req" aria-hidden>*</span></label>
                 <input
-                  id="su-fname" type="text" autoComplete="given-name" placeholder="Azhar"
+                  id="su-fname" type="text" autoComplete="given-name" placeholder="e.g. John"
                   value={firstName} onChange={(e) => setFirstName(e.target.value)}
                   className="sso-input" required minLength={2}
                 />
@@ -197,51 +220,159 @@ function SignupModal({ open, onClose, ssoProviders }: SignupModalProps) {
               <div className="sso-field">
                 <label htmlFor="su-lname" className="sso-label">Last name<span className="sso-req" aria-hidden>*</span></label>
                 <input
-                  id="su-lname" type="text" autoComplete="family-name" placeholder="Shaikh"
+                  id="su-lname" type="text" autoComplete="family-name" placeholder="e.g. Doe"
                   value={lastName} onChange={(e) => setLastName(e.target.value)}
                   className="sso-input" required minLength={2}
                 />
               </div>
             </div>
 
-            <div className="sso-field">
-              <label htmlFor="su-email" className="sso-label">Work email<span className="sso-req" aria-hidden>*</span></label>
-              <input
-                id="su-email" type="email" inputMode="email" autoComplete="email"
-                placeholder="azhar@yourcompany.com"
-                value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)}
-                className="sso-input" required
-              />
-            </div>
+            {/* ── Patient Specific Fields ── */}
+            {activeRole === "patient" ? (
+              <>
+                <div className="sso-form-grid">
+                  <div className="sso-field">
+                    <label htmlFor="su-dob" className="sso-label">Date of Birth</label>
+                    <input
+                      id="su-dob" type="text" placeholder="DD/MM/YYYY"
+                      value={dob} onChange={(e) => setDob(e.target.value)}
+                      className="sso-input"
+                    />
+                  </div>
+                  <div className="sso-field">
+                    <label htmlFor="su-gender" className="sso-label">Gender</label>
+                    <select
+                      id="su-gender" value={gender} onChange={(e) => setGender(e.target.value)}
+                      className="sso-input sso-select" style={{ height: "42px" }}
+                    >
+                      <option>Male</option>
+                      <option>Female</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                </div>
 
-            <div className="sso-form-grid">
-              <div className="sso-field">
-                <label htmlFor="su-org" className="sso-label">Organization<span className="sso-req" aria-hidden>*</span></label>
-                <input
-                  id="su-org" type="text" autoComplete="organization"
-                  placeholder="WCT Insurance Pvt Ltd"
-                  value={organization} onChange={(e) => setOrganization(e.target.value)}
-                  className="sso-input" required minLength={2}
-                />
-              </div>
-              <div className="sso-field">
-                <label htmlFor="su-role" className="sso-label">Role</label>
-                <select
-                  id="su-role" value={orgRole} onChange={(e) => setOrgRole(e.target.value)}
-                  className="sso-input sso-select" autoComplete="organization-title"
-                >
-                  <option>Claims Reviewer</option>
-                  <option>Reviewer</option>
-                  <option>Submitter</option>
-                  <option>TPA Coordinator</option>
-                  <option>Compliance Officer</option>
-                  <option>Administrator</option>
-                  <option>Other</option>
-                </select>
-              </div>
-            </div>
+                <div className="sso-field">
+                  <label htmlFor="su-email" className="sso-label">Email Address or Mobile Number<span className="sso-req" aria-hidden>*</span></label>
+                  <input
+                    id="su-email" type="text"
+                    placeholder="e.g. john@example.com or 9876543210"
+                    value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)}
+                    className="sso-input" required
+                  />
+                </div>
 
-            <label className="sso-checkbox-row">
+                <div className="sso-form-grid">
+                  <div className="sso-field">
+                    <label htmlFor="su-insurer" className="sso-label">Insurer Provider</label>
+                    <select
+                      id="su-insurer" value={insurer} onChange={(e) => setInsurer(e.target.value)}
+                      className="sso-input sso-select" style={{ height: "42px" }}
+                    >
+                      <option>Star Health</option>
+                      <option>HDFC ERGO</option>
+                      <option>ICICI Lombard</option>
+                      <option>Niva Bupa</option>
+                      <option>Care Health</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                  <div className="sso-field">
+                    <label htmlFor="su-policyno" className="sso-label">Policy Number</label>
+                    <input
+                      id="su-policyno" type="text" placeholder="e.g. POL-123456"
+                      value={policyNo} onChange={(e) => setPolicyNo(e.target.value)}
+                      className="sso-input"
+                    />
+                  </div>
+                </div>
+
+                <div className="sso-field">
+                  <label htmlFor="su-suminsured" className="sso-label">Sum Insured (INR)</label>
+                  <input
+                    id="su-suminsured" type="text" placeholder="e.g. 500000"
+                    value={sumInsured} onChange={(e) => setSumInsured(e.target.value)}
+                    className="sso-input"
+                  />
+                </div>
+
+                {/* Optional Health Card / Policy Document Upload */}
+                <div className="sso-field">
+                  <label htmlFor="su-policydoc" className="sso-label">
+                    Upload Health Card / Policy Document <span style={{ color: "#64748b", fontWeight: "normal" }}>(Optional)</span>
+                  </label>
+                  <input
+                    id="su-policydoc" type="file" accept=".pdf,.jpg,.jpeg,.png"
+                    onChange={(e) => setPolicyDoc(e.target.files?.[0] || null)}
+                    className="sso-input" style={{ padding: "8px 12px", height: "auto" }}
+                  />
+                  <p style={{ fontSize: "11px", color: "#64748b", margin: "4px 0 0 0" }}>
+                    Upload your Health ID Card or Policy Copy to auto-verify your coverage details.
+                  </p>
+                </div>
+
+                <div className="sso-form-grid">
+                  <div className="sso-field">
+                    <label htmlFor="su-pass" className="sso-label">Password</label>
+                    <input
+                      id="su-pass" type="password" placeholder="••••••••"
+                      value={password} onChange={(e) => setPassword(e.target.value)}
+                      className="sso-input"
+                    />
+                  </div>
+                  <div className="sso-field">
+                    <label htmlFor="su-confirmpass" className="sso-label">Confirm Password</label>
+                    <input
+                      id="su-confirmpass" type="password" placeholder="••••••••"
+                      value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)}
+                      className="sso-input"
+                    />
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* ── TPA Specific Fields ── */
+              <>
+                <div className="sso-field">
+                  <label htmlFor="su-email" className="sso-label">Work email<span className="sso-req" aria-hidden>*</span></label>
+                  <input
+                    id="su-email" type="email" inputMode="email" autoComplete="email"
+                    placeholder="azhar@yourcompany.com"
+                    value={signupEmail} onChange={(e) => setSignupEmail(e.target.value)}
+                    className="sso-input" required
+                  />
+                </div>
+
+                <div className="sso-form-grid">
+                  <div className="sso-field">
+                    <label htmlFor="su-org" className="sso-label">Organization<span className="sso-req" aria-hidden>*</span></label>
+                    <input
+                      id="su-org" type="text" autoComplete="organization"
+                      placeholder="WCT Insurance Pvt Ltd"
+                      value={organization} onChange={(e) => setOrganization(e.target.value)}
+                      className="sso-input" required minLength={2}
+                    />
+                  </div>
+                  <div className="sso-field">
+                    <label htmlFor="su-role" className="sso-label">Role</label>
+                    <select
+                      id="su-role" value={orgRole} onChange={(e) => setOrgRole(e.target.value)}
+                      className="sso-input sso-select" style={{ height: "42px" }}
+                    >
+                      <option>Claims Reviewer</option>
+                      <option>Reviewer</option>
+                      <option>Submitter</option>
+                      <option>TPA Coordinator</option>
+                      <option>Compliance Officer</option>
+                      <option>Administrator</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                </div>
+              </>
+            )}
+
+            <label className="sso-checkbox-row" style={{ marginTop: "12px" }}>
               <input
                 type="checkbox" checked={acceptedTerms}
                 onChange={(e) => setAcceptedTerms(e.target.checked)}
@@ -268,20 +399,12 @@ function SignupModal({ open, onClose, ssoProviders }: SignupModalProps) {
                 Cancel
               </button>
               <button type="submit" className="sso-signup-submit" disabled={busy !== null}>
-                {busy ? "Redirecting\u2026" : "Continue"}
+                {busy ? "Registering\u2026" : "Register Account"}
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
               </button>
             </div>
 
-            <div className="signup-modal-secure">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <rect x="3" y="11" width="18" height="11" rx="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-              </svg>
-              <span>You&rsquo;ll set your password on the next, secure step — ClaimGPT never sees it.</span>
-            </div>
-
-            <div className="signup-modal-trust">
+            <div className="signup-modal-trust" style={{ marginTop: "16px" }}>
               <span className="signup-modal-trust-pill">IRDAI</span>
               <span className="signup-modal-trust-pill">ISO 27001</span>
               <span className="signup-modal-trust-pill">DPDP 2023</span>
@@ -301,12 +424,27 @@ export default function SsoLoginScreen() {
   const { login, ssoProviders } = useAuth();
   const { t } = useI18n();
   const [busy, setBusy] = useState<string | null>(null);
+  
+  /* Role & Step navigation states */
+  const [step, setStep] = useState<"role_select" | "patient_login" | "tpa_login">("role_select");
+  const [selectedRole, setSelectedRole] = useState<"patient" | "tpa">("patient");
   const [emailHint, setEmailHint] = useState("");
+  const [password, setPassword] = useState("");
   const [signupOpen, setSignupOpen] = useState(false);
 
   const onProvider = (id?: string) => {
     setBusy(id || "default");
     login(id);
+  };
+
+  /* Role selection submission */
+  const handleRoleContinue = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedRole === "patient") {
+      setStep("patient_login");
+    } else {
+      setStep("tpa_login");
+    }
   };
 
   /* Email-domain smart routing for sign-in */
@@ -371,33 +509,125 @@ export default function SsoLoginScreen() {
         <main className="sso-card">
           <div className="sso-card-head sso-card-head-with-lang">
             <div>
-              <h2>{t("sso.signIn")}</h2>
-              <p>{t("sso.choose")}</p>
+              {step !== "role_select" && (
+                <button
+                  type="button"
+                  onClick={() => setStep("role_select")}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#0f4c81",
+                    fontSize: "13px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    padding: 0,
+                    marginBottom: "8px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "4px"
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                  Change Role
+                </button>
+              )}
+              <h2>{step === "patient_login" ? "User / Patient Sign In" : step === "tpa_login" ? "TPA Adjuster Sign In" : t("sso.signIn")}</h2>
+              <p>{step === "patient_login" ? "Enter your registered email or mobile to log in" : step === "tpa_login" ? "Enter your work email to route to your SSO domain" : "Select your role to continue to your workspace"}</p>
             </div>
             <LanguageSwitcher />
           </div>
 
-          <form className="sso-email-form" onSubmit={onContinue}>
-            <label htmlFor="sso-email" className="sso-label">{t("sso.workEmail")}</label>
-            <div className="sso-input-row">
-              <input
-                id="sso-email"
-                type="email"
-                inputMode="email"
-                autoComplete="username"
-                placeholder="you@yourcompany.com"
-                value={emailHint}
-                onChange={(e) => setEmailHint(e.target.value)}
-                className="sso-input"
-              />
-              <button type="submit" className="sso-continue-btn" disabled={busy !== null}>
-                {t("sso.continue")}
+          {/* ── STEP 1: Role Selection in place of Work Email ── */}
+          {step === "role_select" && (
+            <form className="sso-email-form" onSubmit={handleRoleContinue}>
+              <label className="sso-label">Account Role / Workspace</label>
+              <div className="sso-input-row">
+                <div className="sso-role-toggle" style={{ flex: 1, marginBottom: 0 }}>
+                  <button
+                    type="button"
+                    className={`sso-role-tab ${selectedRole === "patient" ? "active" : ""}`}
+                    onClick={() => setSelectedRole("patient")}
+                  >
+                    User / Patient
+                  </button>
+                  <button
+                    type="button"
+                    className={`sso-role-tab ${selectedRole === "tpa" ? "active" : ""}`}
+                    onClick={() => setSelectedRole("tpa")}
+                  >
+                    TPA Adjuster
+                  </button>
+                </div>
+                <button type="submit" className="sso-continue-btn" disabled={busy !== null}>
+                  {t("sso.continue")}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+                </button>
+              </div>
+              <p className="sso-help">Select your role to proceed to your designated workspace login.</p>
+            </form>
+          )}
+
+          {/* ── STEP 2A: Patient Login Form ── */}
+          {step === "patient_login" && (
+            <form className="sso-email-form" onSubmit={(e) => { e.preventDefault(); onProvider(); }}>
+              <div style={{ marginBottom: "12px" }}>
+                <label htmlFor="patient-id" className="sso-label">Email or Mobile Number</label>
+                <input
+                  id="patient-id"
+                  type="text"
+                  placeholder="name@example.com or 10-digit mobile"
+                  value={emailHint}
+                  onChange={(e) => setEmailHint(e.target.value)}
+                  className="sso-input"
+                  style={{ width: "100%" }}
+                  required
+                />
+              </div>
+              <div style={{ marginBottom: "16px" }}>
+                <label htmlFor="patient-pass" className="sso-label">Password</label>
+                <input
+                  id="patient-pass"
+                  type="password"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="sso-input"
+                  style={{ width: "100%" }}
+                  required
+                />
+              </div>
+              <button type="submit" className="sso-continue-btn" style={{ width: "100%", justifyContent: "center" }} disabled={busy !== null}>
+                {busy ? "Signing in…" : "Sign In to Patient Portal"}
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
               </button>
-            </div>
-            <p className="sso-help">We&rsquo;ll route you to the correct SSO provider for your domain.</p>
-          </form>
+            </form>
+          )}
 
+          {/* ── STEP 2B: TPA Adjuster Login Form ── */}
+          {step === "tpa_login" && (
+            <form className="sso-email-form" onSubmit={onContinue}>
+              <label htmlFor="sso-email" className="sso-label">{t("sso.workEmail")}</label>
+              <div className="sso-input-row">
+                <input
+                  id="sso-email"
+                  type="email"
+                  inputMode="email"
+                  autoComplete="username"
+                  placeholder="you@yourcompany.com"
+                  value={emailHint}
+                  onChange={(e) => setEmailHint(e.target.value)}
+                  className="sso-input"
+                />
+                <button type="submit" className="sso-continue-btn" disabled={busy !== null}>
+                  {t("sso.continue")}
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+                </button>
+              </div>
+              <p className="sso-help">We&rsquo;ll route you to the correct SSO provider for your domain.</p>
+            </form>
+          )}
+
+          {/* ── UNCHANGED LOWER SECTION FOR ALL USERS ── */}
           <div className="sso-divider"><span>{t("sso.orSignIn")}</span></div>
 
           <div className="sso-providers">
@@ -421,29 +651,20 @@ export default function SsoLoginScreen() {
           <div className="sso-divider"><span>or</span></div>
 
           <button
+            type="button"
             className="sso-default-btn"
-            onClick={() => onProvider()}
-            disabled={busy !== null}
+            onClick={() => setSignupOpen(true)}
+            style={{ fontWeight: "600", color: "#0f4c81" }}
           >
-            Sign in with username & password
+            New to ClaimGPT? Create an account
           </button>
 
-          <p className="sso-fineprint">
+          <p className="sso-fineprint" style={{ marginTop: "20px" }}>
             This portal is for authorized personnel of partner insurers and TPAs only.
             All activity is logged for audit per IRDAI guidelines.
           </p>
 
-          <div className="sso-footer-row">
-            <span>
-              New to ClaimGPT?{" "}
-              <button
-                type="button"
-                className="sso-link-btn"
-                onClick={() => setSignupOpen(true)}
-              >
-                Create an account
-              </button>
-            </span>
+          <div className="sso-footer-row" style={{ justifyContent: "flex-end" }}>
             <span className="sso-region-tag">🇮🇳 IN · Mumbai</span>
           </div>
         </main>
@@ -453,6 +674,7 @@ export default function SsoLoginScreen() {
         open={signupOpen}
         onClose={() => setSignupOpen(false)}
         ssoProviders={ssoProviders}
+        activeRole={selectedRole}
       />
     </div>
   );

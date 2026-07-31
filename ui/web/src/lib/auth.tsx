@@ -223,7 +223,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (DEV_MODE) {
       const reachable = await isKeycloakReachable();
       if (!reachable) {
-        setShowDevLogin(true);
+        devLogin("submitter");
         return;
       }
     }
