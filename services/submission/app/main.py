@@ -869,7 +869,7 @@ def get_submission(submission_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/claims/{claim_id}/tpa-pdf")
-def generate_tpa_claim_pdf(claim_id: str, db: Session = Depends(get_db)):
+def generate_tpa_claim_pdf(claim_id: str, view: bool = False, db: Session = Depends(get_db)):
     """Generate a TPA-readable PDF for the given claim."""
     cid = _parse_uuid(claim_id)
     claim = db.query(Claim).filter(Claim.id == cid).first()
@@ -895,10 +895,12 @@ def generate_tpa_claim_pdf(claim_id: str, db: Session = Depends(get_db)):
         filename = f"Claim_{safe_policy}.pdf"
     else:
         filename = f"TPA_Claim_{str(cid)[:8]}.pdf"
+
+    disp = "inline" if view else "attachment"
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": f'{disp}; filename="{filename}"'},
     )
 
 
@@ -907,22 +909,10 @@ def generate_irda_claim_pdf(
     claim_id: str,
     blank: bool = False,
     style: str = "modern",
+    view: bool = False,
     db: Session = Depends(get_db),
 ):
-    """Generate the IRDA standard reimbursement claim form (Part A + Part B) PDF.
-
-    Two visual styles are supported:
-
-    * ``style=modern`` *(default)* — a polished HTML/CSS rendition with a
-      gradient cover page, section cards, and a tabular expense breakdown.
-      Print-ready PDF (not interactive).
-    * ``style=legacy`` — the original tabular fpdf2 rendition that returns
-      an *interactive* AcroForm PDF (every value cell, Yes/No radio and
-      checklist box becomes an editable widget).
-
-    Pass ``?blank=1`` to download an empty template with the same layout
-    (only policy / patient identifiers retained) for manual filling.
-    """
+    """Generate the IRDA standard reimbursement claim form (Part A + Part B) PDF."""
     cid = _parse_uuid(claim_id)
     claim = db.query(Claim).filter(Claim.id == cid).first()
     if not claim:
@@ -970,8 +960,9 @@ def generate_irda_claim_pdf(
         filename = f"{prefix}_{safe_policy}.pdf"
     else:
         filename = f"{prefix}_{str(cid)[:8]}.pdf"
+    disp = "inline" if view else "attachment"
     headers = {
-        "Content-Disposition": f'attachment; filename="{filename}"',
+        "Content-Disposition": f'{disp}; filename="{filename}"',
         "X-IRDA-Renderer": renderer_used,
     }
     if renderer_warning:
