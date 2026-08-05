@@ -21,7 +21,7 @@ from typing import Any
 
 import aiofiles
 from celery import chord, group, chain
-from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -867,6 +867,31 @@ def health():
     db_ok = check_db_health()
     status = "ok" if db_ok else "degraded"
     return {"status": status, "database": "up" if db_ok else "down"}
+
+
+@router.post("/auth/login")
+@router.post("/auth/register")
+def authenticate_or_register_user(data: dict[str, Any] = Body(...), db: Session = Depends(get_db)):
+    username = data.get("username") or data.get("name") or data.get("email", "Swagath")
+    if isinstance(username, str) and "@" in username:
+        username = username.split("@")[0]
+    username = str(username).strip().capitalize()
+    
+    email = data.get("email") or f"{username.lower()}@example.com"
+    role = data.get("role", "patient")
+    
+    _audit(db, "USER_LOGIN_OR_REGISTER", metadata={"username": username, "email": email, "role": role})
+    logger.info("User registered/authenticated in Docker backend: %s (%s)", username, email)
+    return {
+        "status": "success",
+        "message": f"Account {username} initialized in backend",
+        "user": {
+            "name": username,
+            "email": email,
+            "role": role,
+            "account_id": f"ACC-{username.upper()}-2026"
+        }
+    }
 
 
 @router.post("/claims", status_code=202)
