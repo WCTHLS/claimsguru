@@ -134,6 +134,9 @@ services:
       PARSER_REDIS_URL: redis://redis:6379/3
       PREDICTOR_REDIS_URL: redis://redis:6379/3
       REDIS_URL: redis://redis:6379/3
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: claimgpt
+      MINIO_ROOT_PASSWORD: claimgpt123
       CELERY_WORKER: "true"
       DISABLE_OCR_PREWARM: "0"
       # Prevent deadlocks in forked processes by restricting internal threading libraries
@@ -150,6 +153,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_started
     volumes:
       - shared-storage:/app/services/ingress/storage/raw
       - ../../tmp:/app/tmp
@@ -194,6 +199,9 @@ services:
       PARSER_REDIS_URL: redis://redis:6379/3
       PREDICTOR_REDIS_URL: redis://redis:6379/3
       REDIS_URL: redis://redis:6379/3
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: claimgpt
+      MINIO_ROOT_PASSWORD: claimgpt123
       CELERY_WORKER: "true"
       METRICS_ENABLED: "true"
       # OpenRouter LLM backend — required for expense table extraction
@@ -218,6 +226,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_started
     volumes:
       - shared-storage:/app/services/ingress/storage/raw
       - ../../tmp:/app/tmp
@@ -264,6 +274,9 @@ services:
       PARSER_REDIS_URL: redis://redis:6379/3
       PREDICTOR_REDIS_URL: redis://redis:6379/3
       REDIS_URL: redis://redis:6379/3
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: claimgpt
+      MINIO_ROOT_PASSWORD: claimgpt123
       CELERY_WORKER: "true"
       METRICS_ENABLED: "true"
       # OpenRouter LLM backend — needed for coding/finalize tasks
@@ -282,6 +295,8 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
+      minio:
+        condition: service_started
     volumes:
       - shared-storage:/app/services/ingress/storage/raw
       - ../../tmp:/app/tmp
@@ -591,35 +606,6 @@ services:
           cpus: '1'
           memory: 512M
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0
-    command: start-dev --import-realm
-    environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres-db:5432/claimgpt
-      KC_DB_USERNAME: claimgpt
-      KC_DB_PASSWORD: claimgpt
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-    ports:
-      - "8080:8080"
-    volumes:
-      - ../keycloak/claimgpt-realm.json:/opt/keycloak/data/import/claimgpt-realm.json:ro
-    depends_on:
-      postgres-db:
-        condition: service_healthy
-    healthcheck:
-      test: [ "CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'" ]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-
   # ================================================= Application Services
 
   ingress:
@@ -629,6 +615,7 @@ services:
       args:
         SERVICE_NAME: ingress
     environment:
+      AUTH_ENABLED: "false"
       INGRESS_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
       DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
       DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt

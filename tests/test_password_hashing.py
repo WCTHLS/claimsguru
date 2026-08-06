@@ -1,0 +1,10 @@
+from libs.auth.passwords import hash_password, verify_password
+
+
+def test_hash_and_verify_password_round_trip():
+    password = "super-secret-password"
+    hashed = hash_password(password)
+
+    assert hashed != password
+    assert verify_password(password, hashed) is True
+    assert verify_password("wrong-password", hashed) is False

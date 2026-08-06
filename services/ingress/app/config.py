@@ -13,6 +13,10 @@ load_dotenv()
 class Settings(BaseSettings):
     redis_url: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
     database_url: str = os.environ.get("DATABASE_URL", "postgresql://claimgpt:claimgpt@localhost:5432/claimgpt")
+    keycloak_url: str = os.environ.get("KEYCLOAK_URL", "http://localhost:8080")
+    keycloak_realm: str = os.environ.get("KEYCLOAK_REALM", "claimgpt")
+    keycloak_admin_username: str = os.environ.get("KEYCLOAK_ADMIN_USERNAME", "admin")
+    keycloak_admin_password: str = os.environ.get("KEYCLOAK_ADMIN_PASSWORD", "admin")
 
     # File-upload constraints
     max_upload_bytes: int = 50 * 1024 * 1024  # 50 MB
