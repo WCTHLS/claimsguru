@@ -766,6 +766,26 @@ def _apply_identity_gate(
             accepted_docs.append(doc.file_name)
             continue
 
+        # Check if this document is actually an identity proof
+        is_identity_doc = any(kw in text.lower() for kw in ("government of india", "unique identification authority", "uidai", "income tax department", "permanent account number", "voter id", "passport", "driving licence", "identity card"))
+        if not is_identity_doc:
+            _upsert_identity_validation(
+                db,
+                claim_id=claim_id,
+                document_id=doc.id,
+                file_name=doc.file_name,
+                status="VALID",
+                patient_match="SKIP",
+                patient_name=None,
+                dob=None,
+                excluded=False,
+                needs_manual_review=False,
+                reason="Medical or non-KYC document bypassed Identity Gate",
+                anchor_locked=False,
+            )
+            accepted_docs.append(doc.file_name)
+            continue
+
         patient_name, dob_raw = _extract_identity_from_text(text)
         dob = _normalize_dob(dob_raw) if dob_raw else ""
 
@@ -1037,7 +1057,26 @@ def list_claims(
                 c.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
                 c.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
 
-        return ClaimListOut(claims=claims, total=total)
+        claim_items = [
+            {
+                "id": c.id,
+                "policy_id": c.policy_id,
+                "patient_id": c.patient_id,
+                "status": c.status,
+                "source": c.source,
+                "created_at": c.created_at,
+                "updated_at": c.updated_at,
+                "documents": c.documents,
+                "task_id": getattr(c, "task_id", None),
+                "patient_name": getattr(c, "patient_name", None),
+                "hospital_name": getattr(c, "hospital_name", None),
+                "doctor_name": getattr(c, "doctor_name", None),
+                "diagnosis": getattr(c, "diagnosis", None),
+            }
+            for c in claims
+        ]
+
+        return ClaimListOut(claims=claim_items, total=total)
     except Exception as exc:
         logger.exception("Error listing claims")
         raise HTTPException(status_code=500, detail=f"Failed to list claims: {str(exc)}")
@@ -1046,7 +1085,12 @@ def list_claims(
 @router.get("/claims/{claim_id}", response_model=ClaimOut)
 def get_claim(claim_id: str, db: Session = Depends(get_db)):
     cid = _parse_uuid(claim_id)
-    claim = db.query(Claim).filter(Claim.id == cid).first()
+    claim = (
+        db.query(Claim)
+        .options(selectinload(Claim.documents))
+        .filter(Claim.id == cid)
+        .first()
+    )
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
         
@@ -1067,7 +1111,7 @@ def get_claim(claim_id: str, db: Session = Depends(get_db)):
     claim.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
     claim.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
     
-    return claim
+    return ClaimOut.model_validate(claim).model_dump(mode="json")
 
 
 def _map_progress(current_step: str | None, status: str | None) -> tuple[str | None, int]:
@@ -1188,7 +1232,7 @@ def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/claims/{claim_id}/file")
-def download_original_file(claim_id: str, db: Session = Depends(get_db)):
+def download_original_file(claim_id: str, view: bool = False, db: Session = Depends(get_db)):
     cid = _parse_uuid(claim_id)
 
     doc = (
@@ -1199,6 +1243,8 @@ def download_original_file(claim_id: str, db: Session = Depends(get_db)):
     )
     if not doc:
         raise HTTPException(status_code=404, detail="No document found for claim")
+
+    disp = "inline" if view else "attachment"
 
     if doc.minio_path and doc.minio_path.startswith("s3://"):
         from libs.shared.storage import MinioStorage
@@ -1212,7 +1258,7 @@ def download_original_file(claim_id: str, db: Session = Depends(get_db)):
                 response["Body"].iter_chunks(),
                 media_type=doc.file_type or "application/octet-stream",
                 headers={
-                    "Content-Disposition": f'attachment; filename="{doc.file_name}"'
+                    "Content-Disposition": f'{disp}; filename="{doc.file_name}"'
                 }
             )
         except Exception as e:
@@ -1228,7 +1274,136 @@ def download_original_file(claim_id: str, db: Session = Depends(get_db)):
     if not file_path.exists():
         raise HTTPException(status_code=404, detail="Stored file not found on disk")
 
-    return FileResponse(str(file_path), filename=doc.file_name)
+    return FileResponse(
+        str(file_path),
+        media_type=doc.file_type or "application/pdf",
+        headers={"Content-Disposition": f'{disp}; filename="{doc.file_name}"'}
+    )
+
+
+@router.get("/claims/{claim_id}/documents/{doc_id}/file")
+def download_document_file(claim_id: str, doc_id: str, view: bool = False, db: Session = Depends(get_db)):
+    cid = _parse_uuid(claim_id)
+    did = _parse_uuid(doc_id)
+
+    doc = db.query(Document).filter(Document.id == did, Document.claim_id == cid).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    disp = "inline" if view else "attachment"
+
+    if doc.minio_path and doc.minio_path.startswith("s3://"):
+        from libs.shared.storage import MinioStorage
+        from fastapi.responses import StreamingResponse
+        client = MinioStorage.get_client()
+        bucket = MinioStorage.BUCKET_NAME
+        s3_key = doc.minio_path[len(f"s3://{bucket}/"):]
+        try:
+            response = client.get_object(Bucket=bucket, Key=s3_key)
+            return StreamingResponse(
+                response["Body"].iter_chunks(),
+                media_type=doc.file_type or "application/octet-stream",
+                headers={
+                    "Content-Disposition": f'{disp}; filename="{doc.file_name}"'
+                }
+            )
+        except Exception as e:
+            logger.exception(f"Failed to fetch {doc.minio_path} from S3: {e}")
+            raise HTTPException(status_code=404, detail="File not found in cloud storage")
+
+    file_path = Path(doc.minio_path).resolve()
+
+    if not file_path.exists():
+        file_path = (RAW_STORAGE / Path(doc.minio_path).name).resolve()
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Original document file missing on disk")
+
+    # prevent path traversal — file must be under RAW_STORAGE
+    if not str(file_path).startswith(str(RAW_STORAGE)):
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return FileResponse(
+        str(file_path),
+        media_type=doc.file_type or "application/pdf",
+        headers={"Content-Disposition": f'{disp}; filename="{doc.file_name}"'}
+    )
+
+
+@router.get("/claims/{claim_id}/documents/{doc_id}/pages/{page_number}/image")
+def get_document_page_image(claim_id: str, doc_id: str, page_number: int = 1, db: Session = Depends(get_db)):
+    cid = _parse_uuid(claim_id)
+    did = _parse_uuid(doc_id)
+
+    doc = db.query(Document).filter(Document.id == did, Document.claim_id == cid).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    from fastapi.responses import Response
+
+    if doc.minio_path and doc.minio_path.startswith("s3://"):
+        from libs.shared.storage import MinioStorage
+        client = MinioStorage.get_client()
+        bucket = MinioStorage.BUCKET_NAME
+        s3_key = doc.minio_path[len(f"s3://{bucket}/"):]
+        try:
+            response = client.get_object(Bucket=bucket, Key=s3_key)
+            file_bytes = response["Body"].read()
+        except Exception as e:
+            logger.exception(f"Failed to fetch {doc.minio_path} from S3: {e}")
+            raise HTTPException(status_code=404, detail="File not found in cloud storage")
+
+        # Determine file extension from key/filename
+        ext = Path(doc.file_name).suffix.lower() if doc.file_name else ".pdf"
+        if ext in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"} or (doc.file_type and doc.file_type.startswith("image/")):
+            return Response(content=file_bytes, media_type=doc.file_type or "image/png")
+
+        if ext == ".pdf" or doc.file_type == "application/pdf":
+            try:
+                import io
+                import pypdfium2
+                pdf = pypdfium2.PdfDocument(file_bytes)
+                total_pages = len(pdf)
+                target_idx = max(0, min(page_number - 1, total_pages - 1))
+                page = pdf.get_page(target_idx)
+                img = page.render(scale=2).to_pil()
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                buf.seek(0)
+                return Response(content=buf.getvalue(), media_type="image/png")
+            except Exception as e:
+                logger.exception("Failed to render PDF page image from S3: %s", e)
+                raise HTTPException(status_code=500, detail="Failed to render PDF page")
+
+        return Response(content=file_bytes, media_type=doc.file_type or "application/octet-stream")
+
+    file_path = Path(doc.minio_path).resolve()
+    if not file_path.exists():
+        file_path = (RAW_STORAGE / Path(doc.minio_path).name).resolve()
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="Original document file missing on disk")
+
+    ext = file_path.suffix.lower()
+    if ext in {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif"}:
+        return FileResponse(str(file_path), media_type=doc.file_type or "image/png")
+
+    if ext == ".pdf" or doc.file_type == "application/pdf":
+        try:
+            import io
+            import pypdfium2
+            pdf = pypdfium2.PdfDocument(str(file_path))
+            total_pages = len(pdf)
+            target_idx = max(0, min(page_number - 1, total_pages - 1))
+            page = pdf.get_page(target_idx)
+            img = page.render(scale=2).to_pil()
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            buf.seek(0)
+            return Response(content=buf.getvalue(), media_type="image/png")
+        except Exception as e:
+            logger.exception("Failed to render PDF page image: %s", e)
+            raise HTTPException(status_code=500, detail="Failed to render PDF page")
+
+    return FileResponse(str(file_path), media_type=doc.file_type or "application/octet-stream")
 
 
 @router.post("/claims/{claim_id}/documents", response_model=ClaimOut, status_code=201)
@@ -1352,6 +1527,15 @@ async def add_documents_to_claim(
     manual_review_message = None
     if gate_result["accepted_count"] == 0:
         claim.status = "MANUAL_REVIEW_REQUIRED"
+        upsert_workflow_state(db, claim.id, "MANUAL_REVIEW_REQUIRED", status="FAILED")
+        from libs.shared.storage import MinioStorage
+        for doc in new_docs:
+            if doc.minio_path:
+                try:
+                    MinioStorage.delete_file(doc.minio_path)
+                except Exception:
+                    logger.warning("Failed to delete mismatched file from MinIO: %s", doc.minio_path)
+            db.delete(doc)
         manual_review_message = (
             "Manual review required: Patient name mismatch detected in the documents you added. "
             "Please check that the uploaded documents have the correct patient details."
@@ -1446,7 +1630,7 @@ def delete_document(
     db.refresh(claim)
     _audit(db, "DOCUMENT_DELETED", claim_id=cid, metadata={"document_id": str(did), "file_name": doc.file_name})
     logger.info("Deleted doc %s from claim %s", doc_id, claim_id)
-    return ClaimOut.model_validate(claim).model_dump(mode="json")
+    return _build_claim_response(db, cid)
 
 
 @router.delete("/claims", status_code=204)

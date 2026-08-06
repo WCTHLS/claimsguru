@@ -436,10 +436,10 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
             return True
 
         if field_name == "doctor_name":
-            # Doctor name noise: contains digits (e.g. "Reg: No.= Primary 1"), registration labels, or known metadata words
-            if any(ch.isdigit() for ch in v):
+            # Doctor name noise: contains digits (e.g. "Reg: No.= Primary 1"), registration labels, signature labels, or known metadata words
+            if any(ch.isdigit() for ch in v) or re.search(r"_{2,}", v):
                 return True
-            noise_terms = ["reg", "registration", "primary", "secondary", "no.", "ref", "days", "insured", "claim"]
+            noise_terms = ["reg", "registration", "primary", "secondary", "no.", "ref", "days", "insured", "claim", "signature", "sign", "seal", "stamp", "declaration", "attendant"]
             if any(term in v_lower for term in noise_terms):
                 return True
 
@@ -450,10 +450,12 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
                 return True
 
         elif field_name == "diagnosis":
-            # Diagnosis noise: insurance/temporal metadata mistakenly extracted
+            # Diagnosis noise: insurance/temporal metadata or "None Procedure" mistakenly extracted
+            if v_lower in {"none", "none procedure", "n/a", "null"} or v_lower.startswith("none procedure") or v_lower.startswith("procedure:"):
+                return True
             noise_terms = [
                 "days", "future generali", "insurance", "tpa", "policy", "sum insured",
-                "1 day", "2 days", "3 days", "future", "generali",
+                "1 day", "2 days", "3 days", "future", "generali", "none procedure",
             ]
             if any(term in v_lower for term in noise_terms):
                 return True
@@ -473,62 +475,80 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
                     doc.normalized_fields = [f for f in doc.normalized_fields if not (f.get("canonical_field") == cf and f.get("value") == nf.get("value"))]
                     _append_local_field(cf, fallback, confidence=0.9)
                     logger.info(f"[NOISY_FIELD] Replaced {cf} with robust value: {fallback}")
+                else:
+                    # If robust extractor has no fallback and doctor_name is noisy signature text, remove it
+                    if cf == "doctor_name":
+                        doc.normalized_fields = [f for f in doc.normalized_fields if not (f.get("canonical_field") == cf and f.get("value") == nf.get("value"))]
+                        logger.info(f"[NOISY_FIELD] Removed noisy doctor_name value without fallback: {val}")
 
     # Strip registration/accreditation suffixes from hospital_name
     # e.g. "AIG Hospitals Registration AIG-HYD-2010-0077" → "AIG Hospitals"
-    import re as _re_hosp
     for nf in list(doc.normalized_fields):
         cf = nf.get("canonical_field") or nf.get("field")
         if cf == "hospital_name":
             val = str(nf.get("value") or "").strip()
-            cleaned = _re_hosp.sub(
+            cleaned = re.sub(
                 r"\s+(?:registration|reg\.?|reg no\.?|accreditation|license|regd\.?|regd no\.?)\s+\S+.*$",
                 "",
                 val,
-                flags=_re_hosp.IGNORECASE,
+                flags=re.IGNORECASE,
             ).strip()
             # Also strip trailing registration codes like "XYZ-2010-0077"
-            cleaned = _re_hosp.sub(r"\s+[A-Z]{2,10}-[A-Z0-9]{2,10}-\d{4}-\d{4,}\s*$", "", cleaned).strip()
+            cleaned = re.sub(r"\s+[A-Z]{2,10}-[A-Z0-9]{2,10}-\d{4}-\d{4,}\s*$", "", cleaned).strip()
             if cleaned and cleaned != val:
                 doc.normalized_fields = [f for f in doc.normalized_fields if not (f.get("canonical_field") == cf and f.get("value") == val)]
                 _append_local_field(cf, cleaned, confidence=0.92)
                 logger.info(f"[HOSPITAL_CLEANUP] Stripped registration suffix: '{val}' → '{cleaned}'")
 
-    # Strip CPT/procedure code blocks from secondary_diagnosis
+    # Strip CPT/procedure/ICD-10 code blocks from diagnosis fields
     # e.g. "Gingival disease Secondary Diagnosis 2: ... ICD-10: K72.9 CPT: 47135 ..."
     for nf in list(doc.normalized_fields):
         cf = nf.get("canonical_field") or nf.get("field")
-        if cf == "secondary_diagnosis":
+        if cf in {"diagnosis", "primary_diagnosis", "secondary_diagnosis"}:
             val = str(nf.get("value") or "").strip()
-            # Strip from first "Secondary Diagnosis 2:" onward if the first diagnosis is embedded
-            cleaned = _re_hosp.sub(r"\s+Secondary\s+Diagnosis\s+\d+:.*$", "", val, flags=_re_hosp.IGNORECASE).strip()
-            # Strip trailing ICD-10/CPT/Procedure code blocks
-            cleaned = _re_hosp.sub(r"\s+(?:ICD-10:|CPT:|Procedure\s+\d+:).*$", "", cleaned, flags=_re_hosp.IGNORECASE).strip()
+            # Strip from first "Secondary Diagnosis 2:" onward if embedded
+            cleaned = re.sub(r"\s+Secondary\s+Diagnosis\s+\d+:.*$", "", val, flags=re.IGNORECASE).strip()
+            # Strip trailing or embedded ICD-10/ICD-9/CPT/Procedure code blocks
+            cleaned = re.sub(
+                r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s+\d+:).*$",
+                "",
+                cleaned,
+                flags=re.IGNORECASE,
+            ).strip()
+            cleaned = re.sub(r"[\s:\-–—,|]+$", "", cleaned).strip()
+            if cleaned.count("(") > cleaned.count(")"):
+                cleaned = re.sub(r"[\s\(\[\:\-–—,|]+$", "", cleaned).strip()
             if cleaned and cleaned != val:
                 doc.normalized_fields = [f for f in doc.normalized_fields if not (f.get("canonical_field") == cf and f.get("value") == val)]
-                _append_local_field(cf, cleaned, confidence=0.88)
-                logger.info(f"[DIAG_CLEANUP] Stripped CPT noise from secondary_diagnosis: '{val[:60]}...' → '{cleaned}'")
+                _append_local_field(cf, cleaned, confidence=0.90)
+                logger.info(f"[DIAG_CLEANUP] Stripped ICD/CPT code noise from {cf}: '{val}' → '{cleaned}'")
 
-    # If doctor_name looks like a table header or contains digits, try a location-based fallback
+    # If doctor_name looks like a table header, signature, or contains digits, try a location-based fallback
     def _heuristic_doctor_from_label(token_dicts: list[dict]) -> str | None:
-        import re
-        # find a token that equals 'doctor' (case-insensitive)
+        # find a token that equals 'doctor' (case-insensitive) but NOT 'doctor signature'
         for t in token_dicts:
-            if isinstance(t.get('text'), str) and re.search(r"\bdoctor\b", t.get('text'), re.IGNORECASE):
+            txt = t.get('text')
+            if isinstance(txt, str) and re.search(r"\bdoctor\b", txt, re.IGNORECASE):
+                # Ignore if this token is part of a declaration/signature header (e.g. "Doctor Signature")
                 page = t.get('page')
                 y0 = float(t.get('y0') or 0)
-                # candidate tokens: same page, y between y0-40 and y0+40 and x > t.x1
+                # Check adjacent tokens on same line for signature keywords
+                line_tokens = [tt for tt in token_dicts if tt.get('page') == page and abs(float(tt.get('y0') or 0) - y0) < 15]
+                line_text = " ".join(str(lt.get('text') or "") for lt in line_tokens).lower()
+                if any(sig_term in line_text for sig_term in ["signature", "sign", "declaration", "hereby", "seal", "stamp"]):
+                    continue
+
                 candidates = [tt for tt in token_dicts if tt.get('page') == page]
-                # sort by x0 (left->right)
                 candidates = sorted(candidates, key=lambda z: (z.get('page', 0), float(z.get('x0') or 0)))
-                # find tokens that come after the 'doctor' token horizontally
                 after = [c for c in candidates if float(c.get('x0') or 0) > float(t.get('x1') or 0) and abs(float(c.get('y0') or 0) - y0) < 50]
-                # pick up to 4 alphabetic tokens
                 name_parts = []
                 for a in after:
-                    txt = str(a.get('text') or "").strip()
-                    if re.match(r"^[A-Za-z][A-Za-z\.\s]{1,}$", txt) and len(txt) > 1:
-                        name_parts.append(txt)
+                    atxt = str(a.get('text') or "").strip()
+                    atxt_lower = atxt.lower()
+                    if any(st in atxt_lower for st in ["signature", "sign", "seal", "stamp", "____"]):
+                        continue
+                    if re.match(r"^[A-Za-z][A-Za-z\.\s]{1,}$", atxt) and len(atxt) > 1:
+                        name_parts.append(atxt)
                     if len(name_parts) >= 4:
                         break
                 if name_parts:
@@ -539,14 +559,17 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
     for nf in list(doc.normalized_fields):
         if (nf.get('canonical_field') or nf.get('field')) == 'doctor_name':
             val = str(nf.get('value') or '')
-            # heuristics for bad value: contains digits or typical table header words
-            if any(ch.isdigit() for ch in val) or any(h in val.lower() for h in ['qty', 'rate', 'anount', 'amount']):
+            # heuristics for bad value: contains digits, signature noise, or typical table header words
+            val_lower = val.lower()
+            is_bad = (
+                any(ch.isdigit() for ch in val)
+                or re.search(r"_{2,}", val)
+                or any(h in val_lower for h in ['qty', 'rate', 'anount', 'amount', 'signature', 'sign', 'seal', 'stamp'])
+            )
+            if is_bad:
                 heuristic = _heuristic_doctor_from_label(all_token_dicts)
                 if heuristic:
-                    # replace existing
-                    # Trim common trailing header tokens from heuristic name
-                    import re
-                    trim_tokens = ['batch', 'qty', 'rate', 'anount', 'amount', 'nan', 'naned']
+                    trim_tokens = ['batch', 'qty', 'rate', 'anount', 'amount', 'nan', 'naned', 'signature', 'sign', 'seal', 'stamp']
                     h_clean = heuristic
                     for tk in trim_tokens:
                         parts = re.split(r"\b" + re.escape(tk) + r"\b", h_clean, flags=re.IGNORECASE)
@@ -556,6 +579,10 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
                         doc.normalized_fields = [f for f in doc.normalized_fields if not (f.get('canonical_field') == 'doctor_name' and f.get('value') == val)]
                         _append_local_field('doctor_name', h_clean, confidence=0.9)
                         logger.info(f"[DOCTOR_HEURISTIC] Replaced noisy doctor_name '{val}' with '{h_clean}'")
+                else:
+                    # Remove bad signature value if no heuristic fallback succeeded
+                    doc.normalized_fields = [f for f in doc.normalized_fields if not (f.get('canonical_field') == 'doctor_name' and f.get('value') == val)]
+                    logger.info(f"[DOCTOR_CLEANUP] Dropped bad doctor_name value without fallback: '{val}'")
 
     # Expense extraction is intentionally delayed until after semantic table kinds
     # are applied below, so normalize_tables() can see the finalized table type.

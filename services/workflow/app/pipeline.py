@@ -188,6 +188,25 @@ def run_pipeline(claim_id: str) -> PipelineResult:
 
                     if poll_result == "COMPLETED":
                         results.append(StepResult(step=step_name, status="DONE"))
+                        
+                        # Verify mandatory document coverage right after parse step completes
+                        if step_name == "parse":
+                            satisfied, missing = _check_mandatory_document_coverage(claim_id)
+                            if not satisfied:
+                                logger.warning(
+                                    "[PIPELINE] Claim %s is missing mandatory document coverage: %s. Pausing pipeline.",
+                                    claim_id, missing,
+                                )
+                                results.append(StepResult(
+                                    step="document_verification", status="FAILED",
+                                    detail=f"Missing: {', '.join(missing)}"
+                                ))
+                                return PipelineResult(
+                                    success=False,
+                                    steps=results,
+                                    failed_step="document_verification",
+                                    error="PAUSED_FOR_DOCUMENTS",
+                                )
                     else:
                         detail = poll_result.replace("FAILED:", "", 1)
                         results.append(StepResult(step=step_name, status="FAILED", detail=detail))
@@ -211,3 +230,58 @@ def run_pipeline(claim_id: str) -> PipelineResult:
                 )
 
     return PipelineResult(success=True, steps=results)
+
+
+def _check_mandatory_document_coverage(claim_id: str) -> tuple[bool, list[str]]:
+    """
+    Verify if the claim's documents satisfy the clinical, financial, and identity requirements.
+    """
+    from .db import SessionLocal
+    from .models import Document, OcrResult
+    import uuid
+
+    db = SessionLocal()
+    try:
+        cid = uuid.UUID(claim_id)
+        claim_docs = db.query(Document).filter(Document.claim_id == cid).all()
+        
+        kyc_types = {"aadhaar_card", "pan_card", "identity_proof"}
+        clinical_types = {"discharge_summary", "lab_report"}
+        financial_types = {"hospital_bill", "pharmacy_bill"}
+
+        has_kyc = False
+        has_clinical = False
+        has_financial = False
+
+        # First pass: check explicit document classifications
+        for doc in claim_docs:
+            d_type = (doc.doc_type or "").lower()
+            if d_type in kyc_types:
+                has_kyc = True
+            if d_type in clinical_types:
+                has_clinical = True
+            if d_type in financial_types:
+                has_financial = True
+
+        # Second pass: check OCR text fallback ONLY for clinical and financial data
+        # (ID proof must be a real uploaded card/doc classified correctly, not just mentioned in text)
+        if not (has_clinical or has_financial):
+            for doc in claim_docs:
+                ocr_text = " ".join(r.text for r in db.query(OcrResult).filter(OcrResult.document_id == doc.id).all()).lower()
+                
+                if not has_clinical:
+                    if any(kw in ocr_text for kw in ("discharge", "diagnosis", "history of present illness", "treatment", "symptoms", "complaints", "case sheet", "medical summary")):
+                        has_clinical = True
+                if not has_financial:
+                    if any(kw in ocr_text for kw in ("bill", "invoice", "receipt", "total amount", "charges", "expenses", "payment", "net payable", "room rent")):
+                        has_financial = True
+
+        missing = []
+        if not (has_clinical or has_financial):
+            missing.append("hospital_document")
+        if not has_kyc:
+            missing.append("kyc_proof")
+
+        return (len(missing) == 0, missing)
+    finally:
+        db.close()

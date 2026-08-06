@@ -288,6 +288,54 @@ def parser_task(self, result: dict) -> dict[str, str]:
         logging.getLogger("parser-debug").info(f"[Celery] Calling _run_parse_job(job_id={job_id})")
         _run_parse_job(job_id)
         _update_workflow_state(claim_id, "PARSING_COMPLETED", status="RUNNING")
+
+        # Check mandatory documents coverage
+        satisfied, missing = _check_inline_mandatory_document_coverage(claim_id)
+        if not satisfied:
+            logging.getLogger("parser-debug").warning(
+                f"[Celery] Claim {claim_id} is missing mandatory document coverage: {missing}. Pausing Celery chain."
+            )
+            
+            # Set claim status to DOCUMENTS_REQUESTED
+            db = ParserSessionLocal()
+            try:
+                claim = db.query(Claim).filter(Claim.id == cid).first()
+                if claim:
+                    claim.status = "DOCUMENTS_REQUESTED"
+                    db.commit()
+            finally:
+                db.close()
+                
+            _update_workflow_state(claim_id, "DOCUMENTS_REQUESTED", status="FAILED")
+            raise Ignore()
+
+        # Check name mismatch
+        passed, anchor_name, mismatched_doc = _check_asynchronous_identity_gate(claim_id)
+        if not passed:
+            logging.getLogger("parser-debug").warning(
+                f"[Celery] Claim {claim_id} has identity name mismatch (anchor={anchor_name}). Deleting mismatched document and pausing Celery chain."
+            )
+            # Set claim status to MANUAL_REVIEW_REQUIRED and delete mismatched document
+            db = ParserSessionLocal()
+            try:
+                claim = db.query(Claim).filter(Claim.id == cid).first()
+                if claim:
+                    claim.status = "MANUAL_REVIEW_REQUIRED"
+                if mismatched_doc:
+                    if mismatched_doc.minio_path:
+                        from libs.shared.storage import MinioStorage
+                        try:
+                            MinioStorage.delete_file(mismatched_doc.minio_path)
+                        except Exception:
+                            logging.getLogger("parser-debug").warning("Failed to delete file from MinIO: %s", mismatched_doc.minio_path)
+                    db.query(Document).filter(Document.id == mismatched_doc.id).delete()
+                db.commit()
+            finally:
+                db.close()
+                
+            _update_workflow_state(claim_id, "MANUAL_REVIEW_REQUIRED", status="FAILED")
+            raise Ignore()
+
         return {"claim_id": claim_id, "parse_job_id": str(job_id)}
     except SoftTimeLimitExceeded:
         error_msg = "Parser task exceeded time limit (timeout). Marked as failed. Please retry."
@@ -296,6 +344,9 @@ def parser_task(self, result: dict) -> dict[str, str]:
             _mark_job_failed(job_id, error_msg, ParserSessionLocal)
         _update_workflow_state(claim_id, "FAILED", status="FAILED")
         raise ValueError(error_msg)
+    except (NonRetryableTaskError, Ignore):
+        # Re-raise directly to abort the celery chain without triggering retries
+        raise
     except Exception as exc:
         error_type = type(exc).__name__
         if self.request.retries >= self.max_retries:
@@ -837,6 +888,48 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
         return {"claim_id": claim_id, "status": "FAILED", "error": error_msg}
     _update_workflow_state(claim_id, "PARSING_COMPLETED", status="RUNNING")
 
+    satisfied, missing = _check_inline_mandatory_document_coverage(claim_id)
+    if not satisfied:
+        log.warning(f"[InlinePipeline] Claim {claim_id} is missing mandatory document coverage: {missing}. Pausing pipeline.")
+        
+        # Set claim status to DOCUMENTS_REQUESTED
+        db = ParserSessionLocal()
+        try:
+            claim = db.query(Claim).filter(Claim.id == cid).first()
+            if claim:
+                claim.status = "DOCUMENTS_REQUESTED"
+                db.commit()
+        finally:
+            db.close()
+            
+        _update_workflow_state(claim_id, "DOCUMENTS_REQUESTED", status="FAILED")
+        return {"claim_id": claim_id, "status": "DOCUMENTS_REQUESTED", "error": "PAUSED_FOR_DOCUMENTS"}
+
+    # Check name mismatch
+    passed, anchor_name, mismatched_doc = _check_asynchronous_identity_gate(claim_id)
+    if not passed:
+        log.warning(f"[InlinePipeline] Claim {claim_id} has identity name mismatch (anchor={anchor_name}). Deleting mismatched document and pausing pipeline.")
+        # Set claim status to MANUAL_REVIEW_REQUIRED and delete mismatched document
+        db = ParserSessionLocal()
+        try:
+            claim = db.query(Claim).filter(Claim.id == cid).first()
+            if claim:
+                claim.status = "MANUAL_REVIEW_REQUIRED"
+            if mismatched_doc:
+                if mismatched_doc.minio_path:
+                    from libs.shared.storage import MinioStorage
+                    try:
+                        MinioStorage.delete_file(mismatched_doc.minio_path)
+                    except Exception:
+                        log.warning("Failed to delete file from MinIO: %s", mismatched_doc.minio_path)
+                db.query(Document).filter(Document.id == mismatched_doc.id).delete()
+            db.commit()
+        finally:
+            db.close()
+            
+        _update_workflow_state(claim_id, "MANUAL_REVIEW_REQUIRED", status="FAILED")
+        return {"claim_id": claim_id, "status": "MANUAL_REVIEW_REQUIRED", "error": "PAUSED_FOR_IDENTITY_MISMATCH"}
+
     # ---------- Coding ----------
     _update_workflow_state(claim_id, "CODING_ANALYSIS", status="RUNNING")
     try:
@@ -896,3 +989,132 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
     _update_workflow_state(claim_id, "FINISHED", status="FINISHED")
     log.info(f"[InlinePipeline] completed claim_id={claim_id}")
     return {"claim_id": claim_id, "status": "COMPLETED", "results": [validator_result]}
+
+
+def _check_inline_mandatory_document_coverage(claim_id: str) -> tuple[bool, list[str]]:
+    """
+    Verify if the claim's documents satisfy the clinical, financial, and identity requirements.
+    """
+    from services.ocr.app.db import SessionLocal as OcrSessionLocal
+    from libs.shared.models import Document, OcrResult
+    import uuid
+
+    db = OcrSessionLocal()
+    try:
+        cid = uuid.UUID(claim_id)
+        claim_docs = db.query(Document).filter(Document.claim_id == cid).all()
+        
+        kyc_types = {"aadhaar_card", "pan_card", "identity_proof"}
+        clinical_types = {"discharge_summary", "lab_report"}
+        financial_types = {"hospital_bill", "pharmacy_bill"}
+
+        has_kyc = False
+        has_clinical = False
+        has_financial = False
+
+        for doc in claim_docs:
+            d_type = (doc.doc_type or "").lower()
+            if d_type in kyc_types:
+                has_kyc = True
+            if d_type in clinical_types:
+                has_clinical = True
+            if d_type in financial_types:
+                has_financial = True
+
+        if not (has_clinical or has_financial):
+            for doc in claim_docs:
+                ocr_text = " ".join(r.text for r in db.query(OcrResult).filter(OcrResult.document_id == doc.id).all()).lower()
+                
+                if not has_clinical:
+                    if any(kw in ocr_text for kw in ("discharge", "diagnosis", "history of present illness", "treatment", "symptoms", "complaints", "case sheet", "medical summary")):
+                        has_clinical = True
+                if not has_financial:
+                    if any(kw in ocr_text for kw in ("bill", "invoice", "receipt", "total amount", "charges", "expenses", "payment", "net payable", "room rent")):
+                        has_financial = True
+
+        missing = []
+        if not (has_clinical or has_financial):
+            missing.append("hospital_document")
+        if not has_kyc:
+            missing.append("kyc_proof")
+
+        return (len(missing) == 0, missing)
+    finally:
+        db.close()
+
+
+def _check_asynchronous_identity_gate(claim_id: str) -> tuple[bool, str | None, Any | None]:
+    """
+    Verify if the name on any uploaded ID proof document matches the patient name from the hospital documents.
+    """
+    from services.ocr.app.db import SessionLocal as OcrSessionLocal
+    from libs.shared.models import Document, OcrResult, ParsedField
+    import uuid
+    import re
+
+    db = OcrSessionLocal()
+    try:
+        cid = uuid.UUID(claim_id)
+        
+        # 1. Find the anchor patient name (from hospital bill or discharge summary parsed fields)
+        pf_name = db.query(ParsedField.field_value).filter(
+            ParsedField.claim_id == cid,
+            ParsedField.field_name == "patient_name",
+        ).first()
+        if not pf_name or not pf_name[0]:
+            # Try member_name or insured_name
+            pf_name = db.query(ParsedField.field_value).filter(
+                ParsedField.claim_id == cid,
+                ParsedField.field_name.in_(["member_name", "insured_name"])
+            ).first()
+
+        anchor_name = pf_name[0] if pf_name else None
+        if not anchor_name or anchor_name.strip().lower() in {"n/a", "none", "unknown", "null", ""}:
+            # If parser hasn't run yet or found nothing, we skip name validation
+            return True, None, None
+
+        anchor_name_clean = re.sub(r"\s+", " ", anchor_name).strip().lower()
+
+        # 2. Find any Identity Proof documents
+        kyc_types = {"aadhaar_card", "pan_card", "identity_proof"}
+        documents = db.query(Document).filter(Document.claim_id == cid).all()
+        id_docs = [d for d in documents if (d.doc_type or "").lower() in kyc_types]
+
+        if not id_docs:
+            # No ID docs uploaded yet (handled by the missing document checker)
+            return True, None, None
+
+        # 3. Verify names on the ID documents
+        for doc in id_docs:
+            ocr_text = " ".join(r.text for r in db.query(OcrResult).filter(OcrResult.document_id == doc.id).all()).lower()
+            if not ocr_text.strip():
+                continue
+
+            # Extract patient name from the ID document text using regex
+            id_name = None
+            for pattern in [
+                re.compile(r"(?im)(?:^|\n)\s*(?:patient\s*name|name\s*of\s*patient|name)\s*[:\-]\s*([^\n\r|]+)"),
+                re.compile(r"(?im)(?:^|\n)\s*([a-za-z\s]{3,40})\s*(?:\n\s*dob|\n\s*year\s*of\s*birth|\n\s*yob)"),
+            ]:
+                m = pattern.search(ocr_text)
+                if m:
+                    id_name = m.group(1).strip()
+                    break
+
+            if not id_name:
+                # Fallback fuzzy substring match
+                anchor_parts = [p for p in anchor_name_clean.split() if len(p) > 2]
+                if anchor_parts and not any(part in ocr_text for part in anchor_parts):
+                    return False, anchor_name, doc
+            else:
+                id_name_clean = re.sub(r"\s+", " ", id_name).strip().lower()
+                id_parts = [p for p in id_name_clean.split() if len(p) > 2]
+                anchor_parts = [p for p in anchor_name_clean.split() if len(p) > 2]
+                
+                # If they have no common parts, it's a mismatch!
+                if id_parts and anchor_parts and not any(part in id_name_clean for part in anchor_parts) and not any(part in anchor_name_clean for part in id_parts):
+                    return False, anchor_name, doc
+
+        return True, None, None
+    finally:
+        db.close()

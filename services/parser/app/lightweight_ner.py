@@ -62,8 +62,8 @@ def extract_doctor_name(tokens: list[dict[str, Any]]) -> str | None:
     
     # Look for "Treating Doctor:" or "Physician:" pattern
     doc_patterns = [
-        r"treating\s+doctor\s*[:|\-]?\s*([A-Za-z\s\.]{3,80})",
-        r"physician\s*[:|\-]?\s*([A-Za-z\s\.]{3,80})",
+        r"treating\s+doctor\s*(?!signature\b)[:|\-]?\s*([A-Za-z\s\.]{3,80})",
+        r"physician\s*(?!signature\b)[:|\-]?\s*([A-Za-z\s\.]{3,80})",
         r"dr\.?\s+([A-Za-z\s\.]{3,80})",
     ]
     
@@ -72,6 +72,9 @@ def extract_doctor_name(tokens: list[dict[str, Any]]) -> str | None:
         if match:
             name = match.group(1).strip()
             name = re.sub(r"[:\d\-/\s]*$", "", name).strip()
+            name_lower = name.lower()
+            if any(s in name_lower for s in ["signature", "sign", "seal", "stamp", "declaration", "attendant"]) or re.search(r"_{2,}", name):
+                continue
             if name and len(name) > 2:
                 return name
     
@@ -96,7 +99,15 @@ def extract_diagnosis(tokens: list[dict[str, Any]]) -> str | None:
                 diagnosis = (match.group(i) or "").strip()
                 if diagnosis and len(diagnosis) > 2:
                     # Clean up
-                    diagnosis = re.sub(r"[:\-/\s]*$", "", diagnosis).strip()
+                    diagnosis = re.sub(
+                        r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s+\d+:).*$",
+                        "",
+                        diagnosis,
+                        flags=re.IGNORECASE,
+                    ).strip()
+                    diagnosis = re.sub(r"[\s:\-–—,|]+$", "", diagnosis).strip()
+                    if diagnosis.count("(") > diagnosis.count(")"):
+                        diagnosis = re.sub(r"[\s\(\[\:\-–—,|]+$", "", diagnosis).strip()
                     if diagnosis:
                         return diagnosis
     

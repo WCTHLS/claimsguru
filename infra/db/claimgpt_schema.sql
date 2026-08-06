@@ -29,7 +29,10 @@ CREATE TABLE documents (
     file_type TEXT,
     minio_path TEXT NOT NULL,
     content_hash TEXT NOT NULL,
-    uploaded_at TIMESTAMPTZ DEFAULT now()
+    uploaded_at TIMESTAMPTZ DEFAULT now(),
+    doc_type TEXT DEFAULT 'UNKNOWN',
+    display_title TEXT,
+    page_count INTEGER DEFAULT 1
 );
 
 CREATE INDEX idx_documents_claim_id ON documents(claim_id);

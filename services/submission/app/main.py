@@ -222,6 +222,42 @@ def _pick_best_field_value(field_name: str, values: list[tuple[str, str]]) -> st
         if nums:
             return str(min(nums))
 
+    if field_name == "patient_name":
+        cleaned_names = []
+        for v, _mv in clean:
+            c_val = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", v).strip()
+            if c_val and not any(kw in c_val.lower() for kw in ["hospital", "clinic", "center"]):
+                cleaned_names.append(c_val)
+        if cleaned_names:
+            return sorted(cleaned_names, key=lambda x: (x.count("|") + 2 * x.count("\n"), 0 if len(x) >= 4 else 1, -len(x)))[0]
+
+    if field_name in {"diagnosis", "primary_diagnosis"}:
+        cleaned_diags = []
+        for v, _mv in clean:
+            c_val = re.sub(r"^(?:none|n/a|null)\s*(?:procedure\s*:?|diagnosis\s*:?)?\s*", "", v, flags=re.IGNORECASE).strip()
+            c_val = re.sub(
+                r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s*:?.*|Secondary\s+Diagnosis.*).*$",
+                "",
+                c_val,
+                flags=re.IGNORECASE,
+            ).strip()
+            c_val = re.sub(r"[\s:\-–—,|]+$", "", c_val).strip()
+            if c_val.count("(") > c_val.count(")"):
+                c_val = re.sub(r"[\s\(\[\:\-–—,|]+$", "", c_val).strip()
+            if c_val and c_val.lower() not in {"none", "none procedure", "n/a", "null"}:
+                cleaned_diags.append(c_val)
+        if cleaned_diags:
+            return sorted(cleaned_diags, key=lambda x: (x.count("|") + 2 * x.count("\n"), 0 if len(x) >= 4 else 1, -len(x)))[0]
+
+    if field_name == "doctor_name":
+        cleaned_docs = []
+        for v, _mv in clean:
+            if any(st in v.lower() for st in ["signature", "sign", "seal", "stamp", "declaration", "attendant"]) or re.search(r"_{2,}", v):
+                continue
+            cleaned_docs.append(v.strip())
+        if cleaned_docs:
+            return sorted(cleaned_docs, key=lambda x: (x.count("|") + 2 * x.count("\n"), 0 if len(x) >= 4 else 1, -len(x)))[0]
+
     def _noise_score(v: str) -> tuple[int, int, int]:
         pipes = v.count("|")
         newlines = v.count("\n")
@@ -505,11 +541,12 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         if fn.startswith("expense_table_row_") or mv.startswith("expense-table"):
             try:
                 import json as _json
+
                 parsed_json = _json.loads(r.field_value)
                 desc = parsed_json.get("description") if isinstance(parsed_json, dict) else None
                 cat = desc or parsed_json.get("category") if isinstance(parsed_json, dict) else None
                 amt = parsed_json.get("amount") if isinstance(parsed_json, dict) else None
-                
+
                 if amt is None:
                     try:
                         amt_val = _safe_float(r.field_value)
@@ -524,7 +561,7 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
                         cat = _EXPENSE_FIELDS[fn]
                     else:
                         cat = re.sub(r"\s+", " ", fn).strip()
-                
+
                 # Allow amount == 0 for structured/parsed table rows
                 if amt_val >= 0:
                     expenses.append({
@@ -695,7 +732,24 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         "predictions": predictions,
         "validations": validations,
         "ocr_excerpt": ocr_text,
-        "documents": [{"file_name": d.file_name, "file_type": d.file_type, "doc_id": str(d.id)} for d in docs],
+        "documents": [
+            {
+                "document_id": str(d.id),
+                "doc_id": str(d.id),
+                "id": str(d.id),
+                "original_filename": d.file_name,
+                "file_name": d.file_name,
+                "file_type": d.file_type,
+                "doc_type": getattr(d, "doc_type", None) or "UNKNOWN",
+                "display_title": getattr(d, "display_title", None) or d.file_name,
+                "page_count": getattr(d, "page_count", None) or 1,
+                "pages": [
+                    f"/claims/{claim.id}/documents/{d.id}/pages/{p_idx}/image"
+                    for p_idx in range(1, (getattr(d, "page_count", None) or 1) + 1)
+                ],
+            }
+            for d in docs
+        ],
         "document_texts": {str(d.id): doc_ocr_map.get(str(d.id), "")[:3000] for d in docs},
         "scan_analyses": scan_analyses,
         "identity_review": {
@@ -1043,6 +1097,36 @@ def preview_claim_data(claim_id: str, db: Session = Depends(get_db)):
 
     # Cross-document reimbursement intelligence
     data["reimbursement_brain"] = _generate_reimbursement_brain(data)
+
+    # Attach structured document list for multi-doc carousel & page image previews
+    try:
+        doc_rows = db.query(Document).filter(Document.claim_id == cid).order_by(Document.uploaded_at.asc()).all()
+        doc_preview_list = []
+        for d in doc_rows:
+            p_count = getattr(d, "page_count", 1) or 1
+            d_type = getattr(d, "doc_type", "hospital_bill") or "hospital_bill"
+            d_title = getattr(d, "display_title", None)
+            if not d_title:
+                d_title = f"{d_type.replace('_', ' ').title()} — {d.file_name}"
+            page_urls = [
+                f"/claims/{cid}/documents/{d.id}/pages/{p_idx}/image"
+                for p_idx in range(1, p_count + 1)
+            ]
+            doc_preview_list.append({
+                "document_id": str(d.id),
+                "doc_id": str(d.id),
+                "id": str(d.id),
+                "original_filename": d.file_name,
+                "file_name": d.file_name,
+                "file_type": d.file_type,
+                "doc_type": d_type,
+                "display_title": d_title,
+                "page_count": p_count,
+                "pages": page_urls,
+            })
+        data["documents"] = doc_preview_list
+    except Exception as e:
+        logger.warning(f"Failed to attach document previews to claim response: {e}")
 
     return data
 

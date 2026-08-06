@@ -1678,14 +1678,15 @@ def _search_cpt_rag_cached(
     if mode == "dense":
         dense = _dense_rank(query, _cpt_index, _cpt_meta, pool)
         filtered = [(i, s) for i, s in dense if s >= min_score]
-        return _to_results(filtered, _cpt_meta, max_results)
+        res = _to_results(filtered, _cpt_meta, max_results)
+        return tuple((str(r[0]), str(r[1]), str(r[2]), float(r[-1])) for r in res)
 
     if mode == "bm25":
-        return _to_results(
-            _bm25_rank(query, _cpt_bm25, pool), _cpt_meta, max_results,
-        )
+        res = _to_results(_bm25_rank(query, _cpt_bm25, pool), _cpt_meta, max_results)
+        return tuple((str(r[0]), str(r[1]), str(r[2]), float(r[-1])) for r in res)
 
     # hybrid
     dense = _dense_rank(query, _cpt_index, _cpt_meta, pool)
     sparse = _bm25_rank(query, _cpt_bm25, pool)
-    return _to_results(_rrf_fuse([dense, sparse]), _cpt_meta, max_results)
+    res = _to_results(_rrf_fuse([dense, sparse]), _cpt_meta, max_results)
+    return tuple((str(r[0]), str(r[1]), str(r[2]), float(r[-1])) for r in res)

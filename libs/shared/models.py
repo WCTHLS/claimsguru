@@ -102,6 +102,9 @@ class Document(Base):
     minio_path = Column(Text, nullable=False)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
     content_hash = Column(Text, index=True, nullable=False)  # SHA-256 fingerprint of file content
+    doc_type = Column(Text, nullable=True, default="UNKNOWN")
+    display_title = Column(Text, nullable=True)
+    page_count = Column(Integer, nullable=True, default=1)
 
     claim = relationship("Claim", back_populates="documents")
     ocr_results = relationship("OcrResult", back_populates="document", cascade="all, delete-orphan", passive_deletes=True)

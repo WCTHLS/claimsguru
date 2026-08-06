@@ -9,6 +9,8 @@ class DocumentOut(BaseModel):
     file_name: str
     file_type: str | None = None
     uploaded_at: datetime
+    doc_type: str | None = None
+    display_title: str | None = None
 
     model_config = {"from_attributes": True}
 

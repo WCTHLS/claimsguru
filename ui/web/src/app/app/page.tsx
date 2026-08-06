@@ -14,6 +14,8 @@ interface DocInfo {
   file_name: string;
   file_type: string | null;
   uploaded_at: string;
+  doc_type?: string | null;
+  display_title?: string | null;
 }
 
 interface Claim {
@@ -163,6 +165,7 @@ const STATUS_CLASS: Record<string, string> = {
   REJECTED: "status-failed",
   DOCUMENTS_REQUESTED: "status-docs-requested",
   MODIFICATION_REQUESTED: "status-mod-requested",
+  MANUAL_REVIEW_REQUIRED: "status-failed",
 };
 
 const PIPELINE_ACTIVE_STATUSES = new Set([
@@ -185,6 +188,7 @@ const PIPELINE_READY_STATUSES = new Set([
   "REJECTED",
   "DOCUMENTS_REQUESTED",
   "MODIFICATION_REQUESTED",
+  "MANUAL_REVIEW_REQUIRED",
 ]);
 
 const API = process.env.NEXT_PUBLIC_API_BASE || "http://localhost:8000/ingress";
@@ -3170,28 +3174,75 @@ export default function Home() {
                     ? "📋 Docs Requested"
                     : c.status === "MODIFICATION_REQUESTED"
                       ? "✏️ Modification Needed"
-                      : c.status === "APPROVED"
-                        ? "✅ Approved"
-                        : c.status === "REJECTED"
-                          ? "❌ Rejected"
-                          : c.status === "OCR_REJECTED" || c.status === "OCR_REJECTED_LOW_QUALITY"
-                            ? "❌ Blurry/Unreadable Document - Re-upload"
-                            : c.status.charAt(0) + c.status.slice(1).toLowerCase()}
+                      : c.status === "MANUAL_REVIEW_REQUIRED"
+                        ? "⚠️ Name Mismatch"
+                        : c.status === "APPROVED"
+                          ? "✅ Approved"
+                          : c.status === "REJECTED"
+                            ? "❌ Rejected"
+                            : c.status === "OCR_REJECTED" || c.status === "OCR_REJECTED_LOW_QUALITY"
+                              ? "❌ Blurry/Unreadable Document - Re-upload"
+                              : c.status.charAt(0) + c.status.slice(1).toLowerCase()}
                 </span>
-                {(c.status === "DOCUMENTS_REQUESTED" || c.status === "MODIFICATION_REQUESTED") && (
-                  <div className="claim-tpa-banner">
-                    <div className="claim-tpa-banner-icon">{c.status === "DOCUMENTS_REQUESTED" ? "📎" : "✏️"}</div>
-                    <div className="claim-tpa-banner-text">
-                      <strong>{c.status === "DOCUMENTS_REQUESTED" ? "TPA requested more documents" : "TPA requested modifications"}</strong>
-                      {tpaMessages[c.id] ? (
-                        <span className="claim-tpa-message">&ldquo;{tpaMessages[c.id]}&rdquo;</span>
-                      ) : (
-                        <span>{c.status === "DOCUMENTS_REQUESTED" ? "Upload additional documents to proceed" : "Edit and resubmit your claim"}</span>
-                      )}
+                {(c.status === "DOCUMENTS_REQUESTED" || c.status === "MODIFICATION_REQUESTED" || c.status === "MANUAL_REVIEW_REQUIRED") && (() => {
+                  if (c.status === "MODIFICATION_REQUESTED") {
+                    return (
+                      <div className="claim-tpa-banner">
+                        <div className="claim-tpa-banner-icon">✏️</div>
+                        <div className="claim-tpa-banner-text">
+                          <strong>TPA requested modifications</strong>
+                          {tpaMessages[c.id] ? (
+                            <span className="claim-tpa-message">&ldquo;{tpaMessages[c.id]}&rdquo;</span>
+                          ) : (
+                            <span>Edit and resubmit your claim</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (c.status === "MANUAL_REVIEW_REQUIRED") {
+                    const patName = claimNames[c.id] || c.patient_name || "the patient";
+                    return (
+                      <div className="claim-tpa-banner claim-tpa-banner-failed" style={{ backgroundColor: "#fef2f2", borderColor: "#fca5a5", color: "#991b1b" }}>
+                        <div className="claim-tpa-banner-icon" style={{ color: "#dc2626" }}>⚠️</div>
+                        <div className="claim-tpa-banner-text">
+                          <strong>Patient Name Mismatch</strong>
+                          <span>The name on the uploaded Identity Proof does not match the patient name (<strong>{patName}</strong>). Please upload the correct ID proof.</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  const kyc_types = ["aadhaar_card", "pan_card", "identity_proof"];
+                  const clinical_types = ["discharge_summary", "lab_report"];
+                  const financial_types = ["hospital_bill", "pharmacy_bill"];
+
+                  const hasKyc = c.documents?.some(d => kyc_types.includes((d.doc_type || "").toLowerCase()));
+                  const hasClinical = c.documents?.some(d => clinical_types.includes((d.doc_type || "").toLowerCase()));
+                  const hasFinancial = c.documents?.some(d => financial_types.includes((d.doc_type || "").toLowerCase()));
+
+                  const missing = [];
+                  if (!hasClinical && !hasFinancial) missing.push("Hospital Documents");
+                  if (!hasKyc) missing.push("Identity Proof");
+
+                  const missingText = missing.join(" and ");
+                  const warningTitle = missing.length > 0 ? `${missingText} missing` : "Documents required";
+                  const warningDetail = missing.length > 0 
+                    ? `Please upload ${missingText.toLowerCase()} to proceed further.`
+                    : "Please upload additional documents to proceed.";
+
+                  return (
+                    <div className="claim-tpa-banner">
+                      <div className="claim-tpa-banner-icon">📎</div>
+                      <div className="claim-tpa-banner-text">
+                        <strong>⚠️ {warningTitle}</strong>
+                        <span>{warningDetail}</span>
+                      </div>
                     </div>
-                  </div>
-                )}
-                {c.status === "DOCUMENTS_REQUESTED" && (
+                  );
+                })()}
+                {(c.status === "DOCUMENTS_REQUESTED" || c.status === "MANUAL_REVIEW_REQUIRED") && (
                   <div className="claim-actions claim-actions-request">
                     <label className="upload-more-btn">
                       <input type="file" multiple hidden onChange={(e) => { if (e.target.files?.length) { setActiveClaim(c.id); upload(Array.from(e.target.files), true); } }} />
