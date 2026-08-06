@@ -25,7 +25,8 @@
       { "name": "admin", "description": "Full system access" },
       { "name": "reviewer", "description": "Review and approve claims" },
       { "name": "submitter", "description": "Submit claims to payers" },
-      { "name": "viewer", "description": "Read-only access" }
+      { "name": "viewer", "description": "Read-only access" },
+      { "name": "tpa_adjuster", "description": "TPA adjuster claim-review access" }
     ]
   },
   "defaultRoles": ["viewer"],

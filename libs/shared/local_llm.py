@@ -57,7 +57,7 @@ def _get_llm():
             return None
 
         try:
-            from llama_cpp import Llama
+            from llama_cpp import Llama  # type: ignore
 
             n_ctx = int(os.getenv("LOCAL_LLM_N_CTX", "4096"))
             n_threads = int(os.getenv("LOCAL_LLM_N_THREADS", "8"))
@@ -70,7 +70,7 @@ def _get_llm():
             logger.info("Local llama.cpp model loaded: %s", model_path)
             return _llm
         except Exception:
-            logger.exception("Failed to initialize llama-cpp local model")
+            logger.warning("llama-cpp is unavailable or failed to initialize; local LLM disabled")
             return None
 
 
