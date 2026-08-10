@@ -83,3 +83,9 @@ This walkthrough details the changes made to implement strict document classific
       * Added `except SoftTimeLimitExceeded` blocks to `coding_task`, `risk_task`, `validator_task`, `intake_task`, and `finalize_claim_task`.
       * Ensures that if any step in the pipeline times out, the task rolls back active database transactions cleanly and transitions the claim's workflow state database row to `FAILED`. This avoids processing locks and alerts users of failures on the frontend.
     * **Web UI Typecheck Fix**: Resolved a Next.js TypeScript compiler warning in the patient workspace [`src/app/app/page.tsx`](file:///c:/Project/ClaimGPT-feature/ui/web/src/app/app/page.tsx#L3205) by binding the patient name to the logged-in session user (`user?.name`).
+14. **Docker Configuration Reversion**:
+    * **Status**: Reverted all Docker Compose modifications back to the original development/pre-production architecture branch files as requested by the user. Removed `Dockerfile.unified` and reset build/volume paths.
+15. **Mock Identity Proof Document (PAN Card Mockup)**:
+    * **Status**: Generated a high-fidelity Permanent Account Number (PAN) Card mockup for "Ravi Kumar Sharma" to serve as mock identity/KYC verification files inside testing pipelines.
+    * **File**: ![Ravi Kumar Sharma PAN Card](file:///C:/Users/Admin/.gemini/antigravity-ide/brain/3fafb303-f1b7-4142-bcf1-68051ba95590/pan_card_ravi_kumar_sharma_1786368510737.png)
+

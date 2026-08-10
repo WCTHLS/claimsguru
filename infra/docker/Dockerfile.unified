@@ -1,0 +1,77 @@
+# ========================================================
+# Stage 1: Core Base Builder (claimgpt-core builder)
+# ========================================================
+FROM python:3.11-slim AS core-builder
+WORKDIR /app
+
+# Install compilation tools needed for core Python packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Increase pip timeout and retries
+ENV PIP_DEFAULT_TIMEOUT=300
+ENV PIP_RETRIES=10
+
+COPY requirements-gateway.txt /app/requirements.txt
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# ========================================================
+# Stage 2: Core Base Runner (claimgpt-core image)
+# ========================================================
+FROM python:3.11-slim AS core-runner
+WORKDIR /app
+
+# Copy installed Python packages from builder
+COPY --from=core-builder /usr/local /usr/local
+ENV PYTHONPATH=/app:/app/libs:/app/services
+
+# Install basic runtime tools + system dependencies for WeasyPrint/GLib
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    libpango-1.0-0 \
+    libpangocairo-1.0-0 \
+    libglib2.0-0 \
+    libharfbuzz0b \
+    libpangoft2-1.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy libs and services code
+COPY libs/ /app/libs/
+COPY services/ /app/services/
+COPY main.py /app/main.py
+
+# Create storage directories and set permissive write access for non-root execution
+RUN mkdir -p /app/storage/raw /app/services/ingress/storage/raw && chmod -R 777 /app/storage /app/services/ingress/storage
+
+EXPOSE 8000
+CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+# ========================================================
+# Stage 3: Heavy ML & OCR Runner (claimgpt-ml image)
+# ========================================================
+FROM core-runner AS ml-runner
+
+# Install heavy system dependencies for Tesseract, OpenCV, and PDF rendering
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    tesseract-ocr \
+    tesseract-ocr-eng \
+    libtesseract-dev \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxrender1 \
+    libxext6 \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy full requirements.txt (which contains PyTorch, PaddleOCR, Transformers)
+COPY requirements.txt /app/requirements-ml.txt
+
+# Install the heavy ML libraries. Core requirements are already satisfied
+# in the base core-runner image, so pip will skip them and only install ML tools.
+RUN pip install --no-cache-dir -r /app/requirements-ml.txt
