@@ -164,8 +164,34 @@ def build_canonical_schema(
 
     patient_name = get_field("patient_name", "patient.name")
     if patient_name and isinstance(patient_name, str):
-        import re
+        patient_name = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", patient_name).strip()
         patient_name = re.sub(r"\s+Relation\b.*$", "", patient_name, flags=re.I).strip()
+
+    doc_name = get_field("doctor_name", "hospitalization.doctor_name")
+    if doc_name and isinstance(doc_name, str):
+        doc_lower = doc_name.lower()
+        if any(sig_term in doc_lower for sig_term in ["signature", "sign", "seal", "stamp", "declaration", "attendant"]) or re.search(r"_{2,}", doc_name):
+            doc_name = None
+
+    def _clean_diag(d_val):
+        if not d_val or not isinstance(d_val, str):
+            return d_val
+        cleaned = re.sub(r"^(?:none|n/a|null)\s*(?:procedure\s*:?|diagnosis\s*:?)?\s*", "", d_val, flags=re.IGNORECASE).strip()
+        cleaned = re.sub(
+            r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s*:?.*|Secondary\s+Diagnosis.*).*$",
+            "",
+            cleaned,
+            flags=re.IGNORECASE,
+        ).strip()
+        cleaned = re.sub(r"[\s:\-–—,|]+$", "", cleaned).strip()
+        if cleaned.count("(") > cleaned.count(")"):
+            cleaned = re.sub(r"[\s\(\[\:\-–—,|]+$", "", cleaned).strip()
+        if cleaned.lower() in {"none", "none procedure", "n/a", "null"}:
+            return None
+        return cleaned if cleaned else None
+
+    primary_diag = _clean_diag(get_field("diagnosis", "diagnosis.primary"))
+    secondary_diag = _clean_diag(get_field("secondary_diagnosis", "diagnosis.secondary"))
 
     canonical = {
         "patient": {
@@ -187,11 +213,11 @@ def build_canonical_schema(
             "hospital_name": get_field("hospital_name", "hospitalization.hospital_name"),
             "admission_date": get_field("admission_date", "hospitalization.admission_date"),
             "discharge_date": get_field("discharge_date", "hospitalization.discharge_date"),
-            "doctor_name": get_field("doctor_name", "hospitalization.doctor_name"),
+            "doctor_name": doc_name,
         },
         "diagnosis": {
-            "primary": get_field("diagnosis", "diagnosis.primary"),
-            "secondary": get_field("secondary_diagnosis", "diagnosis.secondary"),
+            "primary": primary_diag,
+            "secondary": secondary_diag,
             "procedure": get_field("procedure", "diagnosis.procedure"),
         },
         "medical": {
@@ -203,8 +229,8 @@ def build_canonical_schema(
         "medical_entities": {
             "patient_name": (re.sub(r"\s+Relation\b.*$", "", entities.get("patient_name"), flags=re.I).strip() if entities.get("patient_name") else None) if entities else None,
             "hospital_name": entities.get("hospital_name") if entities else None,
-            "doctor_name": entities.get("doctor_name") if entities else None,
-            "diagnosis": entities.get("diagnosis") if entities else None,
+            "doctor_name": (entities.get("doctor_name") if entities and entities.get("doctor_name") and not any(s in str(entities.get("doctor_name")).lower() for s in ["signature", "sign", "seal", "stamp"]) else None) if entities else None,
+            "diagnosis": _clean_diag(entities.get("diagnosis")) if entities else None,
             "medicines": entities.get("medicines") if entities else [],
         },
         "claims": {

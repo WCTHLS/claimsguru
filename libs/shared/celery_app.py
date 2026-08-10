@@ -147,6 +147,8 @@ celery_app.conf.update(
     worker_max_tasks_per_child=50,
     worker_max_memory_per_child=2000000, # 2GB limit per process (in KB)
     worker_proc_alive_timeout=120.0,
+    task_soft_time_limit=180,  # 3 minutes soft timeout (triggers SoftTimeLimitExceeded)
+    task_time_limit=240,       # 4 minutes hard timeout (kills child worker process)
 )
 
 celery_app.autodiscover_tasks(["services"])

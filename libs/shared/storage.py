@@ -135,3 +135,59 @@ class MinioStorage:
         except Exception as e:
             logger.exception(f"[MINIO] Failed to download object to temp '{minio_uri}': {e}")
             raise
+
+    @classmethod
+    def delete_file(cls, minio_uri: str) -> None:
+        """Delete an object from MinIO using its URI or local path fallback."""
+        if not minio_uri:
+            return
+        # If it's a local file path (fallback), delete it from filesystem
+        if not minio_uri.startswith("s3://"):
+            try:
+                import os
+                if os.path.exists(minio_uri):
+                    os.remove(minio_uri)
+                    logger.info(f"[STORAGE] Deleted local file: {minio_uri}")
+            except Exception as e:
+                logger.error(f"[STORAGE] Failed to delete local file {minio_uri}: {e}")
+            return
+
+        client = cls.get_client()
+        try:
+            # Parse s3://bucket/key
+            path_parts = minio_uri[5:].split("/", 1)
+            bucket = path_parts[0]
+            minio_key = path_parts[1]
+            
+            client.delete_object(Bucket=bucket, Key=minio_key)
+            logger.info(f"[MINIO] Successfully deleted object: {minio_uri}")
+        except Exception as e:
+            logger.exception(f"[MINIO] Failed to delete object '{minio_uri}': {e}")
+            raise
+
+    @classmethod
+    def copy_file(cls, src_minio_uri: str, dest_minio_key: str) -> str:
+        """Copy an object from one MinIO key to another and return the new URI."""
+        client = cls.get_client()
+        try:
+            if not src_minio_uri.startswith("s3://"):
+                raise ValueError(f"Invalid source MinIO URI: {src_minio_uri}")
+            
+            # Parse s3://bucket/key
+            path_parts = src_minio_uri[5:].split("/", 1)
+            src_bucket = path_parts[0]
+            src_key = path_parts[1]
+            
+            copy_source = {
+                'Bucket': src_bucket,
+                'Key': src_key
+            }
+            
+            client.copy(copy_source, cls.BUCKET_NAME, dest_minio_key)
+            dest_uri = f"s3://{cls.BUCKET_NAME}/{dest_minio_key}"
+            logger.info(f"[MINIO] Successfully copied {src_minio_uri} -> {dest_uri}")
+            return dest_uri
+        except Exception as e:
+            logger.exception(f"[MINIO] Failed to copy object from '{src_minio_uri}' to '{dest_minio_key}': {e}")
+            raise
+

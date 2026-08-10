@@ -102,7 +102,10 @@ def _execute_workflow(job_id: uuid.UUID) -> None:
             job.current_step = result.failed_step
             job.error_message = result.error
             if claim:
-                claim.status = "WORKFLOW_FAILED"
+                if result.error == "PAUSED_FOR_DOCUMENTS":
+                    claim.status = "DOCUMENTS_REQUESTED"
+                else:
+                    claim.status = "WORKFLOW_FAILED"
 
         job.completed_at = datetime.now(timezone.utc)
         db.commit()

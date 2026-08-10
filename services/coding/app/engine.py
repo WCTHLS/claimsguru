@@ -415,7 +415,7 @@ def _search_icd10_combined(
     if is_rag_available():
         rag_results = search_icd10_rag(normalized, max_results=max_results)
         if rag_results:
-            return [(code, desc) for code, desc, _cat, _score in rag_results[:max_results]]
+            return [(str(item[0]), str(item[1])) for item in rag_results[:max_results]]
 
     return []
 
@@ -425,13 +425,16 @@ def _search_cpt_combined(
 ) -> list[tuple[str, str]]:
     """Search CPT using keyword match + RAG (if available), merged by score."""
     keyword_results = search_cpt_by_text(text, max_results=max_results)
+    normalized_keywords = [(str(r[0]), str(r[1])) for r in keyword_results]
     if not is_rag_available():
-        return keyword_results
+        return normalized_keywords
 
     rag_results = search_cpt_rag(text, max_results=max_results)
-    seen = {r[0] for r in keyword_results}
-    merged = list(keyword_results)
-    for code, desc, _cat, _score in rag_results:
+    seen = {r[0] for r in normalized_keywords}
+    merged = list(normalized_keywords)
+    for item in rag_results:
+        code = str(item[0])
+        desc = str(item[1])
         if code not in seen:
             seen.add(code)
             merged.append((code, desc))

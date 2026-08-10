@@ -97,8 +97,8 @@ class RobustFieldExtractor:
         ],
         
         "doctor_name": [
-            # Format: "Consultant: Dr. Karthik Dey" or "Doctor: Dr. John Smith"
-            r"(?im)^\s*(?:doctor|physician|treating\s+doctor|treating\s+consultant|consultant|treating\s+by|treated\s+by|attended\s+by)\s*[:\-=|\.]?\s*(?:dr\.?\s*)?([A-Z][A-Za-z\.'-]+(?:\s+[A-Z][A-Za-z\.'-]+){0,3})\b",
+            # Format: "Consultant: Dr. Karthik Dey" or "Doctor: Dr. John Smith" (ignore signature labels)
+            r"(?im)^\s*(?:doctor|physician|treating\s+doctor|treating\s+consultant|consultant|treating\s+by|treated\s+by|attended\s+by)\s*(?!signature\b)[:\-=|\.]?\s*(?:dr\.?\s*)?([A-Z][A-Za-z\.'-]+(?:\s+[A-Z][A-Za-z\.'-]+){0,3})\b",
             # Format: "Dr. John Smith" standalone (must have Dr. prefix)
             r"(?im)\bdr\.?\s*([A-Z][A-Za-z\.'-]+(?:\s+[A-Z][A-Za-z\.'-]+)*)\b",
             # Format: "Signature of Dr. John Smith" or "As per Dr. Name"
@@ -194,11 +194,19 @@ class RobustFieldExtractor:
         "treating",
         "hereby",
         "declare",
+        "declaration",
         "information",
         "furnished",
         "above",
         "true",
         "correct",
+        "signature",
+        "signatures",
+        "sign",
+        "seal",
+        "stamp",
+        "attendant",
+        "patient",
     }
 
     DIAGNOSIS_REJECT_TERMS = {
@@ -510,6 +518,16 @@ class RobustFieldExtractor:
                     maxsplit=1,
                     flags=re.IGNORECASE,
                 )[0].strip(" ,;:|.-")
+                # Strip embedded or trailing ICD-10 / ICD-9 / CPT codes and prefixes
+                value = re.sub(
+                    r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+).*$",
+                    "",
+                    value,
+                    flags=re.IGNORECASE,
+                ).strip()
+                value = re.sub(r"[\s:\-–—,|]+$", "", value).strip()
+                if value.count("(") > value.count(")"):
+                    value = re.sub(r"[\s\(\[\:\-–—,|]+$", "", value).strip()
                 value_lower = value.lower()
                 if any(term in value_lower for term in {"patient", "hospital", "doctor", "claim", "information"}):
                     continue

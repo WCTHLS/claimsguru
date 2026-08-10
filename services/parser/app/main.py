@@ -920,6 +920,26 @@ def _run_parse_job(job_id: uuid.UUID) -> None:
                 _dump_runtime_artifact(str(job.claim_id), "06_renderer_input", renderer_input)
 
 
+                # Update Document records with doc_type, display_title, and page_count
+                try:
+                    from .document_classifier import classify_document, generate_smart_display_title
+                    fields_map = {
+                        "hospital_name": canonical_claim.get("hospitalization", {}).get("hospital_name") or "",
+                        "patient_name": canonical_claim.get("patient", {}).get("name") or "",
+                        "claimed_total": str(canonical_claim.get("expenses", {}).get("claimed_total") or ""),
+                    }
+                    claim_docs = db.query(Document).filter(Document.claim_id == job.claim_id).all()
+                    for c_doc in claim_docs:
+                        doc_pages = [p for p in combined_ocr_pages if str(p.get("document_id")) == str(c_doc.id)]
+                        d_type = classify_document(doc_pages) if doc_pages else "hospital_bill"
+                        d_title = generate_smart_display_title(d_type, fields_map, c_doc.file_name)
+                        c_doc.doc_type = d_type
+                        c_doc.display_title = d_title
+                        c_doc.page_count = len(doc_pages) if doc_pages else 1
+                        logger.info(f"[DOC_TITLE_GEN] Document {c_doc.id} mapped to doc_type='{d_type}', display_title='{d_title}'")
+                except Exception as e:
+                    logger.warning(f"Failed to update document display titles: {e}")
+
                 job.status = "COMPLETED"
                 job.model_version = output.model_version
                 job.used_fallback = output.used_fallback

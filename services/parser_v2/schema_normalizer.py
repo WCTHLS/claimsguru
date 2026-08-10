@@ -8,7 +8,6 @@ logger = logging.getLogger("parser-debug")
 CANONICAL_MAPPING = {
     "patient_name": "patient_name",
     "patientname": "patient_name",
-    "patient_name": "patient_name",
     "name": "patient_name",
     "patient": "patient_name",
     "date_of_birth": "patient_dob",
@@ -37,6 +36,10 @@ CANONICAL_MAPPING = {
     "doctor_name": "doctor_name",
     "doctor": "doctor_name",
     "consultant": "doctor_name",
+    "doctor_signature": "signature",
+    "doctor_s_signature": "signature",
+    "patient_signature": "signature",
+    "attendant_signature": "signature",
     "diagnosis": "diagnosis",
     "primary_diagnosis": "diagnosis",
     "claimed": "claimed_total",
@@ -55,18 +58,48 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
         key_norm = field.key.lower().strip().replace(":", "").replace("-", "").replace(" ", "_")
         canonical_key = CANONICAL_MAPPING.get(key_norm)
         
-        # Semantic disambiguation for "Name"
-        if canonical_key == "patient_name" and field.value:
-            val_lower = field.value.lower()
+        # Explicit check: ignore signature keys for doctor_name/patient_name
+        if "signature" in key_norm or "declare" in key_norm:
+            if canonical_key in {"doctor_name", "patient_name"}:
+                canonical_key = "signature"
+
+        val_str = str(field.value or "").strip()
+        val_lower = val_str.lower()
+
+        # Reject signature noise for doctor_name
+        if canonical_key == "doctor_name":
+            if any(sig_term in val_lower for sig_term in ["signature", "sign", "seal", "stamp", "declaration", "attendant"]) or re.search(r"_{2,}", val_str):
+                continue
+
+        # Clean diagnosis string (strip embedded/trailing ICD-10/CPT/Procedure codes & None Procedure prefixes)
+        if canonical_key == "diagnosis" and val_str:
+            cleaned_diag = re.sub(r"^(?:none|n/a|null)\s*(?:procedure\s*:?|diagnosis\s*:?)?\s*", "", val_str, flags=re.IGNORECASE).strip()
+            cleaned_diag = re.sub(
+                r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s*:?.*|Secondary\s+Diagnosis.*).*$",
+                "",
+                cleaned_diag,
+                flags=re.IGNORECASE,
+            ).strip()
+            cleaned_diag = re.sub(r"[\s:\-–—,|]+$", "", cleaned_diag).strip()
+            if cleaned_diag.count("(") > cleaned_diag.count(")"):
+                cleaned_diag = re.sub(r"[\s\(\[\:\-–—,|]+$", "", cleaned_diag).strip()
+            val_str = cleaned_diag
+            if not val_str or val_str.lower() in {"none", "none procedure", "n/a", "null"}:
+                continue
+
+        # Clean patient_name (strip leading DOB/date prefix)
+        if canonical_key == "patient_name" and val_str:
+            val_str = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", val_str).strip()
+            val_lower = val_str.lower()
             hospital_keywords = ["hospital", "commission", "clinic", "center", "health", "medical center", "pharmacy"]
             if any(kw in val_lower for kw in hospital_keywords) and "ms." not in val_lower and "mr." not in val_lower:
                 canonical_key = "hospital_name"
 
-        if canonical_key:
+        if canonical_key and canonical_key != "signature":
             normalized.append({
                 "field": key_norm,
                 "canonical_field": canonical_key,
-                "value": field.value,
+                "value": val_str,
                 "confidence": 0.95,
                 "bbox": field.value_bbox,
                 "page": field.page

@@ -501,7 +501,19 @@ def _process_single_document(db: Session, doc: Document) -> None:
         # fallback to document id if hash missing
         existing_ocr = existing_ocr.filter(OcrResult.document_id == doc_id)
     if existing_ocr.first():
-        logger.info(f"[OCR] Skipping document {doc_id} (content_hash={getattr(doc, 'content_hash', None)}) -- OCR result already exists.")
+        logger.info(f"[OCR] Reusing OCR results for document {doc_id} (content_hash={getattr(doc, 'content_hash', None)})")
+        dup_doc = db.query(Document).filter(Document.content_hash == doc.content_hash, Document.id != doc.id).first()
+        if dup_doc:
+            dup_results = db.query(OcrResult).filter(OcrResult.document_id == dup_doc.id).all()
+            for r in dup_results:
+                db.add(OcrResult(
+                    document_id=doc.id,
+                    page_number=r.page_number,
+                    text=r.text,
+                    confidence=r.confidence,
+                    tokens=r.tokens,
+                ))
+            db.flush()
         return
 
     # Remove any previous results for this doc (should be rare)

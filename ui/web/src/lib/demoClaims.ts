@@ -1,9 +1,9 @@
 /**
  * Demo dataset for backend-less deploys (e.g. Vercel).
  *
- * Activated only when NEXT_PUBLIC_AUTH_DEV_MODE === "true" AND the real API is
- * unreachable. apiFetch() and the home dashboard fall back to these 15 mock
- * claims so the deployed app is browsable without a running backend.
+ * Activated only when NEXT_PUBLIC_AUTH_DEV_MODE === "true" and the real API
+ * is unreachable. apiFetch() and the home dashboard fall back to these 15
+ * mock claims so the app is browsable without a running backend.
  */
 
 export const DEMO_AUTH = process.env.NEXT_PUBLIC_AUTH_DEV_MODE === "true";
