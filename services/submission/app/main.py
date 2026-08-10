@@ -467,10 +467,22 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
     if not ocr_text and docs:
         for doc in docs:
             if doc.file_type == "application/pdf" and doc.minio_path:
+                temp_local_path = None
                 try:
                     import pdfplumber
+                    import os
+                    
+                    actual_path = doc.minio_path
+                    if doc.minio_path.startswith("s3://"):
+                        from libs.shared.storage import MinioStorage
+                        try:
+                            temp_local_path = MinioStorage.download_to_temp(doc.minio_path)
+                            actual_path = temp_local_path
+                        except Exception:
+                            continue
+                            
                     parts = []
-                    with pdfplumber.open(doc.minio_path) as pdf:
+                    with pdfplumber.open(actual_path) as pdf:
                         for page in pdf.pages[:10]:
                             t = page.extract_text()
                             if t:
@@ -482,6 +494,12 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
                             ocr_text = fallback_text[:2000]
                 except Exception:
                     pass
+                finally:
+                    if temp_local_path and os.path.exists(temp_local_path):
+                        try:
+                            os.unlink(temp_local_path)
+                        except Exception:
+                            pass
 
     # Predictions
     preds = db.query(Prediction).filter(Prediction.claim_id == claim.id).order_by(Prediction.created_at.desc()).limit(3).all()

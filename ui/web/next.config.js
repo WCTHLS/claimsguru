@@ -11,8 +11,8 @@ const nextConfig = {
     NEXT_PUBLIC_KEYCLOAK_URL: process.env.NEXT_PUBLIC_KEYCLOAK_URL || "http://localhost:8080",
     NEXT_PUBLIC_KEYCLOAK_REALM: process.env.NEXT_PUBLIC_KEYCLOAK_REALM || "claimgpt",
     NEXT_PUBLIC_KEYCLOAK_CLIENT_ID: process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID || "claimgpt-web",
-    // Demo deploy: enable mock login picker when Keycloak is unreachable. Set to "false" in Vercel to disable.
-    NEXT_PUBLIC_AUTH_DEV_MODE: process.env.NEXT_PUBLIC_AUTH_DEV_MODE || "true",
+    // Demo deploy: enable mock login picker when Keycloak is unreachable. Keep false by default for real backend runs.
+    NEXT_PUBLIC_AUTH_DEV_MODE: process.env.NEXT_PUBLIC_AUTH_DEV_MODE || "false",
   },
 };
 

@@ -378,6 +378,10 @@ def coding_task(self, payload: Any) -> dict[str, str]:
         _run_coding_job(claim_id)
         _update_workflow_state(claim_id, "CODING_COMPLETED", status="RUNNING")
         return {"claim_id": claim_id, "coding": "DONE"}
+    except SoftTimeLimitExceeded:
+        logging.getLogger("coding").warning(f"[Celery] Coding task timed out for claim_id={claim_id}")
+        _update_workflow_state(claim_id, "FAILED", status="FAILED")
+        raise
     except Exception as exc:
         if _is_terminal_coding_error(exc) or _is_terminal_task_error(exc):
             _update_workflow_state(claim_id, "FAILED", status="FAILED")
@@ -407,6 +411,10 @@ def risk_task(self, payload: Any) -> dict[str, str]:
         _run_risk_job(claim_id)
         _update_workflow_state(claim_id, "RISK_COMPLETED", status="RUNNING")
         return {"claim_id": claim_id, "risk": "DONE"}
+    except SoftTimeLimitExceeded:
+        logging.getLogger("risk").warning(f"[Celery] Risk task timed out for claim_id={claim_id}")
+        _update_workflow_state(claim_id, "FAILED", status="FAILED")
+        raise
     except Exception as exc:
         if _is_terminal_task_error(exc):
             _update_workflow_state(claim_id, "FAILED", status="FAILED")
@@ -435,6 +443,10 @@ def validator_task(self, payload: Any) -> dict[str, Any]:
         result = _run_validator_job(claim_id)
         _update_workflow_state(claim_id, "VALIDATION_COMPLETED", status="RUNNING")
         return result
+    except SoftTimeLimitExceeded:
+        logging.getLogger("validator").warning(f"[Celery] Validator task timed out for claim_id={claim_id}")
+        _update_workflow_state(claim_id, "FAILED", status="FAILED")
+        raise
     except Exception as exc:
         if _is_terminal_task_error(exc):
             _update_workflow_state(claim_id, "FAILED", status="FAILED")
@@ -689,26 +701,45 @@ def intake_task(
             safe_name = metadata["safe_name"]
             content_hash = metadata["content_hash"]
             effective_ct = metadata["effective_ct"]
-            temp_path = Path(metadata["path"])
+            raw_path = metadata["path"]
+
+            from libs.shared.storage import MinioStorage
 
             if content_hash in existing_hashes_in_claim:
                 logger.info(f"[Intake] Skipping duplicate document in same claim: {safe_name}")
-                temp_path.unlink(missing_ok=True)
+                if raw_path.startswith("s3://"):
+                    try:
+                        MinioStorage.delete_file(raw_path)
+                    except Exception:
+                        pass
+                else:
+                    Path(raw_path).unlink(missing_ok=True)
                 continue
 
             ext = Path(safe_name).suffix or ".bin"
             stored_name = f"{claim_id}_{idx}{ext}" if len(file_metadata) > 1 else f"{claim_id}{ext}"
             s3_key = f"claims/{claim_id}/{stored_name}"
 
-            from libs.shared.storage import MinioStorage
             try:
-                minio_path = MinioStorage.upload_file(s3_key, temp_path)
-                logger.info(f"[Intake] Uploaded file to MinIO: {temp_path} -> {minio_path}")
-                temp_path.unlink(missing_ok=True)
+                if raw_path.startswith("s3://"):
+                    minio_path = MinioStorage.copy_file(raw_path, s3_key)
+                    MinioStorage.delete_file(raw_path)
+                    logger.info(f"[Intake] Relocated file in MinIO: {raw_path} -> {minio_path}")
+                else:
+                    temp_path = Path(raw_path)
+                    minio_path = MinioStorage.upload_file(s3_key, temp_path)
+                    logger.info(f"[Intake] Uploaded file to MinIO: {temp_path} -> {minio_path}")
+                    temp_path.unlink(missing_ok=True)
             except Exception as e:
-                logger.exception(f"[Intake] Failed to upload file to MinIO: {e}")
-                temp_path.unlink(missing_ok=True)
-                raise ValueError(f"Failed to upload file {safe_name} to MinIO: {e}")
+                logger.exception(f"[Intake] Failed to relocate/upload file to MinIO: {e}")
+                if raw_path.startswith("s3://"):
+                    try:
+                        MinioStorage.delete_file(raw_path)
+                    except Exception:
+                        pass
+                else:
+                    Path(raw_path).unlink(missing_ok=True)
+                raise ValueError(f"Failed to process file {safe_name}: {e}")
 
             doc = Document(
                 claim_id=claim_id,
@@ -739,6 +770,10 @@ def intake_task(
 
     except Ignore:
         raise
+    except SoftTimeLimitExceeded:
+        db.rollback()
+        logger.warning("[Intake] Task timed out (soft time limit exceeded)")
+        raise
     except Exception as exc:
         db.rollback()
         logger.exception(f"[Intake] Task failed: {exc}")
@@ -761,6 +796,8 @@ def intake_task(
     retry_backoff=True,
     max_retries=5,
     retry_jitter=True,
+    soft_time_limit=120,
+    time_limit=180,
 )
 def finalize_claim_task(self, previous_result: Any) -> dict[str, Any]:
     """Finalize the claim after all pipeline stages are complete.
@@ -806,6 +843,10 @@ def finalize_claim_task(self, previous_result: Any) -> dict[str, Any]:
             "total_processing_seconds": total_processing_seconds,
             "results": [previous_result],
         }
+    except SoftTimeLimitExceeded:
+        logging.getLogger("finalize").warning(f"[Celery] Finalize task timed out for claim_id={claim_id}")
+        _update_workflow_state(claim_id, "FAILED", status="FAILED")
+        raise
     finally:
         db.close()
 

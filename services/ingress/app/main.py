@@ -48,6 +48,7 @@ from libs.auth.passwords import hash_password, password_matches, verify_password
 from libs.shared.models import ParseJob, ParsedField, WorkflowState
 from libs.shared.workflow_state import get_latest_workflow_state, upsert_workflow_state
 from .schemas import ClaimListOut, ClaimOut
+from .rate_limiter import RateLimiter
 
 
 try:
@@ -107,6 +108,11 @@ async def validation_exception_handler(request, exc):
         status_code=422,
         content={"detail": str(exc)},
     )
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    from .rate_limiter import limiter_manager
+    await limiter_manager.close()
 
 # ------------------------------------------------------------------ CORS
 app.add_middleware(
@@ -913,7 +919,7 @@ class LoginUserIn(BaseModel):
     role: str
 
 
-@router.post("/auth/register", status_code=201)
+@router.post("/auth/register", status_code=201, dependencies=[Depends(RateLimiter(limit=3, window_seconds=60))])
 def register_local_user(payload: RegisterUserIn):
     """Register a user (patient or TPA) directly in the database without Keycloak/Entra requirement."""
     _ensure_users_password_hash_column()
@@ -1122,7 +1128,7 @@ def register_local_user(payload: RegisterUserIn):
 
 
 
-@router.post("/auth/login", status_code=200)
+@router.post("/auth/login", status_code=200, dependencies=[Depends(RateLimiter(limit=5, window_seconds=60))])
 def login_local_user(payload: LoginUserIn):
     """Authenticate a locally registered user using a stored password hash."""
     _ensure_users_password_hash_column()
@@ -1290,7 +1296,7 @@ def list_approved_tpa_organizations():
     return {"organizations": [{"id": str(row["id"]), "name": row["name"]} for row in rows]}
 
 
-@router.post("/organizations/registration", status_code=201)
+@router.post("/organizations/registration", status_code=201, dependencies=[Depends(RateLimiter(limit=3, window_seconds=60))])
 def request_tpa_organization_registration(payload: OrganizationRegistrationIn):
     """Submit an organization for approval; it is intentionally not selectable yet."""
     with SessionLocal() as db:
@@ -1313,7 +1319,7 @@ def request_tpa_organization_registration(payload: OrganizationRegistrationIn):
     return {"id": str(row["id"]), "status": row["status"], "message": "Organization submitted for approval"}
 
 
-@router.post("/tpa-adjusters/registration", status_code=201)
+@router.post("/tpa-adjusters/registration", status_code=201, dependencies=[Depends(RateLimiter(limit=3, window_seconds=60))])
 def register_tpa_adjuster(payload: TpaRegistrationIn):
     """Create a Keycloak login and its matching local staff profile."""
     _ensure_users_password_hash_column()
@@ -1396,7 +1402,7 @@ def authenticate_or_register_user(data: dict[str, Any] = Body(...), db: Session 
     }
 
 
-@router.post("/claims", status_code=202)
+@router.post("/claims", status_code=202, dependencies=[Depends(RateLimiter(limit=10, window_seconds=60))])
 async def create_claim(
     files: list[UploadFile] = File(...),
     policy_id: str = Form(None),
@@ -1457,26 +1463,20 @@ async def create_claim(
             content_hash = hashlib.sha256(file_bytes).hexdigest()
             logger.info(f"[create_claim] File validated: {safe_name}, hash={content_hash}")
             
-            # Generate temporary file name (will be replaced by claim_id once created in intake_task)
-            temp_name = f"pending_{uuid.uuid4().hex[:8]}_{safe_name}"
-            local_path = RAW_STORAGE / temp_name
-            
-            # Save file to disk
+            # Upload file directly to MinIO under a temporary key
+            from libs.shared.storage import MinioStorage
+            temp_key = f"pending/{uuid.uuid4().hex}_{safe_name}"
             try:
-                async with aiofiles.open(local_path, "wb") as f:
-                    await f.write(file_bytes)
-                with open(local_path, "rb+") as sync_f:
-                    sync_f.flush()
-                    os.fsync(sync_f.fileno())
-                saved_paths.append(local_path)
-                logger.info(f"[create_claim] File saved: {local_path}")
-            except OSError as e:
-                logger.exception(f"[create_claim] Failed to write file: {local_path}")
-                raise HTTPException(status_code=500, detail="Failed to store uploaded file")
+                minio_uri = MinioStorage.upload_file(temp_key, file_bytes)
+                saved_paths.append(minio_uri)
+                logger.info(f"[create_claim] File uploaded directly to MinIO: {minio_uri}")
+            except Exception as e:
+                logger.exception(f"[create_claim] Failed to upload file to MinIO: {temp_key}")
+                raise HTTPException(status_code=500, detail="Failed to store uploaded file in object storage")
             
             # Store metadata for intake_task
             file_metadata_list.append({
-                "path": str(local_path),
+                "path": minio_uri,
                 "safe_name": safe_name,
                 "content_hash": content_hash,
                 "effective_ct": effective_ct,
@@ -1507,9 +1507,13 @@ async def create_claim(
         }
     
     except HTTPException:
-        # Clean up saved files on validation error
-        for p in saved_paths:
-            p.unlink(missing_ok=True)
+        # Clean up already uploaded MinIO files on validation error
+        from libs.shared.storage import MinioStorage
+        for uri in saved_paths:
+            try:
+                MinioStorage.delete_file(uri)
+            except Exception:
+                logger.warning(f"Failed to clean up pending MinIO file: {uri}")
         raise
     except Exception as exc:
         logger.exception("Error during file upload processing")
@@ -1517,9 +1521,13 @@ async def create_claim(
             "UPLOAD_FAILURE | endpoint=create_claim files=%d error=%s",
             len(files), exc,
         )
-        # Clean up saved files
-        for p in saved_paths:
-            p.unlink(missing_ok=True)
+        # Clean up already uploaded MinIO files
+        from libs.shared.storage import MinioStorage
+        for uri in saved_paths:
+            try:
+                MinioStorage.delete_file(uri)
+            except Exception:
+                logger.warning(f"Failed to clean up pending MinIO file: {uri}")
         raise HTTPException(status_code=500, detail="Failed to process file upload")
 
 
@@ -1913,7 +1921,7 @@ def get_document_page_image(claim_id: str, doc_id: str, page_number: int = 1, db
     return FileResponse(str(file_path), media_type=doc.file_type or "application/octet-stream")
 
 
-@router.post("/claims/{claim_id}/documents", response_model=ClaimOut, status_code=201)
+@router.post("/claims/{claim_id}/documents", response_model=ClaimOut, status_code=201, dependencies=[Depends(RateLimiter(limit=15, window_seconds=60))])
 async def add_documents_to_claim(
     claim_id: str,
     files: list[UploadFile] = File(...),
@@ -1987,24 +1995,28 @@ async def add_documents_to_claim(
 
         ext = Path(safe_name).suffix or ".bin"
         stored_name = f"{claim.id}_{existing_count + idx}{ext}"
-        local_path = RAW_STORAGE / stored_name
+        s3_key = f"claims/{claim.id}/{stored_name}"
 
+        from libs.shared.storage import MinioStorage
         try:
-            async with aiofiles.open(local_path, "wb") as f:
-                await f.write(file_bytes)
-            saved_paths.append(local_path)
-        except OSError:
+            minio_uri = MinioStorage.upload_file(s3_key, file_bytes)
+            saved_paths.append(minio_uri)
+        except Exception as e:
+            from libs.shared.storage import MinioStorage
             for p in saved_paths:
-                p.unlink(missing_ok=True)
+                try:
+                    MinioStorage.delete_file(p)
+                except Exception:
+                    pass
             db.rollback()
-            logger.exception("Failed to write uploaded file to disk")
-            raise HTTPException(status_code=500, detail="Failed to store uploaded file")
+            logger.exception("Failed to upload file to MinIO")
+            raise HTTPException(status_code=500, detail="Failed to store uploaded file in object storage")
 
         doc = Document(
             claim_id=claim.id,
             file_name=safe_name,
             file_type=effective_ct,
-            minio_path=str(local_path),
+            minio_path=minio_uri,
             content_hash=content_hash,
         )
         db.add(doc)
@@ -2054,8 +2066,12 @@ async def add_documents_to_claim(
         db.commit()
     except Exception as exc:
         db.rollback()
+        from libs.shared.storage import MinioStorage
         for p in saved_paths:
-            p.unlink(missing_ok=True)
+            try:
+                MinioStorage.delete_file(p)
+            except Exception:
+                pass
         logger.exception("DB commit failed adding documents")
         upload_log.exception(
             "UPLOAD_FAILURE | endpoint=add_documents claim_id=%s stage=db_commit error=%s",

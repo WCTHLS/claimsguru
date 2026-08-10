@@ -3202,7 +3202,7 @@ export default function Home() {
                   }
 
                   if (c.status === "MANUAL_REVIEW_REQUIRED") {
-                    const patName = claimNames[c.id] || c.patient_name || "the patient";
+                    const patName = user?.name || "the patient";
                     return (
                       <div className="claim-tpa-banner claim-tpa-banner-failed" style={{ backgroundColor: "#fef2f2", borderColor: "#fca5a5", color: "#991b1b" }}>
                         <div className="claim-tpa-banner-icon" style={{ color: "#dc2626" }}>⚠️</div>

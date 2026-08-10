@@ -262,15 +262,30 @@ def _search_ocr_for_query(
 def _read_document_text(file_path: str) -> str:
     """Extract text from any supported document type (PDF, DOCX, Excel, images, text)."""
     from pathlib import Path
-    p = Path(file_path)
+    import os
+    
+    temp_local_path = None
+    if file_path.startswith("s3://"):
+        from libs.shared.storage import MinioStorage
+        try:
+            temp_local_path = MinioStorage.download_to_temp(file_path)
+            actual_path = temp_local_path
+        except Exception:
+            logger.debug("Failed to download S3 file for chat context")
+            return ""
+    else:
+        actual_path = file_path
+
+    p = Path(actual_path)
     suffix = p.suffix.lower()
+    result_text = ""
 
     try:
         # PDF extraction
         if suffix == ".pdf":
             import pdfplumber
             text_parts = []
-            with pdfplumber.open(file_path) as pdf:
+            with pdfplumber.open(actual_path) as pdf:
                 for page in pdf.pages:
                     page_text = page.extract_text()
                     if page_text:
@@ -284,13 +299,13 @@ def _read_document_text(file_path: str) -> str:
                                 text_parts.append(" | ".join(cells))
                     except Exception:
                         pass
-            return "\n".join(text_parts)
+            result_text = "\n".join(text_parts)
 
         # Word documents
-        if suffix in (".docx", ".doc"):
+        elif suffix in (".docx", ".doc"):
             try:
                 import docx
-                doc = docx.Document(file_path)
+                doc = docx.Document(actual_path)
                 parts = []
                 for para in doc.paragraphs:
                     if para.text.strip():
@@ -299,15 +314,15 @@ def _read_document_text(file_path: str) -> str:
                     for row in table.rows:
                         cells = [cell.text.strip() for cell in row.cells]
                         parts.append(" | ".join(cells))
-                return "\n".join(parts)
+                result_text = "\n".join(parts)
             except ImportError:
-                return ""
+                result_text = ""
 
         # Excel
-        if suffix in (".xlsx", ".xls"):
+        elif suffix in (".xlsx", ".xls"):
             try:
                 import openpyxl
-                wb = openpyxl.load_workbook(file_path, read_only=True, data_only=True)
+                wb = openpyxl.load_workbook(actual_path, read_only=True, data_only=True)
                 parts = []
                 for sheet_name in wb.sheetnames:
                     ws = wb[sheet_name]
@@ -317,33 +332,40 @@ def _read_document_text(file_path: str) -> str:
                         if any(cells):
                             parts.append(" | ".join(cells))
                 wb.close()
-                return "\n".join(parts)
+                result_text = "\n".join(parts)
             except ImportError:
-                return ""
+                result_text = ""
 
         # Images — try OCR via pytesseract
-        if suffix in (".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".webp"):
+        elif suffix in (".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".webp"):
             try:
                 import pytesseract
                 from PIL import Image
-                img = Image.open(file_path)
+                img = Image.open(actual_path)
                 text = pytesseract.image_to_string(img)
-                return text
+                result_text = text
             except ImportError:
-                return ""
+                result_text = ""
 
         # Plain text / CSV / JSON / XML / HTML
-        if suffix in (".txt", ".csv", ".json", ".xml", ".html", ".htm", ".md", ".log"):
+        elif suffix in (".txt", ".csv", ".json", ".xml", ".html", ".htm", ".md", ".log"):
             for enc in ("utf-8", "latin-1"):
                 try:
-                    return p.read_text(encoding=enc)
+                    result_text = p.read_text(encoding=enc)
+                    break
                 except (UnicodeDecodeError, ValueError):
                     continue
-            return ""
 
     except Exception:
         logger.debug("Failed to read file %s", file_path, exc_info=True)
-    return ""
+    finally:
+        if temp_local_path and os.path.exists(temp_local_path):
+            try:
+                os.unlink(temp_local_path)
+            except Exception:
+                pass
+                
+    return result_text
 
 
 def _get_claim_context(
