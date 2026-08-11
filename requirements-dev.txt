@@ -6,3 +6,9 @@ ruff==0.9.10
 mypy==1.15.0
 # Schema migrations (used by migrations/ versions and CI)
 alembic==1.18.4
+email-validator>=2.0.0
+langchain==1.2.15
+langgraph==1.1.8
+langfuse==4.3.1
+langgraph-checkpoint-postgres==3.0.5
+psycopg-pool==3.3.0

@@ -204,37 +204,7 @@ services:
           cpus: '1'
           memory: 512M
 
-  keycloak:
-    image: quay.io/keycloak/keycloak:24.0
-    command: start-dev --import-realm
-    environment:
-      KC_DB: postgres
-      KC_DB_URL: jdbc:postgresql://postgres:5432/claimgpt
-      KC_DB_USERNAME: claimgpt
-      KC_DB_PASSWORD: claimgpt
-      KEYCLOAK_ADMIN: admin
-      KEYCLOAK_ADMIN_PASSWORD: admin
-    ports:
-      - "8080:8080"
-    volumes:
-      - ../keycloak/claimgpt-realm.json:/opt/keycloak/data/import/claimgpt-realm.json:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "exec 3<>/dev/tcp/localhost/8080 && echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200'"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 30s
-    deploy:
-      resources:
-        requests:
-          cpus: '0.5'
-          memory: 256M
-        limits:
-          cpus: '1'
-          memory: 512M
+  # Keycloak disabled; auth is handled by the app in dev mode.
 
   # ================================================= Application Services
 

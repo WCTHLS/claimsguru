@@ -916,12 +916,13 @@ class LoginUserIn(BaseModel):
     username: str
     password: str | None = None
     password_hash: str | None = None
-    role: str
+    role: str | None = None
 
 
 @router.post("/auth/register", status_code=201, dependencies=[Depends(RateLimiter(limit=3, window_seconds=60))])
 def register_local_user(payload: RegisterUserIn):
-    """Register a user (patient or TPA) directly in the database without Keycloak/Entra requirement."""
+    """Register a user (patient or organization admin) directly in the database
+    without Keycloak/Entra requirement."""
     _ensure_users_password_hash_column()
 
     email = str(payload.username).strip().lower()
@@ -929,7 +930,9 @@ def register_local_user(payload: RegisterUserIn):
         raise HTTPException(status_code=400, detail="Username/Email is required")
 
     role_str = str(payload.role).lower()
-    normalized_role = "reviewer" if role_str in ("tpa", "reviewer") else "submitter"
+    # /register            -> patient/submitter
+    # /register/organization -> organization admin
+    normalized_role = "admin" if role_str in ("tpa", "admin", "organization", "org_admin") else "submitter"
 
     first_name = (payload.first_name or email.split("@")[0] or "User").strip()
     last_name = (payload.last_name or "").strip()
@@ -949,6 +952,12 @@ def register_local_user(payload: RegisterUserIn):
             dob_val = datetime.strptime(str(payload.dob).strip(), "%Y-%m-%d").date()
         except (ValueError, TypeError):
             dob_val = None
+
+    # Organization registration requires an organization name
+    if normalized_role == "admin":
+        org_name_check = (payload.organization or "").strip()
+        if not org_name_check:
+            raise HTTPException(status_code=400, detail="Organization name is required for admin registration")
 
     with SessionLocal() as db:
         try:
@@ -1054,9 +1063,10 @@ def register_local_user(payload: RegisterUserIn):
                             "sum_insured": sum_insured_val,
                         },
                     )
+
             else:
-                # Reviewer / TPA staff profile
-                org_name = (payload.organization or "Default TPA").strip()
+                # Organization Admin profile
+                org_name = (payload.organization or "").strip()
                 org_row = db.execute(
                     text("SELECT id FROM organizations WHERE lower(name) = lower(:name) AND type = 'TPA'"),
                     {"name": org_name},
@@ -1087,6 +1097,7 @@ def register_local_user(payload: RegisterUserIn):
                                 last_name = :last_name,
                                 organization_id = :org_id,
                                 employee_id = COALESCE(:employee_id, employee_id),
+                                designation = :designation,
                                 updated_at = now()
                             WHERE user_id = :user_id
                         """),
@@ -1096,13 +1107,14 @@ def register_local_user(payload: RegisterUserIn):
                             "last_name": last_name,
                             "org_id": org_id,
                             "employee_id": payload.employee_id or None,
+                            "designation": "Organization Admin",
                         },
                     )
                 else:
                     db.execute(
                         text("""
                             INSERT INTO staff_profiles (user_id, organization_id, first_name, last_name, employee_id, designation, status)
-                            VALUES (:user_id, :org_id, :first_name, :last_name, :employee_id, 'TPA Reviewer', 'ACTIVE')
+                            VALUES (:user_id, :org_id, :first_name, :last_name, :employee_id, :designation, 'ACTIVE')
                         """),
                         {
                             "user_id": user_id,
@@ -1110,6 +1122,7 @@ def register_local_user(payload: RegisterUserIn):
                             "first_name": first_name,
                             "last_name": last_name,
                             "employee_id": payload.employee_id or None,
+                            "designation": "Organization Admin",
                         },
                     )
 
@@ -1119,26 +1132,151 @@ def register_local_user(payload: RegisterUserIn):
                 "user_id": str(user_id),
                 "email": email,
                 "role": normalized_role,
+                "organization": payload.organization if normalized_role == "admin" else None,
                 "message": "User registered and profile stored in database successfully",
             }
+        except HTTPException:
+            raise
         except Exception as exc:
             db.rollback()
             logger.exception("Failed to register user locally in database")
             raise HTTPException(status_code=500, detail=f"Database registration error: {str(exc)}") from exc
 
+# @router.post("/auth/login", status_code=200)
+# def login_local_user(payload: LoginUserIn):
+#     """Authenticate a locally registered user using a stored password hash.
+
+#     Patients send an explicit role ("submitter") and get the existing
+#     role-mismatch behavior (401/403 with detail). Organizations send no
+#     role at all — the role is resolved from the account itself, and any
+#     failure (user not found, bad password, wrong role, inactive account)
+#     is surfaced as a generic "Access denied" so we don't leak which part
+#     failed.
+#     """
+#     _ensure_users_password_hash_column()
+
+#     email = str(payload.username).strip().lower()
+#     # payload.role is optional now: patients send "submitter", organizations
+#     # send nothing and are resolved purely from the account's own role.
+#     role_str = str(payload.role).strip().lower() if payload.role else None
+#     is_org_login = role_str is None
+
+#     if not email or (not payload.password and not payload.password_hash):
+#         raise HTTPException(status_code=400, detail="Username and password are required")
+
+#     normalized_role = "reviewer" if role_str in ("tpa", "reviewer") else "submitter"
+
+#     with force_master_session():
+#         with SessionLocal() as db:
+#             user_row = db.execute(
+#                 text("SELECT id, password_hash, status FROM users WHERE lower(email) = lower(:email)"),
+#                 {"email": email},
+#             ).mappings().first()
+
+#             if not user_row:
+#                 if is_org_login:
+#                     raise HTTPException(status_code=401, detail="User not found")
+#                 raise HTTPException(status_code=401, detail="Username not found")
+
+#             if user_row["status"] in ("BLOCKED", "DELETED"):
+#                 if is_org_login:
+#                     raise HTTPException(status_code=403, detail="Access denied")
+#                 raise HTTPException(status_code=403, detail="Account is not active")
+
+#             supplied_hash = (payload.password_hash or "").strip()
+#             supplied_password = payload.password or ""
+#             stored_hash = user_row["password_hash"]
+
+#             if not stored_hash:
+#                 if is_org_login:
+#                     raise HTTPException(status_code=401, detail="Access denied")
+#                 raise HTTPException(status_code=401, detail="Invalid email or password")
+
+#             password_ok = (
+#                 password_matches(supplied_hash, stored_hash)
+#                 if supplied_hash
+#                 else password_matches(supplied_password, stored_hash)
+#             )
+
+#             if not password_ok:
+#                 if is_org_login:
+#                     raise HTTPException(status_code=401, detail="Access denied")
+#                 raise HTTPException(status_code=401, detail="Invalid password")
+
+#             actual_role_row = db.execute(
+#                 text(
+#                     "SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id ORDER BY r.name LIMIT 1"
+#                 ),
+#                 {"user_id": user_row["id"]},
+#             ).mappings().first()
+#             actual_role = actual_role_row["name"] if actual_role_row else None
+
+#             if is_org_login:
+#                 # Organization accounts must actually hold the reviewer/TPA
+#                 # role — a submitter (patient) account trying the org login
+#                 # is denied without revealing that they're a patient.
+#                 if actual_role != "reviewer":
+#                     raise HTTPException(status_code=403, detail="Access denied")
+#                 normalized_role = "reviewer"
+#             else:
+#                 role_match = db.execute(
+#                     text(
+#                         "SELECT 1 FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id AND r.name = :role_name"
+#                     ),
+#                     {"user_id": user_row["id"], "role_name": normalized_role},
+#                 ).scalar()
+
+#                 if not role_match:
+#                     raise HTTPException(
+#                         status_code=403,
+#                         detail={
+#                             "message": f"User is not registered as a {role_str}",
+#                             "actual_role": actual_role or normalized_role,
+#                         },
+#                     )
+
+#             db.execute(
+#                 text("UPDATE users SET last_login_at = now(), updated_at = now() WHERE id = :id"),
+#                 {"id": user_row["id"]},
+#             )
+#             db.commit()
+
+#     return {
+#         "success": True,
+#         "user_id": str(user_row["id"]),
+#         "email": email,
+#         "role": normalized_role,
+#         "message": "Login successful",
+#     }
+import re
+
+def _slugify_org(name: str) -> str:
+    s = name.strip().lower()
+    s = re.sub(r"[^a-z0-9]+", "-", s)
+    return s.strip("-")
 
 
 @router.post("/auth/login", status_code=200, dependencies=[Depends(RateLimiter(limit=5, window_seconds=60))])
 def login_local_user(payload: LoginUserIn):
-    """Authenticate a locally registered user using a stored password hash."""
+    """Authenticate a locally registered user using a stored password hash.
+
+    Patients send an explicit role ("submitter") and get the existing
+    role-mismatch behavior (401/403 with detail). Organizations send no
+    role at all — the role (admin or reviewer) is resolved from the
+    account itself, and any failure (user not found, bad password, wrong
+    role, inactive account) is surfaced as a generic "Access denied" so
+    we don't leak which part failed.
+    """
     _ensure_users_password_hash_column()
 
     email = str(payload.username).strip().lower()
-    role_str = str(payload.role).strip().lower()
-    if not email or not role_str or (not payload.password and not payload.password_hash):
-        raise HTTPException(status_code=400, detail="Username, password, and role are required")
+    role_str = str(payload.role).strip().lower() if payload.role else None
+    is_org_login = role_str is None
 
-    normalized_role = "reviewer" if role_str in ("tpa", "reviewer") else "submitter"
+    if not email or (not payload.password and not payload.password_hash):
+        raise HTTPException(status_code=400, detail="Username and password are required")
+
+    normalized_role = "submitter"
 
     with force_master_session():
         with SessionLocal() as db:
@@ -1148,45 +1286,86 @@ def login_local_user(payload: LoginUserIn):
             ).mappings().first()
 
             if not user_row:
+                if is_org_login:
+                    raise HTTPException(status_code=401, detail="Access denied")
                 raise HTTPException(status_code=401, detail="Username not found")
 
             if user_row["status"] in ("BLOCKED", "DELETED"):
+                if is_org_login:
+                    raise HTTPException(status_code=403, detail="Access denied")
                 raise HTTPException(status_code=403, detail="Account is not active")
 
             supplied_hash = (payload.password_hash or "").strip()
             supplied_password = payload.password or ""
             stored_hash = user_row["password_hash"]
+
             if not stored_hash:
+                if is_org_login:
+                    raise HTTPException(status_code=401, detail="Access denied")
                 raise HTTPException(status_code=401, detail="Invalid email or password")
 
-            if supplied_hash:
-                if not password_matches(supplied_hash, stored_hash):
-                    raise HTTPException(status_code=401, detail="Invalid password")
-            elif not password_matches(supplied_password, stored_hash):
+            password_ok = (
+                password_matches(supplied_hash, stored_hash)
+                if supplied_hash
+                else password_matches(supplied_password, stored_hash)
+            )
+
+            if not password_ok:
+                if is_org_login:
+                    raise HTTPException(status_code=401, detail="Access denied")
                 raise HTTPException(status_code=401, detail="Invalid password")
 
-            role_match = db.execute(
+            actual_role_row = db.execute(
                 text(
-                    "SELECT 1 FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id AND r.name = :role_name"
+                    "SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id ORDER BY r.name LIMIT 1"
                 ),
-                {"user_id": user_row["id"], "role_name": normalized_role},
-            ).scalar()
+                {"user_id": user_row["id"]},
+            ).mappings().first()
+            actual_role = actual_role_row["name"] if actual_role_row else None
 
-            if not role_match:
-                actual_role_row = db.execute(
-                    text(
-                        "SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id ORDER BY r.name LIMIT 1"
-                    ),
+            organization_name = None
+            organization_slug = None
+
+            if is_org_login:
+                # Organization accounts must hold either the admin or
+                # reviewer role — a submitter (patient) account trying the
+                # org login is denied without revealing that they're a patient.
+                if actual_role not in ("admin", "reviewer"):
+                    raise HTTPException(status_code=403, detail="Access denied")
+                normalized_role = actual_role
+
+                org_row = db.execute(
+                    text("""
+                        SELECT o.name
+                        FROM staff_profiles sp
+                        JOIN organizations o ON o.id = sp.organization_id
+                        WHERE sp.user_id = :user_id
+                    """),
                     {"user_id": user_row["id"]},
                 ).mappings().first()
-                actual_role = actual_role_row["name"] if actual_role_row else normalized_role
-                raise HTTPException(
-                    status_code=403,
-                    detail={
-                        "message": f"User is not registered as a {role_str}",
-                        "actual_role": actual_role,
-                    },
-                )
+
+                if not org_row:
+                    # Role says admin/reviewer but there's no org attached — treat as denied.
+                    raise HTTPException(status_code=403, detail="Access denied")
+
+                organization_name = org_row["name"]
+                organization_slug = _slugify_org(organization_name)
+            else:
+                role_match = db.execute(
+                    text(
+                        "SELECT 1 FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id AND r.name = :role_name"
+                    ),
+                    {"user_id": user_row["id"], "role_name": normalized_role},
+                ).scalar()
+
+                if not role_match:
+                    raise HTTPException(
+                        status_code=403,
+                        detail={
+                            "message": f"User is not registered as a {role_str}",
+                            "actual_role": actual_role or normalized_role,
+                        },
+                    )
 
             db.execute(
                 text("UPDATE users SET last_login_at = now(), updated_at = now() WHERE id = :id"),
@@ -1199,6 +1378,8 @@ def login_local_user(payload: LoginUserIn):
         "user_id": str(user_row["id"]),
         "email": email,
         "role": normalized_role,
+        "organization": organization_name,
+        "organization_slug": organization_slug,
         "message": "Login successful",
     }
 
