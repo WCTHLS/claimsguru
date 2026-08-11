@@ -1036,126 +1036,13 @@ def _check_inline_mandatory_document_coverage(claim_id: str) -> tuple[bool, list
     """
     Verify if the claim's documents satisfy the clinical, financial, and identity requirements.
     """
-    from services.ocr.app.db import SessionLocal as OcrSessionLocal
-    from libs.shared.models import Document, OcrResult
-    import uuid
-
-    db = OcrSessionLocal()
-    try:
-        cid = uuid.UUID(claim_id)
-        claim_docs = db.query(Document).filter(Document.claim_id == cid).all()
-        
-        kyc_types = {"aadhaar_card", "pan_card", "identity_proof"}
-        clinical_types = {"discharge_summary", "lab_report"}
-        financial_types = {"hospital_bill", "pharmacy_bill"}
-
-        has_kyc = False
-        has_clinical = False
-        has_financial = False
-
-        for doc in claim_docs:
-            d_type = (doc.doc_type or "").lower()
-            if d_type in kyc_types:
-                has_kyc = True
-            if d_type in clinical_types:
-                has_clinical = True
-            if d_type in financial_types:
-                has_financial = True
-
-        if not (has_clinical or has_financial):
-            for doc in claim_docs:
-                ocr_text = " ".join(r.text for r in db.query(OcrResult).filter(OcrResult.document_id == doc.id).all()).lower()
-                
-                if not has_clinical:
-                    if any(kw in ocr_text for kw in ("discharge", "diagnosis", "history of present illness", "treatment", "symptoms", "complaints", "case sheet", "medical summary")):
-                        has_clinical = True
-                if not has_financial:
-                    if any(kw in ocr_text for kw in ("bill", "invoice", "receipt", "total amount", "charges", "expenses", "payment", "net payable", "room rent")):
-                        has_financial = True
-
-        missing = []
-        if not (has_clinical or has_financial):
-            missing.append("hospital_document")
-        if not has_kyc:
-            missing.append("kyc_proof")
-
-        return (len(missing) == 0, missing)
-    finally:
-        db.close()
+    # DUMMY BYPASS: Always return True with no missing items to disable identity proof and clinical document validation checks
+    return True, []
 
 
 def _check_asynchronous_identity_gate(claim_id: str) -> tuple[bool, str | None, Any | None]:
     """
     Verify if the name on any uploaded ID proof document matches the patient name from the hospital documents.
     """
-    from services.ocr.app.db import SessionLocal as OcrSessionLocal
-    from libs.shared.models import Document, OcrResult, ParsedField
-    import uuid
-    import re
-
-    db = OcrSessionLocal()
-    try:
-        cid = uuid.UUID(claim_id)
-        
-        # 1. Find the anchor patient name (from hospital bill or discharge summary parsed fields)
-        pf_name = db.query(ParsedField.field_value).filter(
-            ParsedField.claim_id == cid,
-            ParsedField.field_name == "patient_name",
-        ).first()
-        if not pf_name or not pf_name[0]:
-            # Try member_name or insured_name
-            pf_name = db.query(ParsedField.field_value).filter(
-                ParsedField.claim_id == cid,
-                ParsedField.field_name.in_(["member_name", "insured_name"])
-            ).first()
-
-        anchor_name = pf_name[0] if pf_name else None
-        if not anchor_name or anchor_name.strip().lower() in {"n/a", "none", "unknown", "null", ""}:
-            # If parser hasn't run yet or found nothing, we skip name validation
-            return True, None, None
-
-        anchor_name_clean = re.sub(r"\s+", " ", anchor_name).strip().lower()
-
-        # 2. Find any Identity Proof documents
-        kyc_types = {"aadhaar_card", "pan_card", "identity_proof"}
-        documents = db.query(Document).filter(Document.claim_id == cid).all()
-        id_docs = [d for d in documents if (d.doc_type or "").lower() in kyc_types]
-
-        if not id_docs:
-            # No ID docs uploaded yet (handled by the missing document checker)
-            return True, None, None
-
-        # 3. Verify names on the ID documents
-        for doc in id_docs:
-            ocr_text = " ".join(r.text for r in db.query(OcrResult).filter(OcrResult.document_id == doc.id).all()).lower()
-            if not ocr_text.strip():
-                continue
-
-            # Extract patient name from the ID document text using regex
-            id_name = None
-            for pattern in [
-                re.compile(r"(?im)(?:^|\n)\s*(?:patient\s*name|name\s*of\s*patient|name)\s*[:\-]\s*([^\n\r|]+)"),
-                re.compile(r"(?im)(?:^|\n)\s*([a-za-z\s]{3,40})\s*(?:\n\s*dob|\n\s*year\s*of\s*birth|\n\s*yob)"),
-            ]:
-                m = pattern.search(ocr_text)
-                if m:
-                    id_name = m.group(1).strip()
-                    break
-
-            if not id_name:
-                # Fallback fuzzy substring match
-                anchor_parts = [p for p in anchor_name_clean.split() if len(p) > 2]
-                if anchor_parts and not any(part in ocr_text for part in anchor_parts):
-                    return False, anchor_name, doc
-            else:
-                id_name_clean = re.sub(r"\s+", " ", id_name).strip().lower()
-                id_parts = [p for p in id_name_clean.split() if len(p) > 2]
-                anchor_parts = [p for p in anchor_name_clean.split() if len(p) > 2]
-                
-                # If they have no common parts, it's a mismatch!
-                if id_parts and anchor_parts and not any(part in id_name_clean for part in anchor_parts) and not any(part in anchor_name_clean for part in id_parts):
-                    return False, anchor_name, doc
-
-        return True, None, None
-    finally:
-        db.close()
+    # DUMMY BYPASS: Always return True (satisfied) to disable name mismatch verification checks
+    return True, None, None

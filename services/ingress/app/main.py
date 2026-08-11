@@ -1407,6 +1407,7 @@ async def create_claim(
     files: list[UploadFile] = File(...),
     policy_id: str = Form(None),
     patient_id: str = Form(None),
+    db: Session = Depends(get_db),
 ):
     """Create a new claim by uploading files.
     
@@ -1486,6 +1487,36 @@ async def create_claim(
                 "FILE_RECEIVED | endpoint=create_claim file=%s bytes=%d type=%s sha256=%s",
                 safe_name, len(file_bytes), effective_ct, content_hash,
             )
+
+        # Synchronous duplicate check for single-file upload
+        if len(file_metadata_list) == 1:
+            single_hash = file_metadata_list[0]["content_hash"]
+            # Query if a completed claim exists with this file hash
+            existing = (
+                db.query(Claim)
+                .join(Document, Document.claim_id == Claim.id)
+                .filter(Document.content_hash == single_hash, Claim.status == "COMPLETED")
+                .first()
+            )
+            if existing:
+                upload_log.info(
+                    "UPLOAD_DUPLICATE | Found completed claim %s with same hash, returning immediately",
+                    existing.id
+                )
+                # Clean up the temporarily uploaded MinIO files
+                from libs.shared.storage import MinioStorage
+                for uri in saved_paths:
+                    try:
+                        MinioStorage.delete_file(uri)
+                    except Exception:
+                        pass
+
+                return {
+                    "claim_id": str(existing.id),
+                    "task_id": None,
+                    "status": "COMPLETED",
+                    "message": "Claim already processed.",
+                }
         
         # --- Enqueue pipeline with file metadata ---
         # The intake_task will:
@@ -1535,12 +1566,20 @@ async def create_claim(
 def list_claims(
     offset: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
+    patient_id: str | None = Query(None),
+    policy_id: str | None = Query(None),
     db: Session = Depends(get_db),
 ):
     try:
-        total = db.query(Claim).count()
+        query = db.query(Claim)
+        if patient_id:
+            query = query.filter(Claim.patient_id == patient_id)
+        if policy_id:
+            query = query.filter(Claim.policy_id == policy_id)
+
+        total = query.count()
         claims = (
-            db.query(Claim)
+            query
             .order_by(Claim.created_at.desc())
             .offset(offset)
             .limit(limit)
