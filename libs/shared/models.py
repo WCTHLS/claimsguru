@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Text, UUID, String
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Text, UUID, String, UniqueConstraint, Date, Numeric
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -385,3 +385,97 @@ class ChatMessage(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     claim = relationship("Claim", back_populates="chat_messages")
+
+
+# --- Identity, Profile, and Role Access Tables ---
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), nullable=False, unique=True)
+    phone = Column(String(255), nullable=True, unique=True)
+    external_provider = Column(String(255), nullable=False)
+    external_subject_id = Column(String(255), nullable=False)
+    status = Column(Text, nullable=False, default="PENDING")
+    email_verified = Column(Boolean, nullable=False, default=False)
+    password_hash = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+    last_login_at = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("external_provider", "external_subject_id", name="uq_user_external_provider_subject"),
+    )
+
+
+class Organization(Base):
+    __tablename__ = "organizations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(Text, nullable=False)
+    type = Column(Text, nullable=False)
+    address = Column(Text, nullable=True)
+    status = Column(Text, nullable=False, default="ACTIVE")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class PatientProfile(Base):
+    __tablename__ = "patient_profiles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    first_name = Column(Text, nullable=False)
+    last_name = Column(Text, nullable=False)
+    dob = Column(Date, nullable=True)
+    gender = Column(Text, nullable=True)
+    policy_number = Column(Text, nullable=True)
+    sum_insured = Column(Numeric(14, 2), nullable=True)
+    insurer_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
+    health_card_url = Column(Text, nullable=True)
+    coverage_verified = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class StaffProfile(Base):
+    __tablename__ = "staff_profiles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    first_name = Column(Text, nullable=False)
+    last_name = Column(Text, nullable=False)
+    employee_id = Column(String(255), nullable=True)
+    designation = Column(Text, nullable=True)
+    department = Column(Text, nullable=True)
+    status = Column(Text, nullable=False, default="ACTIVE")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("organization_id", "employee_id", name="uq_staff_org_employee"),
+    )
+
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name = Column(String(255), nullable=False, unique=True)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class UserRoleTable(Base):
+    __tablename__ = "user_roles"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    role_id = Column(UUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "role_id", name="uq_user_role"),
+    )

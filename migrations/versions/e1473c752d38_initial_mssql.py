@@ -1,8 +1,8 @@
 """initial_mssql
 
-Revision ID: 936b00fe26c2
+Revision ID: e1473c752d38
 Revises: 
-Create Date: 2026-08-12 17:20:13.177244
+Create Date: 2026-08-12 19:18:41.005407
 
 """
 from typing import Sequence, Union
@@ -13,7 +13,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '936b00fe26c2'
+revision: str = 'e1473c752d38'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -33,6 +33,24 @@ def upgrade() -> None:
     sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('organizations',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('name', sa.Text(), nullable=False),
+    sa.Column('type', sa.Text(), nullable=False),
+    sa.Column('address', sa.Text(), nullable=True),
+    sa.Column('status', sa.Text(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('roles',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('name')
+    )
     op.create_table('tpa_providers',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('code', sa.String(length=255), nullable=False),
@@ -47,6 +65,23 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('code')
+    )
+    op.create_table('users',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('email', sa.String(length=255), nullable=False),
+    sa.Column('phone', sa.String(length=255), nullable=True),
+    sa.Column('external_provider', sa.String(length=255), nullable=False),
+    sa.Column('external_subject_id', sa.String(length=255), nullable=False),
+    sa.Column('status', sa.Text(), nullable=False),
+    sa.Column('email_verified', sa.Boolean(), nullable=False),
+    sa.Column('password_hash', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.Column('last_login_at', sa.DateTime(timezone=True), nullable=True),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('email'),
+    sa.UniqueConstraint('external_provider', 'external_subject_id', name='uq_user_external_provider_subject'),
+    sa.UniqueConstraint('phone')
     )
     op.create_table('audit_logs',
     sa.Column('id', sa.UUID(), nullable=False),
@@ -144,6 +179,25 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_parse_jobs_set_hash'), 'parse_jobs', ['set_hash'], unique=False)
+    op.create_table('patient_profiles',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('user_id', sa.UUID(), nullable=False),
+    sa.Column('first_name', sa.Text(), nullable=False),
+    sa.Column('last_name', sa.Text(), nullable=False),
+    sa.Column('dob', sa.Date(), nullable=True),
+    sa.Column('gender', sa.Text(), nullable=True),
+    sa.Column('policy_number', sa.Text(), nullable=True),
+    sa.Column('sum_insured', sa.Numeric(precision=14, scale=2), nullable=True),
+    sa.Column('insurer_id', sa.UUID(), nullable=True),
+    sa.Column('health_card_url', sa.Text(), nullable=True),
+    sa.Column('coverage_verified', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.ForeignKeyConstraint(['insurer_id'], ['organizations.id'], ondelete='SET NULL'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('user_id')
+    )
     op.create_table('predictions',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('claim_id', sa.UUID(), nullable=False),
@@ -155,6 +209,24 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['claim_id'], ['claims.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('staff_profiles',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('user_id', sa.UUID(), nullable=False),
+    sa.Column('organization_id', sa.UUID(), nullable=False),
+    sa.Column('first_name', sa.Text(), nullable=False),
+    sa.Column('last_name', sa.Text(), nullable=False),
+    sa.Column('employee_id', sa.String(length=255), nullable=True),
+    sa.Column('designation', sa.Text(), nullable=True),
+    sa.Column('department', sa.Text(), nullable=True),
+    sa.Column('status', sa.Text(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.ForeignKeyConstraint(['organization_id'], ['organizations.id'], ),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('organization_id', 'employee_id', name='uq_staff_org_employee'),
+    sa.UniqueConstraint('user_id')
+    )
     op.create_table('submissions',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('claim_id', sa.UUID(), nullable=False),
@@ -165,6 +237,16 @@ def upgrade() -> None:
     sa.Column('submitted_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
     sa.ForeignKeyConstraint(['claim_id'], ['claims.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
+    )
+    op.create_table('user_roles',
+    sa.Column('id', sa.UUID(), nullable=False),
+    sa.Column('user_id', sa.UUID(), nullable=False),
+    sa.Column('role_id', sa.UUID(), nullable=False),
+    sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('CURRENT_TIMESTAMP'), nullable=True),
+    sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('user_id', 'role_id', name='uq_user_role')
     )
     op.create_table('validations',
     sa.Column('id', sa.UUID(), nullable=False),
@@ -307,8 +389,11 @@ def downgrade() -> None:
     op.drop_table('workflow_state')
     op.drop_table('workflow_jobs')
     op.drop_table('validations')
+    op.drop_table('user_roles')
     op.drop_table('submissions')
+    op.drop_table('staff_profiles')
     op.drop_table('predictions')
+    op.drop_table('patient_profiles')
     op.drop_index(op.f('ix_parse_jobs_set_hash'), table_name='parse_jobs')
     op.drop_table('parse_jobs')
     op.drop_table('ocr_jobs')
@@ -319,6 +404,9 @@ def downgrade() -> None:
     op.drop_table('documents')
     op.drop_table('chat_messages')
     op.drop_table('audit_logs')
+    op.drop_table('users')
     op.drop_table('tpa_providers')
+    op.drop_table('roles')
+    op.drop_table('organizations')
     op.drop_table('claims')
     # ### end Alembic commands ###
