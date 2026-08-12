@@ -22,6 +22,12 @@ OPENROUTER_API_KEY=your_openrouter_api_key_here
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
+### Host Environment setup (For running migrations locally):
+Install the local Python database dependencies (`pymssql`, `pyodbc`) inside your host virtual environment:
+```powershell
+.venv\Scripts\pip install -r requirements-gateway.txt
+```
+
 ---
 
 ## 2. Clean and Stop Previous Builds
@@ -41,31 +47,38 @@ docker compose -f infra/docker/docker-compose.yml build --no-cache
 ---
 
 ## 4. Start the Database Container
-Start only the database services and wait for them to become healthy before running migrations:
+Start the MS SQL Server container and wait for it to report healthy:
 ```powershell
-docker compose -f infra/docker/docker-compose.yml up -d postgres
+docker compose -f infra/docker/docker-compose.yml up -d mssql-db
 ```
 
 ---
 
-## 5. Run Database Migrations
-Apply the alembic database migrations using a temporary one-off container *without* starting any other dependent backend containers or workers (by using the `--no-deps` flag, which prevents other services from trying to connect to an unmigrated database):
+## 5. Initialize the Database
+Microsoft SQL Server starts up blank. You must create the `claimgpt` database inside the container before running migrations:
 ```powershell
-docker compose -f infra/docker/docker-compose.yml run --rm --no-deps gateway alembic upgrade head
+docker exec docker-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -Q "CREATE DATABASE claimgpt;" -C
 ```
-*(Note: The `gateway` container image pre-installs `alembic`. The schema script initialized by Postgres on first boot contains the head version markers so this command will verify schema alignment instantly without conflicts.)*
 
 ---
 
-## 6. Start the Rest of the Stack
-Now that the database is fully updated, launch all backend services, workers, and infrastructure in the background:
+## 6. Run Database Migrations
+Apply the database migrations from your host terminal (Alembic will automatically use the `pymssql` configuration from your `.env` file to create the tables):
+```powershell
+.venv\Scripts\alembic upgrade head
+```
+
+---
+
+## 7. Start the Rest of the Stack
+Now that the database tables are created, start all other backend services, Celery workers, and infrastructure in the background:
 ```powershell
 docker compose -f infra/docker/docker-compose.yml up -d
 ```
 
 ---
 
-## 7. Start the Frontend
+## 8. Start the Frontend
 The frontend runs locally using Node.js:
 ```powershell
 cd ui/web
@@ -75,7 +88,7 @@ npm run dev
 
 ---
 
-## 8. Access and Monitoring URLs
+## 9. Access and Monitoring URLs
 
 - **Frontend UI**: [http://localhost:3000](http://localhost:3000)
 - **API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
