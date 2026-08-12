@@ -5,10 +5,13 @@ FROM python:3.11-slim AS core-builder
 WORKDIR /app
 
 # Install compilation tools needed for core Python packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 \
+    && apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     curl \
+    unixodbc-dev \
+    g++ \
     && rm -rf /var/lib/apt/lists/*
 
 # Increase pip timeout and retries
@@ -28,14 +31,23 @@ WORKDIR /app
 COPY --from=core-builder /usr/local /usr/local
 ENV PYTHONPATH=/app:/app/libs:/app/services
 
-# Install basic runtime tools + system dependencies for WeasyPrint/GLib
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Install basic runtime tools + system dependencies for WeasyPrint/GLib + MS SQL Server ODBC
+RUN echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4 \
+    && apt-get update && apt-get install -y --no-install-recommends \
     curl \
+    gnupg2 \
+    apt-transport-https \
+    ca-certificates \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
     libglib2.0-0 \
     libharfbuzz0b \
     libpangoft2-1.0-0 \
+    && mkdir -p /usr/share/keyrings \
+    && curl -sSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
+    && curl -sSL https://packages.microsoft.com/config/debian/12/prod.list > /etc/apt/sources.list.d/mssql-release.list \
+    && apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y --no-install-recommends msodbcsql18 unixodbc \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy libs and services code
@@ -71,6 +83,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy full requirements.txt (which contains PyTorch, PaddleOCR, Transformers)
 COPY requirements.txt /app/requirements-ml.txt
+
+# Increase pip timeout and retries for downloading heavy ML/CUDA packages
+ENV PIP_DEFAULT_TIMEOUT=1000
+ENV PIP_RETRIES=20
 
 # Install the heavy ML libraries. Core requirements are already satisfied
 # in the base core-runner image, so pip will skip them and only install ML tools.

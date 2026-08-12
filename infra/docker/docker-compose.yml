@@ -11,19 +11,19 @@ services:
       target: core-runner
     command: python -m uvicorn main:app --host 0.0.0.0 --port 8000
     environment:
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
-      INGRESS_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      OCR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      PARSER_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      CODING_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      PREDICTOR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      VALIDATOR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      FRAUD_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      WORKFLOW_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      SUBMISSION_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      SEARCH_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      CHAT_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      INGRESS_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      OCR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      PARSER_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      CODING_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      PREDICTOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      VALIDATOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      FRAUD_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      WORKFLOW_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      SUBMISSION_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      SEARCH_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      CHAT_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       REDIS_URL: redis://redis:6379/3
       INGRESS_URL: http://ingress:8000
       OCR_URL: http://ocr:8000
@@ -58,7 +58,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
+      mssql-db:
         condition: service_healthy
       ocr_worker:
         condition: service_started
@@ -122,19 +122,19 @@ services:
       OCR_ENABLE_PADDLE_OCR: ${OCR_ENABLE_PADDLE_OCR:-true}
       OCR_ENABLE_PADDLE_VL: ${OCR_ENABLE_PADDLE_VL:-false}
       OCR_ENABLE_SECONDARY_OCR_ON_PDF: ${OCR_ENABLE_SECONDARY_OCR_ON_PDF:-false}
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
-      OCR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      PARSER_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      CODING_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      PREDICTOR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      VALIDATOR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      OCR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      PARSER_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      CODING_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      PREDICTOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      VALIDATOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
       POSTGRES_DB: claimgpt
       POSTGRES_USER: claimgpt
       POSTGRES_PASSWORD: claimgpt
-      WORKFLOW_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      WORKFLOW_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       OCR_REDIS_URL: redis://redis:6379/3
       PARSER_REDIS_URL: redis://redis:6379/3
       PREDICTOR_REDIS_URL: redis://redis:6379/3
@@ -156,7 +156,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
+      mssql-db:
         condition: service_healthy
       minio:
         condition: service_started
@@ -183,19 +183,19 @@ services:
     command: celery -A libs.shared.celery_app worker -Q parser_queue --autoscale=4,1 --loglevel=info --hostname=parsing_worker@%h
     environment:
       PYTHONUNBUFFERED: "1"
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
-      OCR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      PARSER_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      CODING_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      PREDICTOR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      VALIDATOR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      OCR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      PARSER_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      CODING_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      PREDICTOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      VALIDATOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
       POSTGRES_DB: claimgpt
       POSTGRES_USER: claimgpt
       POSTGRES_PASSWORD: claimgpt
-      WORKFLOW_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      WORKFLOW_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       OCR_REDIS_URL: redis://redis:6379/3
       PARSER_REDIS_URL: redis://redis:6379/3
       PREDICTOR_REDIS_URL: redis://redis:6379/3
@@ -225,7 +225,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
+      mssql-db:
         condition: service_healthy
       minio:
         condition: service_started
@@ -254,19 +254,19 @@ services:
     environment:
       PYTHONUNBUFFERED: "1"
       INGRESS_STORAGE_ROOT: /app/services/ingress/storage/raw
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
-      OCR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      PARSER_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      CODING_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      PREDICTOR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      VALIDATOR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      OCR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      PARSER_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      CODING_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      PREDICTOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      VALIDATOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
       POSTGRES_DB: claimgpt
       POSTGRES_USER: claimgpt
       POSTGRES_PASSWORD: claimgpt
-      WORKFLOW_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      WORKFLOW_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       OCR_REDIS_URL: redis://redis:6379/3
       PARSER_REDIS_URL: redis://redis:6379/3
       PREDICTOR_REDIS_URL: redis://redis:6379/3
@@ -290,7 +290,7 @@ services:
     depends_on:
       redis:
         condition: service_healthy
-      postgres:
+      mssql-db:
         condition: service_healthy
       minio:
         condition: service_started
@@ -340,25 +340,20 @@ services:
           memory: 2G
 
   # ================================================= Infrastructure
-  postgres-db:
-    image: bitnami/postgresql:latest
+  mssql-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
-      POSTGRESQL_USERNAME: claimgpt
-      POSTGRESQL_PASSWORD: claimgpt
-      POSTGRESQL_DATABASE: claimgpt
-      POSTGRESQL_REPLICATION_MODE: master
-      POSTGRESQL_REPLICATION_USER: repl_user
-      POSTGRESQL_REPLICATION_PASSWORD: repl_password
-      POSTGRESQL_PGAUDIT_LOG_CATALOG: "off"
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "YourStrong!Password"
+      MSSQL_PID: "Developer"
     ports:
-      - "5432:5432"
+      - "1433:1433"
     volumes:
-      - pgdata:/bitnami/postgresql
-      - ../../infra/db/claimgpt_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - mssqldata:/var/opt/mssql
     healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "claimgpt" ]
-      interval: 5s
-      timeout: 3s
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "YourStrong!Password", "-Q", "SELECT 1", "-C"]
+      interval: 10s
+      timeout: 5s
       retries: 5
     networks:
       default:
@@ -367,92 +362,7 @@ services:
       resources:
         limits:
           cpus: '2'
-          memory: 1G
-
-  postgres-replica-db:
-    image: bitnami/postgresql:latest
-    environment:
-      POSTGRESQL_USERNAME: claimgpt
-      POSTGRESQL_PASSWORD: claimgpt
-      POSTGRESQL_DATABASE: claimgpt
-      POSTGRESQL_REPLICATION_MODE: slave
-      POSTGRESQL_MASTER_HOST: postgres-db
-      POSTGRESQL_MASTER_PORT_NUMBER: 5432
-      POSTGRESQL_REPLICATION_USER: repl_user
-      POSTGRESQL_REPLICATION_PASSWORD: repl_password
-      POSTGRESQL_PGAUDIT_LOG_CATALOG: "off"
-    volumes:
-      - pgreplica-data:/bitnami/postgresql
-    depends_on:
-      postgres-db:
-        condition: service_healthy
-    healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "claimgpt" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    networks:
-      default:
-        ipv4_address: 172.28.0.221
-    deploy:
-      resources:
-        limits:
-          cpus: '2'
-          memory: 1G
-
-  postgres:
-    image: edoburu/pgbouncer:latest
-    environment:
-      DB_HOST: postgres-db
-      DB_PORT: 5432
-      DB_USER: claimgpt
-      DB_PASSWORD: claimgpt
-      DB_NAME: claimgpt
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: 1000
-      DEFAULT_POOL_SIZE: 20
-      SERVER_TLS_SSLMODE: disable
-      AUTH_TYPE: scram-sha-256
-    depends_on:
-      postgres-db:
-        condition: service_healthy
-    healthcheck:
-      test: [ "CMD", "pg_isready", "-h", "127.0.0.1", "-p", "5432", "-U", "claimgpt" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
-
-  postgres-replica:
-    image: edoburu/pgbouncer:latest
-    environment:
-      DB_HOST: postgres-replica-db
-      DB_PORT: 5432
-      DB_USER: claimgpt
-      DB_PASSWORD: claimgpt
-      DB_NAME: claimgpt
-      POOL_MODE: transaction
-      MAX_CLIENT_CONN: 1000
-      DEFAULT_POOL_SIZE: 20
-      SERVER_TLS_SSLMODE: disable
-      AUTH_TYPE: scram-sha-256
-    depends_on:
-      postgres-replica-db:
-        condition: service_healthy
-    healthcheck:
-      test: [ "CMD", "pg_isready", "-h", "127.0.0.1", "-p", "5432", "-U", "claimgpt" ]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    deploy:
-      resources:
-        limits:
-          cpus: '1'
-          memory: 512M
+          memory: 2G
 
   redis:
     image: redis:7-alpine
@@ -606,9 +516,9 @@ services:
     command: uvicorn services.ingress.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
       AUTH_ENABLED: "false"
-      INGRESS_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
+      INGRESS_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       INGRESS_STORAGE_ROOT: /app/services/ingress/storage/raw
       INGRESS_REDIS_URL: redis://redis:6379/3
       REDIS_URL: redis://redis:6379/3
@@ -621,7 +531,7 @@ services:
     ports:
       - "8001:8000"
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
     volumes:
       - shared-storage:/app/services/ingress/storage/raw
@@ -637,9 +547,9 @@ services:
     image: claimgpt-ml:v2-dev
     command: uvicorn services.ocr.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
-      OCR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      OCR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       OCR_REDIS_URL: redis://redis:6379/3
       REDIS_URL: redis://redis:6379/3
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
@@ -657,7 +567,7 @@ services:
     ports:
       - "8002:8000"
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -676,9 +586,9 @@ services:
     image: claimgpt-ml:v2-dev
     command: uvicorn services.parser.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
-      PARSER_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      PARSER_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       PARSER_REDIS_URL: redis://redis:6379/3
       REDIS_URL: redis://redis:6379/3
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
@@ -696,7 +606,7 @@ services:
     ports:
       - "8003:8000"
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -714,8 +624,8 @@ services:
     image: claimgpt-ml:v2-dev
     environment:
       PYTHONUNBUFFERED: "1"
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       REDIS_URL: redis://redis:6379/3
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-openai/gpt-4o-mini}
@@ -730,7 +640,7 @@ services:
       - "8004:8000"
     command: uvicorn services.coding.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
     volumes:
       - ../../tmp:/app/tmp
@@ -747,14 +657,14 @@ services:
     image: claimgpt-ml:v2-dev
     command: uvicorn services.predictor.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       REDIS_URL: redis://redis:6379/3
       METRICS_ENABLED: "true"
     ports:
       - "8005:8000"
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
     volumes:
       - ../../services:/app/services
@@ -769,15 +679,15 @@ services:
     image: claimgpt-core:v2-dev
     command: uvicorn services.validator.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
-      VALIDATOR_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      VALIDATOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       REDIS_URL: redis://redis:6379/3
       METRICS_ENABLED: "true"
     ports:
       - "8006:8000"
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
     volumes:
       - ../../services:/app/services
@@ -792,9 +702,9 @@ services:
     image: claimgpt-ml:v2-dev
     command: uvicorn services.fraud.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
-      FRAUD_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      FRAUD_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       FRAUD_RULES_ENABLED: "true"
       FRAUD_ML_ENABLED: "true"
       FRAUD_LLM_ENABLED: "false"
@@ -802,7 +712,7 @@ services:
     ports:
       - "8011:8000"
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
     volumes:
       - ../../services:/app/services
@@ -812,9 +722,9 @@ services:
     image: claimgpt-core:v2-dev
     command: uvicorn services.workflow.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
-      WORKFLOW_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      WORKFLOW_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       WORKFLOW_INGRESS_URL: http://ingress:8000
       WORKFLOW_OCR_URL: http://ocr:8000
       WORKFLOW_PARSER_URL: http://parser:8000
@@ -828,7 +738,7 @@ services:
     ports:
       - "8007:8000"
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
     volumes:
       - ../../services:/app/services
@@ -843,15 +753,15 @@ services:
     image: claimgpt-core:v2-dev
     command: uvicorn services.submission.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
-      SUBMISSION_DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      SUBMISSION_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       REDIS_URL: redis://redis:6379/3
       METRICS_ENABLED: "true"
     ports:
       - "8008:8000"
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
     volumes:
       - ../../services:/app/services
@@ -866,14 +776,14 @@ services:
     image: claimgpt-core:v2-dev
     command: uvicorn services.chat.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       REDIS_URL: redis://redis:6379/3
       METRICS_ENABLED: "true"
     ports:
       - "8009:8000"
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
     volumes:
       - ../../services:/app/services
@@ -888,14 +798,14 @@ services:
     image: claimgpt-core:v2-dev
     command: uvicorn services.search.app.main:app --host 0.0.0.0 --port 8000 --workers 1
     environment:
-      DATABASE_URL: postgresql://claimgpt:claimgpt@postgres:5432/claimgpt
-      DATABASE_READ_URL: postgresql://claimgpt:claimgpt@postgres-replica:5432/claimgpt
+      DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
+      DATABASE_READ_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       REDIS_URL: redis://redis:6379/3
       METRICS_ENABLED: "true"
     ports:
       - "8010:8000"
     depends_on:
-      postgres:
+      mssql-db:
         condition: service_healthy
     volumes:
       - ../../services:/app/services
@@ -948,8 +858,7 @@ services:
           memory: 1G
 
 volumes:
-  pgdata:
-  pgreplica-data:
+  mssqldata:
   miniodata:
   shared-storage:
   paddlex-models:

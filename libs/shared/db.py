@@ -64,6 +64,24 @@ def is_recent_write(threshold=5.0) -> bool:
             
     return False
 
+from sqlalchemy.ext.compiler import compiles
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import UUID
+
+@compiles(JSONB, "sqlite")
+@compiles(JSONB, "mysql")
+@compiles(JSONB, "mariadb")
+def compile_jsonb_generic(type_, compiler, **kw):
+    return "JSON"
+
+@compiles(JSONB, "mssql")
+def compile_jsonb_mssql(type_, compiler, **kw):
+    return "NVARCHAR(MAX)"
+
+@compiles(UUID, "mssql")
+def compile_uuid_mssql(type_, compiler, **kw):
+    return "UNIQUEIDENTIFIER"
+
 Base = declarative_base()
 
 # Create write and read engines

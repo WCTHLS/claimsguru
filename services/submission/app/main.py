@@ -1630,25 +1630,19 @@ def tpa_claim_action(
 
     # Record in audit_logs
     try:
-        db.execute(
-            text(
-                "INSERT INTO audit_logs (id, claim_id, actor, action, metadata, created_at) "
-                "VALUES (:id, :cid, :actor, :action, :meta, :ts)"
-            ),
-            {
-                "id": str(uuid.uuid4()),
-                "cid": str(cid),
-                "actor": "tpa-reviewer",
-                "action": f"CLAIM_{action.upper()}",
-                "meta": json.dumps({
-                    "old_status": old_status,
-                    "new_status": new_status,
-                    "reason": reason,
-                    "requested_documents": requested_docs,
-                    **({"annotations": annotations} if annotations else {}),
-                }),
-                "ts": datetime.now(timezone.utc),
-            },
+        from libs.utils.audit import AuditLogger
+        audit = AuditLogger(db, "submission-service")
+        audit.log(
+            action=f"CLAIM_{action.upper()}",
+            claim_id=cid,
+            actor="tpa-reviewer",
+            metadata={
+                "old_status": old_status,
+                "new_status": new_status,
+                "reason": reason,
+                "requested_documents": requested_docs,
+                **({"annotations": annotations} if annotations else {}),
+            }
         )
     except Exception:
         logger.debug("Audit write failed for tpa-action", exc_info=True)

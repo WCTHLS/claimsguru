@@ -283,24 +283,20 @@ def _build_report_url(claim_id: uuid.UUID) -> str:
 
 
 def _find_completed_claim_by_upload_hash(db: Session, upload_sha256: str) -> Claim | None:
-    row = db.execute(
-        text(
-            """
-            SELECT c.id
-            FROM claims c
-            JOIN audit_logs a ON a.claim_id = c.id
-            WHERE a.action = 'CLAIM_CREATED'
-              AND a.metadata->>'upload_sha256' = :upload_sha256
-              AND c.status = 'COMPLETED'
-            ORDER BY c.created_at DESC
-            LIMIT 1
-            """
-        ),
-        {"upload_sha256": upload_sha256},
-    ).first()
-    if not row:
-        return None
-    return db.query(Claim).filter(Claim.id == row[0]).first()
+    from libs.shared.models import AuditLog
+    claim = (
+        db.query(Claim)
+        .join(AuditLog, AuditLog.claim_id == Claim.id)
+        .filter(
+            AuditLog.action == "CLAIM_CREATED",
+            AuditLog.audit_metadata["upload_sha256"].as_string() == upload_sha256,
+            Claim.status == "COMPLETED",
+        )
+        .order_by(Claim.created_at.desc())
+        .first()
+    )
+    return claim
+
 
 
 def _celery_worker_available(timeout: float = 0.6) -> bool:
@@ -1564,20 +1560,33 @@ async def create_claim(
                 safe_name, len(file_bytes), effective_ct, content_hash,
             )
 
-        # Synchronous duplicate check for single-file upload
-        if len(file_metadata_list) == 1:
-            single_hash = file_metadata_list[0]["content_hash"]
-            # Query if a completed claim exists with this file hash
-            existing = (
-                db.query(Claim)
-                .join(Document, Document.claim_id == Claim.id)
-                .filter(Document.content_hash == single_hash, Claim.status == "COMPLETED")
-                .first()
-            )
-            if existing:
+        # Synchronous duplicate check using sorted set_hash (works for both single & multi-file uploads)
+        if file_metadata_list:
+            hashes = [metadata["content_hash"] for metadata in file_metadata_list if metadata["content_hash"]]
+            hashes.sort()
+            set_hash = hashlib.sha256(",".join(hashes).encode("utf-8")).hexdigest()
+
+            target_user = patient_id or policy_id
+            existing_job = None
+
+            if target_user:
+                from sqlalchemy import func
+                from libs.shared.models import ParseJob
+                existing_job = (
+                    db.query(ParseJob)
+                    .join(Claim, ParseJob.claim_id == Claim.id)
+                    .filter(
+                        ParseJob.set_hash == set_hash, 
+                        Claim.status == "COMPLETED",
+                        func.lower(Claim.patient_id) == func.lower(target_user)
+                    )
+                    .first()
+                )
+
+            if existing_job:
                 upload_log.info(
-                    "UPLOAD_DUPLICATE | Found completed claim %s with same hash, returning immediately",
-                    existing.id
+                    "UPLOAD_DUPLICATE | Found completed claim %s matching set_hash for user %s, returning immediately",
+                    existing_job.claim_id, target_user
                 )
                 # Clean up the temporarily uploaded MinIO files
                 from libs.shared.storage import MinioStorage
@@ -1588,7 +1597,7 @@ async def create_claim(
                         pass
 
                 return {
-                    "claim_id": str(existing.id),
+                    "claim_id": str(existing_job.claim_id),
                     "task_id": None,
                     "status": "COMPLETED",
                     "message": "Claim already processed.",

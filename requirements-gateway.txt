@@ -57,3 +57,5 @@ scipy<1.11
 scispacy>=0.5.4
 spacy>=3.7.0
 striprtf==0.0.27
+pyodbc>=5.1.0
+pymssql>=2.3.0

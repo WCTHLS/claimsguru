@@ -1,6 +1,6 @@
 import uuid
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Text, UUID, String
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
@@ -12,7 +12,7 @@ class TpaProvider(Base):
     __tablename__ = "tpa_providers"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    code = Column(Text, unique=True, nullable=False)
+    code = Column(String(255), unique=True, nullable=False)
     name = Column(Text, nullable=False)
     logo = Column(Text, default="🏥")
     provider_type = Column(Text, default="Private")
@@ -101,7 +101,7 @@ class Document(Base):
     file_type = Column(Text, nullable=True)
     minio_path = Column(Text, nullable=False)
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
-    content_hash = Column(Text, index=True, nullable=False)  # SHA-256 fingerprint of file content
+    content_hash = Column(String(255), index=True, nullable=False)  # SHA-256 fingerprint of file content
     doc_type = Column(Text, nullable=True, default="UNKNOWN")
     display_title = Column(Text, nullable=True)
     page_count = Column(Integer, nullable=True, default=1)
@@ -115,7 +115,7 @@ class DocValidation(Base):
     __tablename__ = "document_validations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
     claim_id = Column(UUID(as_uuid=True), ForeignKey("claims.id", ondelete="CASCADE"), nullable=False)
     status = Column(Text, nullable=False)
     doc_type = Column(Text, nullable=True)
@@ -152,7 +152,7 @@ class ParsedField(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     claim_id = Column(UUID(as_uuid=True), ForeignKey("claims.id", ondelete="CASCADE"), nullable=False)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=True)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=True)
     field_name = Column(Text, nullable=False)
     field_value = Column(Text, nullable=True)
     bounding_box = Column(JSONB, nullable=True)
@@ -185,7 +185,7 @@ class ClaimFieldFeedback(Base):
     )
     document_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("documents.id", ondelete="CASCADE"),
+        ForeignKey("documents.id"),
         nullable=True,
     )
     field_name = Column(Text, nullable=False)
@@ -323,7 +323,7 @@ class ScanAnalysis(Base):
     __tablename__ = "scan_analyses"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
     claim_id = Column(UUID(as_uuid=True), ForeignKey("claims.id", ondelete="CASCADE"), nullable=False)
     scan_type = Column(Text, nullable=False)
     body_part = Column(Text, nullable=True)
@@ -365,7 +365,7 @@ class ParseJob(Base):
     status = Column(Text, nullable=False, default="QUEUED")
     total_documents = Column(Integer, nullable=False, default=0)
     processed_documents = Column(Integer, nullable=False, default=0)
-    set_hash = Column(Text, index=True, nullable=True)  # Set-based idempotency hash
+    set_hash = Column(String(255), index=True, nullable=True)  # Set-based idempotency hash
     model_version = Column(Text, nullable=True)
     used_fallback = Column(Boolean, nullable=False, default=False)
     error_message = Column(Text, nullable=True)
