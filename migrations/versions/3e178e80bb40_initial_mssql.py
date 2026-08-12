@@ -1,19 +1,19 @@
 """initial_mssql
 
-Revision ID: e1473c752d38
+Revision ID: 3e178e80bb40
 Revises: 
-Create Date: 2026-08-12 19:18:41.005407
+Create Date: 2026-08-12 21:11:14.584645
 
 """
 from typing import Sequence, Union
 
 from alembic import op
-from sqlalchemy import Text
 import sqlalchemy as sa
+from sqlalchemy import Text
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = 'e1473c752d38'
+revision: str = '3e178e80bb40'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -80,9 +80,9 @@ def upgrade() -> None:
     sa.Column('last_login_at', sa.DateTime(timezone=True), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
-    sa.UniqueConstraint('external_provider', 'external_subject_id', name='uq_user_external_provider_subject'),
-    sa.UniqueConstraint('phone')
+    sa.UniqueConstraint('external_provider', 'external_subject_id', name='uq_user_external_provider_subject')
     )
+    op.create_index('uq_users_phone', 'users', ['phone'], unique=True, mssql_where=sa.text('phone IS NOT NULL'))
     op.create_table('audit_logs',
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('actor', sa.Text(), nullable=True),
@@ -404,6 +404,7 @@ def downgrade() -> None:
     op.drop_table('documents')
     op.drop_table('chat_messages')
     op.drop_table('audit_logs')
+    op.drop_index('uq_users_phone', table_name='users', mssql_where=sa.text('phone IS NOT NULL'))
     op.drop_table('users')
     op.drop_table('tpa_providers')
     op.drop_table('roles')

@@ -45,7 +45,7 @@ from .config import settings
 from .db import SessionLocal, check_db_health, engine, force_master_session
 from .models import Claim, Document, DocValidation
 from libs.auth.passwords import hash_password, password_matches, verify_password
-from libs.shared.models import ParseJob, ParsedField, WorkflowState
+from libs.shared.models import ParseJob, ParsedField, WorkflowState, User, Role, UserRoleTable, Organization, PatientProfile, StaffProfile
 from libs.shared.workflow_state import get_latest_workflow_state, upsert_workflow_state
 from .schemas import ClaimListOut, ClaimOut
 from .rate_limiter import RateLimiter
@@ -887,8 +887,7 @@ router = APIRouter()
 
 
 def _ensure_users_password_hash_column() -> None:
-    with engine.begin() as connection:
-        connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash TEXT"))
+    pass
 
 
 class RegisterUserIn(BaseModel):
@@ -973,21 +972,24 @@ def register_local_user(payload: RegisterUserIn):
                         UPDATE users
                         SET status = 'ACTIVE',
                             password_hash = COALESCE(:password_hash, password_hash),
-                            updated_at = now()
+                            updated_at = CURRENT_TIMESTAMP
                         WHERE id = :id
                     """),
                     {"id": user_id, "password_hash": password_hash},
                 )
             else:
-                user_row = db.execute(
-                    text("""
-                        INSERT INTO users (email, phone, external_provider, external_subject_id, status, email_verified, password_hash)
-                        VALUES (:email, :phone, 'local', :email, 'ACTIVE', true, :password_hash)
-                        RETURNING id
-                    """),
-                    {"email": email, "phone": payload.phone or None, "password_hash": password_hash},
-                ).mappings().one()
-                user_id = user_row["id"]
+                new_user = User(
+                    email=email,
+                    phone=payload.phone or None,
+                    external_provider='local',
+                    external_subject_id=email,
+                    status='ACTIVE',
+                    email_verified=True,
+                    password_hash=password_hash
+                )
+                db.add(new_user)
+                db.flush()
+                user_id = new_user.id
 
             # 2. Assign Role
             role_row = db.execute(
@@ -996,21 +998,25 @@ def register_local_user(payload: RegisterUserIn):
             ).mappings().first()
 
             if not role_row:
-                role_row = db.execute(
-                    text("INSERT INTO roles (name, description) VALUES (:name, :desc) RETURNING id"),
-                    {"name": normalized_role, "desc": f"{normalized_role.title()} role"},
-                ).mappings().one()
+                new_role = Role(
+                    name=normalized_role,
+                    description=f"{normalized_role.title()} role"
+                )
+                db.add(new_role)
+                db.flush()
+                role_id = new_role.id
+            else:
+                role_id = role_row["id"]
 
-            role_id = role_row["id"]
-
-            db.execute(
-                text("""
-                    INSERT INTO user_roles (user_id, role_id)
-                    VALUES (:user_id, :role_id)
-                    ON CONFLICT (user_id, role_id) DO NOTHING
-                """),
-                {"user_id": user_id, "role_id": role_id},
-            )
+            role_exists = db.execute(
+                text("SELECT 1 FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"),
+                {"user_id": user_id, "role_id": role_id}
+            ).scalar()
+            if not role_exists:
+                db.execute(
+                    text("INSERT INTO user_roles (id, user_id, role_id) VALUES (:id, :user_id, :role_id)"),
+                    {"id": uuid.uuid4(), "user_id": user_id, "role_id": role_id}
+                )
 
             # 3. Create/Update Profile depending on role
             if normalized_role == "submitter":
@@ -1030,7 +1036,7 @@ def register_local_user(payload: RegisterUserIn):
                                 gender = COALESCE(:gender, gender),
                                 policy_number = COALESCE(:policy, policy_number),
                                 sum_insured = COALESCE(:sum_insured, sum_insured),
-                                updated_at = now()
+                                updated_at = CURRENT_TIMESTAMP
                             WHERE user_id = :user_id
                         """),
                         {
@@ -1046,10 +1052,11 @@ def register_local_user(payload: RegisterUserIn):
                 else:
                     db.execute(
                         text("""
-                            INSERT INTO patient_profiles (user_id, first_name, last_name, dob, gender, policy_number, sum_insured)
-                            VALUES (:user_id, :first_name, :last_name, :dob, :gender, :policy, :sum_insured)
+                            INSERT INTO patient_profiles (id, user_id, first_name, last_name, dob, gender, policy_number, sum_insured, coverage_verified)
+                            VALUES (:id, :user_id, :first_name, :last_name, :dob, :gender, :policy, :sum_insured, :coverage_verified)
                         """),
                         {
+                            "id": uuid.uuid4(),
                             "user_id": user_id,
                             "first_name": first_name,
                             "last_name": last_name,
@@ -1057,6 +1064,7 @@ def register_local_user(payload: RegisterUserIn):
                             "gender": payload.gender or None,
                             "policy": payload.policy or None,
                             "sum_insured": sum_insured_val,
+                            "coverage_verified": False,
                         },
                     )
 
@@ -1069,16 +1077,16 @@ def register_local_user(payload: RegisterUserIn):
                 ).mappings().first()
 
                 if not org_row:
-                    org_row = db.execute(
-                        text("""
-                            INSERT INTO organizations (name, type, status)
-                            VALUES (:name, 'TPA', 'ACTIVE')
-                            RETURNING id
-                        """),
-                        {"name": org_name},
-                    ).mappings().one()
-
-                org_id = org_row["id"]
+                    new_org = Organization(
+                        name=org_name,
+                        type='TPA',
+                        status='ACTIVE'
+                    )
+                    db.add(new_org)
+                    db.flush()
+                    org_id = new_org.id
+                else:
+                    org_id = org_row["id"]
 
                 existing_staff = db.execute(
                     text("SELECT id FROM staff_profiles WHERE user_id = :user_id"),
@@ -1094,7 +1102,7 @@ def register_local_user(payload: RegisterUserIn):
                                 organization_id = :org_id,
                                 employee_id = COALESCE(:employee_id, employee_id),
                                 designation = :designation,
-                                updated_at = now()
+                                updated_at = CURRENT_TIMESTAMP
                             WHERE user_id = :user_id
                         """),
                         {
@@ -1109,10 +1117,11 @@ def register_local_user(payload: RegisterUserIn):
                 else:
                     db.execute(
                         text("""
-                            INSERT INTO staff_profiles (user_id, organization_id, first_name, last_name, employee_id, designation, status)
-                            VALUES (:user_id, :org_id, :first_name, :last_name, :employee_id, :designation, 'ACTIVE')
+                            INSERT INTO staff_profiles (id, user_id, organization_id, first_name, last_name, employee_id, designation, status)
+                            VALUES (:id, :user_id, :org_id, :first_name, :last_name, :employee_id, :designation, 'ACTIVE')
                         """),
                         {
+                            "id": uuid.uuid4(),
                             "user_id": user_id,
                             "org_id": org_id,
                             "first_name": first_name,
@@ -1206,13 +1215,12 @@ def login_local_user(payload: LoginUserIn):
                     raise HTTPException(status_code=401, detail="Access denied")
                 raise HTTPException(status_code=401, detail="Invalid password")
 
-            actual_role_row = db.execute(
-                text(
-                    "SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id ORDER BY r.name LIMIT 1"
-                ),
-                {"user_id": user_row["id"]},
-            ).mappings().first()
-            actual_role = actual_role_row["name"] if actual_role_row else None
+            actual_role_row = db.query(Role.name).join(
+                UserRoleTable, UserRoleTable.role_id == Role.id
+            ).filter(
+                UserRoleTable.user_id == user_row["id"]
+            ).order_by(Role.name).first()
+            actual_role = actual_role_row[0] if actual_role_row else None
 
             organization_name = None
             organization_slug = None
@@ -1259,7 +1267,7 @@ def login_local_user(payload: LoginUserIn):
                     )
 
             db.execute(
-                text("UPDATE users SET last_login_at = now(), updated_at = now() WHERE id = :id"),
+                text("UPDATE users SET last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
                 {"id": user_row["id"]},
             )
             db.commit()
@@ -1379,16 +1387,15 @@ def request_tpa_organization_registration(payload: OrganizationRegistrationIn):
         if existing:
             return {"id": str(existing["id"]), "status": existing["status"], "message": "Organization already exists"}
 
-        row = db.execute(
-            text("""
-                INSERT INTO organizations (name, type, address, status)
-                VALUES (:name, 'TPA', :address, 'PENDING')
-                RETURNING id, status
-            """),
-            {"name": payload.name.strip(), "address": payload.address.strip() if payload.address else None},
-        ).mappings().one()
+        new_org = Organization(
+            name=payload.name.strip(),
+            type='TPA',
+            address=payload.address.strip() if payload.address else None,
+            status='PENDING'
+        )
+        db.add(new_org)
         db.commit()
-    return {"id": str(row["id"]), "status": row["status"], "message": "Organization submitted for approval"}
+    return {"id": str(new_org.id), "status": new_org.status, "message": "Organization submitted for approval"}
 
 
 @router.post("/tpa-adjusters/registration", status_code=201, dependencies=[Depends(RateLimiter(limit=3, window_seconds=60))])
@@ -1407,32 +1414,30 @@ def register_tpa_adjuster(payload: TpaRegistrationIn):
     keycloak_user_id = _create_keycloak_reviewer(payload)
     try:
         with SessionLocal() as db:
-            user = db.execute(
-                text("""
-                    INSERT INTO users (email, phone, external_provider, external_subject_id, status, password_hash)
-                    VALUES (:email, :phone, 'keycloak', :subject_id, 'ACTIVE', :password_hash)
-                    RETURNING id
-                """),
-                {
-                    "email": str(payload.email),
-                    "phone": payload.phone or None,
-                    "subject_id": keycloak_user_id,
-                    "password_hash": hash_password(payload.password),
-                },
-            ).mappings().one()
+            new_user = User(
+                email=str(payload.email),
+                phone=payload.phone or None,
+                external_provider='keycloak',
+                external_subject_id=keycloak_user_id,
+                status='ACTIVE',
+                password_hash=hash_password(payload.password)
+            )
+            db.add(new_user)
+            db.flush()
+            user_id = new_user.id
             db.execute(
                 text("""
-                    INSERT INTO staff_profiles (user_id, organization_id, employee_id, designation, status)
-                    VALUES (:user_id, :organization_id, :employee_id, 'TPA Adjuster', 'ACTIVE')
+                    INSERT INTO staff_profiles (id, user_id, organization_id, employee_id, designation, status)
+                    VALUES (:id, :user_id, :organization_id, :employee_id, 'TPA Adjuster', 'ACTIVE')
                 """),
-                {"user_id": str(user["id"]), "organization_id": str(payload.organization_id), "employee_id": payload.employee_id or None},
+                {"id": uuid.uuid4(), "user_id": user_id, "organization_id": str(payload.organization_id), "employee_id": payload.employee_id or None},
             )
             db.execute(
                 text("""
-                    INSERT INTO user_roles (user_id, role_id)
-                    SELECT :user_id, id FROM roles WHERE name = 'reviewer'
+                    INSERT INTO user_roles (id, user_id, role_id)
+                    SELECT :id, :user_id, id FROM roles WHERE name = 'reviewer'
                 """),
-                {"user_id": str(user["id"])},
+                {"id": uuid.uuid4(), "user_id": user_id},
             )
             db.commit()
     except Exception as exc:

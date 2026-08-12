@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Text, UUID, String, UniqueConstraint, Date, Numeric
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Text, UUID, String, UniqueConstraint, Date, Numeric, Index, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -394,7 +394,7 @@ class User(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String(255), nullable=False, unique=True)
-    phone = Column(String(255), nullable=True, unique=True)
+    phone = Column(String(255), nullable=True)
     external_provider = Column(String(255), nullable=False)
     external_subject_id = Column(String(255), nullable=False)
     status = Column(Text, nullable=False, default="PENDING")
@@ -406,6 +406,7 @@ class User(Base):
 
     __table_args__ = (
         UniqueConstraint("external_provider", "external_subject_id", name="uq_user_external_provider_subject"),
+        Index("uq_users_phone", "phone", unique=True, mssql_where=text("phone IS NOT NULL")),
     )
 
 

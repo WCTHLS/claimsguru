@@ -5,7 +5,7 @@ Follow these steps to run the ClaimGPT application. This guide ensures all code 
 ---
 
 > [!IMPORTANT]
-> **Branching Policy**: Please do **NOT** make any code modifications or commits directly on the `feature/docker-integrated` branch. After pulling this branch, create a duplicate/local feature branch to do your work.
+> **Branching Policy**: Please do **NOT** make any code modifications or commits directly on the `feature/azure-migration` branch. After pulling this branch, create a duplicate/local feature branch to do your work.
 > 
 > Run the following command to create and switch to your feature branch:
 > ```bash
@@ -23,8 +23,9 @@ GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 ### Host Environment setup (For running migrations locally):
-Install the local Python database dependencies (`pymssql`, `pyodbc`) inside your host virtual environment:
+Create a virtual environment if you don't have one, and install the local Python database dependencies (`pymssql`, `pyodbc`):
 ```powershell
+python -m venv .venv
 .venv\Scripts\pip install -r requirements-gateway.txt
 ```
 
@@ -54,10 +55,14 @@ docker compose -f infra/docker/docker-compose.yml up -d mssql-db
 
 ---
 
-## 5. Initialize the Database
-Microsoft SQL Server starts up blank. You must create the `claimgpt` database inside the container before running migrations:
+## 5. Initialize the Database and Seed Roles
+Microsoft SQL Server starts up blank. You must create the `claimgpt` database and insert the core system roles inside the container before running migrations:
 ```powershell
+# Create the database
 docker exec docker-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -Q "CREATE DATABASE claimgpt;" -C
+
+# Seed system roles
+docker exec docker-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -d claimgpt -Q "INSERT INTO roles (id, name, description) VALUES (NEWID(), 'admin', 'Admin role'), (NEWID(), 'reviewer', 'Reviewer role'), (NEWID(), 'submitter', 'Submitter role'), (NEWID(), 'viewer', 'Viewer role'), (NEWID(), 'tpa_adjuster', 'TPA Adjuster role');" -C
 ```
 
 ---
