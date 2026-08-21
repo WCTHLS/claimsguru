@@ -1,0 +1,1686 @@
+[
+  {
+    "page": 1,
+    "text": "Shree Ganesh Nursing Home\nJaipur, Rajasthan - 302001\nRECEIPT / BILL\nPatient: Pushpa Pareek (52/F)\n1. General Ward Charges\nRs. 4,054\n2. Nursing Charges\nRs. 831\n3. Duty Doctor Fees\nRs. 969\n4. General Ward Charges\nRs. 4,408\n5. Nursing Charges\nRs. 979\n6. Duty Doctor Fees\nRs. 946\n7. General Ward Charges\nRs. 4,072\n8. Nursing Charges\nRs. 830\n9. Duty Doctor Fees\nRs. 1,003\n10. General Ward Charges\nRs. 4,032\n11. Nursing Charges\nRs. 982\n12. Duty Doctor Fees\nRs. 1,009\n13. Registration & Admission Fees\nRs. 580\n14. INJ PAN 40MG [IV BD]\nRs. 384\n15. IV NS 500ML [IV]\nRs. 300\n16. INJ PCM 1GM IV [IV TDS]\nRs. 180\n17. TAB DOLO 650 [PO SOS]\nRs. 168\n18. IV RL 500ML [IV]\nRs. 300\n19. USG Abdomen\nRs. 1,630\n20. LFT\nRs. 420\n21. Dengue NS1\nRs. 1,195\n22. Dengue Serology\nRs. 965\nTOTAL: Rs. 30,237\nPatient Share: Rs. 4,021\nReceived with thanks\n\n1. General Ward Charges | Rs. 4,054\n2. Nursing Charges | Rs. 831\n3. Duty Doctor Fees | Rs. 969\n4. General Ward Charges | Rs. 4,408\n5. Nursing Charges | Rs. 979\n6. Duty Doctor Fees | Rs. 946\n7. General Ward Charges | Rs. 4,072\n8. Nursing Charges | Rs. 830\n9. Duty Doctor Fees | Rs. 1,003\n10. General Ward Charges | Rs. 4,032\n11. Nursing Charges | Rs. 982\n12. Duty Doctor Fees | Rs. 1,009\n13. Registration & Admission Fees | Rs. 580\n14. INJ PAN 40MG [IV BD] | Rs. 384\n15. IV NS 500ML [IV] | Rs. 300\n16. INJ PCM 1GM IV [IV TDS] | Rs. 180\n17. TAB DOLO 650 [PO SOS] | Rs. 168\n18. IV RL 500ML [IV] | Rs. 300\n19. USG Abdomen | Rs. 1,630\n20. LFT | Rs. 420\n21. Dengue NS1 | Rs. 1,195\n22. Dengue Serology | Rs. 965",
+    "fields": {
+      "Patient": "Pushpa Pareek (52/F)",
+      "TOTAL": "Rs. 30,237",
+      "Patient Share": "Rs. 4,021"
+    },
+    "tables": [
+      [
+        [
+          "1. General Ward Charges",
+          "Rs. 4,054"
+        ],
+        [
+          "2. Nursing Charges",
+          "Rs. 831"
+        ],
+        [
+          "3. Duty Doctor Fees",
+          "Rs. 969"
+        ],
+        [
+          "4. General Ward Charges",
+          "Rs. 4,408"
+        ],
+        [
+          "5. Nursing Charges",
+          "Rs. 979"
+        ],
+        [
+          "6. Duty Doctor Fees",
+          "Rs. 946"
+        ],
+        [
+          "7. General Ward Charges",
+          "Rs. 4,072"
+        ],
+        [
+          "8. Nursing Charges",
+          "Rs. 830"
+        ],
+        [
+          "9. Duty Doctor Fees",
+          "Rs. 1,003"
+        ],
+        [
+          "10. General Ward Charges",
+          "Rs. 4,032"
+        ],
+        [
+          "11. Nursing Charges",
+          "Rs. 982"
+        ],
+        [
+          "12. Duty Doctor Fees",
+          "Rs. 1,009"
+        ],
+        [
+          "13. Registration & Admission Fees",
+          "Rs. 580"
+        ],
+        [
+          "14. INJ PAN 40MG [IV BD]",
+          "Rs. 384"
+        ],
+        [
+          "15. IV NS 500ML [IV]",
+          "Rs. 300"
+        ],
+        [
+          "16. INJ PCM 1GM IV [IV TDS]",
+          "Rs. 180"
+        ],
+        [
+          "17. TAB DOLO 650 [PO SOS]",
+          "Rs. 168"
+        ],
+        [
+          "18. IV RL 500ML [IV]",
+          "Rs. 300"
+        ],
+        [
+          "19. USG Abdomen",
+          "Rs. 1,630"
+        ],
+        [
+          "20. LFT",
+          "Rs. 420"
+        ],
+        [
+          "21. Dengue NS1",
+          "Rs. 1,195"
+        ],
+        [
+          "22. Dengue Serology",
+          "Rs. 965"
+        ]
+      ]
+    ],
+    "confidence": 0.9871898734177226,
+    "tokens": [
+      {
+        "text": "Shree",
+        "x0": 101.0,
+        "y0": 105.0,
+        "x1": 181.0,
+        "y1": 133.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ganesh",
+        "x0": 190.0,
+        "y0": 105.0,
+        "x1": 293.0,
+        "y1": 135.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Nursing",
+        "x0": 304.0,
+        "y0": 105.0,
+        "x1": 413.0,
+        "y1": 136.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Home",
+        "x0": 422.0,
+        "y0": 105.0,
+        "x1": 504.0,
+        "y1": 137.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Jaipur,",
+        "x0": 100.0,
+        "y0": 128.0,
+        "x1": 164.0,
+        "y1": 153.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rajasthan",
+        "x0": 169.0,
+        "y0": 129.0,
+        "x1": 261.0,
+        "y1": 153.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "-",
+        "x0": 266.0,
+        "y0": 129.0,
+        "x1": 279.0,
+        "y1": 152.0,
+        "page": 1,
+        "confidence": 0.962,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "302001",
+        "x0": 287.0,
+        "y0": 128.0,
+        "x1": 358.0,
+        "y1": 152.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "RECEIPT",
+        "x0": 527.0,
+        "y0": 174.0,
+        "x1": 634.0,
+        "y1": 202.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "/",
+        "x0": 639.0,
+        "y0": 174.0,
+        "x1": 650.0,
+        "y1": 201.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "BILL",
+        "x0": 655.0,
+        "y0": 173.0,
+        "x1": 712.0,
+        "y1": 202.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Patient:",
+        "x0": 100.0,
+        "y0": 230.0,
+        "x1": 171.0,
+        "y1": 255.0,
+        "page": 1,
+        "confidence": 0.964,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Pushpa",
+        "x0": 175.0,
+        "y0": 230.0,
+        "x1": 247.0,
+        "y1": 255.0,
+        "page": 1,
+        "confidence": 0.984,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Pareek",
+        "x0": 252.0,
+        "y0": 229.0,
+        "x1": 320.0,
+        "y1": 255.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "(52/F)",
+        "x0": 324.0,
+        "y0": 229.0,
+        "x1": 383.0,
+        "y1": 255.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1.",
+        "x0": 101.0,
+        "y0": 278.0,
+        "x1": 126.0,
+        "y1": 300.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "General",
+        "x0": 138.0,
+        "y0": 278.0,
+        "x1": 227.0,
+        "y1": 300.0,
+        "page": 1,
+        "confidence": 0.985,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ward",
+        "x0": 236.0,
+        "y0": 278.0,
+        "x1": 287.0,
+        "y1": 301.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Charges",
+        "x0": 299.0,
+        "y0": 278.0,
+        "x1": 388.0,
+        "y1": 301.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 950.0,
+        "y0": 280.0,
+        "x1": 988.0,
+        "y1": 298.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4,054",
+        "x0": 1002.0,
+        "y0": 279.0,
+        "x1": 1064.0,
+        "y1": 300.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "2.",
+        "x0": 100.0,
+        "y0": 307.0,
+        "x1": 126.0,
+        "y1": 329.0,
+        "page": 1,
+        "confidence": 0.949,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Nursing",
+        "x0": 136.0,
+        "y0": 307.0,
+        "x1": 224.0,
+        "y1": 330.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Charges",
+        "x0": 238.0,
+        "y0": 308.0,
+        "x1": 327.0,
+        "y1": 330.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 309.0,
+        "x1": 1013.0,
+        "y1": 326.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "831",
+        "x0": 1029.0,
+        "y0": 308.0,
+        "x1": 1063.0,
+        "y1": 328.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "3.",
+        "x0": 102.0,
+        "y0": 337.0,
+        "x1": 126.0,
+        "y1": 358.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Duty",
+        "x0": 138.0,
+        "y0": 337.0,
+        "x1": 187.0,
+        "y1": 358.0,
+        "page": 1,
+        "confidence": 0.988,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor",
+        "x0": 201.0,
+        "y0": 337.0,
+        "x1": 276.0,
+        "y1": 358.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Fees",
+        "x0": 289.0,
+        "y0": 338.0,
+        "x1": 339.0,
+        "y1": 358.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 339.0,
+        "x1": 1012.0,
+        "y1": 356.0,
+        "page": 1,
+        "confidence": 0.948,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "969",
+        "x0": 1028.0,
+        "y0": 338.0,
+        "x1": 1062.0,
+        "y1": 357.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4.",
+        "x0": 100.0,
+        "y0": 366.0,
+        "x1": 125.0,
+        "y1": 386.0,
+        "page": 1,
+        "confidence": 0.888,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "General",
+        "x0": 138.0,
+        "y0": 366.0,
+        "x1": 227.0,
+        "y1": 387.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ward",
+        "x0": 237.0,
+        "y0": 366.0,
+        "x1": 286.0,
+        "y1": 387.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Charges",
+        "x0": 300.0,
+        "y0": 366.0,
+        "x1": 388.0,
+        "y1": 387.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 951.0,
+        "y0": 367.0,
+        "x1": 988.0,
+        "y1": 385.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4,408",
+        "x0": 1002.0,
+        "y0": 366.0,
+        "x1": 1063.0,
+        "y1": 386.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "5.",
+        "x0": 101.0,
+        "y0": 395.0,
+        "x1": 125.0,
+        "y1": 417.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Nursing",
+        "x0": 136.0,
+        "y0": 395.0,
+        "x1": 225.0,
+        "y1": 418.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Charges",
+        "x0": 239.0,
+        "y0": 396.0,
+        "x1": 326.0,
+        "y1": 418.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 977.0,
+        "y0": 397.0,
+        "x1": 1013.0,
+        "y1": 414.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "979",
+        "x0": 1028.0,
+        "y0": 397.0,
+        "x1": 1063.0,
+        "y1": 414.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "6.",
+        "x0": 101.0,
+        "y0": 425.0,
+        "x1": 125.0,
+        "y1": 446.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Duty",
+        "x0": 138.0,
+        "y0": 425.0,
+        "x1": 187.0,
+        "y1": 446.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor",
+        "x0": 200.0,
+        "y0": 425.0,
+        "x1": 275.0,
+        "y1": 446.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Fees",
+        "x0": 288.0,
+        "y0": 426.0,
+        "x1": 338.0,
+        "y1": 446.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 977.0,
+        "y0": 427.0,
+        "x1": 1013.0,
+        "y1": 443.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "946",
+        "x0": 1028.0,
+        "y0": 426.0,
+        "x1": 1063.0,
+        "y1": 444.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "7.",
+        "x0": 102.0,
+        "y0": 453.0,
+        "x1": 126.0,
+        "y1": 474.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "General",
+        "x0": 137.0,
+        "y0": 453.0,
+        "x1": 225.0,
+        "y1": 474.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ward",
+        "x0": 237.0,
+        "y0": 454.0,
+        "x1": 286.0,
+        "y1": 475.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Charges",
+        "x0": 299.0,
+        "y0": 454.0,
+        "x1": 387.0,
+        "y1": 476.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 951.0,
+        "y0": 455.0,
+        "x1": 988.0,
+        "y1": 473.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4,072",
+        "x0": 1002.0,
+        "y0": 454.0,
+        "x1": 1064.0,
+        "y1": 474.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "8.",
+        "x0": 102.0,
+        "y0": 482.0,
+        "x1": 125.0,
+        "y1": 504.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Nursing",
+        "x0": 137.0,
+        "y0": 483.0,
+        "x1": 224.0,
+        "y1": 504.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Charges",
+        "x0": 238.0,
+        "y0": 484.0,
+        "x1": 325.0,
+        "y1": 505.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 485.0,
+        "x1": 1012.0,
+        "y1": 501.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "830",
+        "x0": 1028.0,
+        "y0": 484.0,
+        "x1": 1062.0,
+        "y1": 502.0,
+        "page": 1,
+        "confidence": 0.998,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "9.",
+        "x0": 101.0,
+        "y0": 512.0,
+        "x1": 125.0,
+        "y1": 533.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Duty",
+        "x0": 139.0,
+        "y0": 512.0,
+        "x1": 188.0,
+        "y1": 533.0,
+        "page": 1,
+        "confidence": 0.978,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor",
+        "x0": 200.0,
+        "y0": 512.0,
+        "x1": 276.0,
+        "y1": 533.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Fees",
+        "x0": 288.0,
+        "y0": 512.0,
+        "x1": 337.0,
+        "y1": 532.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 951.0,
+        "y0": 513.0,
+        "x1": 988.0,
+        "y1": 531.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1,003",
+        "x0": 1003.0,
+        "y0": 512.0,
+        "x1": 1063.0,
+        "y1": 532.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "10.",
+        "x0": 101.0,
+        "y0": 541.0,
+        "x1": 137.0,
+        "y1": 561.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "General",
+        "x0": 149.0,
+        "y0": 541.0,
+        "x1": 239.0,
+        "y1": 561.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ward",
+        "x0": 248.0,
+        "y0": 541.0,
+        "x1": 299.0,
+        "y1": 562.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Charges",
+        "x0": 312.0,
+        "y0": 541.0,
+        "x1": 401.0,
+        "y1": 563.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 951.0,
+        "y0": 542.0,
+        "x1": 988.0,
+        "y1": 560.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4,032",
+        "x0": 1002.0,
+        "y0": 542.0,
+        "x1": 1063.0,
+        "y1": 561.0,
+        "page": 1,
+        "confidence": 0.988,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "11.",
+        "x0": 101.0,
+        "y0": 571.0,
+        "x1": 137.0,
+        "y1": 592.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Nursing",
+        "x0": 149.0,
+        "y0": 571.0,
+        "x1": 237.0,
+        "y1": 592.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Charges",
+        "x0": 251.0,
+        "y0": 571.0,
+        "x1": 339.0,
+        "y1": 592.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 977.0,
+        "y0": 572.0,
+        "x1": 1013.0,
+        "y1": 589.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "982",
+        "x0": 1028.0,
+        "y0": 572.0,
+        "x1": 1063.0,
+        "y1": 591.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "12.",
+        "x0": 102.0,
+        "y0": 600.0,
+        "x1": 137.0,
+        "y1": 620.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Duty",
+        "x0": 150.0,
+        "y0": 600.0,
+        "x1": 200.0,
+        "y1": 620.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor",
+        "x0": 213.0,
+        "y0": 600.0,
+        "x1": 287.0,
+        "y1": 620.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Fees",
+        "x0": 301.0,
+        "y0": 601.0,
+        "x1": 350.0,
+        "y1": 620.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 951.0,
+        "y0": 601.0,
+        "x1": 988.0,
+        "y1": 619.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1,009",
+        "x0": 1003.0,
+        "y0": 600.0,
+        "x1": 1063.0,
+        "y1": 620.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "13.",
+        "x0": 102.0,
+        "y0": 630.0,
+        "x1": 137.0,
+        "y1": 650.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Registration",
+        "x0": 150.0,
+        "y0": 629.0,
+        "x1": 298.0,
+        "y1": 649.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "&",
+        "x0": 315.0,
+        "y0": 629.0,
+        "x1": 325.0,
+        "y1": 649.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Admission",
+        "x0": 339.0,
+        "y0": 629.0,
+        "x1": 448.0,
+        "y1": 649.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Fees",
+        "x0": 463.0,
+        "y0": 630.0,
+        "x1": 513.0,
+        "y1": 648.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 631.0,
+        "x1": 1012.0,
+        "y1": 647.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "580",
+        "x0": 1027.0,
+        "y0": 630.0,
+        "x1": 1062.0,
+        "y1": 647.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "14.",
+        "x0": 102.0,
+        "y0": 658.0,
+        "x1": 137.0,
+        "y1": 677.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "INJ",
+        "x0": 152.0,
+        "y0": 658.0,
+        "x1": 187.0,
+        "y1": 677.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "PAN",
+        "x0": 200.0,
+        "y0": 657.0,
+        "x1": 234.0,
+        "y1": 677.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "40MG",
+        "x0": 251.0,
+        "y0": 657.0,
+        "x1": 299.0,
+        "y1": 678.0,
+        "page": 1,
+        "confidence": 0.984,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "[IV",
+        "x0": 315.0,
+        "y0": 658.0,
+        "x1": 349.0,
+        "y1": 679.0,
+        "page": 1,
+        "confidence": 0.947,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "BD]",
+        "x0": 363.0,
+        "y0": 658.0,
+        "x1": 400.0,
+        "y1": 680.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 659.0,
+        "x1": 1012.0,
+        "y1": 676.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "384",
+        "x0": 1029.0,
+        "y0": 659.0,
+        "x1": 1061.0,
+        "y1": 676.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "15.",
+        "x0": 101.0,
+        "y0": 687.0,
+        "x1": 138.0,
+        "y1": 706.0,
+        "page": 1,
+        "confidence": 0.925,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "IV",
+        "x0": 152.0,
+        "y0": 687.0,
+        "x1": 174.0,
+        "y1": 706.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "NS",
+        "x0": 187.0,
+        "y0": 687.0,
+        "x1": 212.0,
+        "y1": 706.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "500ML",
+        "x0": 226.0,
+        "y0": 687.0,
+        "x1": 286.0,
+        "y1": 707.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "[IV]",
+        "x0": 303.0,
+        "y0": 687.0,
+        "x1": 349.0,
+        "y1": 708.0,
+        "page": 1,
+        "confidence": 0.682,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 689.0,
+        "x1": 1012.0,
+        "y1": 705.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "300",
+        "x0": 1029.0,
+        "y0": 688.0,
+        "x1": 1062.0,
+        "y1": 705.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "16.",
+        "x0": 101.0,
+        "y0": 716.0,
+        "x1": 137.0,
+        "y1": 735.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "INJ",
+        "x0": 152.0,
+        "y0": 716.0,
+        "x1": 187.0,
+        "y1": 735.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "PCM",
+        "x0": 201.0,
+        "y0": 716.0,
+        "x1": 234.0,
+        "y1": 735.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1GM",
+        "x0": 252.0,
+        "y0": 715.0,
+        "x1": 284.0,
+        "y1": 736.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "IV",
+        "x0": 302.0,
+        "y0": 715.0,
+        "x1": 325.0,
+        "y1": 736.0,
+        "page": 1,
+        "confidence": 0.949,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "[IV",
+        "x0": 340.0,
+        "y0": 716.0,
+        "x1": 374.0,
+        "y1": 736.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TDS]",
+        "x0": 391.0,
+        "y0": 716.0,
+        "x1": 435.0,
+        "y1": 737.0,
+        "page": 1,
+        "confidence": 0.971,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 717.0,
+        "x1": 1012.0,
+        "y1": 734.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "180",
+        "x0": 1029.0,
+        "y0": 717.0,
+        "x1": 1061.0,
+        "y1": 734.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "17.",
+        "x0": 101.0,
+        "y0": 746.0,
+        "x1": 137.0,
+        "y1": 765.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TAB",
+        "x0": 152.0,
+        "y0": 746.0,
+        "x1": 186.0,
+        "y1": 765.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "DOLO",
+        "x0": 200.0,
+        "y0": 746.0,
+        "x1": 248.0,
+        "y1": 765.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "650",
+        "x0": 265.0,
+        "y0": 746.0,
+        "x1": 300.0,
+        "y1": 766.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "[PO",
+        "x0": 316.0,
+        "y0": 746.0,
+        "x1": 349.0,
+        "y1": 767.0,
+        "page": 1,
+        "confidence": 0.924,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "SOS]",
+        "x0": 365.0,
+        "y0": 745.0,
+        "x1": 411.0,
+        "y1": 768.0,
+        "page": 1,
+        "confidence": 0.979,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 748.0,
+        "x1": 1013.0,
+        "y1": 764.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "168",
+        "x0": 1029.0,
+        "y0": 747.0,
+        "x1": 1062.0,
+        "y1": 765.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "18.",
+        "x0": 102.0,
+        "y0": 775.0,
+        "x1": 137.0,
+        "y1": 794.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "IV",
+        "x0": 152.0,
+        "y0": 775.0,
+        "x1": 174.0,
+        "y1": 793.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "RL",
+        "x0": 188.0,
+        "y0": 774.0,
+        "x1": 211.0,
+        "y1": 794.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "500ML",
+        "x0": 226.0,
+        "y0": 774.0,
+        "x1": 286.0,
+        "y1": 795.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "[IV]",
+        "x0": 303.0,
+        "y0": 775.0,
+        "x1": 348.0,
+        "y1": 797.0,
+        "page": 1,
+        "confidence": 0.924,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 777.0,
+        "x1": 1013.0,
+        "y1": 793.0,
+        "page": 1,
+        "confidence": 0.977,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "300",
+        "x0": 1028.0,
+        "y0": 776.0,
+        "x1": 1061.0,
+        "y1": 794.0,
+        "page": 1,
+        "confidence": 0.998,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "19.",
+        "x0": 102.0,
+        "y0": 804.0,
+        "x1": 137.0,
+        "y1": 823.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "USG",
+        "x0": 150.0,
+        "y0": 804.0,
+        "x1": 184.0,
+        "y1": 823.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Abdomen",
+        "x0": 200.0,
+        "y0": 804.0,
+        "x1": 285.0,
+        "y1": 824.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 951.0,
+        "y0": 805.0,
+        "x1": 988.0,
+        "y1": 823.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1,630",
+        "x0": 1004.0,
+        "y0": 804.0,
+        "x1": 1063.0,
+        "y1": 824.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "20.",
+        "x0": 101.0,
+        "y0": 833.0,
+        "x1": 136.0,
+        "y1": 852.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "LFT",
+        "x0": 151.0,
+        "y0": 833.0,
+        "x1": 188.0,
+        "y1": 852.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 834.0,
+        "x1": 1012.0,
+        "y1": 851.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "420",
+        "x0": 1027.0,
+        "y0": 834.0,
+        "x1": 1061.0,
+        "y1": 852.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "21.",
+        "x0": 102.0,
+        "y0": 862.0,
+        "x1": 138.0,
+        "y1": 883.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Dengue",
+        "x0": 150.0,
+        "y0": 862.0,
+        "x1": 225.0,
+        "y1": 883.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "NS1",
+        "x0": 237.0,
+        "y0": 862.0,
+        "x1": 275.0,
+        "y1": 883.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 951.0,
+        "y0": 863.0,
+        "x1": 989.0,
+        "y1": 881.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1,195",
+        "x0": 1003.0,
+        "y0": 862.0,
+        "x1": 1063.0,
+        "y1": 882.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "22.",
+        "x0": 101.0,
+        "y0": 891.0,
+        "x1": 137.0,
+        "y1": 912.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Dengue",
+        "x0": 149.0,
+        "y0": 891.0,
+        "x1": 225.0,
+        "y1": 913.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Serology",
+        "x0": 240.0,
+        "y0": 891.0,
+        "x1": 339.0,
+        "y1": 914.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 976.0,
+        "y0": 892.0,
+        "x1": 1012.0,
+        "y1": 909.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "965",
+        "x0": 1028.0,
+        "y0": 891.0,
+        "x1": 1062.0,
+        "y1": 910.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TOTAL:",
+        "x0": 886.0,
+        "y0": 942.0,
+        "x1": 975.0,
+        "y1": 966.0,
+        "page": 1,
+        "confidence": 0.987,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 989.0,
+        "y0": 942.0,
+        "x1": 1034.0,
+        "y1": 967.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "30,237",
+        "x0": 1052.0,
+        "y0": 942.0,
+        "x1": 1139.0,
+        "y1": 968.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Patient",
+        "x0": 809.0,
+        "y0": 975.0,
+        "x1": 905.0,
+        "y1": 997.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Share:",
+        "x0": 920.0,
+        "y0": 974.0,
+        "x1": 1001.0,
+        "y1": 998.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 1014.0,
+        "y0": 974.0,
+        "x1": 1057.0,
+        "y1": 999.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4,021",
+        "x0": 1072.0,
+        "y0": 974.0,
+        "x1": 1138.0,
+        "y1": 999.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Received",
+        "x0": 99.0,
+        "y0": 1059.0,
+        "x1": 195.0,
+        "y1": 1085.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "with",
+        "x0": 200.0,
+        "y0": 1059.0,
+        "x1": 242.0,
+        "y1": 1085.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "thanks",
+        "x0": 247.0,
+        "y0": 1059.0,
+        "x1": 319.0,
+        "y1": 1085.0,
+        "page": 1,
+        "confidence": 0.974,
+        "source": "azure_docintel"
+      }
+    ]
+  }
+]

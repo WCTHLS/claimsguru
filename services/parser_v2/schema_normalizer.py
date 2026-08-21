@@ -182,9 +182,12 @@ def _is_invalid_expense_row(description: str, amount: str = "") -> bool:
         "cheque no", "chq no", "chq number", "aadhaar", "aadhaar number", "uidai", "pan card", "pan card number",
         "pan no", "pan number", "neft", "neft mandate", "mandate", "cheque image", "net claimed", "net claimed amount",
         "claimed amount", "claimed total", "relation", "declare", "confirm", "mandate verification",
-        "estimated", "approved", "sub-limit", "sublimit", "limit", "bonus", "checklist", "received", "remarks",
-        "observation", "exclusion", "amount payable", "payable by", "insurer", "co-payment", "co payment",
-        "pre-auth", "pre auth", "gross total"
+        "pre-auth", "pre auth", "gross total",
+        # Demographic & Clinical exclusions
+        "sex", "weight", "apgar", "delivery notes", "discharge summary",
+        "gestation", "gravida", "parity", "baby of", "infant", "newborn",
+        "gender", " age:", " age ", "time:", "date:", "treatment on discharge",
+        "vitals", "pulse rate", "blood pressure", "respiratory rate", "temperature", "spo2"
     }
     
     # Check if any blacklist term matches
@@ -193,7 +196,18 @@ def _is_invalid_expense_row(description: str, amount: str = "") -> bool:
             if re.search(r"\bage\b", desc_lower):
                 return True
         elif term == "total":
-            if (desc_lower == "total" or any(phrase in desc_lower for phrase in ["total amount", "grand total", "total claimed", "total billed", "total charges", "gross total", "subtotal", "sub-total"])) and not _is_medical_procedure(desc_lower):
+            is_summary = (
+                re.match(r"^total\b", desc_lower) or
+                re.match(r"^subtotal\b", desc_lower) or
+                re.match(r"^sub-total\b", desc_lower) or
+                re.match(r"^grand\s+total\b", desc_lower) or
+                re.match(r"^total\s+billed\b", desc_lower) or
+                re.match(r"^total\s+claimed\b", desc_lower) or
+                re.match(r"^total\s+amount\b", desc_lower) or
+                re.match(r"^total\s+charges\b", desc_lower) or
+                desc_lower == "total"
+            )
+            if is_summary and not _is_medical_procedure(desc_lower):
                 return True
         elif term in desc_lower:
             return True
@@ -273,8 +287,35 @@ def _is_checklist_or_status_table(table: Any) -> bool:
         "kyc details", "bank details", "reimbursement", "payer remarks", "risk level",
         "observation"
     ]
-    
     return sum(1 for kw in checklist_keywords if kw in table_text) >= 3
+
+
+def _is_unit_or_count_token(tokens_list: list, idx: int) -> bool:
+    """Helper to detect if a numeric token at a given index is actually part of a unit or count
+    (e.g., '1 Days', '23 years', '3 visits', '500 mg') rather than a financial amount.
+    """
+    unit_keywords = {
+        "days", "day", "visit", "visits", "mg", "ml", "mcg", "g", "gm", "gms", "kg", 
+        "tablet", "tablets", "tab", "capsule", "capsules", "cap", "pill", "pills",
+        "documented", "conditions", "condition", "prescriptions", "prescription",
+        "prior", "active", "percent", "%", "nos", "no", "qty", "quantity", "hours", "hrs", "hour", "min", "mins", "minutes",
+        "year", "years", "yr", "yrs"
+    }
+    
+    right_tokens = tokens_list[idx + 1:]
+    # Get next non-empty token
+    next_token = None
+    for t in right_tokens:
+        text = str(t.get("text", "") if isinstance(t, dict) else getattr(t, "text", "")).strip()
+        if text:
+            next_token = text
+            break
+            
+    if next_token:
+        rt_text = next_token.lower().strip("().,:-")
+        if rt_text in unit_keywords:
+            return True
+    return False
 
 
 def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
@@ -532,14 +573,23 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                     candidate_x0 = amount_header_x0.get(header_name)
                     if candidate_x0 is None:
                         continue
-                    for candidate_idx in range(len(cells) - 1, -1, -1):
+                    
+                    # Distance-based amount matching: find the numeric cell closest to candidate_x0
+                    best_idx = None
+                    min_dist = float("inf")
+                    for candidate_idx in range(len(cells)):
                         candidate_cell = cells[candidate_idx]
                         candidate_text = str(candidate_cell.text or "").strip()
                         if not _looks_numeric(candidate_text):
                             continue
-                        if float(candidate_cell.bbox[0]) + 1e-3 < candidate_x0:
-                            continue
-                        amount_idx = candidate_idx
+                        dist = abs(float(candidate_cell.bbox[0]) - candidate_x0)
+                        if dist < min_dist:
+                            min_dist = dist
+                            best_idx = candidate_idx
+                    
+                    # Accept the closest numeric cell if within 150px
+                    if best_idx is not None and min_dist < 150.0:
+                        amount_idx = best_idx
                         chosen_amount_header = header_name
                         break
                     if amount_idx is not None:
@@ -553,31 +603,53 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
 
             if amount_idx is not None:
                 amount = cells[amount_idx].text
-                description_parts = []
+                description = ""
+                is_azure_table = str(getattr(table, "region_id", "") or "").startswith("azure_table_")
                 
-                # If there's no header to give us qty_x0, we can infer the end of the description
-                # by finding the last non-numeric cell. All subsequent numeric cells are assumed
-                # to be quantity, rate, amount columns.
-                last_desc_idx = len(cells) - 1
-                if qty_x0 is None:
-                    for i in range(len(cells) - 1, -1, -1):
-                        if not _looks_numeric(str(cells[i].text or "")):
-                            last_desc_idx = i
-                            break
+                # If we have a description column header and it is an Azure table, use its x0 to find the corresponding cell.
+                desc_col_idx = header_map.get("description")
+                if is_azure_table and desc_col_idx is not None and desc_col_idx < len(cells):
+                    desc_x0 = float(header_cells[desc_col_idx].bbox[0]) if header_cells else (desc_col_idx * 100.0)
+                    best_desc_idx = None
+                    min_desc_dist = float("inf")
+                    for idx_c in range(len(cells)):
+                        cell = cells[idx_c]
+                        if idx_c == amount_idx:
+                            continue
+                        dist = abs(float(cell.bbox[0]) - desc_x0)
+                        if dist < min_desc_dist:
+                            min_desc_dist = dist
+                            best_desc_idx = idx_c
+                    if best_desc_idx is not None and min_desc_dist < 150.0:
+                        description = str(cells[best_desc_idx].text or "").strip()
+                
+                # Fallback to standard concatenation if description is empty or not mapped
+                if not description:
+                    description_parts = []
+                    
+                    # If there's no header to give us qty_x0, we can infer the end of the description
+                    # by finding the last non-numeric cell. All subsequent numeric cells are assumed
+                    # to be quantity, rate, amount columns.
+                    last_desc_idx = len(cells) - 1
+                    if qty_x0 is None:
+                        for i in range(len(cells) - 1, -1, -1):
+                            if not _looks_numeric(str(cells[i].text or "")):
+                                last_desc_idx = i
+                                break
 
-                for idx_c, cell in enumerate(cells):
-                    cell_x0 = float(cell.bbox[0]) if getattr(cell, "bbox", None) else 0.0
-                    cell_text = str(cell.text or "").strip()
-                    if not cell_text:
-                        continue
-                    if _looks_numeric(cell_text) and not description_parts:
-                        continue
-                    if qty_x0 is not None and cell_x0 >= qty_x0 - 1e-3:
-                        continue
-                    if qty_x0 is None and idx_c > last_desc_idx:
-                        continue
-                    description_parts.append(cell_text)
-                description = " ".join(description_parts).strip()
+                    for idx_c, cell in enumerate(cells):
+                        cell_x0 = float(cell.bbox[0]) if getattr(cell, "bbox", None) else 0.0
+                        cell_text = str(cell.text or "").strip()
+                        if not cell_text:
+                            continue
+                        if _looks_numeric(cell_text):
+                            continue
+                        if qty_x0 is not None and cell_x0 >= qty_x0 - 1e-3:
+                            continue
+                        if qty_x0 is None and idx_c > last_desc_idx:
+                            continue
+                        description_parts.append(cell_text)
+                    description = " ".join(description_parts).strip()
 
             if not description or not amount:
                 continue
@@ -649,6 +721,8 @@ def normalize_region_expenses(regions: List[Region]) -> List[Dict[str, Any]]:
             if not token_text:
                 continue
             if re.fullmatch(r"\d+(?:\.\d+)?", token_text):
+                if _is_unit_or_count_token(tokens, idx):
+                    continue
                 amount_idx = idx
                 amount_text = getattr(tokens[idx], "text", "").strip()
                 break
@@ -1029,6 +1103,8 @@ def _normalize_page_summary_bill_expenses(tokens: List[Dict[str, Any]]) -> List[
             if not token_text:
                 continue
             if re.fullmatch(r"\d+(?:\.\d+)?", token_text):
+                if _is_unit_or_count_token(line_tokens, idx):
+                    continue
                 amount_index = idx
                 amount_text = str(line_tokens[idx].get("text", "")).strip()
                 break

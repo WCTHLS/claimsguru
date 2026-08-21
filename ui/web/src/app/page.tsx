@@ -4,9 +4,9 @@ import ClaimChatWidget from "@/components/ClaimChatWidget";
 import NavBrand from "@/components/NavBrand";
 
 export const metadata: Metadata = {
-  title: "ClaimGPT — AI-Powered Healthcare Claims Intelligence by WaferWire",
+  title: "ClaimsGuru — AI-Powered Healthcare Claims Intelligence by WaferWire",
   description:
-    "ClaimGPT helps TPAs and insurers automate claims review, ICD/CPT coding, validation, fraud detection, and IRDAI submission end-to-end. Built by WaferWire Cloud Technologies.",
+    "ClaimsGuru helps TPAs and insurers automate claims review, ICD/CPT coding, validation, fraud detection, and IRDAI submission end-to-end. Built by WaferWire Cloud Technologies.",
 };
 
 const STYLES = `
@@ -174,15 +174,8 @@ const STYLES = `
 `;
 
 function BrandMark() {
-  // Concept 37 — folded document + emerald sparkle
   return (
-    <svg width="28" height="28" viewBox="0 0 64 68" fill="none" aria-hidden style={{ flex: "0 0 auto" }}>
-      <path d="M2 6 a4 4 0 0 1 4 -4 h36 l18 18 v44 a4 4 0 0 1 -4 4 h-50 a4 4 0 0 1 -4 -4 z" fill="#0f4c81" />
-      <path d="M42 2 v14 a4 4 0 0 0 4 4 h14" fill="none" stroke="#fff" strokeWidth="2.5" opacity=".9" />
-      <rect x="12" y="30" width="34" height="4" rx="2" fill="#fff" opacity=".7" />
-      <rect x="12" y="40" width="26" height="4" rx="2" fill="#fff" opacity=".5" />
-      <path d="M46 44 l3.5 8 l8 3.5 l-8 3.5 l-3.5 8 l-3.5 -8 l-8 -3.5 l8 -3.5 z" fill="#0d9488" />
-    </svg>
+    <img src="/ClaimsGuru_Mark.png" alt="ClaimsGuru" style={{ width: "28px", height: "28px", flex: "0 0 auto" }} />
   );
 }
 
@@ -213,16 +206,16 @@ export default function HomePage() {
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
       {/* Announcement strip */}
-      <div className="lp-strip">ClaimGPT runs on Microsoft Azure · self-hosted, HIPAA-aligned claims AI for TPAs &amp; insurers<a href="#how">See how it works →</a></div>
+      <div className="lp-strip">ClaimsGuru runs on Microsoft Azure · self-hosted, HIPAA-aligned claims AI for TPAs &amp; insurers<a href="#how">See how it works →</a></div>
 
       {/* Nav */}
       <nav className="lp-nav">
         <div className="lp-nav-inner">
-          <NavBrand><BrandMark /><span>ClaimGPT</span></NavBrand>
+          <NavBrand><img src="/image.png" alt="ClaimsGuru" style={{ height: "32px", width: "auto" }} /></NavBrand>
           <div className="lp-nav-links"></div>
           <div className="lp-nav-actions">
             <Link className="lp-nav-ghost" href="/app">Sign in</Link>
-            <Link className="lp-nav-cta" href="/app">Launch ClaimGPT</Link>
+            <Link className="lp-nav-cta" href="/app">Launch ClaimsGuru</Link>
           </div>
         </div>
       </nav>
@@ -235,15 +228,15 @@ export default function HomePage() {
               <span className="lp-badge">★ Microsoft Partner · Built on Azure</span>
               <span className="lp-eyebrow">AI-Powered Healthcare Claims Intelligence</span>
               <h1 className="lp-h1">The enterprise platform to process claims <span className="em">in minutes, not days.</span></h1>
-              <p className="lp-lede">ClaimGPT unifies review, ICD/CPT coding, rejection-risk scoring, fraud triage and IRDAI submission so TPAs and insurers cut turnaround, raise accuracy, and scale operations with confidence.</p>
+              <p className="lp-lede">ClaimsGuru unifies review, ICD/CPT coding, rejection-risk scoring, fraud triage and IRDAI submission so TPAs and insurers cut turnaround, raise accuracy, and scale operations with confidence.</p>
               <div className="lp-cta-row">
-                <Link className="lp-btn lp-btn-primary" href="/app">Launch ClaimGPT</Link>
+                <Link className="lp-btn lp-btn-primary" href="/app">Launch ClaimsGuru</Link>
                 <a className="lp-btn lp-btn-ghost" href="#how">Book a walkthrough</a>
               </div>
               <p className="lp-microcopy">Microsoft Partner · deploys on Azure · self-hosted LLM · zero PHI egress · ISO 27001 · HIPAA-aligned</p>
             </div>
             <div className="lp-mock" aria-hidden>
-              <div className="lp-mock-head"><span className="lp-mock-dot" /><span className="lp-mock-dot" /><span className="lp-mock-dot" /><span className="lp-mock-title">ClaimGPT · CLM-10428</span></div>
+              <div className="lp-mock-head"><span className="lp-mock-dot" /><span className="lp-mock-dot" /><span className="lp-mock-dot" /><span className="lp-mock-title">ClaimsGuru · CLM-10428</span></div>
               <div className="lp-mock-body">
                 <div className="lp-mock-row"><span>Patient</span><b>Abraham Jacob</b></div>
                 <div className="lp-mock-row"><span>Diagnosis</span><b>ICD-10 · J18.9</b></div>
@@ -291,7 +284,7 @@ export default function HomePage() {
         <span className="lp-eye">How it works</span>
         <h2 className="lp-h2">From upload to submission in four steps.</h2>
         <p className="lp-sub">A single intelligent layer connects fragmented workflows — less manual effort, better accuracy, faster claims across the lifecycle.</p>
-        <svg className="lp-flow" viewBox="0 0 1000 120" role="img" aria-label="ClaimGPT pipeline">
+        <svg className="lp-flow" viewBox="0 0 1000 120" role="img" aria-label="ClaimsGuru pipeline">
           <line x1="60" y1="60" x2="940" y2="60" stroke="#dbe3ec" strokeWidth="4" strokeLinecap="round" />
           <line x1="60" y1="60" x2="940" y2="60" stroke="url(#fg)" strokeWidth="4" strokeLinecap="round" strokeDasharray="14 14"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.9s" repeatCount="indefinite" /></line>
           <defs><linearGradient id="fg" x1="0" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse"><stop stopColor="#0f4c81" /><stop offset="1" stopColor="#0d9488" /></linearGradient></defs>
@@ -317,7 +310,7 @@ export default function HomePage() {
       <section id="company" className="lp-section"><div className="lp-wrap">
         <span className="lp-eye">Company</span>
         <h2 className="lp-h2">Engineered by WaferWire Cloud Technologies.</h2>
-        <p className="lp-sub">WaferWire (WCT) is a global cloud, data and AI engineering company and a Microsoft partner, trusted by enterprises across healthcare, finance and the public sector. With delivery teams in the US and India, we design, build and run secure, large-scale software on Azure — ClaimGPT is our healthcare claims platform, built to self-host so protected data never leaves your environment.</p>
+        <p className="lp-sub">WaferWire (WCT) is a global cloud, data and AI engineering company and a Microsoft partner, trusted by enterprises across healthcare, finance and the public sector. With delivery teams in the US and India, we design, build and run secure, large-scale software on Azure — ClaimsGuru is our healthcare claims platform, built to self-host so protected data never leaves your environment.</p>
         <div className="lp-grid-3">
           <div className="lp-card"><div className="lp-ic"><Icon n="azure" /></div><div className="lp-ct">Microsoft partner</div><p className="lp-cb">Cloud-native apps and applied AI delivered on Microsoft Azure for regulated enterprises.</p></div>
           <div className="lp-card"><div className="lp-ic"><Icon n="shield" /></div><div className="lp-ct">Compliance-first</div><p className="lp-cb">IRDAI · ISO 27001 · DPDP · HIPAA-aligned with append-only audit trails.</p></div>
@@ -334,8 +327,8 @@ export default function HomePage() {
       {/* Product */}
       <section id="product" className="lp-section alt"><div className="lp-wrap">
         <span className="lp-eye">The product</span>
-        <h2 className="lp-h2">What ClaimGPT does for every claim.</h2>
-        <p className="lp-sub">Drop in a stack of documents and ClaimGPT turns them into a decision-ready claim — extracted, coded, scored, validated and submission-ready — with a human reviewer always in control.</p>
+        <h2 className="lp-h2">What ClaimsGuru does for every claim.</h2>
+        <p className="lp-sub">Drop in a stack of documents and ClaimsGuru turns them into a decision-ready claim — extracted, coded, scored, validated and submission-ready — with a human reviewer always in control.</p>
         <div className="lp-grid-2">
           <div className="lp-card"><div className="lp-ct">Understands the paperwork</div><p className="lp-cb">Reads scanned PDFs, photos and forms, detects document types, de-duplicates pages and links them to the right patient — then pulls 20+ fields like diagnosis, dates, policy and expenses automatically.</p></div>
           <div className="lp-card"><div className="lp-ct">Codes &amp; estimates cost</div><p className="lp-cb">Assigns ICD-10 diagnosis and CPT procedure codes with confidence scores across 500+ ICD / 180+ CPT, with cost estimation — so coding is consistent, not guesswork.</p></div>
@@ -369,7 +362,7 @@ export default function HomePage() {
       <section id="security" className="lp-section"><div className="lp-wrap">
         <span className="lp-eye">Security &amp; privacy</span>
         <h2 className="lp-h2">Protecting sensitive patient information by design.</h2>
-        <p className="lp-sub">Healthcare claims carry the most sensitive data there is. ClaimGPT keeps it protected end-to-end — patient information stays inside your environment, scrubbed before any AI ever sees it, with every action logged.</p>
+        <p className="lp-sub">Healthcare claims carry the most sensitive data there is. ClaimsGuru keeps it protected end-to-end — patient information stays inside your environment, scrubbed before any AI ever sees it, with every action logged.</p>
         <div className="lp-grid-3">
           <div className="lp-card"><div className="lp-ic"><Icon n="shield" /></div><div className="lp-ct">PHI auto-scrubbing</div><p className="lp-cb">SSN, phone, email, MRN, DOB and policy numbers are stripped before any model call.</p></div>
           <div className="lp-card"><div className="lp-ic"><Icon n="server" /></div><div className="lp-ct">Self-hosted LLM</div><p className="lp-cb">Run on-prem or in your cloud — zero PHI egress to external APIs.</p></div>
@@ -386,7 +379,7 @@ export default function HomePage() {
         <h2 className="lp-h2">Frequently asked questions.</h2>
         <div className="lp-faq">
           <details><summary>What is AI-powered claims processing?</summary><p className="lp-fb">It uses AI, OCR, ML and automation to extract, validate, review and process medical claims faster and more accurately than manual workflows.</p></details>
-          <details><summary>How does ClaimGPT help TPAs?</summary><p className="lp-fb">It automates review, ICD coding, validation, fraud checks and risk scoring to cut turnaround and workload.</p></details>
+          <details><summary>How does ClaimsGuru help TPAs?</summary><p className="lp-fb">It automates review, ICD coding, validation, fraud checks and risk scoring to cut turnaround and workload.</p></details>
           <details><summary>Can it integrate with existing systems?</summary><p className="lp-fb">Yes — integrates via FHIR R4 and X12 837P without full platform replacement.</p></details>
           <details><summary>Does it support IRDAI compliance?</summary><p className="lp-fb">Yes — configurable validation, audit-ready processing, and fillable IRDAI Standard Reimbursement Claim Forms.</p></details>
           <details><summary>Is patient data sent to external AI?</summary><p className="lp-fb">No. A self-hosted LLM with PHI scrubbing keeps protected data in your environment.</p></details>
@@ -396,7 +389,7 @@ export default function HomePage() {
       {/* Impact */}
       <section className="lp-section"><div className="lp-wrap">
         <span className="lp-eye">Impact</span>
-        <h2 className="lp-h2">Outcomes claims teams see with ClaimGPT.</h2>
+        <h2 className="lp-h2">Outcomes claims teams see with ClaimsGuru.</h2>
         <div className="lp-grid-3">
           <div className="lp-card"><div className="lp-band-num" style={{ color: "#0b3a67" }}>30–50<small>%</small></div><div className="lp-ct">Less manual review</div><p className="lp-cb">Auto-extraction and coding remove hours of re-keying per claim.</p></div>
           <div className="lp-card"><div className="lp-band-num" style={{ color: "#0b3a67" }}>40<small>%+</small></div><div className="lp-ct">Faster validation</div><p className="lp-cb">11 rules and risk scoring clear clean claims in seconds.</p></div>
@@ -407,9 +400,9 @@ export default function HomePage() {
       {/* Take the next step */}
       <section className="lp-section"><div className="lp-wrap">
         <span className="lp-eye">Take the next step</span>
-        <h2 className="lp-h2">Get started with ClaimGPT.</h2>
+        <h2 className="lp-h2">Get started with ClaimsGuru.</h2>
         <div className="lp-next">
-          <div className="lp-next-card"><h3>Launch the workspace</h3><p>Open ClaimGPT and process your first claim end-to-end in minutes.</p><Link className="lp-btn lp-btn-primary" href="/app">Launch ClaimGPT</Link></div>
+          <div className="lp-next-card"><h3>Launch the workspace</h3><p>Open ClaimsGuru and process your first claim end-to-end in minutes.</p><Link className="lp-btn lp-btn-primary" href="/app">Launch ClaimsGuru</Link></div>
           <div className="lp-next-card"><h3>Talk to our team</h3><p>Walk through a deployment for your TPA or insurer with our specialists.</p><a className="lp-btn lp-btn-ghost" href="mailto:claimgpt@waferwire.com">Contact sales</a></div>
           <div className="lp-next-card"><h3>Deploy on Azure</h3><p>Self-host on Microsoft Azure with zero PHI egress and full audit.</p><a className="lp-btn lp-btn-ghost" href="#security">See security</a></div>
         </div>
@@ -417,22 +410,22 @@ export default function HomePage() {
 
       {/* CTA */}
       <section className="lp-cta"><div className="lp-wrap">
-        <h2>Ready to modernize your claims operations?</h2>
+        <p>Ready to modernize your claims operations?</p>
         <p>Reduce bottlenecks, improve accuracy, and accelerate decisions with AI-assisted claims workflows.</p>
-        <Link className="lp-btn lp-btn-primary" href="/app">Launch ClaimGPT</Link>
+        <Link className="lp-btn lp-btn-primary" href="/app">Launch ClaimsGuru</Link>
       </div></section>
 
       {/* Footer */}
       <footer className="lp-footer"><div className="lp-wrap">
         <div className="lp-foot-grid">
           <div className="lp-foot-co">
-            <div className="lp-foot-brand"><BrandMark /> ClaimGPT</div>
+            <div className="lp-foot-brand"><img src="/image.png" alt="ClaimsGuru" style={{ height: "30px", width: "auto" }} /></div>
             <p className="lp-foot-desc">AI-powered healthcare claims intelligence for TPAs and insurers. Built by WaferWire Cloud Technologies.</p>
           </div>
           <div className="lp-foot-loc"><h4>US Office (HQ)</h4><span>4034 148th Ave NE</span><span>Redmond, WA — 98052</span><span>+1 425-484-3430</span></div>
           <div className="lp-foot-loc"><h4>India Office</h4><span>4th Floor, Western Aqua, Plot 1-4</span><span>Whitefields, Kondapur</span><span>Hyderabad, Telangana — 500084</span></div>
         </div>
-        <div className="lp-foot-bottom"><div>© 2026 WaferWire Cloud Technologies · ClaimGPT</div><div>Redmond, USA · Hyderabad, India</div></div>
+        <div className="lp-foot-bottom"><div>© 2026 WaferWire Cloud Technologies · ClaimsGuru</div><div>Redmond, USA · Hyderabad, India</div></div>
       </div></footer>
 
       <ClaimChatWidget />

@@ -37,7 +37,8 @@ def reprocess_claim_full(claim_id, name):
         doc_rows = conn.execute(text("SELECT id FROM documents WHERE claim_id = :cid"), {"cid": cid}).fetchall()
         doc_ids = [row[0] for row in doc_rows]
         if doc_ids:
-            conn.execute(text("DELETE FROM ocr_results WHERE document_id IN :doc_ids"), {"doc_ids": tuple(doc_ids)})
+            for doc_id in doc_ids:
+                conn.execute(text("DELETE FROM ocr_results WHERE document_id = :doc_id"), {"doc_id": doc_id})
         # 6. Delete old ocr jobs
         conn.execute(text("DELETE FROM ocr_jobs WHERE claim_id = :cid"), {"cid": cid})
         # 7. Reset claim to UPLOADED status
@@ -64,6 +65,5 @@ def reprocess_claim_full(claim_id, name):
 
 if __name__ == "__main__":
     # Reprocess the target claims
-    reprocess_claim_full("29d187dd-b623-408b-8b91-0176baa8fa4c", "Claim 29d187dd")
-    reprocess_claim_full("707895a8-a8dc-4eee-b89a-182fcb6fada8", "Claim 707895a8")
-    reprocess_claim_full("28267d3c-957a-495b-b906-e3ab07fb61c9", "Claim 28267d3c")
+    reprocess_claim_full("e2c8d27f-e0d4-4a94-a4d8-793dfcb96e7c", "Image upload claim")
+    reprocess_claim_full("b6f25393-1847-4145-8e06-397a92d130da", "PDF upload claim")

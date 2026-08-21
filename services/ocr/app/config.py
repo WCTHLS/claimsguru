@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     easyocr_lazy_load: bool = True
     easyocr_languages: list[str] = ["en"]
 
+    # Azure Document Intelligence Settings
+    use_azure_ocr: bool = False
+    azure_document_intelligence_endpoint: str | None = os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+    azure_document_intelligence_key: str | None = os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_KEY")
+
     # CORS
     cors_origins: list[str] = ["*"]
 

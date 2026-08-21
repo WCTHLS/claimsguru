@@ -25,15 +25,12 @@ langgraph-checkpoint-postgres==3.0.5
 psycopg-pool==3.3.0
 
 # OCR / Document processing
-pytesseract==0.3.13
 pdfplumber==0.11.4
 Pillow==11.2.1
-opencv-python-headless==4.11.0.86
 python-docx==1.1.2
 openpyxl==3.1.5
 pdf2image==1.17.0
-paddlepaddle==3.2.1; platform_machine != 'aarch64'
-paddleocr[doc-parser]>=3.0.0; platform_machine != 'aarch64'
+azure-ai-formrecognizer==3.3.0
 numpy>=1.26.0
 
 # ML / NLP

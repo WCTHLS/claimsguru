@@ -144,6 +144,9 @@ services:
       MINIO_ROOT_PASSWORD: claimgpt123
       CELERY_WORKER: "true"
       DISABLE_OCR_PREWARM: "0"
+      OCR_USE_AZURE_OCR: ${OCR_USE_AZURE_OCR:-false}
+      OCR_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:-}
+      OCR_AZURE_DOCUMENT_INTELLIGENCE_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_KEY:-}
       # Prevent deadlocks in forked processes by restricting internal threading libraries
       OMP_NUM_THREADS: "1"
       METRICS_ENABLED: "true"
@@ -557,6 +560,9 @@ services:
       OCR_ENABLE_PADDLE_OCR: ${OCR_ENABLE_PADDLE_OCR:-true}
       OCR_ENABLE_PADDLE_VL: ${OCR_ENABLE_PADDLE_VL:-false}
       OCR_ENABLE_SECONDARY_OCR_ON_PDF: ${OCR_ENABLE_SECONDARY_OCR_ON_PDF:-false}
+      OCR_USE_AZURE_OCR: ${OCR_USE_AZURE_OCR:-false}
+      OCR_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT: ${AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT:-}
+      OCR_AZURE_DOCUMENT_INTELLIGENCE_KEY: ${AZURE_DOCUMENT_INTELLIGENCE_KEY:-}
       # Quality gate thresholds — lowered so real scanned hospital bills pass through.
       # Set OCR_BLUR_BLURRY=0 to disable blur rejection entirely.
       OCR_BLUR_BLURRY: "40"

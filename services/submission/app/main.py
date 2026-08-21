@@ -1288,6 +1288,53 @@ def update_claim_fields(
             fb.user_sub = user_sub or fb.user_sub
             fb.user_email = user_email or fb.user_email
 
+    # Rebuild canonical_json fields block to keep it in sync with edited fields
+    if claim.canonical_json:
+        canonical = claim.canonical_json
+        if isinstance(canonical, str):
+            try:
+                canonical = _json.loads(canonical)
+            except Exception:
+                canonical = {}
+    else:
+        canonical = {}
+        
+    if "patient" not in canonical:
+        canonical["patient"] = {}
+    if "hospitalization" not in canonical:
+        canonical["hospitalization"] = {}
+    if "diagnosis" not in canonical:
+        canonical["diagnosis"] = {}
+        
+    for field_name, field_value in fields.items():
+        val_str = str(field_value) if field_value is not None else ""
+        if field_name in ("patient_name", "member_name", "insured_name"):
+            canonical["patient"]["name"] = val_str
+        elif field_name == "age":
+            canonical["patient"]["age"] = val_str
+        elif field_name in ("gender", "sex"):
+            canonical["patient"]["gender"] = val_str
+        elif field_name in ("hospital_name", "hospital"):
+            canonical["hospitalization"]["hospital_name"] = val_str
+        elif field_name in ("doctor_name", "doctor", "provider_name", "rendering_provider"):
+            canonical["hospitalization"]["doctor_name"] = val_str
+        elif field_name in ("admission_date", "service_date", "date_of_admission"):
+            canonical["hospitalization"]["admission_date"] = val_str
+        elif field_name == "discharge_date":
+            canonical["hospitalization"]["discharge_date"] = val_str
+        elif field_name in ("diagnosis", "primary_diagnosis", "chief_complaint"):
+            canonical["diagnosis"]["primary"] = val_str
+            
+    # Sync medical_entities
+    canonical["medical_entities"] = {
+        "patient_name": canonical["patient"].get("name"),
+        "hospital_name": canonical["hospitalization"].get("hospital_name"),
+        "doctor_name": canonical["hospitalization"].get("doctor_name"),
+        "diagnosis": canonical["diagnosis"].get("primary"),
+        "medicines": canonical.get("medical", {}).get("medications") or [],
+    }
+    
+    claim.canonical_json = canonical
     db.commit()
     logger.info(
         "Updated %d field(s) (%d feedback) for claim %s by %s",
@@ -1405,23 +1452,48 @@ def update_claim_expenses(
 
     import json as _json
     created = 0
+    line_items = []
     for i, e in enumerate(expenses):
         try:
+            desc = str(e.get("description") or e.get("category") or f"Expense {i+1}")[:200]
             cat = str(e.get("category") or f"Expense {i+1}")[:200]
             amt = float(e.get("amount") or 0)
-            # Store a single ParsedField per expense with JSON value {category, amount}
+            # Store a single ParsedField per expense with JSON value {description, category, amount}
             pf = ParsedField(
                 claim_id=cid,
                 document_id=None,
                 field_name=f"expense_table_row_{i+1}",
-                field_value=_json.dumps({"category": cat, "amount": amt}),
+                field_value=_json.dumps({"description": desc, "category": cat, "amount": amt}),
                 model_version="expense-table-ui",
             )
             db.add(pf)
             created += 1
+            
+            line_items.append({
+                "description": desc,
+                "amount": str(amt),
+                "category": cat
+            })
         except Exception:
             continue
 
+    # Rebuild canonical_json expenses block
+    if claim.canonical_json:
+        canonical = claim.canonical_json
+        if isinstance(canonical, str):
+            try:
+                canonical = _json.loads(canonical)
+            except Exception:
+                canonical = {}
+    else:
+        canonical = {}
+        
+    canonical["expenses"] = {
+        "line_items": line_items,
+        "item_count": len(line_items)
+    }
+    
+    claim.canonical_json = canonical
     db.commit()
     logger.info("Replaced expenses for claim %s: deleted=%d created=%d", str(cid)[:8], deleted, created)
     return {"status": "ok", "deleted": deleted, "created": created}

@@ -66,18 +66,11 @@ CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000
 # ========================================================
 FROM core-runner AS ml-runner
 
-# Install heavy system dependencies for Tesseract, OpenCV, and PDF rendering
+# Install heavy system dependencies for PDF rendering
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
-    tesseract-ocr \
-    tesseract-ocr-eng \
-    libtesseract-dev \
-    libgl1 \
     libglib2.0-0 \
-    libsm6 \
-    libxrender1 \
-    libxext6 \
     poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
@@ -87,6 +80,9 @@ COPY requirements.txt /app/requirements-ml.txt
 # Increase pip timeout and retries for downloading heavy ML/CUDA packages
 ENV PIP_DEFAULT_TIMEOUT=1000
 ENV PIP_RETRIES=20
+
+# Install CPU-only PyTorch first to prevent CUDA packages from being downloaded
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 
 # Install the heavy ML libraries. Core requirements are already satisfied
 # in the base core-runner image, so pip will skip them and only install ML tools.

@@ -3,14 +3,14 @@ import { useState, useRef, useEffect } from "react";
 
 type QA = { q: string; a: string; keys: string[] };
 const QA_LIST: QA[] = [
-  { q: "What is ClaimGPT?", a: "ClaimGPT is an AI platform that processes healthcare claims end-to-end — OCR, coding, rejection-risk, fraud triage and IRDAI submission — in minutes.", keys: ["what", "claimgpt", "about", "do"] },
+  { q: "What is ClaimsGuru?", a: "ClaimsGuru is an AI platform that processes healthcare claims end-to-end — OCR, coding, rejection-risk, fraud triage and IRDAI submission — in minutes.", keys: ["what", "claimsguru", "claimgpt", "about", "do"] },
   { q: "How does it help TPAs?", a: "It auto-extracts 20+ fields, assigns ICD-10/CPT codes, scores rejection risk in <120ms and flags fraud, cutting review from days to minutes.", keys: ["tpa", "help", "insurer", "review", "fast", "time"] },
   { q: "Is patient data safe?", a: "Yes. PHI is scrubbed before any AI call, the LLM is self-hosted with zero PHI egress, and every action is logged for HIPAA-grade audit.", keys: ["safe", "secur", "phi", "privacy", "data", "hipaa", "compliance"] },
   { q: "Does it support IRDAI forms?", a: "Yes — it generates fillable IRDAI Standard Reimbursement Claim Forms (70+ fields) plus TPA reports, and sends FHIR R4 / X12 837P to payers.", keys: ["irdai", "form", "submit", "fhir", "x12", "payer", "report"] },
   { q: "How does coding work?", a: "scispaCy NER assigns ICD-10 and CPT codes with confidence scores across 500+ ICD / 180+ CPT, with cost estimation.", keys: ["cod", "icd", "cpt", "diagnos"] },
   { q: "Who built it?", a: "WaferWire Cloud Technologies (WCT), a Microsoft partner with teams in Redmond, USA and Hyderabad, India.", keys: ["who", "built", "company", "waferwire", "wct", "contact"] },
 ];
-const FALLBACK = "I cover ClaimGPT's features, security, coding, IRDAI submission and WaferWire. Try one of the suggestions, or ask about claims processing.";
+const FALLBACK = "I cover ClaimsGuru's features, security, coding, IRDAI submission and WaferWire. Try one of the suggestions, or ask about claims processing.";
 
 type Msg = { from: "bot" | "user"; text: string };
 
@@ -26,7 +26,7 @@ function answer(q: string): string {
 
 export default function ClaimChatWidget() {
   const [open, setOpen] = useState(false);
-  const [msgs, setMsgs] = useState<Msg[]>([{ from: "bot", text: "Hi! I'm the ClaimGPT assistant. Ask me anything, or pick a question below." }]);
+  const [msgs, setMsgs] = useState<Msg[]>([{ from: "bot", text: "Hi! I'm the ClaimsGuru assistant. Ask me anything, or pick a question below." }]);
   const [val, setVal] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, open]);
@@ -42,8 +42,8 @@ export default function ClaimChatWidget() {
     <div className="cw">
       <style dangerouslySetInnerHTML={{ __html: CW_CSS }} />
       {open && (
-        <div className="cw-panel" role="dialog" aria-label="ClaimGPT assistant">
-          <div className="cw-head"><span className="cw-dot" />Ask ClaimGPT<button className="cw-x" onClick={() => setOpen(false)} aria-label="Close">×</button></div>
+        <div className="cw-panel" role="dialog" aria-label="ClaimsGuru assistant">
+          <div className="cw-head"><span className="cw-dot" />Ask ClaimsGuru<button className="cw-x" onClick={() => setOpen(false)} aria-label="Close">×</button></div>
           <div className="cw-body">
             {msgs.map((m, i) => <div key={i} className={m.from === "bot" ? "cw-bot" : "cw-user"}>{m.text}</div>)}
             <div className="cw-qs">
@@ -59,7 +59,7 @@ export default function ClaimChatWidget() {
           </form>
         </div>
       )}
-      <button className="cw-fab" onClick={() => setOpen((o) => !o)} aria-label="Chat with ClaimGPT">
+      <button className="cw-fab" onClick={() => setOpen((o) => !o)} aria-label="Chat with ClaimsGuru">
         {open ? (
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
         ) : (

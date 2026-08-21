@@ -554,7 +554,7 @@ def _process_single_document(db: Session, doc: Document) -> None:
             raise OcrRejectedError(reject_reason, document_id=doc_id)
 
         # Core OCR — structured extraction including token-level coordinates
-        pages = extract_text_structured(file_path)
+        pages = extract_text_structured(file_path, document_id=str(doc_id))
         unusable_reason = _reject_unusable_ocr(doc, pages)
         if unusable_reason:
             logger.warning("Rejecting unreadable OCR for document %s: %s", doc_id, unusable_reason)

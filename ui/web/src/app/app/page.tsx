@@ -762,6 +762,32 @@ export default function Home() {
     return () => clearInterval(id);
   }, [claims]);
 
+  /* ── Auto-select the latest claim on initial load ── */
+  useEffect(() => {
+    if (!activeClaim && claims.length > 0) {
+      const latest = claims[0];
+      if (latest) {
+        setActiveClaim(latest.id);
+        setPreview(null);
+        setShowPreview(false);
+        setEditedFields({});
+        setFieldsSaved(false);
+        setAuditTrail([]);
+        setHistoryExpanded(false);
+        setChatUnread(0);
+        setMessages([
+          {
+            role: "bot",
+            text: `Claim **#${shortClaimId(latest.id)}** loaded — ${latest.documents?.length || 0} document(s). I can analyze codes, check compliance, estimate costs, or explain risk factors.`,
+          },
+        ]);
+        loadPreview(latest.id).then(() => setShowPreview(false));
+        loadAudit(latest.id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [claims.length, activeClaim]);
+
   /* ── Fetch TPA messages for requested claims ── */
   useEffect(() => {
     const requested = claims.filter(c => c.status === "DOCUMENTS_REQUESTED" || c.status === "MODIFICATION_REQUESTED");
@@ -1651,11 +1677,10 @@ export default function Home() {
       <div className="global-splash-overlay" role="status" aria-live="polite">
         <div className="global-splash-content">
           <div className="global-splash-logo">
-            <svg width="64" height="68" viewBox="0 0 64 68" fill="none"><path d="M2 6a4 4 0 0 1 4-4h36l18 18v44a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z" fill="#0f4c81" /><path d="M42 2v14a4 4 0 0 0 4 4h14" fill="none" stroke="#fff" strokeWidth="2.5" /><rect x="12" y="30" width="34" height="4" rx="2" fill="#fff" opacity=".7" /><rect x="12" y="40" width="26" height="4" rx="2" fill="#fff" opacity=".5" /><path d="M46 44l3.5 8 8 3.5-8 3.5-3.5 8-3.5-8-8-3.5 8-3.5z" fill="#0d9488" /></svg>
+            <img src="/image.png" alt="ClaimsGuru" style={{ height: "54px", width: "auto", marginBottom: "8px" }} />
           </div>
-          <h2 className="global-splash-title">ClaimGPT</h2>
           <div className="global-splash-spinner" />
-          <span className="global-splash-text">Loading ClaimGPT…</span>
+          <span className="global-splash-text">Loading ClaimsGuru…</span>
         </div>
       </div>
     );
@@ -1677,11 +1702,8 @@ export default function Home() {
       {/* ── Top Navigation Bar ── */}
       <nav className="top-nav">
         <div className="top-nav-left">
-          <div className="top-nav-brand">
-            <span className="brand-icon">
-              <svg width="28" height="28" viewBox="0 0 64 68" fill="none"><path d="M2 6a4 4 0 0 1 4-4h36l18 18v44a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4z" fill="#0f4c81" /><path d="M42 2v14a4 4 0 0 0 4 4h14" fill="none" stroke="#fff" strokeWidth="2.5" /><rect x="12" y="30" width="34" height="4" rx="2" fill="#fff" opacity=".7" /><rect x="12" y="40" width="26" height="4" rx="2" fill="#fff" opacity=".5" /><path d="M46 44l3.5 8 8 3.5-8 3.5-3.5 8-3.5-8-8-3.5 8-3.5z" fill="#0d9488" /></svg>
-            </span>
-            <span className="brand-name">ClaimGPT</span>
+          <div className="top-nav-brand" style={{ display: "flex", alignItems: "center" }}>
+            <img src="/image.png" alt="ClaimsGuru" style={{ height: "30px", width: "auto" }} />
           </div>
           <div className="top-nav-links">
             <button className="nav-link active">{t("nav.claims")}</button>
@@ -1966,7 +1988,7 @@ export default function Home() {
               <span><kbd>↵</kbd> Select</span>
               <span><kbd>esc</kbd> Close</span>
               <span className="cmd-foot-spacer" />
-              <span className="cmd-foot-brand">ClaimGPT Command</span>
+              <span className="cmd-foot-brand">ClaimsGuru Command</span>
             </div>
           </div>
         </div>
@@ -2041,7 +2063,7 @@ export default function Home() {
                     <div className="brain-title-left">
                       <h2 className="brain-title">
                         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 0 1 10 10c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2Z" /><path d="M12 6v6l4 2" /></svg>
-                        ClaimGPT Brain Report
+                        ClaimsGuru Brain Report
                       </h2>
                       <p className="brain-subtitle">Comprehensive AI Analysis &middot; Generated {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
                     </div>
@@ -4439,7 +4461,7 @@ export default function Home() {
         <div className="wct-footer-right">
           <span>© 2026 <strong>WaferWire Cloud Technologies</strong></span>
           <span className="footer-sep" />
-          <span className="footer-version">ClaimGPT v2.0</span>
+          <span className="footer-version">ClaimsGuru v2.0</span>
         </div>
       </footer>
     </div>

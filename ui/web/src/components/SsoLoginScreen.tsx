@@ -463,23 +463,9 @@ export default function SsoLoginScreen() {
       <div className="sso-container">
         {/* Brand panel (left, hidden on mobile) */}
         <aside className="sso-brand-panel">
-          <div className="sso-brand">
-            <span className="sso-brand-icon" aria-hidden>
-              <svg width="40" height="40" viewBox="0 0 30 30" fill="none">
-                <rect width="30" height="30" rx="8" fill="url(#sso-bg-grad)"/>
-                <path d="M15 7v16M7 15h16" stroke="#fff" strokeWidth="2.6" strokeLinecap="round"/>
-                <defs>
-                  <linearGradient id="sso-bg-grad" x1="0" y1="0" x2="30" y2="30">
-                    <stop stopColor="#0f4c81"/>
-                    <stop offset="1" stopColor="#0d9488"/>
-                  </linearGradient>
-                </defs>
-              </svg>
-            </span>
-            <div className="sso-brand-text">
-              <span className="sso-brand-name">ClaimGPT</span>
-              <span className="sso-brand-edition">Enterprise · India</span>
-            </div>
+          <div className="sso-brand" style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "6px" }}>
+            <img src="/image.png" alt="ClaimsGuru Logo" style={{ height: "34px", width: "auto" }} />
+            <span className="sso-brand-edition" style={{ marginLeft: "52px" }}>Enterprise · India</span>
           </div>
 
           <h1 className="sso-headline">
@@ -656,7 +642,7 @@ export default function SsoLoginScreen() {
             onClick={() => setSignupOpen(true)}
             style={{ fontWeight: "600", color: "#0f4c81" }}
           >
-            New to ClaimGPT? Create an account
+            New to ClaimsGuru? Create an account
           </button>
 
           <p className="sso-fineprint" style={{ marginTop: "20px" }}>

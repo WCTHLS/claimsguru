@@ -1,8 +1,9 @@
 import json
 import logging
 import re
+from pathlib import Path
 from typing import List, Dict, Any
-from .models import Token, DocumentStructure
+from .models import Token, DocumentStructure, TableRegion, Row, Cell, FormField, Region
 
 logger = logging.getLogger("parser-debug")
 from .layout_detector import detect_regions
@@ -65,6 +66,122 @@ def _extract_diagnosis_fields_from_tokens(token_dicts: list[dict[str, Any]]) -> 
     return out
 
 
+def load_azure_layout_into_doc(azure_json_paths: list[str], tokens: list[Token]) -> tuple[list[TableRegion], list[FormField], list[Region]]:
+    """
+    Loads Azure Document Intelligence JSON outputs directly into native TableRegion,
+    FormField, and Region structures, preserving columns and fields while allowing
+    the legacy pipeline's mature normalizers and NER extractors to run.
+    """
+    import json
+    import re
+    from pathlib import Path
+    tables = []
+    fields = []
+    regions = []
+    
+    # Map tokens by page for easy reference
+    tokens_by_page = {}
+    for tok in tokens:
+        tokens_by_page.setdefault(tok.page, []).append(tok)
+        
+    for json_path in azure_json_paths:
+        try:
+            with open(json_path, "r", encoding="utf-8") as f:
+                pages_data = json.load(f)
+        except Exception as e:
+            logger.warning(f"Failed to load Azure native JSON {json_path}: {e}")
+            continue
+            
+        # Extract doc_id from filename to find global page numbers
+        doc_id_match = re.search(r"azure_ocr_response_([a-f0-9\-]{36})\.json", Path(json_path).name)
+        doc_id = doc_id_match.group(1) if doc_id_match else None
+        
+        doc_tokens = [t for t in tokens if t.document_id == doc_id] if doc_id else tokens
+        global_pages = sorted(list({t.page for t in doc_tokens if t.page is not None}))
+        
+        for page_data in pages_data:
+            local_page = page_data.get("page", 1)
+            
+            # Map local page to global page index
+            if local_page <= len(global_pages):
+                page_num = global_pages[local_page - 1]
+            elif global_pages:
+                page_num = global_pages[0]
+            else:
+                page_num = local_page
+                
+            page_tokens = tokens_by_page.get(page_num, [])
+            
+            # Create a Region representing the page text
+            page_region = Region(
+                region_id=f"azure_page_{page_num}",
+                region_type="paragraph",
+                bbox=[0.0, 0.0, 1.0, 1.0],
+                tokens=page_tokens,
+                page=page_num,
+                confidence=1.0
+            )
+            regions.append(page_region)
+            
+            # 1. Parse Fields (Key-Value pairs)
+            azure_fields = page_data.get("fields", {})
+            for key, val in azure_fields.items():
+                if not key or not val:
+                    continue
+                # Clean value of leading pipe
+                clean_val = str(val).strip().lstrip("|").strip()
+                form_field = FormField(
+                    key=str(key),
+                    value=clean_val,
+                    key_bbox=[0.0, 0.0, 1.0, 1.0],
+                    value_bbox=[0.0, 0.0, 1.0, 1.0],
+                    page=page_num
+                )
+                fields.append(form_field)
+                
+            # 2. Parse Tables
+            azure_tables = page_data.get("tables", [])
+            for t_idx, table_data in enumerate(azure_tables):
+                if len(table_data) < 2:
+                    continue
+                rows = []
+                for r_idx, row_data in enumerate(table_data):
+                    cells = []
+                    for c_idx, cell_text in enumerate(row_data):
+                        # Construct a mock bbox based on column index
+                        # Column 0: x0=0, Column 1: x0=100, etc. This aligns perfectly with overlap logic.
+                        x0 = float(c_idx * 100)
+                        x1 = float((c_idx + 1) * 100)
+                        cell = Cell(
+                            cell_id=f"cell_{page_num}_{t_idx}_{r_idx}_{c_idx}",
+                            row_id=f"row_{page_num}_{t_idx}_{r_idx}",
+                            column_id=f"col_{page_num}_{t_idx}_{c_idx}",
+                            text=str(cell_text),
+                            bbox=[x0, 0.0, x1, 10.0],
+                            tokens=[]
+                        )
+                        cells.append(cell)
+                    row = Row(
+                        row_id=f"row_{page_num}_{t_idx}_{r_idx}",
+                        row_index=r_idx,
+                        cells=cells,
+                        bbox=[0.0, 0.0, len(row_data) * 100.0, 10.0]
+                    )
+                    rows.append(row)
+                
+                table_region = TableRegion(
+                    region_id=f"azure_table_p{page_num}_{t_idx}",
+                    bbox=[0.0, 0.0, len(table_data[0]) * 100.0, 10.0],
+                    rows=rows,
+                    page=page_num,
+                    confidence=1.0,
+                    table_kind="generic_table"
+                )
+                tables.append(table_region)
+                
+    return tables, fields, regions
+
+
 def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[dict[int, Image.Image]] = None, document_paths: Optional[list[str]] = None, debug_dir: str = "debug", claim_id: Optional[str] = None) -> DocumentStructure:
 
 
@@ -89,6 +206,22 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
     logger.info("[PARSER_V2 ACTIVE]")
     tokens = [Token(**t) for t in ocr_tokens_json]
     
+    # Check if there are dumped Azure Document Intelligence JSON responses available
+    azure_json_paths = []
+    doc_ids = list({t.document_id for t in tokens if t.document_id})
+    for d_id in doc_ids:
+        for prefix in ["/app/tmp", "tmp"]:
+            p = Path(prefix) / f"azure_ocr_response_{d_id}.json"
+            if p.exists():
+                azure_json_paths.append(str(p))
+                break
+
+    doc = None
+    if azure_json_paths:
+        logger.info("[PIPELINE] Found Azure Document Intelligence JSON outputs. Loading layout natively...")
+        azure_tables, azure_fields, azure_regions = load_azure_layout_into_doc(azure_json_paths, tokens)
+        doc = DocumentStructure(regions=azure_regions, tables=azure_tables, fields=azure_fields)
+    
     # Override claim_id if provided explicitly
     if claim_id:
         for token in tokens:
@@ -103,10 +236,10 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
         doc_pages[key] = doc_pages.get(key, 0) + 1
     logger.info(f"[DOCUMENT_ISOLATION] Token distribution: {len(doc_pages)} unique (claim, document, page) combinations")
     
-    # 2. Detect Regions (Model-Assisted or Heuristic Fallback)
-    doc = None
-    if page_images or document_paths:
-        doc = DocumentProcessor.process(ocr_tokens_json, page_images=page_images, document_paths=document_paths, debug_dir=debug_dir)
+    # 2. Detect Regions (Model-Assisted or Heuristic Fallback) if not already loaded from Azure
+    if not doc:
+        if page_images or document_paths:
+            doc = DocumentProcessor.process(ocr_tokens_json, page_images=page_images, document_paths=document_paths, debug_dir=debug_dir)
 
     
     if not doc:
@@ -203,27 +336,33 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
 
         # For model-detected regions, we still need to run our form extractor
         # AND check if they contain nested tables that the model missed
+        pages_with_tables = {t.page for t in doc.tables}
         all_fields = []
         for region in doc.regions:
             # Try to find tables within any region that isn't already a table
             if region.region_type != "table" and region.region_type != "expense_table":
-                # Nested Table Check: Try to find tables within this region using a TIGHTER threshold
-                # This helps isolate rows that were merged by the coarser first pass
-                sub_regions = detect_regions(region.tokens, gap_threshold=12.0)
-                for sub_reg in sub_regions:
-                    if sub_reg.region_type in {"table", "expense_table"}:
-                        # Prevent duplicate tables if they overlap significantly with existing ones
-                        is_duplicate = False
-                        for existing_table in doc.tables:
-                            # Simple BBox overlap check
-                            if abs(sub_reg.bbox[1] - existing_table.bbox[1]) < 20 and abs(sub_reg.bbox[3] - existing_table.bbox[3]) < 20:
-                                is_duplicate = True
-                                break
-                        
-                        if not is_duplicate:
-                            logger.info(f"[PIPELINE] Found nested expense_table in {region.region_type} on page {region.page}")
-                            table_region = reconstruct_table(sub_reg)
-                            doc.tables.append(table_region)
+                # If this page already has tables (e.g. loaded natively from Azure), do not run nested table scanner
+                # on page-wide paragraph/text regions to prevent duplicate table extractions.
+                if region.page in pages_with_tables and (str(region.region_id).startswith("azure_page_") or region.region_type in {"paragraph", "text"}):
+                    logger.info(f"[PIPELINE] Skipping nested table check for region {region.region_id} on page {region.page} because page already has tables")
+                else:
+                    # Nested Table Check: Try to find tables within this region using a TIGHTER threshold
+                    # This helps isolate rows that were merged by the coarser first pass
+                    sub_regions = detect_regions(region.tokens, gap_threshold=12.0)
+                    for sub_reg in sub_regions:
+                        if sub_reg.region_type in {"table", "expense_table"}:
+                            # Prevent duplicate tables if they overlap significantly with existing ones
+                            is_duplicate = False
+                            for existing_table in doc.tables:
+                                # Simple BBox overlap check
+                                if abs(sub_reg.bbox[1] - existing_table.bbox[1]) < 20 and abs(sub_reg.bbox[3] - existing_table.bbox[3]) < 20:
+                                    is_duplicate = True
+                                    break
+                            
+                            if not is_duplicate:
+                                logger.info(f"[PIPELINE] Found nested expense_table in {region.region_type} on page {region.page}")
+                                table_region = reconstruct_table(sub_reg)
+                                doc.tables.append(table_region)
                 
                 # Normal field extraction
                 extracted_fields = extract_fields(region)
@@ -638,8 +777,6 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
                 for row in summary_bill_expenses
                 if int(row.get("page") or 0) not in heuristic_pages
             ]
-            if not summary_candidates:
-                summary_candidates = summary_bill_expenses
 
             for row in summary_candidates:
                 row_key = (
@@ -897,6 +1034,30 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
             "pre-auth",
             "pre auth",
             "gross total",
+            # Demographic & Clinical metadata exclusions
+            "sex",
+            "weight",
+            "apgar",
+            "delivery notes",
+            "discharge summary",
+            "gestation",
+            "gravida",
+            "parity",
+            "baby of",
+            "infant",
+            "newborn",
+            "gender",
+            " age:",
+            " age ",
+            "time:",
+            "date:",
+            "treatment on discharge",
+            "vitals",
+            "pulse rate",
+            "blood pressure",
+            "respiratory rate",
+            "temperature",
+            "spo2",
         )
         def _is_medical_procedure(desc_str: str) -> bool:
             desc_l = str(desc_str).lower()
@@ -913,6 +1074,10 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
             if term == "total":
                 if (desc == "total" or any(phrase in desc for phrase in ["total amount", "grand total", "total claimed", "total billed", "total charges", "gross total", "subtotal", "sub-total"])) and not _is_medical_procedure(desc):
                     return False
+            elif term == "observation":
+                if "observation" in desc:
+                    if not any(kw in desc for kw in ["charges", "charge", "fee", "fees", "package", "room", "bed"]):
+                        return False
             elif term in desc:
                 return False
 
@@ -930,10 +1095,14 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
         return True
 
     def _is_similar(a: dict, b: dict) -> bool:
-        # Safeguard: Never merge two candidates that share the same primary source (both semantic or both heuristic).
-        # They represent separate physical rows from the same extraction run, and merging them is over-deduplication.
+        # Safeguard: Never merge two candidates that share the same primary source (both semantic or both heuristic)
+        # IF they also come from the same table/region (same source_region_id). If they are from different tables,
+        # they represent double extractions and CAN be merged.
         if a.get("source") and b.get("source") and a.get("source") == b.get("source"):
-            return False
+            a_reg = a.get("source_region_id")
+            b_reg = b.get("source_region_id")
+            if a_reg and b_reg and a_reg == b_reg:
+                return False
 
         # Description similarity (token Jaccard) + amount closeness
         a_desc = _norm_desc(a.get("description") or "")
