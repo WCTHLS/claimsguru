@@ -18,26 +18,35 @@ def classify_document(ocr_pages: list[dict[str, Any]], layout: dict[str, Any] | 
     if "discharge summary" in combined_text or any(kw in combined_text for kw in ("treatment on discharge", "course in hospital", "condition at discharge")):
         return "discharge_summary"
 
-    # 3. Billing & Expense Tables
-    has_billing_kw = any(kw in combined_text for kw in ("hospital bill", "inpatient hospital", "itemized inpatient", "tax invoice", "total amount", "net payable", "billed amount", "room rent", "room charges", "nursing charges", "bill", "invoice", "receipt", "total payment"))
+    # 3. Billing & Expense Tables (Strict High-Priority Check)
+    strict_billing_kw = any(kw in combined_text for kw in ("hospital bill", "inpatient hospital", "itemized inpatient", "final bill", "inpatient bill", "billing summary", "discharge bill", "patient bill", "itemized bill"))
     if "expense_table" in section_types or "bill_table" in section_types:
         return "hospital_bill"
-    if "table" in section_types and has_billing_kw:
-        return "hospital_bill"
-    if any(kw in combined_text for kw in ("hospital bill", "inpatient hospital", "itemized inpatient", "tax invoice", "room rent", "room charges", "nursing charges")):
+    if strict_billing_kw:
         return "hospital_bill"
 
-    # 4. Insurance Claim Form / Pre-authorizations
+    # 4. Lab & Investigation Reports
+    has_radiology = any(kw in combined_text for kw in ("radiology", "ultrasound", "x-ray", "ct scan", "mri scan", "mri report", "sonography"))
+    has_lab_kw = any(kw in combined_text for kw in ("lab report", "laboratory", "investigation report", "pathology", "test result", "cbc", "lft", "kft", "lipid profile"))
+    has_ref_range = any(kw in combined_text for kw in ("reference range", "ref range", "ref. range", "normal range", "observed value", "biological reference", "normal values"))
+    if has_radiology or (has_lab_kw and has_ref_range):
+        return "lab_report"
+
+    # 5. Pharmacy / Chemist Bills
+    has_pharmacy_kw = any(kw in combined_text for kw in ("chemist", "dispensing", "mfg date", "batch no", "exp date", "drug store", "drug license", "pharmacist", "medicines dispensed"))
+    if has_pharmacy_kw:
+        return "pharmacy_bill"
+
+    # 6. Insurance Claim Form / Pre-authorizations
     if any(kw in combined_text for kw in ("claim form", "insurance form", "policy number", "tpa", "sum insured", "pre-authorization", "pre-auth", "insurer communication", "part a", "part b")):
         return "insurance_form"
 
-    # 5. Pharmacy / Chemist Bills
-    if any(kw in combined_text for kw in ("pharmacy", "chemist", "dispensing", "mfg date", "batch no", "exp date", "drug store")):
-        return "pharmacy_bill"
-
-    # 6. Lab & Investigation Reports
-    if any(kw in combined_text for kw in ("lab report", "laboratory", "investigation report", "pathology", "test result", "radiology", "ultrasound", "x-ray", "ct scan")):
-        return "lab_report"
+    # 6b. Billing & Expense Tables (Loose Fallback Check)
+    has_billing_kw = any(kw in combined_text for kw in ("total amount", "net payable", "billed amount", "room rent", "room charges", "nursing charges", "bill", "invoice", "receipt", "total payment"))
+    if "table" in section_types and has_billing_kw:
+        return "hospital_bill"
+    if any(kw in combined_text for kw in ("room rent", "room charges", "nursing charges")):
+        return "hospital_bill"
 
     # 7. Low priority fallbacks for KYC using keywords like "aadhaar", "pan", etc.
     if any(kw in combined_text for kw in ("aadhaar", "aadhhaar", "adhar")):

@@ -477,6 +477,13 @@ def _run_ocr_job(job_id: uuid.UUID) -> dict[str, str]:
             if claim:
                 claim.status = "OCR_DONE" if not failed_in_loop else "OCR_PARTIAL"
 
+            if not failed_in_loop and valid_docs:
+                try:
+                    logger.info(f"[OCR] Running cross-document validation for claim {target_claim_id}")
+                    _validate_documents_for_claim(db, job.claim_id, valid_docs)
+                except Exception as val_err:
+                    logger.exception("Failed to run cross-document validation: %s", val_err)
+
             db.commit() # THE ONLY COMMIT THAT MATTERS
             logger.info(f"OCR job {target_job_id} finished: {job.status}")
             return {"status": job.status or "COMPLETED"}

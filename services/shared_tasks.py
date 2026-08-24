@@ -662,12 +662,18 @@ def intake_task(
             if row:
                 existing_doc, existing_claim, parse_job = row
                 logger.info(f"[Intake] Found existing claim {existing_claim.id} with same content hash")
-                if existing_claim.status == "COMPLETED":
-                    logger.info(f"[Intake] Claim {existing_claim.id} already completed; returning idempotently")
-                    raise Ignore()
-                if parse_job and parse_job.status in ("PENDING", "IN_PROGRESS", "QUEUED", "PARSING"):
-                    logger.info(f"[Intake] Claim {existing_claim.id} already in progress")
-                    raise Ignore()
+                is_same_patient = (
+                    (not patient_id and not existing_claim.patient_id) or
+                    (patient_id and existing_claim.patient_id and patient_id.lower() == existing_claim.patient_id.lower()) or
+                    (policy_id and existing_claim.policy_id and policy_id.lower() == existing_claim.policy_id.lower())
+                )
+                if is_same_patient:
+                    if existing_claim.status == "COMPLETED":
+                        logger.info(f"[Intake] Claim {existing_claim.id} already completed for this patient; returning idempotently")
+                        raise Ignore()
+                    if parse_job and parse_job.status in ("PENDING", "IN_PROGRESS", "QUEUED", "PARSING"):
+                        logger.info(f"[Intake] Claim {existing_claim.id} already in progress for this patient")
+                        raise Ignore()
 
         # --- STEP 2: Create claim ---
         claim = Claim(

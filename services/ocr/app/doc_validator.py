@@ -27,12 +27,14 @@ _DOC_TYPE_PATTERNS: list[tuple[str, str, re.Pattern]] = [
         r"\b(?:discharge\s+summary|discharge\s+report|final\s+summary|case\s+summary)\b", re.I)),
     ("ADMISSION_RECORD", "Admission Record", re.compile(
         r"\b(?:admission\s+(?:record|form|note|sheet)|indoor\s+case|case\s+paper|IP\s+record)\b", re.I)),
+    ("LAB_REPORT", "Laboratory Report", re.compile(
+        r"(?=.*?\b(?:reference\s+range|ref\s+range|ref\.\s+range|biological\s+reference|observed\s+value|normal\s+range|result\s+unit|units?\s+result|interpretation|flag)\b)"
+        r"(?=.*?\b(?:lab(?:oratory)?\s+(?:report|test|result|investigation)|blood\s+(?:test|report)|CBC|LFT|KFT|RFT|urine|pathology|hematology|biochemistry|culture|serology|biopsy|histopath)\b)", re.I | re.S)),
+    ("BILL_INVOICE", "Hospital Bill / Invoice", re.compile(
+        r"\b(?:hospital\s+bill|bill\s+(?:summary|detail|no|number|date)|invoice|receipt|payment|"
+        r"itemized\s+bill|final\s+bill|interim\s+bill|estimated\s+cost)\b", re.I)),
     ("PRESCRIPTION", "Prescription / Medication", re.compile(
         r"\b(?:prescription|Rx|medication\s+(?:list|order|chart)|drug\s+chart|treatment\s+sheet)\b", re.I)),
-    ("LAB_REPORT", "Laboratory Report", re.compile(
-        r"\b(?:lab(?:oratory)?\s+(?:report|test|result)|blood\s+(?:test|report)|CBC|LFT|KFT|RFT|"
-        r"urine\s+(?:test|analysis|report)|pathology|hematology|biochemistry|culture\s+(?:report|sensitivity)|"
-        r"serology|biopsy|histopath)\b", re.I)),
     ("RADIOLOGY_REPORT", "Radiology / Imaging Report", re.compile(
         r"\b(?:radiology|imaging\s+report|MRI\s+report|CT\s+report|X[\-\s]?Ray\s+report|"
         r"ultrasound\s+report|sonography|nuclear\s+medicine|PET|mammogra)\b", re.I)),
@@ -41,9 +43,6 @@ _DOC_TYPE_PATTERNS: list[tuple[str, str, re.Pattern]] = [
         r"pre[\-\s]?op|post[\-\s]?op|anesthesia\s+(?:note|record)|anaesthe)\b", re.I)),
     ("CONSULTATION", "Consultation Note", re.compile(
         r"\b(?:consultation|consult\s+note|specialist\s+(?:opinion|report)|referral\s+letter)\b", re.I)),
-    ("BILL_INVOICE", "Hospital Bill / Invoice", re.compile(
-        r"\b(?:hospital\s+bill|bill\s+(?:summary|detail)|invoice|receipt|payment|"
-        r"charges|itemized\s+bill|final\s+bill|interim\s+bill|estimated\s+cost)\b", re.I)),
     ("INSURANCE_FORM", "Insurance / Claim Form", re.compile(
         r"\b(?:claim\s+form|insurance\s+(?:form|card|policy)|pre[\-\s]?auth|cashless|"
         r"TPA|third\s+party|reimbursement\s+form|policy\s+(?:number|document))\b", re.I)),

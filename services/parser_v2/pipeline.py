@@ -182,8 +182,46 @@ def load_azure_layout_into_doc(azure_json_paths: list[str], tokens: list[Token])
     return tables, fields, regions
 
 
-def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[dict[int, Image.Image]] = None, document_paths: Optional[list[str]] = None, debug_dir: str = "debug", claim_id: Optional[str] = None) -> DocumentStructure:
-
+def parse_document(
+    ocr_tokens_json: list[dict[str, Any]],
+    page_images: Optional[dict[int, Image.Image]] = None,
+    document_paths: Optional[list[str]] = None,
+    debug_dir: str = "debug",
+    claim_id: Optional[str] = None,
+    doc_type_map: Optional[dict[str, str]] = None,
+    page_to_filename: Optional[dict[int, str]] = None
+) -> DocumentStructure:
+    def _get_doc_type_for_page(page_num: int, tokens: list[Token], doc_type_map: dict[str, str] | None = None, page_to_filename: dict[int, str] | None = None) -> str:
+        # 1. Find document_id for page from tokens
+        doc_id = None
+        for tok in tokens:
+            if getattr(tok, "page", None) == page_num:
+                doc_id = getattr(tok, "document_id", None)
+                if doc_id:
+                    break
+        
+        # 2. Check doc_type_map
+        if doc_type_map and doc_id and str(doc_id) in doc_type_map:
+            return doc_type_map[str(doc_id)]
+            
+        # 3. Fallback: check filename hints from page_to_filename
+        file_name = page_to_filename.get(page_num, "") if page_to_filename else ""
+        if file_name:
+            fn_lower = str(file_name).lower()
+            if any(x in fn_lower for x in ["pharmacy", "chemist", "drugstore"]):
+                return "PHARMACY_BILL"
+            if any(x in fn_lower for x in ["lab_report", "lab-report", "laboratory", "report"]):
+                return "LAB_REPORT"
+            if any(x in fn_lower for x in ["discharge", "summary"]):
+                return "DISCHARGE_SUMMARY"
+            if any(x in fn_lower for x in ["prescription", "rx"]):
+                return "PRESCRIPTION"
+            if any(x in fn_lower for x in ["radiology", "mri", "scan", "ultrasound", "usg"]):
+                return "RADIOLOGY_REPORT"
+            if any(x in fn_lower for x in ["claim", "insurance", "pre-auth", "preauth"]):
+                return "INSURANCE_FORM"
+                
+        return "UNKNOWN"
 
     """
     Main entrypoint for parser_v2 Phase 1 with document isolation support.
@@ -740,9 +778,34 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
             table.table_kind = semantic_kind
 
     semantic_expenses = semantic_output.semantic_table_mapping.get("expense_line_items", []) or []
+    
+    # Filter tables for heuristic extraction:
+    # Do not extract expenses from tables in non-billing documents (e.g. lab reports),
+    # unless the table was explicitly coerced/classified as "expenses" (such as itemised lab charges).
+    filtered_tables = []
+    for table in doc.tables:
+        table_page = getattr(table, "page", 1)
+        page_doc_type = _get_doc_type_for_page(table_page, tokens, doc_type_map, page_to_filename).upper()
+        table_kind = str(getattr(table, "table_kind", "") or "").lower()
+        if table_kind == "expenses" or page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN"}:
+            filtered_tables.append(table)
+        else:
+            logger.info(f"[EXPENSE_FILTER] Skipping table on page {table_page} because doc_type is {page_doc_type}")
+            
     # Heuristic/normalized rows
-    heuristic_expenses = normalize_tables(doc.tables) or []
+    heuristic_expenses = normalize_tables(filtered_tables) or []
+    
+    # Filter summary expenses to exclude non-billing documents
     summary_bill_expenses = normalize_summary_bill_expenses(all_token_dicts) or []
+    filtered_summary = []
+    for exp in summary_bill_expenses:
+        exp_page = int(exp.get("page") or 0)
+        page_doc_type = _get_doc_type_for_page(exp_page, tokens, doc_type_map, page_to_filename).upper()
+        if page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN"}:
+            filtered_summary.append(exp)
+        else:
+            logger.info(f"[EXPENSE_FILTER] Skipping summary expense on page {exp_page} because doc_type is {page_doc_type}")
+    summary_bill_expenses = filtered_summary
     
     # Pre-initialize heuristic_pages and existing_keys to ensure they are always defined in all scopes
     heuristic_pages = {
@@ -787,9 +850,20 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
                     continue
                 heuristic_expenses.append(row)
                 existing_keys.add(row_key)
+                
     # Also consider region-level extracted expense rows (single-line items)
     # and merge any rows that are on pages not already covered by heuristic tables.
     region_expenses = normalize_region_expenses(doc.regions) or []
+    filtered_regions = []
+    for exp in region_expenses:
+        exp_page = int(exp.get("page") or 0)
+        page_doc_type = _get_doc_type_for_page(exp_page, tokens, doc_type_map, page_to_filename).upper()
+        if page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN"}:
+            filtered_regions.append(exp)
+        else:
+            logger.info(f"[EXPENSE_FILTER] Skipping region expense on page {exp_page} because doc_type is {page_doc_type}")
+    region_expenses = filtered_regions
+    
     if region_expenses:
         region_candidates = [r for r in region_expenses if int(r.get("page") or 0) not in heuristic_pages]
         for row in region_candidates:
@@ -801,8 +875,9 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
                 continue
             heuristic_expenses.append(row)
             existing_keys.add(row_key)
+            
     if not heuristic_expenses:
-        heuristic_expenses = normalize_region_expenses(doc.regions) or []
+        heuristic_expenses = region_expenses
 
     def _norm_desc(d: str) -> str:
         import re
@@ -893,6 +968,10 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
             desc_cleaned = re.sub(r"[^a-zA-Z0-9]", "", desc)
             if len(desc_cleaned) < 3:
                 return False
+
+        # Specific check for Admission / Discharge dates/timestamps in headers
+        if ("admission" in desc or "discharge" in desc) and not any(kw in desc for kw in ["fee", "charge", "fees", "charges", "rent", "room", "bed", "medicine", "inj", "tab", "pack", "package"]):
+            return False
 
         blacklist = (
             "bill no",
@@ -1058,6 +1137,50 @@ def parse_document(ocr_tokens_json: list[dict[str, Any]], page_images: Optional[
             "respiratory rate",
             "temperature",
             "spo2",
+            # Additional summary/tax/demographic terms
+            "sub total",
+            "sub-total",
+            "subtotal",
+            "gross charges",
+            "payable amount",
+            "patient payable",
+            "payable by patient",
+            "payable from patient",
+            "amount collected",
+            "collected from patient",
+            "insurance adjusted",
+            "adjusted amount",
+            "discount",
+            "cgst",
+            "sgst",
+            "igst",
+            "gst",
+            "service tax",
+            "tax",
+            "tax invoice",
+            "invoice total",
+            "ward / room",
+            "ward/room",
+            "room no",
+            "room number",
+            "bed no",
+            "bed number",
+            "uhid",
+            "ip number",
+            "ip no",
+            "ipn",
+            "op number",
+            "op no",
+            "registration number",
+            "reg number",
+            "reg no",
+            "policy number",
+            "policy no",
+            "member id",
+            "member number",
+            "member no",
+            "card number",
+            "card no",
         )
         def _is_medical_procedure(desc_str: str) -> bool:
             desc_l = str(desc_str).lower()

@@ -715,8 +715,29 @@ def _run_parse_job(job_id: uuid.UUID) -> None:
 
                     logger.info(f"[PHASE_3_SUMMARY] Loaded {len(page_images)} pages for ML model; {len(doc_paths)} doc paths available")
 
+                    # Construct page_to_filename map for global page numbers
+                    page_to_filename = {}
+                    for d_rec in documents:
+                        d_rows = (
+                            db.query(OcrResult)
+                            .filter(OcrResult.document_id == d_rec.id)
+                            .all()
+                        )
+                        for r_rec in d_rows:
+                            g_page = doc_page_to_global.get((str(d_rec.id), r_rec.page_number))
+                            if g_page:
+                                page_to_filename[g_page] = d_rec.file_name
+
                     # Execute Parser V2 (Geometry-First + Model-Assisted)
-                    v2_doc = parse_v2(all_tokens, page_images=page_images, document_paths=doc_paths, debug_dir=settings.debug_dump_dir, claim_id=str(job.claim_id))
+                    v2_doc = parse_v2(
+                        all_tokens,
+                        page_images=page_images,
+                        document_paths=doc_paths,
+                        debug_dir=settings.debug_dump_dir,
+                        claim_id=str(job.claim_id),
+                        doc_type_map=doc_type_map,
+                        page_to_filename=page_to_filename
+                    )
                 finally:
                     for temp_f in temp_local_files:
                         try:
