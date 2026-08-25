@@ -209,6 +209,16 @@ def _is_invalid_expense_row(description: str, amount: str = "") -> bool:
             )
             if is_summary and not _is_medical_procedure(desc_lower):
                 return True
+        elif " " not in term:
+            if term in {"sex", "gender", "temperature", "weight", "spo2", "vitals"}:
+                # Only reject if it is a standalone clinical label/header, not part of a longer description
+                if re.search(r"\b" + re.escape(term) + r"\b", desc_lower):
+                    if len(desc_lower.split()) <= 3 or re.search(re.escape(term) + r"\s*:", desc_lower):
+                        return True
+            else:
+                # Use word boundaries for other single-word terms to avoid partial matching (e.g. auth -> authorized, paid -> prepaid)
+                if re.search(r"\b" + re.escape(term) + r"\b", desc_lower):
+                    return True
         elif term in desc_lower:
             return True
 
@@ -566,6 +576,21 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                 first_text_cell_lower = cell_text.lower()
                 break
 
+            # 1. Identify rate cell to enforce layout order
+            rate_idx = None
+            rate_x0 = float(header_cells[header_map["rate"]].bbox[0]) if header_cells and "rate" in header_map and header_map["rate"] < len(header_cells) else None
+            if rate_x0 is not None:
+                min_rate_dist = float("inf")
+                for idx_c in range(len(cells)):
+                    cell = cells[idx_c]
+                    text = str(cell.text or "").strip()
+                    if not _looks_numeric(text):
+                        continue
+                    dist = abs(float(cell.bbox[0]) - rate_x0)
+                    if dist < min_rate_dist and dist < 150.0:
+                        min_rate_dist = dist
+                        rate_idx = idx_c
+
             amount_idx = None
             chosen_amount_header = None
             for header_name in amount_priority:
@@ -578,6 +603,9 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                     best_idx = None
                     min_dist = float("inf")
                     for candidate_idx in range(len(cells)):
+                        # Enforce layout ordering constraint: amount must be to the right of rate
+                        if rate_idx is not None and candidate_idx <= rate_idx:
+                            continue
                         candidate_cell = cells[candidate_idx]
                         candidate_text = str(candidate_cell.text or "").strip()
                         if not _looks_numeric(candidate_text):

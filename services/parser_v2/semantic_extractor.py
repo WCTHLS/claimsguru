@@ -657,7 +657,9 @@ def _is_vitals_table(table: TableRegion) -> bool:
         return False
     table_text = " ".join(str(cell.text or "") for row in rows for cell in row.cells).lower()
     vitals_indicators = ["spo2", "pulse rate", "respiratory rate", "blood pressure", "temperature", "systolic", "diastolic"]
-    return any(indicator in table_text for indicator in vitals_indicators)
+    # Require at least 2 distinct vitals signs keywords to prevent misclassifying billing tables
+    matches = sum(1 for indicator in vitals_indicators if indicator in table_text)
+    return matches >= 2
 
 
 def extract_semantics(

@@ -787,7 +787,7 @@ def parse_document(
         table_page = getattr(table, "page", 1)
         page_doc_type = _get_doc_type_for_page(table_page, tokens, doc_type_map, page_to_filename).upper()
         table_kind = str(getattr(table, "table_kind", "") or "").lower()
-        if table_kind == "expenses" or page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN"}:
+        if table_kind == "expenses" or page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN", "CONSULTATION", "INSURANCE_FORM"}:
             filtered_tables.append(table)
         else:
             logger.info(f"[EXPENSE_FILTER] Skipping table on page {table_page} because doc_type is {page_doc_type}")
@@ -801,7 +801,7 @@ def parse_document(
     for exp in summary_bill_expenses:
         exp_page = int(exp.get("page") or 0)
         page_doc_type = _get_doc_type_for_page(exp_page, tokens, doc_type_map, page_to_filename).upper()
-        if page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN"}:
+        if page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN", "CONSULTATION", "INSURANCE_FORM"}:
             filtered_summary.append(exp)
         else:
             logger.info(f"[EXPENSE_FILTER] Skipping summary expense on page {exp_page} because doc_type is {page_doc_type}")
@@ -858,7 +858,7 @@ def parse_document(
     for exp in region_expenses:
         exp_page = int(exp.get("page") or 0)
         page_doc_type = _get_doc_type_for_page(exp_page, tokens, doc_type_map, page_to_filename).upper()
-        if page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN"}:
+        if page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN", "CONSULTATION", "INSURANCE_FORM"}:
             filtered_regions.append(exp)
         else:
             logger.info(f"[EXPENSE_FILTER] Skipping region expense on page {exp_page} because doc_type is {page_doc_type}")
@@ -970,7 +970,9 @@ def parse_document(
                 return False
 
         # Specific check for Admission / Discharge dates/timestamps in headers
-        if ("admission" in desc or "discharge" in desc) and not any(kw in desc for kw in ["fee", "charge", "fees", "charges", "rent", "room", "bed", "medicine", "inj", "tab", "pack", "package"]):
+        has_dates_headers = ("admission" in desc or "discharge" in desc)
+        has_valid_billing_terms = any(kw in desc for kw in ["fee", "fees", "rent", "room", "bed", "medicine", "inj", "tab", "pack", "package"]) or ("charge" in desc and "discharge" not in desc) or ("charges" in desc and "discharges" not in desc)
+        if has_dates_headers and not has_valid_billing_terms:
             return False
 
         blacklist = (
@@ -1200,6 +1202,16 @@ def parse_document(
             elif term == "observation":
                 if "observation" in desc:
                     if not any(kw in desc for kw in ["charges", "charge", "fee", "fees", "package", "room", "bed"]):
+                        return False
+            elif " " not in term:
+                if term in {"sex", "gender", "temperature", "weight", "spo2", "vitals"}:
+                    # Only reject if it is a standalone clinical label/header, not part of a longer description
+                    if re.search(r"\b" + re.escape(term) + r"\b", desc):
+                        if len(desc.split()) <= 3 or re.search(re.escape(term) + r"\s*:", desc):
+                            return False
+                else:
+                    # Use word boundaries for other single-word terms to avoid partial matching (e.g. auth -> authorized, paid -> prepaid)
+                    if re.search(r"\b" + re.escape(term) + r"\b", desc):
                         return False
             elif term in desc:
                 return False

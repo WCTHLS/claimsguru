@@ -229,7 +229,7 @@ def _build_sections(fields: dict[str, Any], blank: bool) -> dict[str, Any]:
             "fields": [
                 f("Name of Insurance Company", _g(fields, "insurer", "insurance_company"), name="a_insurer", required=True),
                 f("TPA Name", _g(fields, "tpa_name", "tpa"), name="a_tpa"),
-                f("Policy / Health Card No.", _g(fields, "policy_number", "policy_no", "policy_id"), name="a_policy_no", required=True),
+                f("Policy / Health Card No.", _g(fields, "policy_number", "policy_no", "policy_id", "insurance_policy_number"), name="a_policy_no", required=True),
                 f("Member ID / UHID", _g(fields, "uhid", "member_id"), name="a_uhid"),
             ],
         },
@@ -335,7 +335,24 @@ def generate_irda_pdf_modern(claim_data: dict[str, Any], blank: bool = False) ->
     icd_codes = [c if isinstance(c, dict) else {"code": str(c), "description": "", "confidence": None} for c in icd_in]
     cpt_codes = [c if isinstance(c, dict) else {"code": str(c), "description": "", "confidence": None} for c in cpt_in]
 
-    expenses, total = _build_expenses(fields_in)
+    raw_expenses = claim_data.get("expenses") or []
+    if raw_expenses:
+        expenses = []
+        total = 0.0
+        for exp in raw_expenses:
+            cat = exp.get("category") or exp.get("description") or "Expense"
+            amt_val = 0.0
+            try:
+                amt_val = float(str(exp.get("amount", 0.0)).replace(",", ""))
+            except (TypeError, ValueError):
+                pass
+            expenses.append({
+                "label": cat,
+                "amount": _money(amt_val)
+            })
+            total += amt_val
+    else:
+        expenses, total = _build_expenses(fields_in)
     # Allow an explicit total to override the sum if present.
     explicit_total = fields_in.get("claimed_total") or fields_in.get("total_claim_amount") or fields_in.get("total_amount") or fields_in.get("gross_total")
     if explicit_total:
@@ -346,7 +363,7 @@ def generate_irda_pdf_modern(claim_data: dict[str, Any], blank: bool = False) ->
 
     summary = {
         "patient_name": _g(fields_in, "patient_name", "member_name", "insured_name"),
-        "policy_number": _g(fields_in, "policy_number", "policy_no", "policy_id"),
+        "policy_number": _g(fields_in, "policy_number", "policy_no", "policy_id", "insurance_policy_number"),
         "hospital_name": _g(fields_in, "hospital_name"),
         "total_claimed": _money_full(total) if total else _money_full(explicit_total),
         "admission_date": _g(fields_in, "admission_date", "date_of_admission"),
