@@ -940,13 +940,16 @@ def register_local_user(payload: RegisterUserIn):
         except (ValueError, TypeError):
             sum_insured_val = None
 
-    # Parse dob if provided
+    # Parse dob if provided (supports YYYY-MM-DD, DD/MM/YYYY, DD-MM-YYYY, DDMMYYYY, DD Mon YYYY)
     dob_val = None
     if payload.dob and str(payload.dob).strip() != "":
-        try:
-            dob_val = datetime.strptime(str(payload.dob).strip(), "%Y-%m-%d").date()
-        except (ValueError, TypeError):
-            dob_val = None
+        dob_str = str(payload.dob).strip()
+        for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y", "%d%m%Y", "%d %b %Y", "%d %B %Y"):
+            try:
+                dob_val = datetime.strptime(dob_str, fmt).date()
+                break
+            except (ValueError, TypeError):
+                continue
 
     # Organization registration requires an organization name
     if normalized_role == "reviewer":

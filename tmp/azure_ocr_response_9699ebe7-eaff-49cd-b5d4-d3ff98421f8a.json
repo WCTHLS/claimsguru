@@ -1,0 +1,1558 @@
+[
+  {
+    "page": 1,
+    "text": "Less: Co-payment (5%)\nRs. 6,077.24\nTOTAL REIMBURSEMENT CLAIMED\nRs. 115,467.60\nAmount Paid to Hospital\nRs. 141,757.27\nF. BANK DETAILS FOR NEFT SETTLEMENT\nAccount Holder\nName\nSavita Patel\nAccount\n124892147596\nNumber\nAccount Type\nSavings Account\nBank Name\nHDFC Bank\nIFSC Code\nHDFC0708678\nBranch\nUjjain Main Branch\nLinked Aadhaar\nXXXX XXXX 4231\nLinked PAN\nVLHHR5821R\nRegistered Mobile\n+919725074318\nG. CANCELLED CHEQUE DETAILS\nCheque Number\n471015\nBank & Branch\nHDFC Bank - Ujjain Main Branch\nAccount Number\n124892147596\nIFSC Code\nHDFC0708678\nMICR Code\n545660888\nStatus\nCANCELLED - For NEFT mandate verification only\nH. DECLARATION\nI, Savita Patel, hereby declare that I was admitted to Manipal Health City for treatment of Hyperosmolar Hyperglycaemic State from\n07/05/2024 to 14/05/2024. I paid Rs. 141,757.27/- directly to the hospital and request reimbursement of Rs. 115,467.60/- as per policy terms.\nAll information is true and correct.\nDate: 20/05/2024\nPlace: Ujjain\nInsured\nSignature of\n\nLess: Co-payment (5%) | Rs. 6,077.24\nTOTAL REIMBURSEMENT CLAIMED | Rs. 115,467.60\nAmount Paid to Hospital | Rs. 141,757.27\n\nAccount Holder Name | Savita Patel\nAccount | 124892147596\nNumber | \nAccount Type | Savings Account\n\nBank Name | HDFC Bank\nIFSC Code | HDFC0708678\nBranch | Ujjain Main Branch\n\nLinked Aadhaar | XXXX XXXX 4231 :selected: :selected: :selected: :selected: :selected:\nLinked PAN | VLHHR5821R\nRegistered Mobile | +919725074318\n\nG. CANCELLED CHEQUE DETAILS | \nCheque Number | 471015\nBank & Branch | HDFC Bank - Ujjain Main Branch\nAccount Number | 124892147596\nIFSC Code | HDFC0708678\nMICR Code | 545660888\nStatus | CANCELLED - For NEFT mandate verification only",
+    "fields": {
+      "Less": "Co-payment (5%) | Rs. 6,077.24",
+      "HDFC Bank": "Ujjain Main Branch",
+      "CANCELLED": "For NEFT mandate verification only",
+      "Date": "20/05/2024",
+      "Place": "Ujjain"
+    },
+    "tables": [
+      [
+        [
+          "Less: Co-payment (5%)",
+          "Rs. 6,077.24"
+        ],
+        [
+          "TOTAL REIMBURSEMENT CLAIMED",
+          "Rs. 115,467.60"
+        ],
+        [
+          "Amount Paid to Hospital",
+          "Rs. 141,757.27"
+        ]
+      ],
+      [
+        [
+          "Account Holder Name",
+          "Savita Patel"
+        ],
+        [
+          "Account",
+          "124892147596"
+        ],
+        [
+          "Number",
+          ""
+        ],
+        [
+          "Account Type",
+          "Savings Account"
+        ]
+      ],
+      [
+        [
+          "Bank Name",
+          "HDFC Bank"
+        ],
+        [
+          "IFSC Code",
+          "HDFC0708678"
+        ],
+        [
+          "Branch",
+          "Ujjain Main Branch"
+        ]
+      ],
+      [
+        [
+          "Linked Aadhaar",
+          "XXXX XXXX 4231\n:selected: :selected: :selected: :selected: :selected:"
+        ],
+        [
+          "Linked PAN",
+          "VLHHR5821R"
+        ],
+        [
+          "Registered Mobile",
+          "+919725074318"
+        ]
+      ],
+      [
+        [
+          "G. CANCELLED CHEQUE DETAILS",
+          ""
+        ],
+        [
+          "Cheque Number",
+          "471015"
+        ],
+        [
+          "Bank & Branch",
+          "HDFC Bank - Ujjain Main Branch"
+        ],
+        [
+          "Account Number",
+          "124892147596"
+        ],
+        [
+          "IFSC Code",
+          "HDFC0708678"
+        ],
+        [
+          "MICR Code",
+          "545660888"
+        ],
+        [
+          "Status",
+          "CANCELLED - For NEFT mandate verification only"
+        ]
+      ]
+    ],
+    "confidence": 0.9775931034482761,
+    "tokens": [
+      {
+        "text": "Less:",
+        "x0": 131.0,
+        "y0": 114.0,
+        "x1": 177.0,
+        "y1": 135.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Co-payment",
+        "x0": 181.0,
+        "y0": 114.0,
+        "x1": 278.0,
+        "y1": 136.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "(5%)",
+        "x0": 282.0,
+        "y0": 113.0,
+        "x1": 321.0,
+        "y1": 136.0,
+        "page": 1,
+        "confidence": 0.863,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 515.0,
+        "y0": 115.0,
+        "x1": 541.0,
+        "y1": 132.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "6,077.24",
+        "x0": 545.0,
+        "y0": 114.0,
+        "x1": 613.0,
+        "y1": 134.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TOTAL",
+        "x0": 132.0,
+        "y0": 151.0,
+        "x1": 188.0,
+        "y1": 170.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "REIMBURSEMENT",
+        "x0": 193.0,
+        "y0": 150.0,
+        "x1": 346.0,
+        "y1": 171.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CLAIMED",
+        "x0": 350.0,
+        "y0": 150.0,
+        "x1": 425.0,
+        "y1": 171.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 515.0,
+        "y0": 152.0,
+        "x1": 543.0,
+        "y1": 169.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "115,467.60",
+        "x0": 547.0,
+        "y0": 152.0,
+        "x1": 631.0,
+        "y1": 171.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Amount",
+        "x0": 132.0,
+        "y0": 189.0,
+        "x1": 196.0,
+        "y1": 210.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Paid",
+        "x0": 200.0,
+        "y0": 189.0,
+        "x1": 236.0,
+        "y1": 210.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "to",
+        "x0": 240.0,
+        "y0": 190.0,
+        "x1": 257.0,
+        "y1": 210.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Hospital",
+        "x0": 261.0,
+        "y0": 190.0,
+        "x1": 330.0,
+        "y1": 210.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 515.0,
+        "y0": 190.0,
+        "x1": 543.0,
+        "y1": 208.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "141,757.27",
+        "x0": 546.0,
+        "y0": 190.0,
+        "x1": 631.0,
+        "y1": 208.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "F.",
+        "x0": 132.0,
+        "y0": 247.0,
+        "x1": 152.0,
+        "y1": 266.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "BANK",
+        "x0": 156.0,
+        "y0": 247.0,
+        "x1": 207.0,
+        "y1": 267.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "DETAILS",
+        "x0": 216.0,
+        "y0": 246.0,
+        "x1": 298.0,
+        "y1": 267.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "FOR",
+        "x0": 304.0,
+        "y0": 246.0,
+        "x1": 341.0,
+        "y1": 267.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "NEFT",
+        "x0": 348.0,
+        "y0": 246.0,
+        "x1": 401.0,
+        "y1": 267.0,
+        "page": 1,
+        "confidence": 0.98,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "SETTLEMENT",
+        "x0": 406.0,
+        "y0": 246.0,
+        "x1": 534.0,
+        "y1": 267.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Account",
+        "x0": 143.0,
+        "y0": 293.0,
+        "x1": 212.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Holder",
+        "x0": 215.0,
+        "y0": 293.0,
+        "x1": 272.0,
+        "y1": 311.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Name",
+        "x0": 144.0,
+        "y0": 319.0,
+        "x1": 188.0,
+        "y1": 334.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Savita",
+        "x0": 297.0,
+        "y0": 293.0,
+        "x1": 344.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Patel",
+        "x0": 348.0,
+        "y0": 293.0,
+        "x1": 389.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Account",
+        "x0": 144.0,
+        "y0": 355.0,
+        "x1": 212.0,
+        "y1": 372.0,
+        "page": 1,
+        "confidence": 0.976,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "124892147596",
+        "x0": 297.0,
+        "y0": 354.0,
+        "x1": 411.0,
+        "y1": 372.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Number",
+        "x0": 143.0,
+        "y0": 381.0,
+        "x1": 208.0,
+        "y1": 397.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Account",
+        "x0": 144.0,
+        "y0": 418.0,
+        "x1": 214.0,
+        "y1": 438.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Type",
+        "x0": 218.0,
+        "y0": 418.0,
+        "x1": 257.0,
+        "y1": 439.0,
+        "page": 1,
+        "confidence": 0.985,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Savings",
+        "x0": 296.0,
+        "y0": 418.0,
+        "x1": 358.0,
+        "y1": 437.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Account",
+        "x0": 362.0,
+        "y0": 418.0,
+        "x1": 425.0,
+        "y1": 438.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Bank",
+        "x0": 633.0,
+        "y0": 292.0,
+        "x1": 673.0,
+        "y1": 311.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Name",
+        "x0": 679.0,
+        "y0": 293.0,
+        "x1": 727.0,
+        "y1": 311.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "HDFC",
+        "x0": 785.0,
+        "y0": 293.0,
+        "x1": 831.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Bank",
+        "x0": 839.0,
+        "y0": 293.0,
+        "x1": 877.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "IFSC",
+        "x0": 632.0,
+        "y0": 354.0,
+        "x1": 669.0,
+        "y1": 372.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Code",
+        "x0": 677.0,
+        "y0": 355.0,
+        "x1": 719.0,
+        "y1": 372.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "HDFC0708678",
+        "x0": 786.0,
+        "y0": 355.0,
+        "x1": 900.0,
+        "y1": 372.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Branch",
+        "x0": 634.0,
+        "y0": 418.0,
+        "x1": 690.0,
+        "y1": 435.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ujjain",
+        "x0": 786.0,
+        "y0": 417.0,
+        "x1": 829.0,
+        "y1": 438.0,
+        "page": 1,
+        "confidence": 0.507,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Main",
+        "x0": 833.0,
+        "y0": 417.0,
+        "x1": 871.0,
+        "y1": 437.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Branch",
+        "x0": 875.0,
+        "y0": 417.0,
+        "x1": 930.0,
+        "y1": 437.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Linked",
+        "x0": 131.0,
+        "y0": 461.0,
+        "x1": 185.0,
+        "y1": 479.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Aadhaar",
+        "x0": 192.0,
+        "y0": 461.0,
+        "x1": 261.0,
+        "y1": 479.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "XXXX",
+        "x0": 458.0,
+        "y0": 461.0,
+        "x1": 500.0,
+        "y1": 478.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "XXXX",
+        "x0": 508.0,
+        "y0": 461.0,
+        "x1": 552.0,
+        "y1": 478.0,
+        "page": 1,
+        "confidence": 0.986,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4231",
+        "x0": 557.0,
+        "y0": 461.0,
+        "x1": 595.0,
+        "y1": 478.0,
+        "page": 1,
+        "confidence": 0.495,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Linked",
+        "x0": 131.0,
+        "y0": 499.0,
+        "x1": 185.0,
+        "y1": 516.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "PAN",
+        "x0": 192.0,
+        "y0": 499.0,
+        "x1": 223.0,
+        "y1": 516.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "VLHHR5821R",
+        "x0": 456.0,
+        "y0": 499.0,
+        "x1": 561.0,
+        "y1": 516.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Registered",
+        "x0": 131.0,
+        "y0": 536.0,
+        "x1": 219.0,
+        "y1": 555.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Mobile",
+        "x0": 224.0,
+        "y0": 536.0,
+        "x1": 279.0,
+        "y1": 554.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "+919725074318",
+        "x0": 457.0,
+        "y0": 537.0,
+        "x1": 580.0,
+        "y1": 553.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "G.",
+        "x0": 134.0,
+        "y0": 593.0,
+        "x1": 155.0,
+        "y1": 612.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CANCELLED",
+        "x0": 159.0,
+        "y0": 593.0,
+        "x1": 274.0,
+        "y1": 613.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CHEQUE",
+        "x0": 283.0,
+        "y0": 593.0,
+        "x1": 363.0,
+        "y1": 613.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "DETAILS",
+        "x0": 371.0,
+        "y0": 592.0,
+        "x1": 451.0,
+        "y1": 613.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Cheque",
+        "x0": 131.0,
+        "y0": 639.0,
+        "x1": 194.0,
+        "y1": 658.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Number",
+        "x0": 198.0,
+        "y0": 639.0,
+        "x1": 265.0,
+        "y1": 658.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "471015",
+        "x0": 456.0,
+        "y0": 639.0,
+        "x1": 511.0,
+        "y1": 657.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Bank",
+        "x0": 132.0,
+        "y0": 677.0,
+        "x1": 171.0,
+        "y1": 693.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "&",
+        "x0": 178.0,
+        "y0": 676.0,
+        "x1": 188.0,
+        "y1": 693.0,
+        "page": 1,
+        "confidence": 0.975,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Branch",
+        "x0": 196.0,
+        "y0": 676.0,
+        "x1": 252.0,
+        "y1": 693.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "HDFC",
+        "x0": 455.0,
+        "y0": 675.0,
+        "x1": 501.0,
+        "y1": 694.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Bank",
+        "x0": 507.0,
+        "y0": 675.0,
+        "x1": 547.0,
+        "y1": 695.0,
+        "page": 1,
+        "confidence": 0.984,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "-",
+        "x0": 550.0,
+        "y0": 675.0,
+        "x1": 561.0,
+        "y1": 695.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ujjain",
+        "x0": 574.0,
+        "y0": 675.0,
+        "x1": 616.0,
+        "y1": 696.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Main",
+        "x0": 620.0,
+        "y0": 675.0,
+        "x1": 659.0,
+        "y1": 696.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Branch",
+        "x0": 663.0,
+        "y0": 675.0,
+        "x1": 716.0,
+        "y1": 696.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Account",
+        "x0": 131.0,
+        "y0": 714.0,
+        "x1": 200.0,
+        "y1": 731.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Number",
+        "x0": 204.0,
+        "y0": 714.0,
+        "x1": 269.0,
+        "y1": 731.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "124892147596",
+        "x0": 457.0,
+        "y0": 714.0,
+        "x1": 571.0,
+        "y1": 731.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "IFSC",
+        "x0": 130.0,
+        "y0": 751.0,
+        "x1": 167.0,
+        "y1": 768.0,
+        "page": 1,
+        "confidence": 0.987,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Code",
+        "x0": 176.0,
+        "y0": 751.0,
+        "x1": 218.0,
+        "y1": 768.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "HDFC0708678",
+        "x0": 456.0,
+        "y0": 751.0,
+        "x1": 570.0,
+        "y1": 768.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "MICR",
+        "x0": 130.0,
+        "y0": 789.0,
+        "x1": 172.0,
+        "y1": 806.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Code",
+        "x0": 180.0,
+        "y0": 789.0,
+        "x1": 223.0,
+        "y1": 806.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "545660888",
+        "x0": 455.0,
+        "y0": 789.0,
+        "x1": 541.0,
+        "y1": 807.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Status",
+        "x0": 131.0,
+        "y0": 827.0,
+        "x1": 183.0,
+        "y1": 843.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CANCELLED",
+        "x0": 456.0,
+        "y0": 825.0,
+        "x1": 557.0,
+        "y1": 844.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "-",
+        "x0": 561.0,
+        "y0": 825.0,
+        "x1": 572.0,
+        "y1": 844.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "For",
+        "x0": 584.0,
+        "y0": 825.0,
+        "x1": 610.0,
+        "y1": 845.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "NEFT",
+        "x0": 614.0,
+        "y0": 825.0,
+        "x1": 660.0,
+        "y1": 845.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "mandate",
+        "x0": 663.0,
+        "y0": 825.0,
+        "x1": 732.0,
+        "y1": 845.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "verification",
+        "x0": 735.0,
+        "y0": 825.0,
+        "x1": 818.0,
+        "y1": 846.0,
+        "page": 1,
+        "confidence": 0.988,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "only",
+        "x0": 822.0,
+        "y0": 825.0,
+        "x1": 855.0,
+        "y1": 846.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "H.",
+        "x0": 132.0,
+        "y0": 881.0,
+        "x1": 152.0,
+        "y1": 907.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "DECLARATION",
+        "x0": 157.0,
+        "y0": 881.0,
+        "x1": 296.0,
+        "y1": 907.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "I,",
+        "x0": 136.0,
+        "y0": 936.0,
+        "x1": 150.0,
+        "y1": 953.0,
+        "page": 1,
+        "confidence": 0.862,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Savita",
+        "x0": 154.0,
+        "y0": 936.0,
+        "x1": 198.0,
+        "y1": 953.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Patel,",
+        "x0": 204.0,
+        "y0": 936.0,
+        "x1": 247.0,
+        "y1": 954.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "hereby",
+        "x0": 250.0,
+        "y0": 935.0,
+        "x1": 300.0,
+        "y1": 954.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "declare",
+        "x0": 304.0,
+        "y0": 935.0,
+        "x1": 357.0,
+        "y1": 954.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "that",
+        "x0": 361.0,
+        "y0": 935.0,
+        "x1": 392.0,
+        "y1": 954.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "I",
+        "x0": 396.0,
+        "y0": 935.0,
+        "x1": 404.0,
+        "y1": 955.0,
+        "page": 1,
+        "confidence": 0.895,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "was",
+        "x0": 408.0,
+        "y0": 935.0,
+        "x1": 438.0,
+        "y1": 955.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "admitted",
+        "x0": 442.0,
+        "y0": 935.0,
+        "x1": 503.0,
+        "y1": 955.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "to",
+        "x0": 508.0,
+        "y0": 935.0,
+        "x1": 524.0,
+        "y1": 955.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Manipal",
+        "x0": 528.0,
+        "y0": 935.0,
+        "x1": 592.0,
+        "y1": 955.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Health",
+        "x0": 595.0,
+        "y0": 935.0,
+        "x1": 644.0,
+        "y1": 955.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "City",
+        "x0": 651.0,
+        "y0": 935.0,
+        "x1": 681.0,
+        "y1": 956.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "for",
+        "x0": 685.0,
+        "y0": 935.0,
+        "x1": 707.0,
+        "y1": 956.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "treatment",
+        "x0": 711.0,
+        "y0": 935.0,
+        "x1": 780.0,
+        "y1": 956.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "of",
+        "x0": 784.0,
+        "y0": 935.0,
+        "x1": 801.0,
+        "y1": 956.0,
+        "page": 1,
+        "confidence": 0.951,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Hyperosmolar",
+        "x0": 805.0,
+        "y0": 935.0,
+        "x1": 908.0,
+        "y1": 956.0,
+        "page": 1,
+        "confidence": 0.988,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Hyperglycaemic",
+        "x0": 913.0,
+        "y0": 935.0,
+        "x1": 1029.0,
+        "y1": 956.0,
+        "page": 1,
+        "confidence": 0.511,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "State",
+        "x0": 1034.0,
+        "y0": 935.0,
+        "x1": 1071.0,
+        "y1": 956.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "from",
+        "x0": 1074.0,
+        "y0": 935.0,
+        "x1": 1105.0,
+        "y1": 956.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "07/05/2024",
+        "x0": 136.0,
+        "y0": 962.0,
+        "x1": 214.0,
+        "y1": 981.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "to",
+        "x0": 217.0,
+        "y0": 962.0,
+        "x1": 234.0,
+        "y1": 981.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "14/05/2024.",
+        "x0": 238.0,
+        "y0": 962.0,
+        "x1": 320.0,
+        "y1": 981.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "I",
+        "x0": 323.0,
+        "y0": 962.0,
+        "x1": 329.0,
+        "y1": 981.0,
+        "page": 1,
+        "confidence": 0.86,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "paid",
+        "x0": 332.0,
+        "y0": 962.0,
+        "x1": 364.0,
+        "y1": 981.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 368.0,
+        "y0": 962.0,
+        "x1": 391.0,
+        "y1": 981.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "141,757.27/-",
+        "x0": 395.0,
+        "y0": 962.0,
+        "x1": 482.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "directly",
+        "x0": 485.0,
+        "y0": 962.0,
+        "x1": 538.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "to",
+        "x0": 541.0,
+        "y0": 962.0,
+        "x1": 556.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "the",
+        "x0": 559.0,
+        "y0": 962.0,
+        "x1": 581.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "hospital",
+        "x0": 585.0,
+        "y0": 962.0,
+        "x1": 641.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "and",
+        "x0": 645.0,
+        "y0": 962.0,
+        "x1": 672.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "request",
+        "x0": 675.0,
+        "y0": 962.0,
+        "x1": 725.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "reimbursement",
+        "x0": 729.0,
+        "y0": 962.0,
+        "x1": 834.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.979,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "of",
+        "x0": 837.0,
+        "y0": 962.0,
+        "x1": 851.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 855.0,
+        "y0": 962.0,
+        "x1": 878.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "115,467.60/-",
+        "x0": 882.0,
+        "y0": 962.0,
+        "x1": 969.0,
+        "y1": 983.0,
+        "page": 1,
+        "confidence": 0.965,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "as",
+        "x0": 972.0,
+        "y0": 962.0,
+        "x1": 988.0,
+        "y1": 983.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "per",
+        "x0": 992.0,
+        "y0": 962.0,
+        "x1": 1015.0,
+        "y1": 983.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "policy",
+        "x0": 1018.0,
+        "y0": 962.0,
+        "x1": 1060.0,
+        "y1": 983.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "terms.",
+        "x0": 1064.0,
+        "y0": 963.0,
+        "x1": 1109.0,
+        "y1": 982.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "All",
+        "x0": 137.0,
+        "y0": 991.0,
+        "x1": 157.0,
+        "y1": 1009.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "information",
+        "x0": 160.0,
+        "y0": 991.0,
+        "x1": 243.0,
+        "y1": 1009.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "is",
+        "x0": 246.0,
+        "y0": 991.0,
+        "x1": 259.0,
+        "y1": 1009.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "true",
+        "x0": 262.0,
+        "y0": 991.0,
+        "x1": 290.0,
+        "y1": 1009.0,
+        "page": 1,
+        "confidence": 0.966,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "and",
+        "x0": 293.0,
+        "y0": 991.0,
+        "x1": 320.0,
+        "y1": 1009.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "correct.",
+        "x0": 325.0,
+        "y0": 991.0,
+        "x1": 379.0,
+        "y1": 1009.0,
+        "page": 1,
+        "confidence": 0.98,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 133.0,
+        "y0": 1084.0,
+        "x1": 170.0,
+        "y1": 1099.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "20/05/2024",
+        "x0": 173.0,
+        "y0": 1083.0,
+        "x1": 249.0,
+        "y1": 1100.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Place:",
+        "x0": 467.0,
+        "y0": 1083.0,
+        "x1": 509.0,
+        "y1": 1102.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ujjain",
+        "x0": 513.0,
+        "y0": 1083.0,
+        "x1": 551.0,
+        "y1": 1102.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Insured",
+        "x0": 802.0,
+        "y0": 1084.0,
+        "x1": 852.0,
+        "y1": 1100.0,
+        "page": 1,
+        "confidence": 0.972,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature",
+        "x0": 999.0,
+        "y0": 1058.0,
+        "x1": 1064.0,
+        "y1": 1076.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "of",
+        "x0": 1067.0,
+        "y0": 1058.0,
+        "x1": 1082.0,
+        "y1": 1077.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      }
+    ]
+  }
+]

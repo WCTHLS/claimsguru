@@ -161,8 +161,16 @@ def _detect_extractor_for_unknown(path: Path) -> str:
 
 
 def extract_with_azure_docintel(file_path: Path, document_id: str | None = None) -> list[dict] | None:
-    endpoint = getattr(settings, "azure_document_intelligence_endpoint", None) or os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
-    key = getattr(settings, "azure_document_intelligence_key", None) or os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_KEY")
+    endpoint = (
+        getattr(settings, "azure_document_intelligence_endpoint", None)
+        or os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+        or os.environ.get("OCR_AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT")
+    )
+    key = (
+        getattr(settings, "azure_document_intelligence_key", None)
+        or os.environ.get("AZURE_DOCUMENT_INTELLIGENCE_KEY")
+        or os.environ.get("OCR_AZURE_DOCUMENT_INTELLIGENCE_KEY")
+    )
     if not endpoint or not key:
         logger.warning("Azure Document Intelligence credentials not configured. Skipping Azure OCR.")
         return None
