@@ -309,7 +309,8 @@ def _is_unit_or_count_token(tokens_list: list, idx: int) -> bool:
         "tablet", "tablets", "tab", "capsule", "capsules", "cap", "pill", "pills",
         "documented", "conditions", "condition", "prescriptions", "prescription",
         "prior", "active", "percent", "%", "nos", "no", "qty", "quantity", "hours", "hrs", "hour", "min", "mins", "minutes",
-        "year", "years", "yr", "yrs"
+        "year", "years", "yr", "yrs", "diagnosis", "diagnoses", "patient", "patients",
+        "member", "members", "claim", "claims"
     }
     
     right_tokens = tokens_list[idx + 1:]
@@ -326,6 +327,65 @@ def _is_unit_or_count_token(tokens_list: list, idx: int) -> bool:
         if rt_text in unit_keywords:
             return True
     return False
+
+
+def _stitch_adjacent_numeric_cells(cells: List[Any]) -> List[Any]:
+    """Stitch horizontally adjacent cells containing split numeric parts.
+    
+    Handles OCR segmentation splits like '48,' and '637'.
+    """
+    if len(cells) < 2:
+        return cells
+        
+    stitched = []
+    i = 0
+    while i < len(cells):
+        curr_cell = cells[i]
+        curr_text = str(curr_cell.text or "").strip()
+        
+        # If there is a next cell, check if they can be stitched
+        if i < len(cells) - 1:
+            next_cell = cells[i + 1]
+            next_text = str(next_cell.text or "").strip()
+            
+            # 1. Proximity check: horizontal distance between current end and next start
+            curr_x1 = float(curr_cell.bbox[2]) if getattr(curr_cell, "bbox", None) else 0.0
+            next_x0 = float(next_cell.bbox[0]) if getattr(next_cell, "bbox", None) else 0.0
+            gap = next_x0 - curr_x1
+            
+            # 2. Split numeric candidates validation
+            curr_clean = curr_text.replace("Rs.", "").replace("INR", "").replace("₹", "").strip()
+            next_clean = next_text.strip()
+            
+            is_split_candidate = False
+            if curr_clean and next_clean:
+                # Comma split (e.g. '48,' and '637')
+                has_comma_split = curr_clean.endswith(",") and re.fullmatch(r"\d+", curr_clean[:-1]) and re.fullmatch(r"\d+", next_clean)
+                # Space split (e.g. '48' and '637' close together where second part is thousands digits)
+                has_space_split = re.fullmatch(r"\d+", curr_clean) and re.fullmatch(r"\d+", next_clean) and len(next_clean) == 3
+                if has_comma_split or has_space_split:
+                    is_split_candidate = True
+                    
+            if 0 <= gap <= 25.0 and is_split_candidate:
+                merged_text = curr_text + next_text
+                import copy
+                merged_cell = copy.copy(curr_cell)
+                merged_cell.text = merged_text
+                if getattr(curr_cell, "bbox", None) and getattr(next_cell, "bbox", None):
+                    merged_cell.bbox = [curr_cell.bbox[0], curr_cell.bbox[1], next_cell.bbox[2], next_cell.bbox[3]]
+                
+                curr_tokens = getattr(curr_cell, "tokens", []) or []
+                next_tokens = getattr(next_cell, "tokens", []) or []
+                if curr_tokens or next_tokens:
+                    merged_cell.tokens = list(curr_tokens) + list(next_tokens)
+                    
+                logger.info(f"[OCR_STITCH] Stitched adjacent split number: '{curr_text}' + '{next_text}' -> '{merged_text}'")
+                curr_cell = merged_cell
+                i += 1  # Skip next cell as it was merged
+                
+        stitched.append(curr_cell)
+        i += 1
+    return stitched
 
 
 def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
@@ -542,6 +602,7 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                 return "Service Charges"
             return "Miscellaneous"
 
+        is_azure_table = str(getattr(table, "region_id", "") or "").startswith("azure_table_")
         rows_iter = rows_list[1:] if is_expense_like_header and rows_list else rows_list
         previous_expense = None
         for row in rows_iter:
@@ -549,6 +610,8 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                 continue
                 
             cells = sorted(row.cells, key=lambda cell: float(cell.bbox[0]) if getattr(cell, "bbox", None) else 0.0)
+            if not is_azure_table:
+                cells = _stitch_adjacent_numeric_cells(cells)
             description = ""
             amount = ""
             first_text_cell_lower = ""
