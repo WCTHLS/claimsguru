@@ -59,3 +59,5 @@ spacy>=3.7.0
 striprtf==0.0.27
 pyodbc>=5.1.0
 pymssql>=2.3.0
+azure-storage-blob>=12.19.0
+azure-identity>=1.15.0

@@ -15,11 +15,10 @@ Follow these steps to run the ClaimGPT application. This guide ensures all code 
 ---
 
 ## 1. Environment Configuration
-Make sure you have `.env` files in both the project root and the `infra/docker/` directory. If they don't exist, copy `.env.example` to `.env` in both locations and configure your API keys:
-```properties
-# Add your API keys to the .env files
-OPENROUTER_API_KEY=your_openrouter_api_key_here
-GEMINI_API_KEY=your_gemini_api_key_here
+Place the shared `.env` file in the project root. You **MUST** copy the configured `.env` file into the `infra/docker/` directory so Docker Compose can successfully read and interpolate the environment variables during build and runtime:
+
+```powershell
+Copy-Item -Path ".env" -Destination "infra/docker/.env"
 ```
 
 ### Host Environment setup (For running migrations locally):
@@ -56,13 +55,13 @@ docker compose -f infra/docker/docker-compose.yml up -d mssql-db
 ---
 
 ## 5. Initialize the Database and Seed Roles
-Microsoft SQL Server starts up blank. You must create the `claimgpt` database and insert the core system roles inside the container before running migrations:
+Microsoft SQL Server starts up blank. You must create the `claimgpt` database and insert the core system roles inside the container before running migrations (note: container name may vary between `docker-mssql-db-1` or `claimgpt-feature-mssql-db-1` based on your docker engine version):
 ```powershell
 # Create the database
-docker exec docker-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -Q "CREATE DATABASE claimgpt;" -C
+docker exec claimgpt-feature-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -Q "CREATE DATABASE claimgpt;" -C
 
 # Seed system roles
-docker exec docker-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -d claimgpt -Q "INSERT INTO roles (id, name, description) VALUES (NEWID(), 'admin', 'Admin role'), (NEWID(), 'reviewer', 'Reviewer role'), (NEWID(), 'submitter', 'Submitter role'), (NEWID(), 'viewer', 'Viewer role'), (NEWID(), 'tpa_adjuster', 'TPA Adjuster role');" -C
+docker exec claimgpt-feature-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -d claimgpt -Q "INSERT INTO roles (id, name, description) VALUES (NEWID(), 'admin', 'Admin role'), (NEWID(), 'reviewer', 'Reviewer role'), (NEWID(), 'submitter', 'Submitter role'), (NEWID(), 'viewer', 'Viewer role'), (NEWID(), 'tpa_adjuster', 'TPA Adjuster role');" -C
 ```
 
 ---
@@ -93,9 +92,18 @@ npm run dev
 
 ---
 
-## 9. Access and Monitoring URLs
+## 9. LangGraph & Chat Service Checkpointer
+*   **Database compatibility**: LangGraph's default `AsyncPostgresSaver` throws warnings and shuts down when pointing to an MS SQL Database.
+*   **Automatic Fallback**: The gateway lifespan has been updated to check the database dialect at startup. If running on MS SQL, it automatically falls back to LangGraph's `MemorySaver` (in-memory) checkpointer, keeping the chat interface fully functional with zero database dependency warnings.
+
+---
+
+## 10. Access and Monitoring URLs
 
 - **Frontend UI**: [http://localhost:3000](http://localhost:3000)
 - **API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
 - **Flower (Celery Worker Monitor)**: [http://localhost:5555/flower/](http://localhost:5555/flower/)
-- **MinIO Storage Console**: [http://localhost:9001](http://localhost:9001) (User: `claimgpt` / Pass: `claimgpt123`)
+- **Active Storage Location**: 
+  - If Azure variables are configured: **Azure Portal Blob Container** (`claimgpt`).
+  - If Azure variables are empty: **MinIO Storage Console** [http://localhost:9001](http://localhost:9001) (User: `claimgpt` / Pass: `claimgpt123`).
+

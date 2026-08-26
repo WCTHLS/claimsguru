@@ -39,6 +39,8 @@ services:
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
       INGRESS_STORAGE_ROOT: /app/services/ingress/storage/raw
+      AZURE_STORAGE_ACCOUNT_URL: ${AZURE_STORAGE_ACCOUNT_URL:-}
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:-}
       CLAIMGPT_INLINE_PIPELINE: "false"
       METRICS_ENABLED: "true"
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
@@ -131,6 +133,8 @@ services:
       VALIDATOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      AZURE_STORAGE_ACCOUNT_URL: ${AZURE_STORAGE_ACCOUNT_URL:-}
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:-}
       POSTGRES_DB: claimgpt
       POSTGRES_USER: claimgpt
       POSTGRES_PASSWORD: claimgpt
@@ -197,6 +201,8 @@ services:
       VALIDATOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      AZURE_STORAGE_ACCOUNT_URL: ${AZURE_STORAGE_ACCOUNT_URL:-}
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:-}
       POSTGRES_DB: claimgpt
       POSTGRES_USER: claimgpt
       POSTGRES_PASSWORD: claimgpt
@@ -268,6 +274,8 @@ services:
       VALIDATOR_DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      AZURE_STORAGE_ACCOUNT_URL: ${AZURE_STORAGE_ACCOUNT_URL:-}
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:-}
       POSTGRES_DB: claimgpt
       POSTGRES_USER: claimgpt
       POSTGRES_PASSWORD: claimgpt
@@ -530,6 +538,8 @@ services:
       # Celery broker — required so _enqueue_pipeline() routes tasks to workers
       CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
       CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/2}
+      AZURE_STORAGE_ACCOUNT_URL: ${AZURE_STORAGE_ACCOUNT_URL:-}
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:-}
       # Force Celery mode — never fall back to inline thread execution
       CLAIMGPT_INLINE_PIPELINE: "false"
       METRICS_ENABLED: "true"

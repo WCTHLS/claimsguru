@@ -48,23 +48,29 @@ async def lifespan(app: FastAPI):
     try:
         from services.chat.app.workflow.graph import create_workflow_graph
         from langfuse.langchain import CallbackHandler
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-        from psycopg_pool import AsyncConnectionPool
         from services.chat.app.config import load_langfuse_env, settings as s
 
         load_langfuse_env()
 
-        # Give Postgres 5 seconds to respond; don't block the entire gateway
-        _pool = AsyncConnectionPool(
-            conninfo=s.database_url,
-            max_size=20,
-            kwargs={"autocommit": True},
-            open=False,
-        )
-        await asyncio.wait_for(_pool.open(), timeout=5)
-
-        checkpointer = AsyncPostgresSaver(_pool)
-        await asyncio.wait_for(checkpointer.setup(), timeout=5)
+        db_url = s.database_url or ""
+        if "postgres" in db_url or "postgresql" in db_url:
+            from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+            from psycopg_pool import AsyncConnectionPool
+            # Give Postgres 5 seconds to respond; don't block the entire gateway
+            _pool = AsyncConnectionPool(
+                conninfo=db_url,
+                max_size=20,
+                kwargs={"autocommit": True},
+                open=False,
+            )
+            await asyncio.wait_for(_pool.open(), timeout=5)
+            checkpointer = AsyncPostgresSaver(_pool)
+            await asyncio.wait_for(checkpointer.setup(), timeout=5)
+            logging.getLogger("gateway").info("Chat/LangGraph initialised with Postgres checkpointer")
+        else:
+            from langgraph.checkpoint.memory import MemorySaver
+            checkpointer = MemorySaver()
+            logging.getLogger("gateway").info("Chat/LangGraph initialised with MemorySaver (MS SQL fallback)")
 
         graph_builder = create_workflow_graph()
         graph = graph_builder.compile(checkpointer=checkpointer)
