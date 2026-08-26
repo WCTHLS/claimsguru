@@ -333,7 +333,7 @@ class IRDAClaimPDF(FPDF):
         self.cell(
             0, 4,
             _s(
-                f"IRDA Standard Health Insurance Claim Form  |  Auto-filled by ClaimGPT  |  "
+                f"IRDA Standard Health Insurance Claim Form  |  Auto-filled by ClaimsGuru  |  "
                 f"Generated {datetime.now().strftime('%d-%b-%Y %H:%M')}  |  Page {self.page_no()}/{{nb}}"
             ),
             align="C",
@@ -1341,9 +1341,9 @@ def _inject_acroform(pdf_bytes: bytes, fields: list[dict[str, Any]],
     md = {
         "/Title": "IRDA Standard Health Insurance Claim Form",
         "/Subject": "IRDAI Master Circular - Standardisation of Health Insurance Claim Forms",
-        "/Author": "ClaimGPT - Auto-filled by AI (verify before signing)",
+        "/Author": "ClaimsGuru - Auto-filled by AI (verify before signing)",
         "/Keywords": "IRDA, IRDAI, Health Insurance, Claim Form, Reimbursement, Cashless",
-        "/Creator": "ClaimGPT submission service",
+        "/Creator": "ClaimsGuru submission service",
         "/Producer": "fpdf2 + pypdf (AcroForm overlay)",
     }
     if metadata:

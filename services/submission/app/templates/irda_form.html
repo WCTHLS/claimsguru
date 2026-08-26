@@ -79,17 +79,28 @@
   .cover .brand {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     font-size: 11pt;
     font-weight: 600;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    opacity: 0.9;
+    opacity: 0.95;
   }
-  .cover .brand .dot {
-    width: 12px; height: 12px;
-    background: #fbbf24; border-radius: 50%;
-    box-shadow: 0 0 0 4px rgba(251,191,36,0.25);
+  .cover .brand img.brand-logo {
+    height: 24px;
+    width: auto;
+    object-fit: contain;
+    display: inline-block;
+  }
+  .cover .brand .brand-sep {
+    opacity: 0.5;
+    font-size: 14pt;
+    line-height: 1;
+    margin: 0 2px;
+  }
+  .cover .brand .brand-title {
+    font-weight: 600;
+    letter-spacing: 0.1em;
   }
   .cover h1 {
     margin-top: 28mm;
@@ -485,7 +496,11 @@
 
   {# ───────── COVER PAGE ───────── #}
   <section class="cover">
-    <div class="brand"><span class="dot"></span> ClaimGPT &nbsp;·&nbsp; IRDAI Standard</div>
+    <div class="brand">
+      <img src="claimsguru_white.png" alt="ClaimsGuru" class="brand-logo" />
+      <span class="brand-sep">·</span>
+      <span class="brand-title">IRDAI Standard</span>
+    </div>
     <h1>Health Insurance<br/><span class="accent">Claim Form</span></h1>
     <p class="subtitle">
       {% if blank %}
