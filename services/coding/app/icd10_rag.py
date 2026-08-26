@@ -1113,39 +1113,8 @@ def _synonym_prior_results(query: str, max_results: int) -> list[tuple[str, str,
     seen = set()
     idx = 0
 
-    # 0. Check CLINICAL_SYNONYMS from icd10_codes
-    try:
-        from .icd10_codes import CLINICAL_SYNONYMS
-        
-        # Exact synonym match
-        if text_lower in CLINICAL_SYNONYMS:
-            for syn_code in CLINICAL_SYNONYMS[text_lower]:
-                info = lookup_icd10_rag(syn_code)
-                if info:
-                    code, desc, cat = info
-                    if code not in seen:
-                        seen.add(code)
-                        out.append((code, desc, cat, 1.0 - idx * 0.001))
-                        idx += 1
-                        if len(out) >= max_results:
-                            return out
-
-        # Partial synonym match
-        for synonym, codes in CLINICAL_SYNONYMS.items():
-            if synonym in text_lower or text_lower in synonym:
-                if len(synonym) >= 4 and re.search(r'\b' + re.escape(synonym) + r'\b', text_lower):
-                    for syn_code in codes:
-                        info = lookup_icd10_rag(syn_code)
-                        if info:
-                            code, desc, cat = info
-                            if code not in seen:
-                                seen.add(code)
-                                out.append((code, desc, cat, 0.95 - idx * 0.001))
-                                idx += 1
-                                if len(out) >= max_results:
-                                    return out
-    except Exception as e:
-        logger.warning(f"Error checking CLINICAL_SYNONYMS in prior results: {e}")
+    # CLINICAL_SYNONYMS lookup disabled per architectural directive to ensure complete mapping via RAG/ML models.
+    pass
 
     # 1. Exact match by code or description
     for entry in _icd10_meta:
