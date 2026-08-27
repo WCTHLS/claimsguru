@@ -1504,7 +1504,7 @@ def get_upload_token(filename: str = Query(...)):
         raise HTTPException(status_code=500, detail=f"Failed to generate secure upload token: {e}")
 
 
-@router.post("/claims", status_code=202, dependencies=[Depends(RateLimiter(limit=10, window_seconds=60))])
+@router.post("/claims", status_code=202)
 async def create_claim(
     files: list[UploadFile] = File(default=[]),
     policy_id: str = Form(None),
@@ -2118,7 +2118,7 @@ def get_document_page_image(claim_id: str, doc_id: str, page_number: int = 1, db
     return FileResponse(str(file_path), media_type=doc.file_type or "application/octet-stream")
 
 
-@router.post("/claims/{claim_id}/documents", response_model=ClaimOut, status_code=201, dependencies=[Depends(RateLimiter(limit=15, window_seconds=60))])
+@router.post("/claims/{claim_id}/documents", response_model=ClaimOut, status_code=201)
 async def add_documents_to_claim(
     claim_id: str,
     files: list[UploadFile] = File(default=[]),
