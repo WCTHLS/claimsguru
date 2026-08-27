@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from fpdf import FPDF
@@ -34,24 +35,34 @@ class TPAClaimPDF(FPDF):
         # Blue accent bar
         self.set_fill_color(3, 105, 161)
         self.rect(0, 0, 210, 4, "F")
-        self.ln(6)
-        self.set_font("Helvetica", "B", 18)
-        self.set_text_color(3, 105, 161)
-        self.cell(0, 10, "CLAIMGPT", ln=1)
-        self.set_font("Helvetica", "", 10)
+        self.set_y(8)
+
+        logo_path = Path(__file__).resolve().parent / "templates" / "claimsguru_black.png"
+        if not logo_path.exists():
+            logo_path = Path(__file__).resolve().parent / "templates" / "claimsguru_white.png"
+
+        if logo_path.exists():
+            self.image(str(logo_path), x=10, y=7, h=7)
+            self.set_y(15.5)
+        else:
+            self.set_font("Helvetica", "B", 15)
+            self.set_text_color(3, 105, 161)
+            self.cell(0, 8, "CLAIMSGURU", ln=1)
+
+        self.set_font("Helvetica", "", 8.5)
         self.set_text_color(100, 100, 100)
-        self.cell(0, 5, "AI-Powered Medical Insurance Claim Report", ln=1)
+        self.cell(0, 4.5, "AI-Powered Medical Insurance Claim Report", ln=1)
         self.set_draw_color(3, 105, 161)
         self.set_line_width(0.5)
-        self.line(10, self.get_y() + 2, 200, self.get_y() + 2)
-        self.ln(6)
+        self.line(10, self.get_y() + 1.5, 200, self.get_y() + 1.5)
+        self.ln(4)
         self.set_text_color(0, 0, 0)
 
     def footer(self):
         self.set_y(-15)
         self.set_font("Helvetica", "I", 8)
         self.set_text_color(128, 128, 128)
-        self.cell(0, 10, f"ClaimGPT AI Claims Brain  |  Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}  |  Page {self.page_no()}/{{nb}}", align="C")
+        self.cell(0, 10, f"ClaimsGuru AI Claims Brain  |  Generated {datetime.now().strftime('%Y-%m-%d %H:%M')}  |  Page {self.page_no()}/{{nb}}", align="C")
 
     def section_title(self, title: str):
         self.set_font("Helvetica", "B", 11)
@@ -862,7 +873,7 @@ def generate_tpa_pdf(claim_data: dict[str, Any]) -> bytes:
     pdf.x = pdf.l_margin
     pdf.multi_cell(pdf.w - pdf.l_margin - pdf.r_margin, 5,
         "I hereby declare that the information provided above is true and correct to the best "
-        "of my knowledge. This claim has been processed by ClaimGPT AI system and verified "
+        "of my knowledge. This claim has been processed by ClaimsGuru AI system and verified "
         "against the uploaded medical documents. All ICD-10 and CPT codes have been "
         "automatically extracted and mapped from the source documents.")
     pdf.ln(10)
