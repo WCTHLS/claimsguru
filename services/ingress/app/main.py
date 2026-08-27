@@ -1482,91 +1482,164 @@ def authenticate_or_register_user(data: dict[str, Any] = Body(...), db: Session 
     }
 
 
+@router.get("/claims/upload-token", dependencies=[Depends(RateLimiter(limit=10, window_seconds=60))])
+def get_upload_token(filename: str = Query(...)):
+    """Generate a secure pre-signed PUT upload URL/SAS token for direct client-to-storage upload."""
+    if not filename:
+        raise HTTPException(status_code=400, detail="Filename parameter is required")
+        
+    from libs.shared.storage import MinioStorage
+    safe_name = _safe_filename(filename)
+    # Generate unique path in the storage pending folder
+    temp_key = f"pending/{uuid.uuid4().hex}_{safe_name}"
+    
+    try:
+        token_info = MinioStorage.generate_presigned_upload_url(temp_key)
+        # Add metadata for subsequent API call registration
+        token_info["storage_path"] = f"s3://{MinioStorage.BUCKET_NAME}/{temp_key}"
+        token_info["filename"] = safe_name
+        return token_info
+    except Exception as e:
+        logger.exception("Failed to generate upload token: %s", e)
+        raise HTTPException(status_code=500, detail=f"Failed to generate secure upload token: {e}")
+
+
 @router.post("/claims", status_code=202, dependencies=[Depends(RateLimiter(limit=10, window_seconds=60))])
 async def create_claim(
-    files: list[UploadFile] = File(...),
+    files: list[UploadFile] = File(default=[]),
     policy_id: str = Form(None),
     patient_id: str = Form(None),
+    storage_paths: list[str] = Form(None),
     db: Session = Depends(get_db),
 ):
-    """Create a new claim by uploading files.
+    """Create a new claim by uploading files or passing pre-uploaded storage paths.
     
-    This endpoint accepts files, saves them to disk, and enqueues the pipeline.
+    This endpoint accepts files or direct storage paths, and enqueues the pipeline.
     All database operations (idempotency, deduplication) are handled by the 
     intake_task in the Celery worker.
     """
-    logger.info(f"[create_claim] Starting with {len(files)} files")
+    # Ensure either files or storage_paths are provided
+    storage_paths_list = []
+    if storage_paths:
+        if len(storage_paths) == 1 and (storage_paths[0].startswith("[") or "," in storage_paths[0]):
+            try:
+                import json
+                parsed = json.loads(storage_paths[0])
+                if isinstance(parsed, list):
+                    storage_paths_list = [str(x) for x in parsed]
+            except Exception:
+                storage_paths_list = [x.strip() for x in storage_paths[0].split(",") if x.strip()]
+        else:
+            storage_paths_list = [str(p) for p in storage_paths]
+
+    files_count = len(files) if files else 0
+    paths_count = len(storage_paths_list)
+    
+    logger.info(f"[create_claim] Starting with {files_count} files and {paths_count} storage paths")
     upload_log.info(
-        "UPLOAD_START | endpoint=create_claim files=%d policy_id=%s patient_id=%s names=%s",
-        len(files),
+        "UPLOAD_START | endpoint=create_claim files=%d paths=%d policy_id=%s patient_id=%s",
+        files_count,
+        paths_count,
         policy_id,
         patient_id,
-        [getattr(f, "filename", "?") for f in files],
     )
     
-    if not files:
-        upload_log.warning("UPLOAD_REJECTED | endpoint=create_claim reason=no_files")
-        raise HTTPException(status_code=400, detail="At least one file is required")
+    if not files and not storage_paths_list:
+        upload_log.warning("UPLOAD_REJECTED | endpoint=create_claim reason=no_files_or_paths")
+        raise HTTPException(status_code=400, detail="At least one file or storage_path is required")
 
     # --- Validate all files and read content ---
     file_metadata_list: list[dict[str, str]] = []  # Will hold metadata for intake_task
-    saved_paths: list[Path] = []
+    saved_paths: list[Any] = []
     
     try:
-        for idx, file in enumerate(files):
-            # Validate content type
-            effective_ct, ok = _resolve_content_type(file)
-            if not ok:
-                upload_log.warning(
-                    "UPLOAD_REJECTED | endpoint=create_claim reason=unsupported_type file=%s type=%s",
-                    file.filename, file.content_type,
+        if storage_paths_list:
+            for sp in storage_paths_list:
+                if not sp.startswith("s3://"):
+                    raise HTTPException(status_code=400, detail=f"Invalid storage path URI: {sp}. Must start with s3://")
+                
+                path_parts = sp.split("/")
+                raw_filename = path_parts[-1] if path_parts else "document.pdf"
+                if len(raw_filename) > 33 and raw_filename[32] == "_":
+                    safe_name = raw_filename[33:]
+                else:
+                    safe_name = raw_filename
+                    
+                effective_ct = "application/pdf"
+                if safe_name.lower().endswith((".jpg", ".jpeg")):
+                    effective_ct = "image/jpeg"
+                elif safe_name.lower().endswith(".png"):
+                    effective_ct = "image/png"
+                    
+                content_hash = hashlib.sha256(sp.encode("utf-8")).hexdigest()
+                
+                file_metadata_list.append({
+                    "path": sp,
+                    "safe_name": safe_name,
+                    "content_hash": content_hash,
+                    "effective_ct": effective_ct,
+                })
+                saved_paths.append(sp)
+                
+                upload_log.info(
+                    "DIRECT_FILE_RECEIVED | endpoint=create_claim file=%s path=%s type=%s",
+                    safe_name, sp, effective_ct
                 )
-                raise HTTPException(
-                    status_code=415,
-                    detail=f"Unsupported file type '{file.content_type}' for '{file.filename}'. "
-                    f"Allowed: {', '.join(sorted(settings.allowed_content_types))}",
+        else:
+            for idx, file in enumerate(files):
+                # Validate content type
+                effective_ct, ok = _resolve_content_type(file)
+                if not ok:
+                    upload_log.warning(
+                        "UPLOAD_REJECTED | endpoint=create_claim reason=unsupported_type file=%s type=%s",
+                        file.filename, file.content_type,
+                    )
+                    raise HTTPException(
+                        status_code=415,
+                        detail=f"Unsupported file type '{file.content_type}' for '{file.filename}'. "
+                        f"Allowed: {', '.join(sorted(settings.allowed_content_types))}",
+                    )
+                
+                # Read and validate file size
+                file_bytes = await file.read()
+                if len(file_bytes) > settings.max_upload_bytes:
+                    upload_log.warning(
+                        "UPLOAD_REJECTED | endpoint=create_claim reason=too_large file=%s bytes=%d max=%d",
+                        file.filename, len(file_bytes), settings.max_upload_bytes,
+                    )
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File '{file.filename}' too large ({len(file_bytes)} bytes). Max: {settings.max_upload_bytes} bytes",
+                    )
+                
+                # Calculate content hash and safe filename
+                safe_name = _safe_filename(file.filename)
+                content_hash = hashlib.sha256(file_bytes).hexdigest()
+                logger.info(f"[create_claim] File validated: {safe_name}, hash={content_hash}")
+                
+                # Upload file directly to MinIO under a temporary key
+                from libs.shared.storage import MinioStorage
+                temp_key = f"pending/{uuid.uuid4().hex}_{safe_name}"
+                try:
+                    minio_uri = MinioStorage.upload_file(temp_key, file_bytes)
+                    saved_paths.append(minio_uri)
+                    logger.info(f"[create_claim] File uploaded directly to MinIO: {minio_uri}")
+                except Exception as e:
+                    logger.exception(f"[create_claim] Failed to upload file to MinIO: {temp_key}")
+                    raise HTTPException(status_code=500, detail="Failed to store uploaded file in object storage")
+                
+                # Store metadata for intake_task
+                file_metadata_list.append({
+                    "path": minio_uri,
+                    "safe_name": safe_name,
+                    "content_hash": content_hash,
+                    "effective_ct": effective_ct,
+                })
+                
+                upload_log.info(
+                    "FILE_RECEIVED | endpoint=create_claim file=%s bytes=%d type=%s sha256=%s",
+                    safe_name, len(file_bytes), effective_ct, content_hash,
                 )
-            
-            # Read and validate file size
-            file_bytes = await file.read()
-            if len(file_bytes) > settings.max_upload_bytes:
-                upload_log.warning(
-                    "UPLOAD_REJECTED | endpoint=create_claim reason=too_large file=%s bytes=%d max=%d",
-                    file.filename, len(file_bytes), settings.max_upload_bytes,
-                )
-                raise HTTPException(
-                    status_code=413,
-                    detail=f"File '{file.filename}' too large ({len(file_bytes)} bytes). Max: {settings.max_upload_bytes} bytes",
-                )
-            
-            # Calculate content hash and safe filename
-            safe_name = _safe_filename(file.filename)
-            content_hash = hashlib.sha256(file_bytes).hexdigest()
-            logger.info(f"[create_claim] File validated: {safe_name}, hash={content_hash}")
-            
-            # Upload file directly to MinIO under a temporary key
-            from libs.shared.storage import MinioStorage
-            temp_key = f"pending/{uuid.uuid4().hex}_{safe_name}"
-            try:
-                minio_uri = MinioStorage.upload_file(temp_key, file_bytes)
-                saved_paths.append(minio_uri)
-                logger.info(f"[create_claim] File uploaded directly to MinIO: {minio_uri}")
-            except Exception as e:
-                logger.exception(f"[create_claim] Failed to upload file to MinIO: {temp_key}")
-                raise HTTPException(status_code=500, detail="Failed to store uploaded file in object storage")
-            
-            # Store metadata for intake_task
-            file_metadata_list.append({
-                "path": minio_uri,
-                "safe_name": safe_name,
-                "content_hash": content_hash,
-                "effective_ct": effective_ct,
-            })
-            
-            upload_log.info(
-                "FILE_RECEIVED | endpoint=create_claim file=%s bytes=%d type=%s sha256=%s",
-                safe_name, len(file_bytes), effective_ct, content_hash,
-            )
 
         # Synchronous duplicate check using sorted set_hash (works for both single & multi-file uploads)
         if file_metadata_list:
@@ -1896,20 +1969,18 @@ def download_original_file(claim_id: str, view: bool = False, db: Session = Depe
     if doc.minio_path and doc.minio_path.startswith("s3://"):
         from libs.shared.storage import MinioStorage
         from fastapi.responses import StreamingResponse
-        client = MinioStorage.get_client()
-        bucket = MinioStorage.BUCKET_NAME
-        s3_key = doc.minio_path[len(f"s3://{bucket}/"):]
+        import io
         try:
-            response = client.get_object(Bucket=bucket, Key=s3_key)
+            file_bytes = MinioStorage.download_file_bytes(doc.minio_path)
             return StreamingResponse(
-                response["Body"].iter_chunks(),
+                io.BytesIO(file_bytes),
                 media_type=doc.file_type or "application/octet-stream",
                 headers={
                     "Content-Disposition": f'{disp}; filename="{doc.file_name}"'
                 }
             )
         except Exception as e:
-            logger.exception(f"Failed to fetch {doc.minio_path} from S3: {e}")
+            logger.exception(f"Failed to fetch {doc.minio_path} from cloud storage: {e}")
             raise HTTPException(status_code=404, detail="File not found in cloud storage")
 
     file_path = Path(doc.minio_path).resolve()
@@ -1942,20 +2013,18 @@ def download_document_file(claim_id: str, doc_id: str, view: bool = False, db: S
     if doc.minio_path and doc.minio_path.startswith("s3://"):
         from libs.shared.storage import MinioStorage
         from fastapi.responses import StreamingResponse
-        client = MinioStorage.get_client()
-        bucket = MinioStorage.BUCKET_NAME
-        s3_key = doc.minio_path[len(f"s3://{bucket}/"):]
+        import io
         try:
-            response = client.get_object(Bucket=bucket, Key=s3_key)
+            file_bytes = MinioStorage.download_file_bytes(doc.minio_path)
             return StreamingResponse(
-                response["Body"].iter_chunks(),
+                io.BytesIO(file_bytes),
                 media_type=doc.file_type or "application/octet-stream",
                 headers={
                     "Content-Disposition": f'{disp}; filename="{doc.file_name}"'
                 }
             )
         except Exception as e:
-            logger.exception(f"Failed to fetch {doc.minio_path} from S3: {e}")
+            logger.exception(f"Failed to fetch {doc.minio_path} from cloud storage: {e}")
             raise HTTPException(status_code=404, detail="File not found in cloud storage")
 
     file_path = Path(doc.minio_path).resolve()
@@ -1989,14 +2058,10 @@ def get_document_page_image(claim_id: str, doc_id: str, page_number: int = 1, db
 
     if doc.minio_path and doc.minio_path.startswith("s3://"):
         from libs.shared.storage import MinioStorage
-        client = MinioStorage.get_client()
-        bucket = MinioStorage.BUCKET_NAME
-        s3_key = doc.minio_path[len(f"s3://{bucket}/"):]
         try:
-            response = client.get_object(Bucket=bucket, Key=s3_key)
-            file_bytes = response["Body"].read()
+            file_bytes = MinioStorage.download_file_bytes(doc.minio_path)
         except Exception as e:
-            logger.exception(f"Failed to fetch {doc.minio_path} from S3: {e}")
+            logger.exception(f"Failed to fetch {doc.minio_path} from cloud storage: {e}")
             raise HTTPException(status_code=404, detail="File not found in cloud storage")
 
         # Determine file extension from key/filename
@@ -2056,13 +2121,14 @@ def get_document_page_image(claim_id: str, doc_id: str, page_number: int = 1, db
 @router.post("/claims/{claim_id}/documents", response_model=ClaimOut, status_code=201, dependencies=[Depends(RateLimiter(limit=15, window_seconds=60))])
 async def add_documents_to_claim(
     claim_id: str,
-    files: list[UploadFile] = File(...),
+    files: list[UploadFile] = File(default=[]),
+    storage_paths: list[str] = Form(None),
     db: Session = Depends(get_db),
 ):
-    logger.info(f"[IDEMPOTENCY] Starting add_documents_to_claim with {len(files)} files for claim {claim_id}.")
+    logger.info(f"[IDEMPOTENCY] Starting add_documents_to_claim with files and storage paths for claim {claim_id}.")
     upload_log.info(
-        "UPLOAD_START | endpoint=add_documents claim_id=%s files=%d names=%s",
-        claim_id, len(files), [getattr(f, "filename", "?") for f in files],
+        "UPLOAD_START | endpoint=add_documents claim_id=%s files=%d",
+        claim_id, len(files) if files else 0,
     )
     """Add supporting documents to an existing claim."""
     cid = _parse_uuid(claim_id)
@@ -2074,56 +2140,94 @@ async def add_documents_to_claim(
         )
         raise HTTPException(status_code=404, detail="Claim not found")
 
-    if not files:
+    storage_paths_list = []
+    if storage_paths:
+        if len(storage_paths) == 1 and (storage_paths[0].startswith("[") or "," in storage_paths[0]):
+            try:
+                import json
+                parsed = json.loads(storage_paths[0])
+                if isinstance(parsed, list):
+                    storage_paths_list = [str(x) for x in parsed]
+            except Exception:
+                storage_paths_list = [x.strip() for x in storage_paths[0].split(",") if x.strip()]
+        else:
+            storage_paths_list = [str(p) for p in storage_paths]
+
+    if not files and not storage_paths_list:
         upload_log.warning(
-            "UPLOAD_REJECTED | endpoint=add_documents reason=no_files claim_id=%s",
+            "UPLOAD_REJECTED | endpoint=add_documents reason=no_files_or_paths claim_id=%s",
             claim_id,
         )
-        raise HTTPException(status_code=400, detail="At least one file is required")
+        raise HTTPException(status_code=400, detail="At least one file or storage_path is required")
 
     # --- validate all files and calculate content_hash
-    file_data: list[tuple[UploadFile, bytes, str, str, str]] = []  # (file, bytes, safe_name, content_hash, effective_ct)
-    for file in files:
-        effective_ct, ok = _resolve_content_type(file)
-        if not ok:
-            raise HTTPException(
-                status_code=415,
-                detail=f"Unsupported file type '{file.content_type}' for '{file.filename}'. "
-                f"Allowed: {', '.join(sorted(settings.allowed_content_types))}",
-            )
-        file_bytes = await file.read()
-        if len(file_bytes) > settings.max_upload_bytes:
-            raise HTTPException(
-                status_code=413,
-                detail=f"File '{file.filename}' too large ({len(file_bytes)} bytes). Max: {settings.max_upload_bytes} bytes",
-            )
-        safe_name = _safe_filename(file.filename)
-        content_hash = hashlib.sha256(file_bytes).hexdigest()
-        logger.info(f"[IDEMPOTENCY] Calculated content_hash for file '{safe_name}': {content_hash}")
-        file_data.append((file, file_bytes, safe_name, content_hash, effective_ct))
+    file_data: list[tuple[Any, Any, str, str, str]] = []  # (raw_path, file_bytes, safe_name, content_hash, effective_ct)
+    
+    if storage_paths_list:
+        for sp in storage_paths_list:
+            if not sp.startswith("s3://"):
+                raise HTTPException(status_code=400, detail=f"Invalid storage path URI: {sp}. Must start with s3://")
+            
+            path_parts = sp.split("/")
+            raw_filename = path_parts[-1] if path_parts else "document.pdf"
+            if len(raw_filename) > 33 and raw_filename[32] == "_":
+                safe_name = raw_filename[33:]
+            else:
+                safe_name = raw_filename
+                
+            effective_ct = "application/pdf"
+            if safe_name.lower().endswith((".jpg", ".jpeg")):
+                effective_ct = "image/jpeg"
+            elif safe_name.lower().endswith(".png"):
+                effective_ct = "image/png"
+                
+            content_hash = hashlib.sha256(sp.encode("utf-8")).hexdigest()
+            file_data.append((sp, None, safe_name, content_hash, effective_ct))
+    else:
+        for file in files:
+            effective_ct, ok = _resolve_content_type(file)
+            if not ok:
+                raise HTTPException(
+                    status_code=415,
+                    detail=f"Unsupported file type '{file.content_type}' for '{file.filename}'. "
+                    f"Allowed: {', '.join(sorted(settings.allowed_content_types))}",
+                )
+            file_bytes = await file.read()
+            if len(file_bytes) > settings.max_upload_bytes:
+                raise HTTPException(
+                    status_code=413,
+                    detail=f"File '{file.filename}' too large ({len(file_bytes)} bytes). Max: {settings.max_upload_bytes} bytes",
+                )
+            safe_name = _safe_filename(file.filename)
+            content_hash = hashlib.sha256(file_bytes).hexdigest()
+            logger.info(f"[IDEMPOTENCY] Calculated content_hash for file '{safe_name}': {content_hash}")
+            file_data.append((None, file_bytes, safe_name, content_hash, effective_ct))
 
 
     # --- count existing docs for naming
     existing_count = db.query(Document).filter(Document.claim_id == cid).count()
 
     # --- save files and create document rows
-    saved_paths: list[Path] = []
+    saved_paths: list[str] = []
     new_docs: list[Document] = []
     new_doc_added = False
-    for idx, (file, file_bytes, safe_name, content_hash, effective_ct) in enumerate(file_data):
-        # --- DUPLICATE CHECK LOGIC ---
-        # 1. Calculate SHA-256 hash of file bytes (content_hash)
-        # 2. Query Document table for any document with same claim_id and content_hash
+    for idx, (raw_path, file_bytes, safe_name, content_hash, effective_ct) in enumerate(file_data):
         logger.info(f"[IDEMPOTENCY] Checking for duplicate: claim_id={claim.id}, content_hash={content_hash}")
         duplicate_doc = db.query(Document).filter(Document.claim_id == claim.id, Document.content_hash == content_hash).first()
         if duplicate_doc:
-            logger.info(f"[IDEMPOTENCY] Duplicate document detected for claim {claim.id} and hash {content_hash}, skipping upload and returning existing document.")
+            logger.info(f"[IDEMPOTENCY] Duplicate document detected for claim {claim.id} and hash {content_hash}, skipping.")
             _audit(db, "DUPLICATE_DOCUMENT_SKIPPED", claim_id=claim.id, metadata={
                 "file_name": safe_name,
                 "content_hash": content_hash,
                 "existing_document_id": str(duplicate_doc.id),
             })
-            continue  # skip adding duplicate
+            if raw_path and raw_path.startswith("s3://"):
+                try:
+                    from libs.shared.storage import MinioStorage
+                    MinioStorage.delete_file(raw_path)
+                except Exception:
+                    pass
+            continue
 
         ext = Path(safe_name).suffix or ".bin"
         stored_name = f"{claim.id}_{existing_count + idx}{ext}"
@@ -2131,17 +2235,20 @@ async def add_documents_to_claim(
 
         from libs.shared.storage import MinioStorage
         try:
-            minio_uri = MinioStorage.upload_file(s3_key, file_bytes)
+            if raw_path and raw_path.startswith("s3://"):
+                minio_uri = MinioStorage.copy_file(raw_path, s3_key)
+                MinioStorage.delete_file(raw_path)
+            else:
+                minio_uri = MinioStorage.upload_file(s3_key, file_bytes)
             saved_paths.append(minio_uri)
         except Exception as e:
-            from libs.shared.storage import MinioStorage
             for p in saved_paths:
                 try:
                     MinioStorage.delete_file(p)
                 except Exception:
                     pass
             db.rollback()
-            logger.exception("Failed to upload file to MinIO")
+            logger.exception("Failed to upload/copy file to MinIO")
             raise HTTPException(status_code=500, detail="Failed to store uploaded file in object storage")
 
         doc = Document(

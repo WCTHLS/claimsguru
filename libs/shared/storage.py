@@ -305,3 +305,123 @@ class MinioStorage:
             except Exception as e:
                 logger.exception(f"[MINIO] Failed to copy object from '{src_minio_uri}' to '{dest_minio_key}': {e}")
                 raise
+
+    @classmethod
+    def generate_presigned_upload_url(cls, minio_key: str, expiry_minutes: int = 15) -> dict[str, Any]:
+        """Generate a pre-signed PUT upload URL for direct-to-storage client uploads.
+        
+        Returns a dict with:
+            - url: the target upload URL
+            - method: 'PUT'
+            - headers: dict of headers to include (e.g. {'x-ms-blob-type': 'BlockBlob'} for Azure)
+        """
+        if cls.is_azure_configured():
+            try:
+                from azure.storage.blob import generate_blob_sas, BlobSasPermissions
+                from datetime import datetime, timezone, timedelta
+                
+                service_client = cls.get_azure_client()
+                account_name = service_client.account_name
+                connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+                
+                # Check start/expiry times
+                start_time = datetime.now(timezone.utc) - timedelta(minutes=5)
+                expiry_time = datetime.now(timezone.utc) + timedelta(minutes=expiry_minutes)
+                
+                if connection_string:
+                    # Parse account key from connection string
+                    account_key = None
+                    for part in connection_string.split(";"):
+                        if part.startswith("AccountKey="):
+                            account_key = part.split("=", 1)[1]
+                            break
+                    
+                    if not account_key:
+                        raise ValueError("AccountKey not found in connection string.")
+                        
+                    sas_token = generate_blob_sas(
+                        account_name=account_name,
+                        container_name=cls.BUCKET_NAME,
+                        blob_name=minio_key,
+                        account_key=account_key,
+                        permission=BlobSasPermissions(write=True, create=True),
+                        start=start_time,
+                        expiry=expiry_time
+                    )
+                else:
+                    # User Delegation SAS (Managed Identity/az login)
+                    user_delegation_key = service_client.get_user_delegation_key(
+                        key_start_time=start_time,
+                        key_expiry_time=start_time + timedelta(hours=1)
+                    )
+                    sas_token = generate_blob_sas(
+                        account_name=account_name,
+                        container_name=cls.BUCKET_NAME,
+                        blob_name=minio_key,
+                        user_delegation_key=user_delegation_key,
+                        permission=BlobSasPermissions(write=True, create=True),
+                        start=start_time,
+                        expiry=expiry_time
+                    )
+                
+                upload_url = f"https://{account_name}.blob.core.windows.net/{cls.BUCKET_NAME}/{minio_key}?{sas_token}"
+                logger.info(f"[AZURE STORAGE] Generated secure upload SAS URL for: {minio_key}")
+                return {
+                    "url": upload_url,
+                    "method": "PUT",
+                    "headers": {
+                        "x-ms-blob-type": "BlockBlob"
+                    }
+                }
+            except Exception as e:
+                logger.exception(f"[AZURE STORAGE] Failed to generate upload SAS URL for '{minio_key}': {e}")
+                raise
+        else:
+            client = cls.get_s3_client()
+            try:
+                upload_url = client.generate_presigned_url(
+                    ClientMethod='put_object',
+                    Params={
+                        'Bucket': cls.BUCKET_NAME,
+                        'Key': minio_key
+                    },
+                    ExpiresIn=expiry_minutes * 60
+                )
+                logger.info(f"[MINIO] Generated pre-signed PUT upload URL for: {minio_key}")
+                return {
+                    "url": upload_url,
+                    "method": "PUT",
+                    "headers": {}
+                }
+            except Exception as e:
+                logger.exception(f"[MINIO] Failed to generate pre-signed upload URL for '{minio_key}': {e}")
+                raise
+
+    @classmethod
+    def download_file_bytes(cls, minio_uri: str) -> bytes:
+        """Download and return the raw bytes of an object from active storage backend."""
+        if not minio_uri.startswith("s3://"):
+            raise ValueError(f"Invalid storage URI: {minio_uri}")
+        
+        path_parts = minio_uri[5:].split("/", 1)
+        bucket = path_parts[0]
+        minio_key = path_parts[1]
+        
+        if cls.is_azure_configured():
+            service_client = cls.get_azure_client()
+            try:
+                blob_client = service_client.get_blob_client(container=bucket, blob=minio_key)
+                return blob_client.download_blob().readall()
+            except Exception as e:
+                logger.exception(f"[AZURE STORAGE] Failed to download blob bytes '{minio_uri}': {e}")
+                raise
+        else:
+            client = cls.get_s3_client()
+            try:
+                response = client.get_object(Bucket=bucket, Key=minio_key)
+                return response["Body"].read()
+            except Exception as e:
+                logger.exception(f"[MINIO] Failed to download object bytes '{minio_uri}': {e}")
+                raise
+
+
