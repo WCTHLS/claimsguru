@@ -36,8 +36,55 @@ except ImportError:
 from celery import Celery
 from kombu import Exchange, Queue
 
+import urllib.parse
+import logging
+
+logger = logging.getLogger("celery")
+
 broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 backend_url = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+
+# 1. Parse Azure Service Bus connection string if available
+servicebus_conn = os.getenv("AZURE_SERVICEBUS_CONNECTION_STRING")
+if servicebus_conn:
+    try:
+        servicebus_conn = servicebus_conn.strip('"' + "'")
+        parts = {}
+        for item in servicebus_conn.split(";"):
+            if "=" in item:
+                k, v = item.split("=", 1)
+                parts[k.strip().lower()] = v.strip().strip('"' + "'")
+                
+        endpoint = parts.get("endpoint", "")
+        key_name = parts.get("sharedaccesskeyname", "")
+        key = parts.get("sharedaccesskey", "")
+        
+        if endpoint and key_name and key:
+            namespace = endpoint
+            if namespace.startswith("sb://"):
+                namespace = namespace[5:]
+            if "." in namespace:
+                namespace = namespace.split(".")[0]
+                
+            broker_url = f"azureservicebus://{key_name}:{key}@{namespace}"
+            logger.info(f"[CELERY APP] Swapped broker to Azure Service Bus namespace: {namespace}")
+            
+            # Automatically swap result backend to DB if it was left on localhost Redis default
+            if "localhost" in backend_url or "127.0.0.1" in backend_url:
+                backend_url = "db"
+    except Exception as e:
+        logger.exception(f"Failed to parse AZURE_SERVICEBUS_CONNECTION_STRING: {e}")
+
+# 2. Configure Database backend if "db" is chosen or defaulted
+db_conn = os.getenv("DATABASE_URL") or os.getenv("INGRESS_DATABASE_URL")
+if db_conn and (backend_url == "db" or "redis" not in backend_url.lower()):
+    if db_conn.startswith("mssql"):
+        backend_url = f"db+{db_conn}"
+        logger.info("[CELERY APP] Swapped result backend to SQL Database (SQLAlchemy)")
+
+# Override os.environ to prevent Celery from defaulting back to Redis env variables
+os.environ["CELERY_BROKER_URL"] = broker_url
+os.environ["CELERY_RESULT_BACKEND"] = backend_url
 
 broker_transport_options = {}
 result_backend_transport_options = {}
@@ -73,6 +120,10 @@ celery_app = Celery(
     broker=broker_url,
     backend=backend_url,
 )
+
+# Explicitly override the configuration object to enforce the correct broker/backend urls
+celery_app.conf.broker_url = broker_url
+celery_app.conf.result_backend = backend_url
 
 
 default_exchange = Exchange("default", type="direct", durable=True)
