@@ -1,0 +1,401 @@
+[
+  {
+    "page": 1,
+    "text": "Patient Signature:\nDoctor Signature:\nName: Mrs. Shauna908 Mclaughlin530\nDr. Chokshi Edwin\nDate: 27-07-2020\nDate: 27-07-2020\nHEALTH-MD URGENT CARE | 1238 RIVERDALE ST, WEST SPRINGFIELD MA 0 | Tel: 4135043507 | Claim: CLM-2026-198669 | TPA: Health India TPA\n\nPatient Signature: | Doctor Signature:\nName: Mrs. Shauna908 Mclaughlin530 | Dr. Chokshi Edwin\nDate: 27-07-2020 | Date: 27-07-2020",
+    "fields": {
+      "Name": "Mrs. Shauna908 Mclaughlin530 | Dr. Chokshi Edwin",
+      "Date": "27-07-2020 | Date: 27-07-2020",
+      "HEALTH": "MD URGENT CARE | 1238 RIVERDALE ST, WEST SPRINGFIELD MA 0 | Tel: 4135043507 | Claim: CLM-2026-198669 | TPA: Health India TPA",
+      "Patient Signature": "| Doctor Signature:"
+    },
+    "tables": [
+      [
+        [
+          "Patient Signature:",
+          "Doctor Signature:"
+        ],
+        [
+          "Name: Mrs. Shauna908 Mclaughlin530",
+          "Dr. Chokshi Edwin"
+        ],
+        [
+          "Date: 27-07-2020",
+          "Date: 27-07-2020"
+        ]
+      ]
+    ],
+    "confidence": 0.9749729729729726,
+    "tokens": [
+      {
+        "text": "Patient",
+        "x0": 208.0,
+        "y0": 274.0,
+        "x1": 316.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 323.0,
+        "y0": 274.0,
+        "x1": 479.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor",
+        "x0": 1271.0,
+        "y0": 273.0,
+        "x1": 1376.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 1383.0,
+        "y0": 274.0,
+        "x1": 1537.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Name:",
+        "x0": 207.0,
+        "y0": 367.0,
+        "x1": 318.0,
+        "y1": 405.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Mrs.",
+        "x0": 325.0,
+        "y0": 366.0,
+        "x1": 408.0,
+        "y1": 406.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Shauna908",
+        "x0": 415.0,
+        "y0": 366.0,
+        "x1": 605.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.987,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Mclaughlin530",
+        "x0": 613.0,
+        "y0": 366.0,
+        "x1": 869.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.988,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Dr.",
+        "x0": 1272.0,
+        "y0": 368.0,
+        "x1": 1325.0,
+        "y1": 405.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Chokshi",
+        "x0": 1332.0,
+        "y0": 367.0,
+        "x1": 1472.0,
+        "y1": 404.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Edwin",
+        "x0": 1479.0,
+        "y0": 367.0,
+        "x1": 1578.0,
+        "y1": 406.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 210.0,
+        "y0": 460.0,
+        "x1": 305.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "27-07-2020",
+        "x0": 312.0,
+        "y0": 460.0,
+        "x1": 501.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 1273.0,
+        "y0": 460.0,
+        "x1": 1367.0,
+        "y1": 495.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "27-07-2020",
+        "x0": 1373.0,
+        "y0": 460.0,
+        "x1": 1562.0,
+        "y1": 495.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "HEALTH-MD",
+        "x0": 240.0,
+        "y0": 596.0,
+        "x1": 408.0,
+        "y1": 627.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "URGENT",
+        "x0": 418.0,
+        "y0": 596.0,
+        "x1": 544.0,
+        "y1": 627.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CARE",
+        "x0": 550.0,
+        "y0": 595.0,
+        "x1": 629.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 637.0,
+        "y0": 595.0,
+        "x1": 652.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.94,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1238",
+        "x0": 659.0,
+        "y0": 595.0,
+        "x1": 722.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "RIVERDALE",
+        "x0": 729.0,
+        "y0": 595.0,
+        "x1": 890.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "ST,",
+        "x0": 903.0,
+        "y0": 595.0,
+        "x1": 950.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "WEST",
+        "x0": 956.0,
+        "y0": 595.0,
+        "x1": 1041.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "SPRINGFIELD",
+        "x0": 1050.0,
+        "y0": 595.0,
+        "x1": 1239.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "MA",
+        "x0": 1250.0,
+        "y0": 595.0,
+        "x1": 1292.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "0",
+        "x0": 1303.0,
+        "y0": 595.0,
+        "x1": 1318.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.679,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1324.0,
+        "y0": 595.0,
+        "x1": 1339.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.919,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Tel:",
+        "x0": 1346.0,
+        "y0": 595.0,
+        "x1": 1392.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.984,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4135043507",
+        "x0": 1399.0,
+        "y0": 595.0,
+        "x1": 1560.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1567.0,
+        "y0": 595.0,
+        "x1": 1579.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.964,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Claim:",
+        "x0": 1586.0,
+        "y0": 595.0,
+        "x1": 1671.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.977,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CLM-2026-198669",
+        "x0": 1677.0,
+        "y0": 595.0,
+        "x1": 1920.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1926.0,
+        "y0": 595.0,
+        "x1": 1939.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.88,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TPA:",
+        "x0": 1945.0,
+        "y0": 595.0,
+        "x1": 2009.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.985,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Health",
+        "x0": 2016.0,
+        "y0": 596.0,
+        "x1": 2101.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "India",
+        "x0": 2107.0,
+        "y0": 596.0,
+        "x1": 2173.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.974,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TPA",
+        "x0": 2184.0,
+        "y0": 596.0,
+        "x1": 2235.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      }
+    ]
+  }
+]

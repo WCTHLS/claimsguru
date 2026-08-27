@@ -1,0 +1,390 @@
+[
+  {
+    "page": 1,
+    "text": "Patient Signature:\nDoctor Signature:\nName: Mrs. Dortha70 Padberg411\nDr. Grover Bala\nDate: 16-01-2026\nDate: 16-01-2026\nOUR ISLAND HOME | EAST CREEK ROAD, NANTUCKET MA 025544015 | Tel: 5082280462 | Claim: CLM-2026-186275 | TPA: Paramount Health Services\n\nPatient Signature: | Doctor Signature:\nName: Mrs. Dortha70 Padberg411 | Dr. Grover Bala\nDate: 16-01-2026 | Date: 16-01-2026",
+    "fields": {
+      "Name": "Mrs. Dortha70 Padberg411 | Dr. Grover Bala",
+      "Date": "16-01-2026 | Date: 16-01-2026",
+      "Patient Signature": "| Doctor Signature:"
+    },
+    "tables": [
+      [
+        [
+          "Patient Signature:",
+          "Doctor Signature:"
+        ],
+        [
+          "Name: Mrs. Dortha70 Padberg411",
+          "Dr. Grover Bala"
+        ],
+        [
+          "Date: 16-01-2026",
+          "Date: 16-01-2026"
+        ]
+      ]
+    ],
+    "confidence": 0.9820277777777776,
+    "tokens": [
+      {
+        "text": "Patient",
+        "x0": 208.0,
+        "y0": 274.0,
+        "x1": 316.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 323.0,
+        "y0": 274.0,
+        "x1": 479.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor",
+        "x0": 1271.0,
+        "y0": 273.0,
+        "x1": 1375.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 1382.0,
+        "y0": 274.0,
+        "x1": 1537.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Name:",
+        "x0": 207.0,
+        "y0": 367.0,
+        "x1": 319.0,
+        "y1": 405.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Mrs.",
+        "x0": 326.0,
+        "y0": 366.0,
+        "x1": 405.0,
+        "y1": 406.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Dortha70",
+        "x0": 412.0,
+        "y0": 366.0,
+        "x1": 567.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Padberg411",
+        "x0": 576.0,
+        "y0": 366.0,
+        "x1": 781.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Dr.",
+        "x0": 1272.0,
+        "y0": 367.0,
+        "x1": 1325.0,
+        "y1": 404.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Grover",
+        "x0": 1332.0,
+        "y0": 367.0,
+        "x1": 1452.0,
+        "y1": 404.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Bala",
+        "x0": 1459.0,
+        "y0": 367.0,
+        "x1": 1534.0,
+        "y1": 405.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 209.0,
+        "y0": 459.0,
+        "x1": 305.0,
+        "y1": 497.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "16-01-2026",
+        "x0": 311.0,
+        "y0": 459.0,
+        "x1": 499.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 1273.0,
+        "y0": 459.0,
+        "x1": 1370.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "16-01-2026",
+        "x0": 1377.0,
+        "y0": 459.0,
+        "x1": 1564.0,
+        "y1": 495.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "OUR",
+        "x0": 226.0,
+        "y0": 596.0,
+        "x1": 285.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "ISLAND",
+        "x0": 296.0,
+        "y0": 596.0,
+        "x1": 399.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "HOME",
+        "x0": 410.0,
+        "y0": 596.0,
+        "x1": 496.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 505.0,
+        "y0": 596.0,
+        "x1": 516.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.931,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "EAST",
+        "x0": 522.0,
+        "y0": 595.0,
+        "x1": 601.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CREEK",
+        "x0": 608.0,
+        "y0": 595.0,
+        "x1": 705.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "ROAD,",
+        "x0": 715.0,
+        "y0": 595.0,
+        "x1": 808.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "NANTUCKET",
+        "x0": 814.0,
+        "y0": 595.0,
+        "x1": 994.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.987,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "MA",
+        "x0": 1001.0,
+        "y0": 595.0,
+        "x1": 1045.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "025544015",
+        "x0": 1054.0,
+        "y0": 595.0,
+        "x1": 1199.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.984,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1205.0,
+        "y0": 595.0,
+        "x1": 1221.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.902,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Tel:",
+        "x0": 1227.0,
+        "y0": 595.0,
+        "x1": 1274.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "5082280462",
+        "x0": 1280.0,
+        "y0": 595.0,
+        "x1": 1440.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.972,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1447.0,
+        "y0": 595.0,
+        "x1": 1460.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.972,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Claim:",
+        "x0": 1467.0,
+        "y0": 595.0,
+        "x1": 1550.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.973,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CLM-2026-186275",
+        "x0": 1557.0,
+        "y0": 595.0,
+        "x1": 1799.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.951,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1805.0,
+        "y0": 595.0,
+        "x1": 1821.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.916,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TPA:",
+        "x0": 1827.0,
+        "y0": 595.0,
+        "x1": 1891.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.974,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Paramount",
+        "x0": 1897.0,
+        "y0": 595.0,
+        "x1": 2040.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.975,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Health",
+        "x0": 2047.0,
+        "y0": 595.0,
+        "x1": 2132.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Services",
+        "x0": 2143.0,
+        "y0": 595.0,
+        "x1": 2256.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      }
+    ]
+  }
+]

@@ -191,7 +191,7 @@ services:
 
   parsing_worker:
     image: claimgpt-ml:v2-dev
-    command: celery -A libs.shared.celery_app worker -Q parser_queue --autoscale=4,1 --loglevel=info --hostname=parsing_worker@%h
+    command: celery -A libs.shared.celery_app worker -Q parser_queue --pool=solo --loglevel=info --hostname=parsing_worker@%h
     environment:
       PYTHONUNBUFFERED: "1"
       DATABASE_URL: mssql+pyodbc://sa:YourStrong!Password@mssql-db:1433/claimgpt?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes
@@ -264,7 +264,7 @@ services:
 
   other_worker:
     image: claimgpt-ml:v2-dev
-    command: celery -A libs.shared.celery_app worker -Q default --autoscale=4,2 --loglevel=info --hostname=other_worker@%h
+    command: celery -A libs.shared.celery_app worker -Q default --pool=solo --loglevel=info --hostname=other_worker@%h
     environment:
       PYTHONUNBUFFERED: "1"
       INGRESS_STORAGE_ROOT: /app/services/ingress/storage/raw

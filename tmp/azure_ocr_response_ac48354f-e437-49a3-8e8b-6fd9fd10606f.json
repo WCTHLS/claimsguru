@@ -1,0 +1,420 @@
+[
+  {
+    "page": 1,
+    "text": "Patient Signature:\nDoctor Signature:\nName: Mr. Cory323 Schaden604\nDr. Ben Ravel\nDate: 17-01-2024\nDate: 17-01-2024\nON CALL URGENT CARE LLC | 6 HATFIELD ST, NORTHAMPTON MA 010602545 | Tel: 4135847425 | Claim: CLM-2026-188039 | TPA: Medi Assist India TPA\n\nPatient Signature: | Doctor Signature:\nName: Mr. Cory323 Schaden604 | Dr. Ben Ravel\nDate: 17-01-2024 | Date: 17-01-2024",
+    "fields": {
+      "Name": "Mr. Cory323 Schaden604 | Dr. Ben Ravel",
+      "Date": "17-01-2024 | Date: 17-01-2024",
+      "Patient Signature": "| Doctor Signature:"
+    },
+    "tables": [
+      [
+        [
+          "Patient Signature:",
+          "Doctor Signature:"
+        ],
+        [
+          "Name: Mr. Cory323 Schaden604",
+          "Dr. Ben Ravel"
+        ],
+        [
+          "Date: 17-01-2024",
+          "Date: 17-01-2024"
+        ]
+      ]
+    ],
+    "confidence": 0.9820512820512818,
+    "tokens": [
+      {
+        "text": "Patient",
+        "x0": 208.0,
+        "y0": 273.0,
+        "x1": 316.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 323.0,
+        "y0": 274.0,
+        "x1": 477.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor",
+        "x0": 1271.0,
+        "y0": 273.0,
+        "x1": 1378.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 1384.0,
+        "y0": 274.0,
+        "x1": 1539.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Name:",
+        "x0": 207.0,
+        "y0": 366.0,
+        "x1": 318.0,
+        "y1": 407.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Mr.",
+        "x0": 326.0,
+        "y0": 366.0,
+        "x1": 388.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.948,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Cory323",
+        "x0": 396.0,
+        "y0": 365.0,
+        "x1": 540.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Schaden604",
+        "x0": 550.0,
+        "y0": 365.0,
+        "x1": 760.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Dr.",
+        "x0": 1273.0,
+        "y0": 367.0,
+        "x1": 1325.0,
+        "y1": 404.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ben",
+        "x0": 1332.0,
+        "y0": 367.0,
+        "x1": 1396.0,
+        "y1": 404.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ravel",
+        "x0": 1410.0,
+        "y0": 367.0,
+        "x1": 1509.0,
+        "y1": 403.0,
+        "page": 1,
+        "confidence": 0.964,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 210.0,
+        "y0": 459.0,
+        "x1": 305.0,
+        "y1": 497.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "17-01-2024",
+        "x0": 313.0,
+        "y0": 459.0,
+        "x1": 501.0,
+        "y1": 495.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 1273.0,
+        "y0": 459.0,
+        "x1": 1369.0,
+        "y1": 495.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "17-01-2024",
+        "x0": 1376.0,
+        "y0": 459.0,
+        "x1": 1563.0,
+        "y1": 495.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "ON",
+        "x0": 202.0,
+        "y0": 596.0,
+        "x1": 240.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CALL",
+        "x0": 253.0,
+        "y0": 596.0,
+        "x1": 326.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "URGENT",
+        "x0": 334.0,
+        "y0": 595.0,
+        "x1": 459.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CARE",
+        "x0": 465.0,
+        "y0": 595.0,
+        "x1": 544.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "LLC",
+        "x0": 553.0,
+        "y0": 595.0,
+        "x1": 604.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 613.0,
+        "y0": 595.0,
+        "x1": 626.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.964,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "6",
+        "x0": 632.0,
+        "y0": 595.0,
+        "x1": 649.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "HATFIELD",
+        "x0": 655.0,
+        "y0": 595.0,
+        "x1": 795.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.967,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "ST,",
+        "x0": 807.0,
+        "y0": 595.0,
+        "x1": 850.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "NORTHAMPTON",
+        "x0": 857.0,
+        "y0": 595.0,
+        "x1": 1082.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.981,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "MA",
+        "x0": 1094.0,
+        "y0": 595.0,
+        "x1": 1137.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "010602545",
+        "x0": 1148.0,
+        "y0": 595.0,
+        "x1": 1291.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.977,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1298.0,
+        "y0": 595.0,
+        "x1": 1313.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.971,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Tel:",
+        "x0": 1319.0,
+        "y0": 595.0,
+        "x1": 1368.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.984,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4135847425",
+        "x0": 1375.0,
+        "y0": 595.0,
+        "x1": 1535.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1542.0,
+        "y0": 595.0,
+        "x1": 1555.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.929,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Claim:",
+        "x0": 1561.0,
+        "y0": 595.0,
+        "x1": 1645.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CLM-2026-188039",
+        "x0": 1651.0,
+        "y0": 595.0,
+        "x1": 1893.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.982,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1899.0,
+        "y0": 596.0,
+        "x1": 1914.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.877,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TPA:",
+        "x0": 1921.0,
+        "y0": 596.0,
+        "x1": 1983.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Medi",
+        "x0": 1989.0,
+        "y0": 596.0,
+        "x1": 2056.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.98,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Assist",
+        "x0": 2062.0,
+        "y0": 596.0,
+        "x1": 2139.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.982,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "India",
+        "x0": 2145.0,
+        "y0": 596.0,
+        "x1": 2214.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.971,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TPA",
+        "x0": 2223.0,
+        "y0": 597.0,
+        "x1": 2276.0,
+        "y1": 627.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      }
+    ]
+  }
+]

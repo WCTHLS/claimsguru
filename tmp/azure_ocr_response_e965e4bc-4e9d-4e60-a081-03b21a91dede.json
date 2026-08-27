@@ -1,0 +1,390 @@
+[
+  {
+    "page": 1,
+    "text": "Patient Signature:\nDoctor Signature:\nName: Mr. Cameron381 Gorczany269\nDr. Kalla Gaba\nDate: 08-12-2022\nDate: 08-12-2022\nSTERLING VILLAGE | 18 DANA HILL ROAD, STERLING MA 015642414 | Tel: 9784225111 | Claim: CLM-2026-170381 | TPA: Health India TPA\n\nPatient Signature: | Doctor Signature:\nName: Mr. Cameron381 Gorczany269 | Dr. Kalla Gaba\nDate: 08-12-2022 | Date: 08-12-2022",
+    "fields": {
+      "Name": "Mr. Cameron381 Gorczany269 | Dr. Kalla Gaba",
+      "Date": "08-12-2022 | Date: 08-12-2022",
+      "Patient Signature": "| Doctor Signature:"
+    },
+    "tables": [
+      [
+        [
+          "Patient Signature:",
+          "Doctor Signature:"
+        ],
+        [
+          "Name: Mr. Cameron381 Gorczany269",
+          "Dr. Kalla Gaba"
+        ],
+        [
+          "Date: 08-12-2022",
+          "Date: 08-12-2022"
+        ]
+      ]
+    ],
+    "confidence": 0.9820833333333332,
+    "tokens": [
+      {
+        "text": "Patient",
+        "x0": 208.0,
+        "y0": 274.0,
+        "x1": 317.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 323.0,
+        "y0": 274.0,
+        "x1": 478.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.97,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor",
+        "x0": 1271.0,
+        "y0": 273.0,
+        "x1": 1376.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 1383.0,
+        "y0": 274.0,
+        "x1": 1538.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Name:",
+        "x0": 208.0,
+        "y0": 367.0,
+        "x1": 320.0,
+        "y1": 405.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Mr.",
+        "x0": 327.0,
+        "y0": 366.0,
+        "x1": 386.0,
+        "y1": 406.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Cameron381",
+        "x0": 393.0,
+        "y0": 366.0,
+        "x1": 614.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.975,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Gorczany269",
+        "x0": 622.0,
+        "y0": 366.0,
+        "x1": 845.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Dr.",
+        "x0": 1273.0,
+        "y0": 367.0,
+        "x1": 1325.0,
+        "y1": 404.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Kalla",
+        "x0": 1332.0,
+        "y0": 367.0,
+        "x1": 1416.0,
+        "y1": 404.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Gaba",
+        "x0": 1426.0,
+        "y0": 368.0,
+        "x1": 1517.0,
+        "y1": 405.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 210.0,
+        "y0": 459.0,
+        "x1": 302.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "08-12-2022",
+        "x0": 309.0,
+        "y0": 458.0,
+        "x1": 503.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 1273.0,
+        "y0": 459.0,
+        "x1": 1365.0,
+        "y1": 495.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "08-12-2022",
+        "x0": 1372.0,
+        "y0": 459.0,
+        "x1": 1566.0,
+        "y1": 495.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "STERLING",
+        "x0": 306.0,
+        "y0": 596.0,
+        "x1": 446.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "VILLAGE",
+        "x0": 459.0,
+        "y0": 596.0,
+        "x1": 578.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 584.0,
+        "y0": 596.0,
+        "x1": 599.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.963,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "18",
+        "x0": 606.0,
+        "y0": 596.0,
+        "x1": 638.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "DANA",
+        "x0": 645.0,
+        "y0": 596.0,
+        "x1": 724.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "HILL",
+        "x0": 733.0,
+        "y0": 596.0,
+        "x1": 795.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "ROAD,",
+        "x0": 802.0,
+        "y0": 595.0,
+        "x1": 899.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "STERLING",
+        "x0": 905.0,
+        "y0": 595.0,
+        "x1": 1045.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "MA",
+        "x0": 1056.0,
+        "y0": 595.0,
+        "x1": 1101.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.982,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "015642414",
+        "x0": 1110.0,
+        "y0": 595.0,
+        "x1": 1254.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1261.0,
+        "y0": 595.0,
+        "x1": 1276.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.928,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Tel:",
+        "x0": 1282.0,
+        "y0": 595.0,
+        "x1": 1330.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.984,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "9784225111",
+        "x0": 1336.0,
+        "y0": 595.0,
+        "x1": 1498.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.982,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1504.0,
+        "y0": 595.0,
+        "x1": 1517.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.928,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Claim:",
+        "x0": 1524.0,
+        "y0": 595.0,
+        "x1": 1608.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.985,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CLM-2026-170381",
+        "x0": 1614.0,
+        "y0": 595.0,
+        "x1": 1855.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.986,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1862.0,
+        "y0": 595.0,
+        "x1": 1877.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.905,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TPA:",
+        "x0": 1883.0,
+        "y0": 595.0,
+        "x1": 1946.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Health",
+        "x0": 1952.0,
+        "y0": 595.0,
+        "x1": 2036.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "India",
+        "x0": 2045.0,
+        "y0": 595.0,
+        "x1": 2112.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.968,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TPA",
+        "x0": 2120.0,
+        "y0": 595.0,
+        "x1": 2172.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      }
+    ]
+  }
+]

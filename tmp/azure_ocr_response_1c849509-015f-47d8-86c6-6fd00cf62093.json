@@ -1,0 +1,400 @@
+[
+  {
+    "page": 1,
+    "text": "Patient Signature:\nDoctor Signature:\nName: Diana207 Lozada73\nDr. Kapadia Thaker\nDate: 11-10-2023\nDate: 11-10-2023\nCHELSEA JEWISH VISITING NURSE AGENCY | 123 CAPTAIN'S ROW, CHELSEA MA 021504019 | Tel: 6178870826 | Claim: CLM-2026-112156 | TPA:\nParamount Health Services\n\nPatient Signature: | Doctor Signature:\nName: Diana207 Lozada73 | Dr. Kapadia Thaker\nDate: 11-10-2023 | Date: 11-10-2023",
+    "fields": {
+      "Name": "Diana207 Lozada73 | Dr. Kapadia Thaker",
+      "Date": "11-10-2023 | Date: 11-10-2023",
+      "Patient Signature": "| Doctor Signature:"
+    },
+    "tables": [
+      [
+        [
+          "Patient Signature:",
+          "Doctor Signature:"
+        ],
+        [
+          "Name: Diana207 Lozada73",
+          "Dr. Kapadia Thaker"
+        ],
+        [
+          "Date: 11-10-2023",
+          "Date: 11-10-2023"
+        ]
+      ]
+    ],
+    "confidence": 0.9834594594594595,
+    "tokens": [
+      {
+        "text": "Patient",
+        "x0": 208.0,
+        "y0": 274.0,
+        "x1": 318.0,
+        "y1": 308.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 324.0,
+        "y0": 274.0,
+        "x1": 478.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor",
+        "x0": 1272.0,
+        "y0": 273.0,
+        "x1": 1377.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 1384.0,
+        "y0": 274.0,
+        "x1": 1538.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Name:",
+        "x0": 208.0,
+        "y0": 367.0,
+        "x1": 322.0,
+        "y1": 404.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Diana207",
+        "x0": 329.0,
+        "y0": 366.0,
+        "x1": 493.0,
+        "y1": 405.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Lozada73",
+        "x0": 500.0,
+        "y0": 366.0,
+        "x1": 668.0,
+        "y1": 405.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Dr.",
+        "x0": 1273.0,
+        "y0": 367.0,
+        "x1": 1323.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Kapadia",
+        "x0": 1331.0,
+        "y0": 367.0,
+        "x1": 1469.0,
+        "y1": 407.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Thaker",
+        "x0": 1482.0,
+        "y0": 367.0,
+        "x1": 1598.0,
+        "y1": 407.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 209.0,
+        "y0": 460.0,
+        "x1": 307.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "11-10-2023",
+        "x0": 313.0,
+        "y0": 459.0,
+        "x1": 502.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 1273.0,
+        "y0": 459.0,
+        "x1": 1369.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "11-10-2023",
+        "x0": 1376.0,
+        "y0": 459.0,
+        "x1": 1564.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CHELSEA",
+        "x0": 245.0,
+        "y0": 596.0,
+        "x1": 379.0,
+        "y1": 627.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "JEWISH",
+        "x0": 389.0,
+        "y0": 596.0,
+        "x1": 493.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "VISITING",
+        "x0": 508.0,
+        "y0": 595.0,
+        "x1": 627.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "NURSE",
+        "x0": 638.0,
+        "y0": 595.0,
+        "x1": 740.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "AGENCY",
+        "x0": 750.0,
+        "y0": 595.0,
+        "x1": 874.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.963,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 880.0,
+        "y0": 595.0,
+        "x1": 893.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.879,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "123",
+        "x0": 899.0,
+        "y0": 595.0,
+        "x1": 947.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CAPTAIN'S",
+        "x0": 953.0,
+        "y0": 595.0,
+        "x1": 1105.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.975,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "ROW,",
+        "x0": 1113.0,
+        "y0": 595.0,
+        "x1": 1196.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CHELSEA",
+        "x0": 1202.0,
+        "y0": 595.0,
+        "x1": 1336.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "MA",
+        "x0": 1342.0,
+        "y0": 595.0,
+        "x1": 1388.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "021504019",
+        "x0": 1396.0,
+        "y0": 595.0,
+        "x1": 1541.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1548.0,
+        "y0": 595.0,
+        "x1": 1563.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.968,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Tel:",
+        "x0": 1569.0,
+        "y0": 595.0,
+        "x1": 1617.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "6178870826",
+        "x0": 1623.0,
+        "y0": 595.0,
+        "x1": 1784.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1790.0,
+        "y0": 595.0,
+        "x1": 1803.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.925,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Claim:",
+        "x0": 1809.0,
+        "y0": 595.0,
+        "x1": 1894.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.988,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CLM-2026-112156",
+        "x0": 1900.0,
+        "y0": 595.0,
+        "x1": 2142.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.976,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 2148.0,
+        "y0": 595.0,
+        "x1": 2164.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.972,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TPA:",
+        "x0": 2170.0,
+        "y0": 595.0,
+        "x1": 2231.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Paramount",
+        "x0": 1061.0,
+        "y0": 647.0,
+        "x1": 1205.0,
+        "y1": 677.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Health",
+        "x0": 1210.0,
+        "y0": 647.0,
+        "x1": 1295.0,
+        "y1": 677.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Services",
+        "x0": 1306.0,
+        "y0": 646.0,
+        "x1": 1416.0,
+        "y1": 677.0,
+        "page": 1,
+        "confidence": 0.984,
+        "source": "azure_docintel"
+      }
+    ]
+  }
+]

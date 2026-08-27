@@ -1,0 +1,1998 @@
+[
+  {
+    "page": 1,
+    "text": "Treating Doctor:\nDr. Krishnan Kapur\nReg. No .:\nMCI-42241\nPrimary Diagnosis:\nConcussion injury of brain (disorder)\nICD-10 / SNOMED:\n110030002\nType of Admission:\nEmergency\nSecondary Diagnosis:\nConcussion with loss of consciousness (disorder)\nCode:\n62564004\nProcedure:\nOral health education (procedure)\nProcedure Code:\n243085009\n4. HOSPITAL EXPENSE BREAKDOWN\nSr.\nCategory\nDescription\nAmount (Rs.)\n1\nRoom Charges\nGeneral Ward - 1 Days\n5,000\n2\nProcedure Charges\nOral health education (procedure)\n43,140\n3\nConsultation\nSpecialist - 3 visits\n3,000\n4\nPharmacy\nMedicines, IV fluids\n11,977\n5\nLaboratory\nBlood tests, panels\n2,003\n6\nNursing\nNursing care - 1 days\n1,000\n7\nConsumables\nSurgical consumables, IV lines\n11,401\n8\nMiscellaneous\nAdmin, Food, Transport\n2,221\nTOTAL AMOUNT\nRs. 79,700\nSum Insured\nRs. 750,000\nAmount Exceeding Policy\nRs. 0\nCLAIM AMOUNT REQUESTED\nRs. 79,700\n5. RISK FACTORS\nRisk Factor\nDetails\nAge\n21 years - Moderate risk category\nPrevious Claims\n1 prior claim(s) - Rs. 90,946\nDiagnoses\n2 condition(s): Concussion injury of brain (disorder), Concussion with loss of consciousness\n(disorder)\nClaim vs Sum Insured\nRs. 79,700 = 10% of Rs. 750,000\nWard Type\nGeneral + HDU\nAdmission Type\nEmergency\n6. DECLARATION\n\nTreating Doctor: | Dr. Krishnan Kapur\nReg. No .: | MCI-42241\nPrimary Diagnosis: | Concussion injury of brain (disorder)\nICD-10 / SNOMED: | 110030002\nType of Admission: | Emergency\nSecondary Diagnosis: | Concussion with loss of consciousness (disorder)\nCode: | 62564004\nProcedure: | Oral health education (procedure)\nProcedure Code: | 243085009\n\nSr. | Category | Description | Amount (Rs.)\n1 | Room Charges | General Ward - 1 Days | 5,000\n2 | Procedure Charges | Oral health education (procedure) | 43,140\n3 | Consultation | Specialist - 3 visits | 3,000\n4 | Pharmacy | Medicines, IV fluids | 11,977\n5 | Laboratory | Blood tests, panels | 2,003\n6 | Nursing | Nursing care - 1 days | 1,000\n7 | Consumables | Surgical consumables, IV lines | 11,401\n8 | Miscellaneous | Admin, Food, Transport | 2,221\n\n |  | TOTAL AMOUNT | Rs. 79,700\nSum Insured |  |  | Rs. 750,000\nAmount Exceeding Policy |  |  | Rs. 0\nCLAIM AMOUNT REQUESTED |  |  | Rs. 79,700\n\nRisk Factor | Details\nAge | 21 years - Moderate risk category\nPrevious Claims | 1 prior claim(s) - Rs. 90,946\nDiagnoses | 2 condition(s): Concussion injury of brain (disorder), Concussion with loss of consciousness (disorder)\nClaim vs Sum Insured | Rs. 79,700 = 10% of Rs. 750,000\nWard Type | General + HDU\nAdmission Type | Emergency",
+    "fields": {
+      "MCI": "42241",
+      "ICD": "10 / SNOMED:",
+      "General Ward": "1 Days",
+      "Specialist": "3 visits",
+      "Nursing care": "1 days",
+      "21 years": "Moderate risk category",
+      "Treating Doctor": "| Dr. Krishnan Kapur",
+      "Reg. No .": "| MCI-42241",
+      "Primary Diagnosis": "| Concussion injury of brain (disorder)",
+      "ICD-10 / SNOMED": "| 110030002",
+      "Type of Admission": "| Emergency",
+      "Secondary Diagnosis": "| Concussion with loss of consciousness (disorder)",
+      "Code": "| 62564004",
+      "Procedure": "| Oral health education (procedure)",
+      "Procedure Code": "| 243085009"
+    },
+    "tables": [
+      [
+        [
+          "Treating Doctor:",
+          "Dr. Krishnan Kapur"
+        ],
+        [
+          "Reg. No .:",
+          "MCI-42241"
+        ],
+        [
+          "Primary Diagnosis:",
+          "Concussion injury of brain (disorder)"
+        ],
+        [
+          "ICD-10 / SNOMED:",
+          "110030002"
+        ],
+        [
+          "Type of Admission:",
+          "Emergency"
+        ],
+        [
+          "Secondary Diagnosis:",
+          "Concussion with loss of consciousness (disorder)"
+        ],
+        [
+          "Code:",
+          "62564004"
+        ],
+        [
+          "Procedure:",
+          "Oral health education (procedure)"
+        ],
+        [
+          "Procedure Code:",
+          "243085009"
+        ]
+      ],
+      [
+        [
+          "Sr.",
+          "Category",
+          "Description",
+          "Amount (Rs.)"
+        ],
+        [
+          "1",
+          "Room Charges",
+          "General Ward - 1 Days",
+          "5,000"
+        ],
+        [
+          "2",
+          "Procedure Charges",
+          "Oral health education (procedure)",
+          "43,140"
+        ],
+        [
+          "3",
+          "Consultation",
+          "Specialist - 3 visits",
+          "3,000"
+        ],
+        [
+          "4",
+          "Pharmacy",
+          "Medicines, IV fluids",
+          "11,977"
+        ],
+        [
+          "5",
+          "Laboratory",
+          "Blood tests, panels",
+          "2,003"
+        ],
+        [
+          "6",
+          "Nursing",
+          "Nursing care - 1 days",
+          "1,000"
+        ],
+        [
+          "7",
+          "Consumables",
+          "Surgical consumables, IV lines",
+          "11,401"
+        ],
+        [
+          "8",
+          "Miscellaneous",
+          "Admin, Food, Transport",
+          "2,221"
+        ]
+      ],
+      [
+        [
+          "",
+          "",
+          "TOTAL AMOUNT",
+          "Rs. 79,700"
+        ],
+        [
+          "Sum Insured",
+          "",
+          "",
+          "Rs. 750,000"
+        ],
+        [
+          "Amount Exceeding Policy",
+          "",
+          "",
+          "Rs. 0"
+        ],
+        [
+          "CLAIM AMOUNT REQUESTED",
+          "",
+          "",
+          "Rs. 79,700"
+        ]
+      ],
+      [
+        [
+          "Risk Factor",
+          "Details"
+        ],
+        [
+          "Age",
+          "21 years - Moderate risk category"
+        ],
+        [
+          "Previous Claims",
+          "1 prior claim(s) - Rs. 90,946"
+        ],
+        [
+          "Diagnoses",
+          "2 condition(s): Concussion injury of brain (disorder), Concussion with loss of consciousness (disorder)"
+        ],
+        [
+          "Claim vs Sum Insured",
+          "Rs. 79,700 = 10% of Rs. 750,000"
+        ],
+        [
+          "Ward Type",
+          "General + HDU"
+        ],
+        [
+          "Admission Type",
+          "Emergency"
+        ]
+      ]
+    ],
+    "confidence": 0.9883131868131877,
+    "tokens": [
+      {
+        "text": "Treating",
+        "x0": 210.0,
+        "y0": 221.0,
+        "x1": 331.0,
+        "y1": 258.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor:",
+        "x0": 340.0,
+        "y0": 221.0,
+        "x1": 454.0,
+        "y1": 258.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Dr.",
+        "x0": 1016.0,
+        "y0": 224.0,
+        "x1": 1068.0,
+        "y1": 263.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Krishnan",
+        "x0": 1076.0,
+        "y0": 224.0,
+        "x1": 1222.0,
+        "y1": 265.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Kapur",
+        "x0": 1233.0,
+        "y0": 223.0,
+        "x1": 1337.0,
+        "y1": 265.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Reg.",
+        "x0": 209.0,
+        "y0": 306.0,
+        "x1": 278.0,
+        "y1": 341.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "No",
+        "x0": 285.0,
+        "y0": 306.0,
+        "x1": 317.0,
+        "y1": 341.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": ".:",
+        "x0": 324.0,
+        "y0": 306.0,
+        "x1": 345.0,
+        "y1": 341.0,
+        "page": 1,
+        "confidence": 0.933,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "MCI-42241",
+        "x0": 1017.0,
+        "y0": 307.0,
+        "x1": 1200.0,
+        "y1": 343.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Primary",
+        "x0": 207.0,
+        "y0": 389.0,
+        "x1": 328.0,
+        "y1": 426.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Diagnosis:",
+        "x0": 335.0,
+        "y0": 390.0,
+        "x1": 495.0,
+        "y1": 427.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Concussion",
+        "x0": 1018.0,
+        "y0": 389.0,
+        "x1": 1211.0,
+        "y1": 434.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "injury",
+        "x0": 1219.0,
+        "y0": 389.0,
+        "x1": 1312.0,
+        "y1": 434.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "of",
+        "x0": 1320.0,
+        "y0": 389.0,
+        "x1": 1352.0,
+        "y1": 434.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "brain",
+        "x0": 1360.0,
+        "y0": 389.0,
+        "x1": 1447.0,
+        "y1": 434.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "(disorder)",
+        "x0": 1455.0,
+        "y0": 389.0,
+        "x1": 1621.0,
+        "y1": 434.0,
+        "page": 1,
+        "confidence": 0.973,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "ICD-10",
+        "x0": 206.0,
+        "y0": 471.0,
+        "x1": 306.0,
+        "y1": 505.0,
+        "page": 1,
+        "confidence": 0.983,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "/",
+        "x0": 313.0,
+        "y0": 472.0,
+        "x1": 329.0,
+        "y1": 505.0,
+        "page": 1,
+        "confidence": 0.945,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "SNOMED:",
+        "x0": 335.0,
+        "y0": 471.0,
+        "x1": 486.0,
+        "y1": 506.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "110030002",
+        "x0": 1019.0,
+        "y0": 473.0,
+        "x1": 1205.0,
+        "y1": 511.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Type",
+        "x0": 211.0,
+        "y0": 555.0,
+        "x1": 282.0,
+        "y1": 592.0,
+        "page": 1,
+        "confidence": 0.986,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "of",
+        "x0": 289.0,
+        "y0": 555.0,
+        "x1": 324.0,
+        "y1": 592.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Admission:",
+        "x0": 330.0,
+        "y0": 555.0,
+        "x1": 501.0,
+        "y1": 592.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Emergency",
+        "x0": 1017.0,
+        "y0": 559.0,
+        "x1": 1207.0,
+        "y1": 601.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Secondary",
+        "x0": 210.0,
+        "y0": 638.0,
+        "x1": 370.0,
+        "y1": 676.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Diagnosis:",
+        "x0": 377.0,
+        "y0": 639.0,
+        "x1": 540.0,
+        "y1": 677.0,
+        "page": 1,
+        "confidence": 0.977,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Concussion",
+        "x0": 1016.0,
+        "y0": 640.0,
+        "x1": 1210.0,
+        "y1": 680.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "with",
+        "x0": 1221.0,
+        "y0": 640.0,
+        "x1": 1287.0,
+        "y1": 681.0,
+        "page": 1,
+        "confidence": 0.984,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "loss",
+        "x0": 1295.0,
+        "y0": 641.0,
+        "x1": 1369.0,
+        "y1": 681.0,
+        "page": 1,
+        "confidence": 0.98,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "of",
+        "x0": 1377.0,
+        "y0": 640.0,
+        "x1": 1410.0,
+        "y1": 681.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "consciousness",
+        "x0": 1418.0,
+        "y0": 640.0,
+        "x1": 1665.0,
+        "y1": 683.0,
+        "page": 1,
+        "confidence": 0.982,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "(disorder)",
+        "x0": 1673.0,
+        "y0": 639.0,
+        "x1": 1838.0,
+        "y1": 685.0,
+        "page": 1,
+        "confidence": 0.984,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Code:",
+        "x0": 210.0,
+        "y0": 723.0,
+        "x1": 303.0,
+        "y1": 754.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "62564004",
+        "x0": 1017.0,
+        "y0": 726.0,
+        "x1": 1183.0,
+        "y1": 760.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Procedure:",
+        "x0": 209.0,
+        "y0": 805.0,
+        "x1": 374.0,
+        "y1": 838.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Oral",
+        "x0": 1017.0,
+        "y0": 808.0,
+        "x1": 1087.0,
+        "y1": 847.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "health",
+        "x0": 1095.0,
+        "y0": 807.0,
+        "x1": 1200.0,
+        "y1": 849.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "education",
+        "x0": 1208.0,
+        "y0": 807.0,
+        "x1": 1372.0,
+        "y1": 851.0,
+        "page": 1,
+        "confidence": 0.985,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "(procedure)",
+        "x0": 1383.0,
+        "y0": 807.0,
+        "x1": 1578.0,
+        "y1": 851.0,
+        "page": 1,
+        "confidence": 0.977,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Procedure",
+        "x0": 209.0,
+        "y0": 891.0,
+        "x1": 361.0,
+        "y1": 922.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Code:",
+        "x0": 373.0,
+        "y0": 890.0,
+        "x1": 461.0,
+        "y1": 922.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "243085009",
+        "x0": 1019.0,
+        "y0": 891.0,
+        "x1": 1205.0,
+        "y1": 928.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4.",
+        "x0": 208.0,
+        "y0": 1026.0,
+        "x1": 238.0,
+        "y1": 1059.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "HOSPITAL",
+        "x0": 244.0,
+        "y0": 1024.0,
+        "x1": 413.0,
+        "y1": 1060.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "EXPENSE",
+        "x0": 423.0,
+        "y0": 1024.0,
+        "x1": 578.0,
+        "y1": 1060.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "BREAKDOWN",
+        "x0": 591.0,
+        "y0": 1024.0,
+        "x1": 809.0,
+        "y1": 1060.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Sr.",
+        "x0": 226.0,
+        "y0": 1112.0,
+        "x1": 267.0,
+        "y1": 1142.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Category",
+        "x0": 515.0,
+        "y0": 1113.0,
+        "x1": 650.0,
+        "y1": 1149.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Description",
+        "x0": 1309.0,
+        "y0": 1112.0,
+        "x1": 1480.0,
+        "y1": 1147.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Amount",
+        "x0": 2026.0,
+        "y0": 1113.0,
+        "x1": 2144.0,
+        "y1": 1146.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "(Rs.)",
+        "x0": 2150.0,
+        "y0": 1113.0,
+        "x1": 2223.0,
+        "y1": 1148.0,
+        "page": 1,
+        "confidence": 0.98,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1",
+        "x0": 200.0,
+        "y0": 1195.0,
+        "x1": 215.0,
+        "y1": 1224.0,
+        "page": 1,
+        "confidence": 0.927,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Room",
+        "x0": 337.0,
+        "y0": 1195.0,
+        "x1": 416.0,
+        "y1": 1232.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Charges",
+        "x0": 437.0,
+        "y0": 1196.0,
+        "x1": 565.0,
+        "y1": 1232.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "General",
+        "x0": 869.0,
+        "y0": 1194.0,
+        "x1": 990.0,
+        "y1": 1231.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ward",
+        "x0": 997.0,
+        "y0": 1194.0,
+        "x1": 1077.0,
+        "y1": 1232.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "-",
+        "x0": 1084.0,
+        "y0": 1194.0,
+        "x1": 1104.0,
+        "y1": 1232.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1",
+        "x0": 1118.0,
+        "y0": 1195.0,
+        "x1": 1135.0,
+        "y1": 1232.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Days",
+        "x0": 1142.0,
+        "y0": 1195.0,
+        "x1": 1220.0,
+        "y1": 1232.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "5,000",
+        "x0": 2192.0,
+        "y0": 1195.0,
+        "x1": 2276.0,
+        "y1": 1228.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "2",
+        "x0": 200.0,
+        "y0": 1280.0,
+        "x1": 217.0,
+        "y1": 1309.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Procedure",
+        "x0": 337.0,
+        "y0": 1278.0,
+        "x1": 491.0,
+        "y1": 1316.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Charges",
+        "x0": 501.0,
+        "y0": 1280.0,
+        "x1": 627.0,
+        "y1": 1316.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Oral",
+        "x0": 869.0,
+        "y0": 1278.0,
+        "x1": 931.0,
+        "y1": 1315.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "health",
+        "x0": 938.0,
+        "y0": 1278.0,
+        "x1": 1032.0,
+        "y1": 1316.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "education",
+        "x0": 1042.0,
+        "y0": 1278.0,
+        "x1": 1184.0,
+        "y1": 1317.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "(procedure)",
+        "x0": 1194.0,
+        "y0": 1279.0,
+        "x1": 1370.0,
+        "y1": 1317.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "43,140",
+        "x0": 2175.0,
+        "y0": 1280.0,
+        "x1": 2275.0,
+        "y1": 1315.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "3",
+        "x0": 198.0,
+        "y0": 1363.0,
+        "x1": 216.0,
+        "y1": 1392.0,
+        "page": 1,
+        "confidence": 0.946,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Consultation",
+        "x0": 337.0,
+        "y0": 1362.0,
+        "x1": 522.0,
+        "y1": 1397.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Specialist",
+        "x0": 870.0,
+        "y0": 1362.0,
+        "x1": 1013.0,
+        "y1": 1399.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "-",
+        "x0": 1019.0,
+        "y0": 1362.0,
+        "x1": 1039.0,
+        "y1": 1398.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "3",
+        "x0": 1050.0,
+        "y0": 1362.0,
+        "x1": 1069.0,
+        "y1": 1398.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "visits",
+        "x0": 1076.0,
+        "y0": 1362.0,
+        "x1": 1152.0,
+        "y1": 1398.0,
+        "page": 1,
+        "confidence": 0.972,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "3,000",
+        "x0": 2194.0,
+        "y0": 1362.0,
+        "x1": 2278.0,
+        "y1": 1398.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "4",
+        "x0": 198.0,
+        "y0": 1446.0,
+        "x1": 214.0,
+        "y1": 1475.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Pharmacy",
+        "x0": 337.0,
+        "y0": 1445.0,
+        "x1": 489.0,
+        "y1": 1484.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Medicines,",
+        "x0": 867.0,
+        "y0": 1445.0,
+        "x1": 1031.0,
+        "y1": 1480.0,
+        "page": 1,
+        "confidence": 0.982,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "IV",
+        "x0": 1037.0,
+        "y0": 1445.0,
+        "x1": 1070.0,
+        "y1": 1480.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "fluids",
+        "x0": 1078.0,
+        "y0": 1445.0,
+        "x1": 1157.0,
+        "y1": 1480.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "11,977",
+        "x0": 2177.0,
+        "y0": 1445.0,
+        "x1": 2279.0,
+        "y1": 1480.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "5",
+        "x0": 197.0,
+        "y0": 1529.0,
+        "x1": 213.0,
+        "y1": 1560.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Laboratory",
+        "x0": 335.0,
+        "y0": 1528.0,
+        "x1": 499.0,
+        "y1": 1568.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Blood",
+        "x0": 869.0,
+        "y0": 1528.0,
+        "x1": 953.0,
+        "y1": 1567.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "tests,",
+        "x0": 960.0,
+        "y0": 1528.0,
+        "x1": 1044.0,
+        "y1": 1567.0,
+        "page": 1,
+        "confidence": 0.988,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "panels",
+        "x0": 1051.0,
+        "y0": 1529.0,
+        "x1": 1154.0,
+        "y1": 1567.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "2,003",
+        "x0": 2194.0,
+        "y0": 1530.0,
+        "x1": 2278.0,
+        "y1": 1564.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "6",
+        "x0": 198.0,
+        "y0": 1613.0,
+        "x1": 213.0,
+        "y1": 1643.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Nursing",
+        "x0": 336.0,
+        "y0": 1613.0,
+        "x1": 455.0,
+        "y1": 1651.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Nursing",
+        "x0": 868.0,
+        "y0": 1610.0,
+        "x1": 984.0,
+        "y1": 1650.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "care",
+        "x0": 993.0,
+        "y0": 1613.0,
+        "x1": 1058.0,
+        "y1": 1650.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "-",
+        "x0": 1065.0,
+        "y0": 1613.0,
+        "x1": 1087.0,
+        "y1": 1650.0,
+        "page": 1,
+        "confidence": 0.951,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1",
+        "x0": 1097.0,
+        "y0": 1613.0,
+        "x1": 1114.0,
+        "y1": 1650.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "days",
+        "x0": 1122.0,
+        "y0": 1612.0,
+        "x1": 1196.0,
+        "y1": 1651.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1,000",
+        "x0": 2195.0,
+        "y0": 1612.0,
+        "x1": 2276.0,
+        "y1": 1647.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "7",
+        "x0": 200.0,
+        "y0": 1696.0,
+        "x1": 215.0,
+        "y1": 1725.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Consumables",
+        "x0": 338.0,
+        "y0": 1695.0,
+        "x1": 544.0,
+        "y1": 1729.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Surgical",
+        "x0": 870.0,
+        "y0": 1695.0,
+        "x1": 991.0,
+        "y1": 1733.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "consumables,",
+        "x0": 998.0,
+        "y0": 1694.0,
+        "x1": 1207.0,
+        "y1": 1733.0,
+        "page": 1,
+        "confidence": 0.982,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "IV",
+        "x0": 1213.0,
+        "y0": 1694.0,
+        "x1": 1246.0,
+        "y1": 1732.0,
+        "page": 1,
+        "confidence": 0.955,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "lines",
+        "x0": 1253.0,
+        "y0": 1694.0,
+        "x1": 1328.0,
+        "y1": 1731.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "11,401",
+        "x0": 2176.0,
+        "y0": 1695.0,
+        "x1": 2276.0,
+        "y1": 1730.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "8",
+        "x0": 198.0,
+        "y0": 1780.0,
+        "x1": 214.0,
+        "y1": 1809.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Miscellaneous",
+        "x0": 336.0,
+        "y0": 1780.0,
+        "x1": 549.0,
+        "y1": 1814.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Admin,",
+        "x0": 868.0,
+        "y0": 1778.0,
+        "x1": 974.0,
+        "y1": 1816.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Food,",
+        "x0": 981.0,
+        "y0": 1779.0,
+        "x1": 1072.0,
+        "y1": 1816.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Transport",
+        "x0": 1079.0,
+        "y0": 1778.0,
+        "x1": 1224.0,
+        "y1": 1817.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "2,221",
+        "x0": 2194.0,
+        "y0": 1778.0,
+        "x1": 2274.0,
+        "y1": 1813.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TOTAL",
+        "x0": 1626.0,
+        "y0": 1887.0,
+        "x1": 1744.0,
+        "y1": 1924.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "AMOUNT",
+        "x0": 1760.0,
+        "y0": 1885.0,
+        "x1": 1924.0,
+        "y1": 1925.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 2093.0,
+        "y0": 1887.0,
+        "x1": 2155.0,
+        "y1": 1926.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "79,700",
+        "x0": 2162.0,
+        "y0": 1887.0,
+        "x1": 2277.0,
+        "y1": 1928.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Sum",
+        "x0": 1695.0,
+        "y0": 1970.0,
+        "x1": 1761.0,
+        "y1": 2007.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Insured",
+        "x0": 1785.0,
+        "y0": 1970.0,
+        "x1": 1920.0,
+        "y1": 2008.0,
+        "page": 1,
+        "confidence": 0.986,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 2073.0,
+        "y0": 1969.0,
+        "x1": 2136.0,
+        "y1": 2009.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "750,000",
+        "x0": 2144.0,
+        "y0": 1969.0,
+        "x1": 2277.0,
+        "y1": 2009.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Amount",
+        "x0": 1463.0,
+        "y0": 2053.0,
+        "x1": 1607.0,
+        "y1": 2094.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Exceeding",
+        "x0": 1615.0,
+        "y0": 2054.0,
+        "x1": 1800.0,
+        "y1": 2096.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Policy",
+        "x0": 1811.0,
+        "y0": 2054.0,
+        "x1": 1923.0,
+        "y1": 2097.0,
+        "page": 1,
+        "confidence": 0.964,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 2187.0,
+        "y0": 2053.0,
+        "x1": 2249.0,
+        "y1": 2090.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "0",
+        "x0": 2256.0,
+        "y0": 2053.0,
+        "x1": 2276.0,
+        "y1": 2090.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CLAIM",
+        "x0": 1386.0,
+        "y0": 2137.0,
+        "x1": 1492.0,
+        "y1": 2175.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "AMOUNT",
+        "x0": 1515.0,
+        "y0": 2136.0,
+        "x1": 1680.0,
+        "y1": 2175.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "REQUESTED",
+        "x0": 1690.0,
+        "y0": 2136.0,
+        "x1": 1916.0,
+        "y1": 2174.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 2092.0,
+        "y0": 2138.0,
+        "x1": 2157.0,
+        "y1": 2177.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "79,700",
+        "x0": 2164.0,
+        "y0": 2138.0,
+        "x1": 2278.0,
+        "y1": 2177.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "5.",
+        "x0": 207.0,
+        "y0": 2270.0,
+        "x1": 241.0,
+        "y1": 2304.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "RISK",
+        "x0": 245.0,
+        "y0": 2270.0,
+        "x1": 319.0,
+        "y1": 2304.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "FACTORS",
+        "x0": 335.0,
+        "y0": 2270.0,
+        "x1": 494.0,
+        "y1": 2304.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Risk",
+        "x0": 445.0,
+        "y0": 2358.0,
+        "x1": 509.0,
+        "y1": 2389.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Factor",
+        "x0": 519.0,
+        "y0": 2357.0,
+        "x1": 615.0,
+        "y1": 2391.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Details",
+        "x0": 1542.0,
+        "y0": 2358.0,
+        "x1": 1647.0,
+        "y1": 2389.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Age",
+        "x0": 200.0,
+        "y0": 2443.0,
+        "x1": 260.0,
+        "y1": 2478.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "21",
+        "x0": 911.0,
+        "y0": 2442.0,
+        "x1": 946.0,
+        "y1": 2479.0,
+        "page": 1,
+        "confidence": 0.996,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "years",
+        "x0": 953.0,
+        "y0": 2442.0,
+        "x1": 1037.0,
+        "y1": 2479.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "-",
+        "x0": 1043.0,
+        "y0": 2442.0,
+        "x1": 1066.0,
+        "y1": 2479.0,
+        "page": 1,
+        "confidence": 0.965,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Moderate",
+        "x0": 1085.0,
+        "y0": 2442.0,
+        "x1": 1230.0,
+        "y1": 2480.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "risk",
+        "x0": 1237.0,
+        "y0": 2442.0,
+        "x1": 1291.0,
+        "y1": 2480.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "category",
+        "x0": 1299.0,
+        "y0": 2443.0,
+        "x1": 1431.0,
+        "y1": 2481.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Previous",
+        "x0": 200.0,
+        "y0": 2525.0,
+        "x1": 333.0,
+        "y1": 2558.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Claims",
+        "x0": 341.0,
+        "y0": 2524.0,
+        "x1": 444.0,
+        "y1": 2559.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1",
+        "x0": 911.0,
+        "y0": 2525.0,
+        "x1": 927.0,
+        "y1": 2564.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "prior",
+        "x0": 933.0,
+        "y0": 2524.0,
+        "x1": 1004.0,
+        "y1": 2564.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "claim(s)",
+        "x0": 1010.0,
+        "y0": 2523.0,
+        "x1": 1130.0,
+        "y1": 2564.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "-",
+        "x0": 1137.0,
+        "y0": 2523.0,
+        "x1": 1160.0,
+        "y1": 2564.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 1180.0,
+        "y0": 2523.0,
+        "x1": 1235.0,
+        "y1": 2564.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "90,946",
+        "x0": 1242.0,
+        "y0": 2524.0,
+        "x1": 1345.0,
+        "y1": 2563.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Diagnoses",
+        "x0": 201.0,
+        "y0": 2659.0,
+        "x1": 361.0,
+        "y1": 2694.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "2",
+        "x0": 910.0,
+        "y0": 2607.0,
+        "x1": 928.0,
+        "y1": 2645.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "condition(s):",
+        "x0": 935.0,
+        "y0": 2607.0,
+        "x1": 1120.0,
+        "y1": 2646.0,
+        "page": 1,
+        "confidence": 0.928,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Concussion",
+        "x0": 1127.0,
+        "y0": 2607.0,
+        "x1": 1299.0,
+        "y1": 2647.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "injury",
+        "x0": 1307.0,
+        "y0": 2607.0,
+        "x1": 1390.0,
+        "y1": 2647.0,
+        "page": 1,
+        "confidence": 0.965,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "of",
+        "x0": 1398.0,
+        "y0": 2607.0,
+        "x1": 1428.0,
+        "y1": 2647.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "brain",
+        "x0": 1436.0,
+        "y0": 2607.0,
+        "x1": 1512.0,
+        "y1": 2647.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "(disorder),",
+        "x0": 1519.0,
+        "y0": 2607.0,
+        "x1": 1673.0,
+        "y1": 2647.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Concussion",
+        "x0": 1681.0,
+        "y0": 2607.0,
+        "x1": 1855.0,
+        "y1": 2646.0,
+        "page": 1,
+        "confidence": 0.99,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "with",
+        "x0": 1863.0,
+        "y0": 2607.0,
+        "x1": 1921.0,
+        "y1": 2646.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "loss",
+        "x0": 1929.0,
+        "y0": 2607.0,
+        "x1": 1994.0,
+        "y1": 2646.0,
+        "page": 1,
+        "confidence": 0.979,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "of",
+        "x0": 2002.0,
+        "y0": 2607.0,
+        "x1": 2030.0,
+        "y1": 2645.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "consciousness",
+        "x0": 2037.0,
+        "y0": 2608.0,
+        "x1": 2260.0,
+        "y1": 2645.0,
+        "page": 1,
+        "confidence": 0.981,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "(disorder)",
+        "x0": 909.0,
+        "y0": 2657.0,
+        "x1": 1053.0,
+        "y1": 2698.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Claim",
+        "x0": 200.0,
+        "y0": 2740.0,
+        "x1": 276.0,
+        "y1": 2777.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "vs",
+        "x0": 295.0,
+        "y0": 2741.0,
+        "x1": 331.0,
+        "y1": 2777.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Sum",
+        "x0": 340.0,
+        "y0": 2741.0,
+        "x1": 397.0,
+        "y1": 2777.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Insured",
+        "x0": 413.0,
+        "y0": 2740.0,
+        "x1": 528.0,
+        "y1": 2777.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 910.0,
+        "y0": 2739.0,
+        "x1": 962.0,
+        "y1": 2778.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "79,700",
+        "x0": 969.0,
+        "y0": 2739.0,
+        "x1": 1072.0,
+        "y1": 2778.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "=",
+        "x0": 1079.0,
+        "y0": 2739.0,
+        "x1": 1099.0,
+        "y1": 2778.0,
+        "page": 1,
+        "confidence": 0.958,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "10%",
+        "x0": 1112.0,
+        "y0": 2739.0,
+        "x1": 1177.0,
+        "y1": 2778.0,
+        "page": 1,
+        "confidence": 0.997,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "of",
+        "x0": 1184.0,
+        "y0": 2740.0,
+        "x1": 1214.0,
+        "y1": 2778.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Rs.",
+        "x0": 1222.0,
+        "y0": 2740.0,
+        "x1": 1277.0,
+        "y1": 2778.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "750,000",
+        "x0": 1284.0,
+        "y0": 2740.0,
+        "x1": 1404.0,
+        "y1": 2778.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ward",
+        "x0": 200.0,
+        "y0": 2825.0,
+        "x1": 280.0,
+        "y1": 2863.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Type",
+        "x0": 291.0,
+        "y0": 2825.0,
+        "x1": 365.0,
+        "y1": 2863.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "General",
+        "x0": 909.0,
+        "y0": 2824.0,
+        "x1": 1032.0,
+        "y1": 2860.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "+",
+        "x0": 1037.0,
+        "y0": 2824.0,
+        "x1": 1057.0,
+        "y1": 2860.0,
+        "page": 1,
+        "confidence": 0.958,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "HDU",
+        "x0": 1063.0,
+        "y0": 2824.0,
+        "x1": 1133.0,
+        "y1": 2860.0,
+        "page": 1,
+        "confidence": 0.974,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Admission",
+        "x0": 201.0,
+        "y0": 2907.0,
+        "x1": 353.0,
+        "y1": 2945.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Type",
+        "x0": 367.0,
+        "y0": 2909.0,
+        "x1": 440.0,
+        "y1": 2946.0,
+        "page": 1,
+        "confidence": 0.973,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Emergency",
+        "x0": 908.0,
+        "y0": 2910.0,
+        "x1": 1080.0,
+        "y1": 2949.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "6.",
+        "x0": 209.0,
+        "y0": 3044.0,
+        "x1": 240.0,
+        "y1": 3077.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "DECLARATION",
+        "x0": 246.0,
+        "y0": 3043.0,
+        "x1": 483.0,
+        "y1": 3077.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      }
+    ]
+  }
+]

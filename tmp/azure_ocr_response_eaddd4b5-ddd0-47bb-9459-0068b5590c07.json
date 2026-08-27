@@ -1,0 +1,430 @@
+[
+  {
+    "page": 1,
+    "text": "Patient Signature:\nDoctor Signature:\nName: Mr. Britt177 Wiegand701\nDr. Ghose Bhatt\nDate: 28-01-2021\nDate: 28-01-2021\nPATRIOT URGENT CARE PROFESSIONALS PC | 1030 MAIN STREET, WALTHAM MA 024517447 | Tel: 7818946900 | Claim: CLM-2026-194972 | TPA: MD\nIndia Health Insurance TPA\n\nPatient Signature: | Doctor Signature:\nName: Mr. Britt177 Wiegand701 | Dr. Ghose Bhatt\nDate: 28-01-2021 | Date: 28-01-2021",
+    "fields": {
+      "Name": "Mr. Britt177 Wiegand701 | Dr. Ghose Bhatt",
+      "Date": "28-01-2021 | Date: 28-01-2021",
+      "Patient Signature": "| Doctor Signature:"
+    },
+    "tables": [
+      [
+        [
+          "Patient Signature:",
+          "Doctor Signature:"
+        ],
+        [
+          "Name: Mr. Britt177 Wiegand701",
+          "Dr. Ghose Bhatt"
+        ],
+        [
+          "Date: 28-01-2021",
+          "Date: 28-01-2021"
+        ]
+      ]
+    ],
+    "confidence": 0.9814249999999998,
+    "tokens": [
+      {
+        "text": "Patient",
+        "x0": 208.0,
+        "y0": 274.0,
+        "x1": 316.0,
+        "y1": 308.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 323.0,
+        "y0": 274.0,
+        "x1": 477.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Doctor",
+        "x0": 1272.0,
+        "y0": 273.0,
+        "x1": 1376.0,
+        "y1": 310.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Signature:",
+        "x0": 1383.0,
+        "y0": 274.0,
+        "x1": 1536.0,
+        "y1": 309.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Name:",
+        "x0": 207.0,
+        "y0": 367.0,
+        "x1": 319.0,
+        "y1": 406.0,
+        "page": 1,
+        "confidence": 0.961,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Mr.",
+        "x0": 326.0,
+        "y0": 366.0,
+        "x1": 385.0,
+        "y1": 407.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Britt177",
+        "x0": 392.0,
+        "y0": 366.0,
+        "x1": 525.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.968,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Wiegand701",
+        "x0": 533.0,
+        "y0": 366.0,
+        "x1": 743.0,
+        "y1": 408.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Dr.",
+        "x0": 1273.0,
+        "y0": 367.0,
+        "x1": 1326.0,
+        "y1": 404.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Ghose",
+        "x0": 1333.0,
+        "y0": 367.0,
+        "x1": 1442.0,
+        "y1": 404.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Bhatt",
+        "x0": 1454.0,
+        "y0": 366.0,
+        "x1": 1542.0,
+        "y1": 405.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 209.0,
+        "y0": 460.0,
+        "x1": 305.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "28-01-2021",
+        "x0": 311.0,
+        "y0": 459.0,
+        "x1": 499.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Date:",
+        "x0": 1273.0,
+        "y0": 460.0,
+        "x1": 1369.0,
+        "y1": 495.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "28-01-2021",
+        "x0": 1375.0,
+        "y0": 459.0,
+        "x1": 1560.0,
+        "y1": 496.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "PATRIOT",
+        "x0": 211.0,
+        "y0": 596.0,
+        "x1": 339.0,
+        "y1": 627.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "URGENT",
+        "x0": 345.0,
+        "y0": 595.0,
+        "x1": 471.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CARE",
+        "x0": 478.0,
+        "y0": 595.0,
+        "x1": 556.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.991,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "PROFESSIONALS",
+        "x0": 567.0,
+        "y0": 595.0,
+        "x1": 814.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.985,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "PC",
+        "x0": 820.0,
+        "y0": 595.0,
+        "x1": 860.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 868.0,
+        "y0": 595.0,
+        "x1": 881.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.928,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "1030",
+        "x0": 888.0,
+        "y0": 595.0,
+        "x1": 951.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.993,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "MAIN",
+        "x0": 957.0,
+        "y0": 595.0,
+        "x1": 1027.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.982,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "STREET,",
+        "x0": 1041.0,
+        "y0": 595.0,
+        "x1": 1166.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.957,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "WALTHAM",
+        "x0": 1172.0,
+        "y0": 595.0,
+        "x1": 1309.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "MA",
+        "x0": 1323.0,
+        "y0": 595.0,
+        "x1": 1369.0,
+        "y1": 628.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "024517447",
+        "x0": 1378.0,
+        "y0": 595.0,
+        "x1": 1521.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.981,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1527.0,
+        "y0": 595.0,
+        "x1": 1543.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.973,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Tel:",
+        "x0": 1549.0,
+        "y0": 595.0,
+        "x1": 1599.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.986,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "7818946900",
+        "x0": 1605.0,
+        "y0": 595.0,
+        "x1": 1766.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.992,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 1772.0,
+        "y0": 595.0,
+        "x1": 1784.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.927,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Claim:",
+        "x0": 1790.0,
+        "y0": 595.0,
+        "x1": 1875.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.972,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "CLM-2026-194972",
+        "x0": 1881.0,
+        "y0": 595.0,
+        "x1": 2124.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.989,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "|",
+        "x0": 2130.0,
+        "y0": 595.0,
+        "x1": 2144.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.934,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TPA:",
+        "x0": 2150.0,
+        "y0": 595.0,
+        "x1": 2213.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.931,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "MD",
+        "x0": 2219.0,
+        "y0": 595.0,
+        "x1": 2263.0,
+        "y1": 629.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "India",
+        "x0": 1059.0,
+        "y0": 646.0,
+        "x1": 1124.0,
+        "y1": 677.0,
+        "page": 1,
+        "confidence": 0.962,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Health",
+        "x0": 1130.0,
+        "y0": 646.0,
+        "x1": 1215.0,
+        "y1": 676.0,
+        "page": 1,
+        "confidence": 0.994,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "Insurance",
+        "x0": 1223.0,
+        "y0": 646.0,
+        "x1": 1354.0,
+        "y1": 676.0,
+        "page": 1,
+        "confidence": 0.974,
+        "source": "azure_docintel"
+      },
+      {
+        "text": "TPA",
+        "x0": 1365.0,
+        "y0": 646.0,
+        "x1": 1417.0,
+        "y1": 677.0,
+        "page": 1,
+        "confidence": 0.995,
+        "source": "azure_docintel"
+      }
+    ]
+  }
+]
