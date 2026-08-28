@@ -35,28 +35,43 @@ class TPAClaimPDF(FPDF):
         # Blue accent bar
         self.set_fill_color(3, 105, 161)
         self.rect(0, 0, 210, 4, "F")
-        self.set_y(8)
 
-        logo_path = Path(__file__).resolve().parent / "templates" / "claimsguru_black.png"
-        if not logo_path.exists():
-            logo_path = Path(__file__).resolve().parent / "templates" / "claimsguru_white.png"
+        # Only render full ClaimsGuru logo and header banner on Page 1
+        if self.page_no() == 1:
+            self.set_y(8)
 
-        if logo_path.exists():
-            self.image(str(logo_path), x=10, y=7, h=7)
-            self.set_y(15.5)
+            logo_path = Path(__file__).resolve().parent / "templates" / "claimsguru_black.png"
+            if not logo_path.exists():
+                logo_path = Path(__file__).resolve().parent / "templates" / "claimsguru_white.png"
+
+            if logo_path.exists():
+                self.image(str(logo_path), x=10, y=7, h=7)
+                self.set_y(15.5)
+            else:
+                self.set_font("Helvetica", "B", 15)
+                self.set_text_color(3, 105, 161)
+                self.cell(0, 8, "CLAIMSGURU", ln=1)
+
+            self.set_font("Helvetica", "", 8.5)
+            self.set_text_color(100, 100, 100)
+            self.cell(0, 4.5, "AI-Powered Medical Insurance Claim Report", ln=1)
+            self.set_draw_color(3, 105, 161)
+            self.set_line_width(0.5)
+            self.line(10, self.get_y() + 1.5, 200, self.get_y() + 1.5)
+            self.ln(4)
+            self.set_text_color(0, 0, 0)
         else:
-            self.set_font("Helvetica", "B", 15)
-            self.set_text_color(3, 105, 161)
-            self.cell(0, 8, "CLAIMSGURU", ln=1)
-
-        self.set_font("Helvetica", "", 8.5)
-        self.set_text_color(100, 100, 100)
-        self.cell(0, 4.5, "AI-Powered Medical Insurance Claim Report", ln=1)
-        self.set_draw_color(3, 105, 161)
-        self.set_line_width(0.5)
-        self.line(10, self.get_y() + 1.5, 200, self.get_y() + 1.5)
-        self.ln(4)
-        self.set_text_color(0, 0, 0)
+            # Minimal running header for Page 2+
+            self.set_y(6)
+            self.set_font("Helvetica", "I", 8)
+            self.set_text_color(128, 128, 128)
+            claim_label = f"Claim #{self.claim_id}" if self.claim_id else "Medical Insurance Claim Report"
+            self.cell(0, 5, _sanitize(f"ClaimsGuru  |  {claim_label}"), ln=1, align="R")
+            self.set_draw_color(220, 220, 220)
+            self.set_line_width(0.3)
+            self.line(10, self.get_y() + 1, 200, self.get_y() + 1)
+            self.ln(3)
+            self.set_text_color(0, 0, 0)
 
     def footer(self):
         self.set_y(-15)
