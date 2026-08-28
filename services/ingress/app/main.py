@@ -45,7 +45,7 @@ from .config import settings
 from .db import SessionLocal, check_db_health, engine, force_master_session
 from .models import Claim, Document, DocValidation
 from libs.auth.passwords import hash_password, password_matches, verify_password
-from libs.shared.models import ParseJob, ParsedField, WorkflowState, User, Role, UserRoleTable, Organization, PatientProfile, StaffProfile
+from libs.shared.models import ParseJob, ParsedField, WorkflowState, User, Role, UserRoleTable, Organization, PatientProfile, StaffProfile, Invitation
 from libs.shared.workflow_state import get_latest_workflow_state, upsert_workflow_state
 from .schemas import ClaimListOut, ClaimOut
 from .rate_limiter import RateLimiter
@@ -1152,11 +1152,107 @@ def register_local_user(payload: RegisterUserIn):
 
 
 import re
+import secrets
+from datetime import timedelta
+
 
 def _slugify_org(name: str) -> str:
     s = name.strip().lower()
     s = re.sub(r"[^a-z0-9]+", "-", s)
     return s.strip("-")
+
+
+class InviteReviewerIn(BaseModel):
+    first_name: str
+    last_name: str
+    email: str
+    organization: str
+    role: str | None = "reviewer"
+    invited_by: str | None = None
+
+
+@router.post("/auth/invite", status_code=201)
+def invite_reviewer(payload: InviteReviewerIn):
+    """Create an invitation for a claim reviewer under the specified organization."""
+    email = payload.email.strip().lower()
+    first_name = payload.first_name.strip()
+    last_name = payload.last_name.strip()
+    org_name = payload.organization.strip()
+
+    if not email or not first_name or not last_name or not org_name:
+        raise HTTPException(status_code=400, detail="First name, last name, work email, and organization are required")
+
+    with SessionLocal() as db:
+        try:
+            # 1. Find or create Organization
+            org_row = db.execute(
+                text("SELECT id FROM organizations WHERE lower(name) = lower(:name)"),
+                {"name": org_name},
+            ).mappings().first()
+
+            if not org_row:
+                new_org = Organization(
+                    name=org_name,
+                    type="TPA",
+                    status="ACTIVE",
+                )
+                db.add(new_org)
+                db.flush()
+                org_id = new_org.id
+            else:
+                org_id = org_row["id"]
+
+            # 2. Check for existing pending invitation or create new one
+            existing_inv = db.query(Invitation).filter(
+                Invitation.email == email,
+                Invitation.organization_id == org_id,
+                Invitation.status == "PENDING",
+            ).first()
+
+            token = secrets.token_urlsafe(32)
+            expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+
+            if existing_inv:
+                existing_inv.first_name = first_name
+                existing_inv.last_name = last_name
+                existing_inv.token = token
+                existing_inv.expires_at = expires_at
+                existing_inv.updated_at = datetime.now(timezone.utc)
+                invitation_id = existing_inv.id
+            else:
+                new_inv = Invitation(
+                    email=email,
+                    first_name=first_name,
+                    last_name=last_name,
+                    organization_id=org_id,
+                    role=(payload.role or "reviewer").lower(),
+                    status="PENDING",
+                    token=token,
+                    expires_at=expires_at,
+                )
+                db.add(new_inv)
+                db.flush()
+                invitation_id = new_inv.id
+
+            db.commit()
+            return {
+                "success": True,
+                "invitation_id": str(invitation_id),
+                "email": email,
+                "first_name": first_name,
+                "last_name": last_name,
+                "organization": org_name,
+                "role": payload.role or "reviewer",
+                "status": "PENDING",
+                "token": token,
+                "message": f"Invitation queued successfully for {email}",
+            }
+        except HTTPException:
+            raise
+        except Exception as exc:
+            db.rollback()
+            logger.exception("Failed to create reviewer invitation")
+            raise HTTPException(status_code=500, detail=f"Invitation error: {str(exc)}") from exc
 
 
 @router.post("/auth/login", status_code=200, dependencies=[Depends(RateLimiter(limit=5, window_seconds=60))])
@@ -1284,6 +1380,349 @@ def login_local_user(payload: LoginUserIn):
         "organization_slug": organization_slug,
         "message": "Login successful",
     }
+
+
+# ------------------------------------------------------------------ Entra CIAM user synchronization
+class SyncEntraUserIn(BaseModel):
+    email: str
+    name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    company_name: str | None = None
+    organization: str | None = None
+    external_subject_id: str | None = None
+    requested_role: str | None = "patient"
+    account_role: str | None = None
+    client_id: str | None = None
+    phone: str | None = None
+    dob: str | None = None
+    gender: str | None = None
+    policy: str | None = None
+    sum_insured: float | str | None = None
+
+
+@router.post("/auth/sync-entra-user", status_code=200)
+def sync_entra_user(payload: SyncEntraUserIn):
+    """Synchronize a Microsoft Entra External ID authenticated user with the database.
+
+    - Organization Flow: If user is new from Azure Entra ID, automatically provisions
+      the organization (from company_name), user record, admin role, and staff_profile,
+      then routes them as an active Organization Admin. If existing, updates login timestamp
+      and ensures staff profile integrity.
+    - Patient Flow: If existing patient, returns profile and onboarding status.
+      If new patient, registers user in users table and creates patient_profiles record.
+    """
+    _ensure_users_password_hash_column()
+
+    email = str(payload.email).strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    role_str = str(payload.requested_role or "patient").strip().lower()
+    is_org_login = role_str in ("tpa", "admin", "reviewer", "organization", "org_admin")
+    subject_id = payload.external_subject_id or email
+
+    with force_master_session():
+        with SessionLocal() as db:
+            user_row = db.execute(
+                text("SELECT id, email, status FROM users WHERE lower(email) = lower(:email)"),
+                {"email": email},
+            ).mappings().first()
+
+            if is_org_login:
+                # ----------------------------------------------------
+                # Organization Flow
+                # ----------------------------------------------------
+                if user_row:
+                    if user_row["status"] in ("BLOCKED", "DELETED"):
+                        raise HTTPException(status_code=403, detail="Account is deactivated or blocked.")
+
+                    user_id = user_row["id"]
+
+                    # Check if this user is actually an organization staff member
+                    actual_role_row = db.query(Role.name).join(
+                        UserRoleTable, UserRoleTable.role_id == Role.id
+                    ).filter(
+                        UserRoleTable.user_id == user_id
+                    ).order_by(Role.name).first()
+                    actual_role = actual_role_row[0] if actual_role_row else None
+
+                    staff_row = db.execute(
+                        text("""
+                            SELECT sp.id, sp.first_name, sp.last_name, sp.designation, o.name
+                            FROM staff_profiles sp
+                            JOIN organizations o ON o.id = sp.organization_id
+                            WHERE sp.user_id = :user_id
+                        """),
+                        {"user_id": user_id},
+                    ).mappings().first()
+
+                    # Strict Security Check: If registered as a patient without staff profile, DENY
+                    if actual_role == "submitter" and not staff_row:
+                        raise HTTPException(
+                            status_code=403,
+                            detail="Access denied. Your account is registered as a patient, not as organization staff.",
+                        )
+
+                    # If no staff profile is found for an existing user, deny
+                    if not staff_row:
+                        raise HTTPException(
+                            status_code=403,
+                            detail="Access denied. No active organization profile is linked to this account.",
+                        )
+
+                    org_name = staff_row["name"]
+                    org_slug = _slugify_org(org_name)
+                    staff_fname = staff_row["first_name"] or ""
+                    staff_lname = staff_row["last_name"] or ""
+
+                    db.execute(
+                        text("""
+                            UPDATE users 
+                            SET last_login_at = CURRENT_TIMESTAMP,
+                                updated_at = CURRENT_TIMESTAMP,
+                                external_provider = 'entra',
+                                external_subject_id = COALESCE(:subject_id, external_subject_id)
+                            WHERE id = :id
+                        """),
+                        {"id": user_id, "subject_id": subject_id},
+                    )
+                    db.commit()
+
+                    return {
+                        "success": True,
+                        "user_id": str(user_id),
+                        "email": email,
+                        "name": f"{staff_fname} {staff_lname}".strip() or email.split("@")[0],
+                        "first_name": staff_fname,
+                        "last_name": staff_lname,
+                        "role": "tpa",
+                        "account_role": actual_role if actual_role in ("admin", "reviewer") else "admin",
+                        "organization": org_name,
+                        "organization_slug": org_slug,
+                        "is_new_user": False,
+                        "needs_onboarding": False,
+                        "message": "Organization staff verified successfully",
+                    }
+
+                else:
+                    # ----------------------------------------------------
+                    # NEW User: Auto-provision as Organization Admin
+                    # ----------------------------------------------------
+                    name_parts = (payload.name or "").strip().split(" ")
+                    first_name = (payload.first_name or "").strip()
+                    last_name = (payload.last_name or "").strip()
+                    if not first_name and payload.name:
+                        first_name = name_parts[0]
+                        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+                    if not first_name:
+                        first_name = email.split("@")[0].capitalize()
+
+                    org_name = (payload.company_name or payload.organization or "").strip()
+                    if not org_name:
+                        domain_part = email.split("@")[-1].split(".")[0]
+                        if domain_part not in ("gmail", "yahoo", "outlook", "hotmail", "claimgpt", "test", "example"):
+                            org_name = domain_part.replace("-", " ").replace("_", " ").title()
+                        else:
+                            org_name = "Star Health"
+
+                    org_slug = _slugify_org(org_name)
+
+                    # 1. Ensure Organization exists
+                    org_row = db.execute(
+                        text("SELECT id, name FROM organizations WHERE lower(name) = lower(:name)"),
+                        {"name": org_name},
+                    ).mappings().first()
+
+                    if not org_row:
+                        org_id = uuid.uuid4()
+                        db.execute(
+                            text("""
+                                INSERT INTO organizations (id, name, type, status, created_at, updated_at)
+                                VALUES (:id, :name, 'TPA', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            """),
+                            {"id": org_id, "name": org_name},
+                        )
+                    else:
+                        org_id = org_row["id"]
+                        org_name = org_row["name"]
+                        org_slug = _slugify_org(org_name)
+
+                    # 2. Create User
+                    user_id = uuid.uuid4()
+                    db.execute(
+                        text("""
+                            INSERT INTO users (id, email, phone, external_provider, external_subject_id, status, email_verified, created_at, updated_at, last_login_at)
+                            VALUES (:id, :email, :phone, 'entra', :subject_id, 'ACTIVE', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """),
+                        {
+                            "id": user_id,
+                            "email": email,
+                            "phone": payload.phone,
+                            "subject_id": subject_id,
+                        },
+                    )
+
+                    # 3. Ensure 'admin' Role exists and is assigned
+                    admin_role = db.query(Role).filter(Role.name == "admin").first()
+                    if not admin_role:
+                        admin_role = Role(id=uuid.uuid4(), name="admin", description="Full system access")
+                        db.add(admin_role)
+                        db.flush()
+
+                    db.add(UserRoleTable(id=uuid.uuid4(), user_id=user_id, role_id=admin_role.id))
+                    db.flush()
+
+                    # 4. Create staff_profiles record
+                    db.execute(
+                        text("""
+                            INSERT INTO staff_profiles (id, user_id, organization_id, first_name, last_name, employee_id, designation, department, status, created_at, updated_at)
+                            VALUES (:id, :user_id, :org_id, :first_name, :last_name, :employee_id, 'Administrator', 'Operations', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """),
+                        {
+                            "id": uuid.uuid4(),
+                            "user_id": user_id,
+                            "org_id": org_id,
+                            "first_name": first_name,
+                            "last_name": last_name or "",
+                            "employee_id": f"EMP-{str(uuid.uuid4())[:8].upper()}",
+                        },
+                    )
+                    db.commit()
+
+                    return {
+                        "success": True,
+                        "user_id": str(user_id),
+                        "email": email,
+                        "name": f"{first_name} {last_name}".strip() or email.split("@")[0],
+                        "first_name": first_name,
+                        "last_name": last_name,
+                        "role": "tpa",
+                        "account_role": "admin",
+                        "organization": org_name,
+                        "organization_slug": org_slug,
+                        "is_new_user": True,
+                        "needs_onboarding": False,
+                        "message": "Organization admin auto-provisioned successfully",
+                    }
+
+            else:
+                # ----------------------------------------------------
+                # Patient Flow
+                # ----------------------------------------------------
+                name_parts = (payload.name or "").strip().split(" ")
+                first_name = name_parts[0] if name_parts and name_parts[0] else email.split("@")[0]
+                last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+
+                if user_row:
+                    user_id = user_row["id"]
+
+                    # Check role
+                    actual_role_row = db.query(Role.name).join(
+                        UserRoleTable, UserRoleTable.role_id == Role.id
+                    ).filter(
+                        UserRoleTable.user_id == user_id
+                    ).order_by(Role.name).first()
+                    actual_role = actual_role_row[0] if actual_role_row else "submitter"
+
+                    if actual_role in ("admin", "reviewer"):
+                        raise HTTPException(
+                            status_code=403,
+                            detail="Account is registered as organization staff. Please sign in via 'Continue as Organization'.",
+                        )
+
+                    # Check patient profile
+                    profile_row = db.execute(
+                        text("SELECT id, first_name, last_name, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
+                        {"user_id": user_id},
+                    ).mappings().first()
+
+                    needs_onboarding = not bool(profile_row and profile_row["policy_number"])
+
+                    db.execute(
+                        text("""
+                            UPDATE users 
+                            SET last_login_at = CURRENT_TIMESTAMP,
+                                updated_at = CURRENT_TIMESTAMP,
+                                external_provider = 'entra',
+                                external_subject_id = COALESCE(:subject_id, external_subject_id)
+                            WHERE id = :id
+                        """),
+                        {"id": user_id, "subject_id": subject_id},
+                    )
+                    db.commit()
+
+                    return {
+                        "success": True,
+                        "user_id": str(user_id),
+                        "email": email,
+                        "role": "patient",
+                        "account_role": "submitter",
+                        "is_new_user": False,
+                        "needs_onboarding": needs_onboarding,
+                        "message": "Patient authenticated successfully",
+                    }
+                else:
+                    # New Patient self-registration from Entra
+                    new_user_id = uuid.uuid4()
+                    db.execute(
+                        text("""
+                            INSERT INTO users (id, email, phone, external_provider, external_subject_id, status, email_verified, created_at, updated_at, last_login_at)
+                            VALUES (:id, :email, :phone, 'entra', :subject_id, 'ACTIVE', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """),
+                        {
+                            "id": new_user_id,
+                            "email": email,
+                            "phone": payload.phone or None,
+                            "subject_id": subject_id,
+                        },
+                    )
+
+                    # Ensure submitter role exists and assign it
+                    role_row = db.execute(
+                        text("SELECT id FROM roles WHERE name = 'submitter'"),
+                    ).mappings().first()
+
+                    if not role_row:
+                        role_id = uuid.uuid4()
+                        db.execute(
+                            text("INSERT INTO roles (id, name, description, created_at) VALUES (:id, 'submitter', 'Patient submitter role', CURRENT_TIMESTAMP)"),
+                            {"id": role_id},
+                        )
+                    else:
+                        role_id = role_row["id"]
+
+                    db.execute(
+                        text("INSERT INTO user_roles (id, user_id, role_id, created_at) VALUES (:id, :user_id, :role_id, CURRENT_TIMESTAMP)"),
+                        {"id": uuid.uuid4(), "user_id": new_user_id, "role_id": role_id},
+                    )
+
+                    # Create initial patient profile
+                    db.execute(
+                        text("""
+                            INSERT INTO patient_profiles (id, user_id, first_name, last_name, coverage_verified, created_at, updated_at)
+                            VALUES (:id, :user_id, :first_name, :last_name, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                        """),
+                        {
+                            "id": uuid.uuid4(),
+                            "user_id": new_user_id,
+                            "first_name": first_name,
+                            "last_name": last_name,
+                        },
+                    )
+
+                    db.commit()
+
+                    return {
+                        "success": True,
+                        "user_id": str(new_user_id),
+                        "email": email,
+                        "role": "patient",
+                        "account_role": "submitter",
+                        "is_new_user": True,
+                        "needs_onboarding": True,
+                        "message": "New patient registered in database successfully",
+                    }
 
 
 # ------------------------------------------------------------------ TPA registration

@@ -86,6 +86,25 @@ CREATE INDEX idx_patient_profiles_insurer_id ON patient_profiles(insurer_id);
 CREATE INDEX idx_staff_profiles_organization_id ON staff_profiles(organization_id);
 CREATE INDEX idx_user_roles_role_id ON user_roles(role_id);
 
+CREATE TABLE invitations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email TEXT NOT NULL,
+    first_name TEXT NOT NULL,
+    last_name TEXT NOT NULL,
+    organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'reviewer',
+    status TEXT NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING', 'ACCEPTED', 'EXPIRED', 'REVOKED')),
+    invited_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    token TEXT UNIQUE,
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (now() + INTERVAL '7 days'),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_invitations_email ON invitations(email);
+CREATE INDEX idx_invitations_org_id ON invitations(organization_id);
+CREATE INDEX idx_invitations_token ON invitations(token);
+
 INSERT INTO roles (name, description) VALUES
     ('admin', 'Full system access'),
     ('reviewer', 'Review and approve claims'),
