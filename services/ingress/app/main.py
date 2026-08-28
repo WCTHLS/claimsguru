@@ -1731,7 +1731,7 @@ async def create_claim(
 @router.get("/claims", response_model=ClaimListOut)
 def list_claims(
     offset: int = Query(0, ge=0),
-    limit: int = Query(20, ge=1, le=100),
+    limit: int = Query(100, ge=1, le=500),
     patient_id: str | None = Query(None),
     policy_id: str | None = Query(None),
     db: Session = Depends(get_db),

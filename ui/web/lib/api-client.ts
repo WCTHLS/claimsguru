@@ -182,7 +182,7 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
       if (taskId && (taskId.includes("-") || taskId.length > 8)) {
         for (let attempt = 0; attempt < 8; attempt++) {
           await new Promise(resolve => setTimeout(resolve, 250));
-          const queryParams = new URLSearchParams({ limit: "50", t: Date.now().toString() });
+          const queryParams = new URLSearchParams({ limit: "200", t: Date.now().toString() });
           if (userName) {
             queryParams.append("patient_id", userName);
           }
@@ -313,7 +313,7 @@ export async function fetchClaimPreview(claimId: string): Promise<RealClaimPrevi
  */
 export async function fetchLatestClaimId(patientId?: string): Promise<string | null> {
   try {
-    const params = new URLSearchParams({ limit: "50", t: Date.now().toString() });
+    const params = new URLSearchParams({ limit: "200", t: Date.now().toString() });
     if (patientId) {
       params.append("patient_id", patientId);
     }
@@ -339,7 +339,7 @@ export async function fetchLatestClaimId(patientId?: string): Promise<string | n
  */
 export async function fetchRecentClaims(patientId?: string): Promise<RecentClaimSummary[]> {
   try {
-    const params = new URLSearchParams({ limit: "50", t: Date.now().toString() });
+    const params = new URLSearchParams({ limit: "200", t: Date.now().toString() });
     if (patientId) {
       params.append("patient_id", patientId);
     }
