@@ -480,3 +480,20 @@ class UserRoleTable(Base):
     __table_args__ = (
         UniqueConstraint("user_id", "role_id", name="uq_user_role"),
     )
+
+
+class Invitation(Base):
+    __tablename__ = "invitations"
+
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    email = Column(String(255), nullable=False, index=True)
+    first_name = Column(Text, nullable=False)
+    last_name = Column(Text, nullable=False)
+    organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(50), nullable=False, default="reviewer")
+    status = Column(Text, nullable=False, default="PENDING")
+    invited_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    token = Column(String(255), unique=True, nullable=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now())

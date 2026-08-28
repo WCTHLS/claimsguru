@@ -32,11 +32,9 @@ try:
     from services.coding.app.db import Base as CodingBase
     from services.parser.app.models import Base as ParserBase
 
-    # Explicitly import all predictor models so SQLAlchemy registers them
-    from services.predictor.app import models as predictor_models  # noqa: F401
-
     # Predictor Base from services
     from services.predictor.app.db import Base as PredictorBase
+    from libs.shared.models import Base as SharedBase
 
     print(f"Connecting to: {DATABASE_URL}")
 
@@ -45,14 +43,16 @@ try:
     print("Registering Parser tables...")
     ParserBase.metadata.create_all(bind=engine)
 
-
     print("Registering Coding tables...")
     CodingBase.metadata.create_all(bind=engine)
 
     print("Registering Predictor tables...")
     PredictorBase.metadata.create_all(bind=engine)
 
-    print("✅ SUCCESS: All tables including 'medical_codes' and 'features' are created!")
+    print("Registering Shared tables (users, organizations, invitations, profiles)...")
+    SharedBase.metadata.create_all(bind=engine)
+
+    print("[SUCCESS] All tables including 'invitations', 'medical_codes' and 'features' are created!")
 
 except Exception as e:
-    print(f"❌ ERROR: {e}")
+    print(f"[ERROR] {e}")
