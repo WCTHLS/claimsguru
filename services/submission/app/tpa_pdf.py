@@ -30,6 +30,7 @@ class TPAClaimPDF(FPDF):
 
     claim_id: str = ""
     patient_name: str = ""
+    tpa_name: str = ""
 
     def header(self):
         # Blue accent bar
@@ -46,11 +47,17 @@ class TPAClaimPDF(FPDF):
 
             if logo_path.exists():
                 self.image(str(logo_path), x=10, y=7, h=7)
+                if self.tpa_name:
+                    self.set_xy(48, 7.5)
+                    self.set_font("Helvetica", "B", 10)
+                    self.set_text_color(3, 105, 161)
+                    self.cell(0, 6, _sanitize(f" ·  {self.tpa_name.upper()}"), ln=0)
                 self.set_y(15.5)
             else:
-                self.set_font("Helvetica", "B", 15)
+                self.set_font("Helvetica", "B", 14)
                 self.set_text_color(3, 105, 161)
-                self.cell(0, 8, "CLAIMSGURU", ln=1)
+                tpa_suffix = f"  ·  {self.tpa_name.upper()}" if self.tpa_name else ""
+                self.cell(0, 8, _sanitize(f"CLAIMSGURU{tpa_suffix}"), ln=1)
 
             self.set_font("Helvetica", "", 8.5)
             self.set_text_color(100, 100, 100)
@@ -622,6 +629,15 @@ def generate_tpa_pdf(claim_data: dict[str, Any]) -> bytes:
         PDF bytes
     """
     pdf = TPAClaimPDF()
+    pdf.tpa_name = (
+        claim_data.get("tpa_name") or
+        claim_data.get("insurer") or
+        fields.get("tpa_name") or
+        fields.get("tpa") or
+        fields.get("insurer") or
+        fields.get("insurance_company") or
+        ""
+    ).strip()
     pdf.alias_nb_pages()
     pdf.add_page()
 

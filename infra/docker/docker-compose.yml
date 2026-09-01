@@ -119,6 +119,7 @@ services:
       context: ../../
       dockerfile: infra/docker/Dockerfile.unified
       target: ml-runner
+    restart: always
     command: celery -A libs.shared.celery_app worker -Q ocr_queue --pool=solo --loglevel=info --hostname=ocr_worker@%h
     environment:
       PYTHONUNBUFFERED: "1"
@@ -191,6 +192,7 @@ services:
 
   parsing_worker:
     image: claimgpt-ml:v2-dev
+    restart: always
     command: celery -A libs.shared.celery_app worker -Q parser_queue --pool=solo --loglevel=info --hostname=parsing_worker@%h
     environment:
       PYTHONUNBUFFERED: "1"
@@ -264,6 +266,7 @@ services:
 
   other_worker:
     image: claimgpt-ml:v2-dev
+    restart: always
     command: celery -A libs.shared.celery_app worker -Q default --pool=solo --loglevel=info --hostname=other_worker@%h
     environment:
       PYTHONUNBUFFERED: "1"

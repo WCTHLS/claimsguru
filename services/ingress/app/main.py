@@ -438,19 +438,13 @@ def _celery_worker_available(timeout: float = 0.6) -> bool:
 
 def _should_run_inline() -> bool:
     """Decide between the Celery chain and in-process inline execution.
-
-    Resolution order:
-      * ``CLAIMGPT_INLINE_PIPELINE=1`` / ``true`` / ``yes``  -> always inline
-      * ``CLAIMGPT_INLINE_PIPELINE=0`` / ``false`` / ``no``  -> never inline (require worker)
-      * ``CLAIMGPT_INLINE_PIPELINE`` unset or ``auto``       -> inline only if no worker is reachable
+    Defaults to False so that high-performance Celery ML workers (ocr_worker, parsing_worker, other_worker)
+    process claims asynchronously in parallel.
     """
-    raw = (os.getenv("CLAIMGPT_INLINE_PIPELINE") or "auto").strip().lower()
+    raw = (os.getenv("CLAIMGPT_INLINE_PIPELINE") or "").strip().lower()
     if raw in {"1", "true", "yes", "on", "inline"}:
         return True
-    if raw in {"0", "false", "no", "off", "celery"}:
-        return False
-    # auto: inline only when no worker is online
-    return not _celery_worker_available()
+    return False
 
 
 def _enqueue_pipeline(

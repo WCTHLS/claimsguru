@@ -6,9 +6,9 @@
 
 import { getStoredAuthSession } from '@/lib/auth';
 
-export const INGRESS_API = process.env.NEXT_PUBLIC_INGRESS_API || "http://127.0.0.1:8001";
-export const SUBMISSION_API = process.env.NEXT_PUBLIC_SUBMISSION_API || "http://127.0.0.1:8008";
-export const CHAT_API = process.env.NEXT_PUBLIC_CHAT_API || "http://127.0.0.1:8009";
+export const INGRESS_API = process.env.NEXT_PUBLIC_INGRESS_API || "http://127.0.0.1:8000/ingress";
+export const SUBMISSION_API = process.env.NEXT_PUBLIC_SUBMISSION_API || "http://127.0.0.1:8000/submission";
+export const CHAT_API = process.env.NEXT_PUBLIC_CHAT_API || "http://127.0.0.1:8000/chat";
 
 export interface ClaimDocumentPreview {
   document_id?: string;
@@ -99,11 +99,12 @@ function getAuthHeaders(): Record<string, string> {
  * Prevents unhandled network exceptions when internet is down or slow.
  */
 async function safeFetch(url: string, options?: RequestInit, timeoutMs = 8000): Promise<Response | null> {
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const authHeaders = getAuthHeaders();
-    let res = await fetch(url, {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+
+    const res = await fetch(url, {
       ...options,
       headers: {
         ...authHeaders,
@@ -112,30 +113,9 @@ async function safeFetch(url: string, options?: RequestInit, timeoutMs = 8000): 
       signal: controller.signal,
     }).catch(() => null);
 
-    // Fallback between direct docker microservice port (8001/8008) and nginx gateway port 8000
-    if (!res) {
-      let altUrl = '';
-      if (url.includes(':8000/ingress')) altUrl = url.replace(':8000/ingress', ':8001');
-      else if (url.includes(':8001')) altUrl = url.replace(':8001', ':8000/ingress');
-      else if (url.includes(':8000/submission')) altUrl = url.replace(':8000/submission', ':8008');
-      else if (url.includes(':8008')) altUrl = url.replace(':8008', ':8000/submission');
-
-      if (altUrl) {
-        res = await fetch(altUrl, {
-          ...options,
-          headers: {
-            ...authHeaders,
-            ...(options?.headers || {}),
-          },
-          signal: controller.signal,
-        }).catch(() => null);
-      }
-    }
-
     clearTimeout(timeoutId);
     return res;
   } catch (err) {
-    clearTimeout(timeoutId);
     return null;
   }
 }
@@ -160,7 +140,7 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
 
     const url = claimId 
       ? `${INGRESS_API}/claims/${claimId}/documents` 
-      : `${INGRESS_API}/claims`;
+      : `${INGRESS_API}/claims/`;
 
     let res = await safeFetch(url, {
       method: "POST",
@@ -168,17 +148,26 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
       headers: getAuthHeaders(),
     }, 12000);
 
+    if (!res || !res.ok) {
+      res = await safeFetch(claimId ? url : `${INGRESS_API}/claims`, {
+        method: "POST",
+        body: formData,
+        headers: getAuthHeaders(),
+      }, 12000);
+    }
+
     if (res && res.ok) {
       const data = await res.json();
-      const taskId = data.task_id || data.claim_id || data.id;
-      let finalClaimId = taskId || fallbackClaimId;
+      const directClaimId = data.claim_id || data.id;
+      const taskId = data.task_id;
+      let finalClaimId = directClaimId || "";
       let finalDocId = data.document_id || (data.documents && data.documents[0]?.id) || "doc-1";
 
-      // If backend returned queued task ID, attempt quick lookup for created claim ID
-      if (taskId && (taskId.includes("-") || taskId.length > 8)) {
-        for (let attempt = 0; attempt < 15; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, 350));
-          const queryParams = new URLSearchParams({ limit: "200", t: Date.now().toString() });
+      // If backend returned queued task ID without direct claim ID, lookup the created claim
+      if (!finalClaimId) {
+        for (let attempt = 0; attempt < 20; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 400));
+          const queryParams = new URLSearchParams({ limit: "10", t: Date.now().toString() });
           if (userName) {
             queryParams.append("patient_id", userName);
           }
@@ -206,8 +195,9 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
           }
         }
       }
+
       return { 
-        claim_id: finalClaimId, 
+        claim_id: finalClaimId || fallbackClaimId, 
         document_id: finalDocId,
         status: data.status,
         task_id: data.task_id
@@ -318,15 +308,12 @@ export async function fetchClaimPreview(claimId: string): Promise<RealClaimPrevi
  */
 export async function fetchLatestClaimId(patientId?: string): Promise<string | null> {
   try {
-    const params = new URLSearchParams({ limit: "200", t: Date.now().toString() });
+    const params = new URLSearchParams({ limit: "10", t: Date.now().toString() });
     if (patientId) {
       params.append("patient_id", patientId);
     }
     const url = `${INGRESS_API}/claims?${params.toString()}`;
-    let res = await safeFetch(url, { cache: "no-store" }, 3000);
-    if (!res || !res.ok) {
-      res = await safeFetch(`${INGRESS_API}/claims/?${params.toString()}`, { cache: "no-store" }, 3000);
-    }
+    const res = await safeFetch(url, { cache: "no-store" }, 8000);
     if (!res || !res.ok) return null;
     const data = await res.json();
     const claims = data.claims || data.results || (Array.isArray(data) ? data : []);
@@ -344,18 +331,25 @@ export async function fetchLatestClaimId(patientId?: string): Promise<string | n
  */
 export async function fetchRecentClaims(patientId?: string): Promise<RecentClaimSummary[]> {
   try {
-    const params = new URLSearchParams({ limit: "200", t: Date.now().toString() });
+    const params = new URLSearchParams({ limit: "50", t: Date.now().toString() });
     if (patientId) {
       params.append("patient_id", patientId);
     }
     const url = `${INGRESS_API}/claims?${params.toString()}`;
-    let res = await safeFetch(url, { cache: "no-store" }, 3000);
-    if (!res || !res.ok) {
-      res = await safeFetch(`${INGRESS_API}/claims/?${params.toString()}`, { cache: "no-store" }, 3000);
-    }
+    const res = await safeFetch(url, { cache: "no-store" }, 8000);
     if (!res || !res.ok) return [];
     const data = await res.json();
-    const claims = data.claims || data.results || (Array.isArray(data) ? data : []);
+    let claims = data.claims || data.results || (Array.isArray(data) ? data : []);
+    
+    // If patient-specific filter returned 0 results, fall back to fetching all recent claims
+    if (claims.length === 0 && patientId) {
+      const fallbackRes = await safeFetch(`${INGRESS_API}/claims?limit=50&t=${Date.now()}`, { cache: "no-store" }, 8000);
+      if (fallbackRes && fallbackRes.ok) {
+        const fallbackData = await fallbackRes.json();
+        claims = fallbackData.claims || fallbackData.results || (Array.isArray(fallbackData) ? fallbackData : []);
+      }
+    }
+
     return claims.map((c: any) => ({
       id: c.id || c.claim_id,
       patient_name: c.patient_name || c.name || c.summary?.patient_name || (c.documents && c.documents.length > 0 ? c.documents[0].file_name : "Claim Record"),
@@ -363,6 +357,7 @@ export async function fetchRecentClaims(patientId?: string): Promise<RecentClaim
       created_at: c.created_at || "",
       total_amount: c.total_amount || c.amount || "",
       documents: c.documents || [],
+      progress: c.progress,
     }));
   } catch {
     return [];

@@ -35,6 +35,7 @@ from .irda_pdf import generate_irda_pdf
 weasyprint_error_warning = None
 try:
     from .irda_pdf_modern import generate_irda_pdf_modern  # type: ignore
+    from .tpa_pdf_modern import generate_tpa_pdf_modern  # type: ignore
     
     # WeasyPrint imports successfully, but native GTK/Cairo/Pango DLLs on Windows
     # can cause fatal heap corruption/segmentation faults that crash/hang the server
@@ -61,8 +62,10 @@ try:
         )
         logging.getLogger("submission").warning(weasyprint_error_warning)
         generate_irda_pdf_modern = None
+        generate_tpa_pdf_modern = None
 except Exception as _exc:  # pragma: no cover - WeasyPrint optional at import time
     generate_irda_pdf_modern = None  # type: ignore
+    generate_tpa_pdf_modern = None  # type: ignore
     logging.getLogger("submission").warning("Modern IRDA renderer unavailable: %s", _exc)
 
 # Import rules engine for live re-validation in preview.
@@ -136,11 +139,49 @@ def _safe_float(val: Any) -> float:
         return 0.0
 
 
+from sqlalchemy import types as sa_types
+
 def _parse_uuid(value: str) -> uuid.UUID:
     try:
-        return uuid.UUID(value)
-    except ValueError:
+        return uuid.UUID(str(value).strip())
+    except (ValueError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid UUID")
+
+
+def _resolve_claim(claim_id: str, db: Session) -> Claim | None:
+    """Resolve a Claim from UUID, short ID, patient/policy number, or latest claim."""
+    if not claim_id:
+        return db.query(Claim).order_by(Claim.created_at.desc()).first()
+
+    # 1. Try exact UUID parse
+    try:
+        cid = uuid.UUID(str(claim_id).strip())
+        claim = db.query(Claim).filter(Claim.id == cid).first()
+        if claim:
+            return claim
+    except (ValueError, TypeError):
+        pass
+
+    # 2. Try match on patient_id, policy_id, or short ID substring
+    clean_id = str(claim_id).strip()
+    try:
+        claim = (
+            db.query(Claim)
+            .filter(
+                (Claim.policy_id == clean_id) |
+                (Claim.patient_id == clean_id) |
+                (Claim.id.cast(sa_types.String).ilike(f"%{clean_id}%"))
+            )
+            .order_by(Claim.created_at.desc())
+            .first()
+        )
+        if claim:
+            return claim
+    except Exception:
+        pass
+
+    # 3. Fallback: Return most recent claim
+    return db.query(Claim).order_by(Claim.created_at.desc()).first()
 
 def _pick_best_field_value(field_name: str, values: list[tuple[str, str]]) -> str:
     """Pick the best value for a parsed field.
@@ -941,15 +982,43 @@ def get_submission(submission_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/claims/{claim_id}/tpa-pdf")
-def generate_tpa_claim_pdf(claim_id: str, view: bool = False, db: Session = Depends(get_db)):
-    """Generate a TPA-readable PDF for the given claim."""
-    cid = _parse_uuid(claim_id)
-    claim = db.query(Claim).filter(Claim.id == cid).first()
+def generate_tpa_claim_pdf(
+    claim_id: str,
+    tpa_name: str | None = None,
+    style: str = "modern",
+    view: bool = False,
+    db: Session = Depends(get_db),
+):
+    """Generate a TPA-readable Comprehensive Audit Report PDF for the given claim."""
+    claim = _resolve_claim(claim_id, db)
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
+    cid = claim.id
 
     claim_data = _gather_claim_data_full(db, claim)
-    pdf_bytes = bytes(generate_tpa_pdf(claim_data))
+    
+    # Resolve TPA / Insurer name (Query param > Parsed fields > Payer > Default Star Health)
+    resolved_tpa = (
+        tpa_name or
+        claim_data.get("parsed_fields", {}).get("tpa_name") or
+        claim_data.get("parsed_fields", {}).get("tpa") or
+        claim_data.get("parsed_fields", {}).get("insurer") or
+        claim_data.get("parsed_fields", {}).get("insurance_company") or
+        getattr(claim, "payer", None) or
+        getattr(claim, "payer_id", None) or
+        "Star Health"
+    ).strip()
+    claim_data["tpa_name"] = resolved_tpa
+    
+    use_modern = style.lower() == "modern" and generate_tpa_pdf_modern is not None
+    if use_modern:
+        try:
+            pdf_bytes = bytes(generate_tpa_pdf_modern(claim_data))
+        except Exception as exc:
+            logger.error("Failed to generate modern TPA PDF: %s", exc, exc_info=True)
+            pdf_bytes = bytes(generate_tpa_pdf(claim_data))
+    else:
+        pdf_bytes = bytes(generate_tpa_pdf(claim_data))
 
     # Build filename from patient name + policy number
     pf = claim_data.get("parsed_fields", {})
@@ -960,13 +1029,13 @@ def generate_tpa_claim_pdf(claim_id: str, view: bool = False, db: Session = Depe
     safe_patient = _re.sub(r'[^\w\s-]', '', patient).strip().replace(' ', '_') if patient else ""
     safe_policy = _re.sub(r'[^\w\s-]', '', policy).strip().replace(' ', '_') if policy else ""
     if safe_patient and safe_policy:
-        filename = f"{safe_patient}_{safe_policy}.pdf"
+        filename = f"TPA_Audit_{safe_patient}_{safe_policy}.pdf"
     elif safe_patient:
-        filename = f"{safe_patient}_Claim.pdf"
+        filename = f"TPA_Audit_{safe_patient}.pdf"
     elif safe_policy:
-        filename = f"Claim_{safe_policy}.pdf"
+        filename = f"TPA_Audit_{safe_policy}.pdf"
     else:
-        filename = f"TPA_Claim_{str(cid)[:8]}.pdf"
+        filename = f"TPA_Audit_Claim_{str(cid)[:8]}.pdf"
 
     disp = "inline" if view else "attachment"
     return Response(
@@ -985,10 +1054,10 @@ def generate_irda_claim_pdf(
     db: Session = Depends(get_db),
 ):
     """Generate the IRDA standard reimbursement claim form (Part A + Part B) PDF."""
-    cid = _parse_uuid(claim_id)
-    claim = db.query(Claim).filter(Claim.id == cid).first()
+    claim = _resolve_claim(claim_id, db)
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
+    cid = claim.id
 
     claim_data = _gather_claim_data_full(db, claim)
 
@@ -1049,10 +1118,10 @@ def generate_irda_claim_pdf(
 @router.get("/claims/{claim_id}/preview")
 def preview_claim_data(claim_id: str, db: Session = Depends(get_db)):
     """Return full structured claim data as JSON for in-app PDF preview before submission."""
-    cid = _parse_uuid(claim_id)
-    claim = db.query(Claim).filter(Claim.id == cid).first()
+    claim = _resolve_claim(claim_id, db)
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
+    cid = claim.id
 
     data = _gather_claim_data_full(db, claim)
 

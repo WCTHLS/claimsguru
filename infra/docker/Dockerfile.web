@@ -21,6 +21,7 @@ WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY ui/web ./
+COPY ui/web/.env* ./
 
 # Build arguments for Next.js static client-side bundle
 ARG NEXT_PUBLIC_API_BASE

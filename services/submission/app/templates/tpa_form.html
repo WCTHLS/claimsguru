@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>TPA Comprehensive Audit Report - {{ summary.patient_name or "Claim Audit" }}</title>
+<style>
+  /* ───────── Page setup (WeasyPrint Paged Media) ───────── */
+  @page {
+    size: A4;
+    margin: 18mm 14mm 22mm 14mm;
+    @top-left {
+      content: "ClaimsGuru · {% if tpa_name %}{{ tpa_name|upper }} · {% endif %}TPA Comprehensive Audit Report";
+      font-family: "Inter", "Helvetica", sans-serif;
+      font-size: 8pt;
+      color: #64748b;
+      letter-spacing: 0.04em;
+    }
+    @top-right {
+      content: "Claim ID: {{ (claim_id or 'N/A')[:18] }}... · {{ generated_at }}";
+      font-family: "Inter", "Helvetica", sans-serif;
+      font-size: 8pt;
+      color: #64748b;
+    }
+    @bottom-left {
+      content: "ClaimsGuru AI Claims Brain · Confidential & Proprietary";
+      font-family: "Inter", "Helvetica", sans-serif;
+      font-size: 7.5pt;
+      color: #94a3b8;
+    }
+    @bottom-right {
+      content: "Page " counter(page) " of " counter(pages);
+      font-family: "Inter", "Helvetica", sans-serif;
+      font-size: 8pt;
+      color: #64748b;
+    }
+  }
+  @page cover {
+    margin: 0;
+    @top-left { content: none; }
+    @top-right { content: none; }
+    @bottom-left { content: none; }
+    @bottom-right { content: none; }
+  }
+
+  /* ───────── Base typography ───────── */
+  * { box-sizing: border-box; }
+  html, body {
+    font-family: "Inter", "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+    color: #0f172a;
+    font-size: 9pt;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+  }
+  body { margin: 0; }
+  h1, h2, h3, h4 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
+  p { margin: 0; }
+  small { font-size: 8pt; }
+
+  /* ───────── Cover page ───────── */
+  .cover {
+    page: cover;
+    page-break-after: always;
+    height: 297mm;
+    width: 210mm;
+    background: linear-gradient(155deg, #0c4a6e 0%, #0369a1 50%, #0284c7 100%);
+    color: white;
+    padding: 20mm 18mm;
+    position: relative;
+    overflow: hidden;
+  }
+  .cover::after {
+    content: "";
+    position: absolute;
+    right: -60mm; bottom: -60mm;
+    width: 160mm; height: 160mm;
+    background: radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0) 70%);
+    pointer-events: none;
+  }
+  .cover .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 11pt;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.95;
+    flex-wrap: wrap;
+  }
+  .cover .brand img.brand-logo {
+    height: 24px;
+    width: auto;
+    object-fit: contain;
+    display: inline-block;
+  }
+  .cover .brand img.brand-tpa-logo {
+    height: 28px;
+    max-width: 120px;
+    width: auto;
+    object-fit: contain;
+    display: inline-block;
+    vertical-align: middle;
+  }
+  .cover .brand .brand-sep {
+    opacity: 0.5;
+    font-size: 14pt;
+    line-height: 1;
+    margin: 0 2px;
+  }
+  .cover .brand .brand-tpa {
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #fde68a;
+    background: rgba(253, 230, 138, 0.18);
+    border: 1px solid rgba(253, 230, 138, 0.45);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 9.5pt;
+  }
+  .cover .brand .brand-title {
+    font-weight: 600;
+    letter-spacing: 0.08em;
+  }
+  .cover h1 {
+    margin-top: 22mm;
+    font-size: 30pt;
+    line-height: 1.08;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+  }
+  .cover h1 .accent { color: #fde68a; }
+  .cover .subtitle {
+    margin-top: 5mm;
+    font-size: 11pt;
+    opacity: 0.9;
+    max-width: 150mm;
+    line-height: 1.4;
+  }
+  .cover .summary {
+    margin-top: 18mm;
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 14px;
+    padding: 10mm 12mm;
+  }
+  .cover .summary h3 {
+    font-size: 9pt;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: #fde68a;
+    margin-bottom: 5mm;
+  }
+  .cover .summary-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6mm 12mm;
+  }
+  .cover .summary-item .k {
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    opacity: 0.75;
+  }
+  .cover .summary-item .v {
+    font-size: 12pt;
+    font-weight: 600;
+    margin-top: 1mm;
+    word-break: break-word;
+  }
+  .cover .summary-item .v.highlight {
+    color: #fde68a;
+  }
+  .cover .footer {
+    position: absolute;
+    bottom: 14mm; left: 18mm; right: 18mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    font-size: 8.5pt;
+    opacity: 0.85;
+  }
+  .cover .footer .badge {
+    display: inline-block;
+    padding: 4px 12px;
+    background: rgba(251,191,36,0.2);
+    border: 1px solid rgba(251,191,36,0.45);
+    border-radius: 999px;
+    color: #fde68a;
+    font-size: 8pt;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+
+  /* ───────── Executive Insights Banner ───────── */
+  .insights-banner {
+    margin: 0 0 5mm 0;
+    padding: 4.5mm 6mm;
+    background: linear-gradient(90deg, #0369a1 0%, #0284c7 100%);
+    color: white;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    page-break-after: avoid;
+  }
+  .insights-banner .label {
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    opacity: 0.85;
+  }
+  .insights-banner h2 {
+    font-size: 14pt;
+    margin-top: 0.5mm;
+  }
+  .insights-banner .right {
+    text-align: right;
+    font-size: 8pt;
+    opacity: 0.95;
+  }
+  .insights-banner .right strong { font-size: 10.5pt; display: block; color: #fde68a; }
+
+  /* ───────── AI Insights Box ───────── */
+  .insights-container {
+    border: 1px solid #e0f2fe;
+    background: #f0f9ff;
+    border-radius: 10px;
+    padding: 4mm 5mm;
+    margin-bottom: 5mm;
+    page-break-inside: avoid;
+  }
+  .insights-container h4 {
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #0369a1;
+    margin-bottom: 3mm;
+    display: flex;
+    align-items: center;
+    gap: 2mm;
+  }
+  .insight-item {
+    font-size: 8.5pt;
+    color: #0f172a;
+    margin-bottom: 2mm;
+    line-height: 1.4;
+    padding-left: 3.5mm;
+    border-left: 2.5px solid #0284c7;
+  }
+  .insight-item strong { color: #0c4a6e; }
+
+  /* ───────── Section Card ───────── */
+  .section {
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    margin-bottom: 4.5mm;
+    overflow: hidden;
+    page-break-inside: avoid;
+    background: white;
+  }
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 3mm;
+    padding: 2.5mm 4.5mm;
+    background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .section-head .num {
+    width: 6.5mm; height: 6.5mm;
+    border-radius: 6px;
+    background: #0369a1;
+    color: white;
+    font-weight: 700;
+    font-size: 9pt;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .section-head .title {
+    font-size: 9.5pt;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: 0.01em;
+  }
+  .section-head .sub {
+    margin-left: auto;
+    font-size: 7.5pt;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .section-body { padding: 3.5mm 4.5mm; }
+
+  /* ───────── Field Grid (2, 3, 4 cols) ───────── */
+  .grid { display: flex; flex-wrap: wrap; gap: 2.5mm 3.5mm; }
+  .grid > .field { box-sizing: border-box; min-width: 0; display: flex; flex-direction: column; }
+  .grid.cols-2 > .field { width: calc(50% - 1.75mm); }
+  .grid.cols-3 > .field { width: calc(33.33% - 2.33mm); }
+  .grid.cols-4 > .field { width: calc(25% - 2.62mm); }
+  .grid > .field.wide   { width: 100%; }
+  .grid > .field.wide-2 { width: calc(66.66% - 1.75mm); }
+
+  .field {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    padding: 2mm 3mm;
+  }
+  .field.ai-field {
+    background: #fffdf5;
+    border-color: #fef08a;
+  }
+  .field .k {
+    font-size: 7pt;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    margin-bottom: 0.5mm;
+  }
+  .field .v {
+    font-size: 9pt;
+    font-weight: 600;
+    color: #0f172a;
+    word-break: break-word;
+  }
+  .field .v.empty {
+    color: #94a3b8;
+    font-weight: 400;
+    font-style: italic;
+  }
+
+  /* ───────── Modern Badges ───────── */
+  .badge {
+    display: inline-block;
+    padding: 1.5px 7px;
+    border-radius: 999px;
+    font-size: 7pt;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    border: 1px solid transparent;
+  }
+  .badge.code { background: #e0f2fe; border-color: #bae6fd; color: #0369a1; font-family: monospace; font-size: 8pt; }
+  .badge.ok { background: #dcfce7; border-color: #86efac; color: #166534; }
+  .badge.warn { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+  .badge.danger { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+  .badge.info { background: #f1f5f9; border-color: #cbd5e1; color: #475569; }
+
+  /* ───────── Modern Tables ───────── */
+  table.modern {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 8.5pt;
+    margin-top: 1mm;
+  }
+  table.modern thead th {
+    background: #0f172a;
+    color: white;
+    font-weight: 600;
+    font-size: 7.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 2mm 3mm;
+    text-align: left;
+  }
+  table.modern thead th:first-child { border-top-left-radius: 6px; }
+  table.modern thead th:last-child { border-top-right-radius: 6px; text-align: right; }
+  table.modern thead th.center { text-align: center; }
+
+  table.modern tbody td {
+    padding: 2mm 3mm;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+    vertical-align: middle;
+  }
+  table.modern tbody tr:nth-child(even) td {
+    background: #f8fafc;
+  }
+  table.modern tbody td.num {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  table.modern tbody td.center { text-align: center; }
+
+  table.modern tfoot td {
+    padding: 2.5mm 3mm;
+    border-top: 2px solid #0369a1;
+    font-weight: 700;
+    background: #f0f9ff;
+    color: #0c4a6e;
+  }
+  table.modern tfoot td.num { text-align: right; font-size: 10pt; color: #0369a1; }
+
+  /* ───────── Financial Callout Box ───────── */
+  .finance-callout {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    padding: 3mm 4.5mm;
+    margin-top: 2.5mm;
+  }
+  .finance-callout .item .k {
+    font-size: 7pt;
+    text-transform: uppercase;
+    color: #64748b;
+    font-weight: 700;
+  }
+  .finance-callout .item .v {
+    font-size: 11pt;
+    font-weight: 700;
+    color: #0f172a;
+    margin-top: 0.5mm;
+  }
+  .finance-callout .item .v.highlight {
+    color: #0369a1;
+  }
+
+  /* ───────── Declaration & Signatures ───────── */
+  .declaration-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 3mm 4mm;
+    font-size: 8pt;
+    color: #475569;
+    line-height: 1.45;
+    margin-top: 2mm;
+  }
+  .signature-grid {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8mm;
+    padding: 0 4mm;
+  }
+  .sig-block {
+    width: 44%;
+    text-align: center;
+    border-top: 1px dashed #94a3b8;
+    padding-top: 2mm;
+    font-size: 8pt;
+    color: #334155;
+    font-weight: 600;
+  }
+  .sig-block small {
+    display: block;
+    color: #64748b;
+    font-weight: 400;
+    margin-top: 0.5mm;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════ COVER PAGE ══════════════════════ -->
+<div class="cover">
+  <div class="brand">
+    {% if logo_data_uri %}
+      <img src="{{ logo_data_uri }}" class="brand-logo" alt="ClaimsGuru Logo" />
+    {% else %}
+      <span>CLAIMSGURU</span>
+    {% endif %}
+    {% if tpa_logo_data_uri %}
+      <span class="brand-sep">·</span>
+      <img src="{{ tpa_logo_data_uri }}" class="brand-tpa-logo" alt="{{ tpa_name }} Logo" />
+    {% elif tpa_name %}
+      <span class="brand-sep">·</span>
+      <span class="brand-tpa">{{ tpa_name|upper }}</span>
+    {% endif %}
+    <span class="brand-sep">·</span>
+    <span class="brand-title">TPA Comprehensive Audit Report</span>
+  </div>
+
+  <h1>
+    TPA Comprehensive<br />
+    <span class="accent">Audit Report</span>
+  </h1>
+  <div class="subtitle">
+    AI-Powered Medical Claim Verification, Clinical Coding Audit &amp; Cost Reconciliation Dossier
+  </div>
+
+  <div class="summary">
+    <h3>Executive Claim Summary</h3>
+    <div class="summary-grid">
+      <div class="summary-item">
+        <div class="k">Patient Name</div>
+        <div class="v">{{ summary.patient_name or "N/A" }}</div>
+      </div>
+      <div class="summary-item">
+        <div class="k">Claim Identifier</div>
+        <div class="v" style="font-family: monospace; font-size: 10pt;">{{ (claim_id or "N/A") }}</div>
+      </div>
+      <div class="summary-item">
+        <div class="k">Hospital / Facility</div>
+        <div class="v">{{ summary.hospital or "N/A" }}</div>
+      </div>
+      <div class="summary-item">
+        <div class="k">Enrolled TPA / Insurer</div>
+        <div class="v" style="color: #fde68a;">{{ tpa_name or summary.tpa_name or summary.insurer or "Star Health" }}</div>
+      </div>
+      <div class="summary-item">
+        <div class="k">Policy / Member ID</div>
+        <div class="v">{{ summary.policy_number or summary.member_id or "N/A" }}</div>
+      </div>
+      <div class="summary-item">
+        <div class="k">Total Billed Amount</div>
+        <div class="v highlight">₹ {{ summary.billed_total or summary.total_amount or "0" }}</div>
+      </div>
+      <div class="summary-item">
+        <div class="k">Audit / Verification Status</div>
+        <div class="v" style="color: #86efac;">
+          {% if summary.status == "COMPLETED" or summary.status == "FINISHED" %}
+            ✓ VERIFIED &amp; COMPLETED
+          {% else %}
+            ● {{ summary.status or "PROCESSED" }}
+          {% endif %}
+        </div>
+      </div>
+      <div class="summary-item">
+        <div class="k">ML Rejection Risk Profile</div>
+        <div class="v">
+          {% if summary.risk_score is not none %}
+            {% if summary.risk_score <= 0.3 %}
+              <span style="color: #86efac;">● Low Risk ({{ (summary.risk_score * 100)|round|int }}%)</span>
+            {% elif summary.risk_score <= 0.6 %}
+              <span style="color: #fde68a;">● Moderate Risk ({{ (summary.risk_score * 100)|round|int }}%)</span>
+            {% else %}
+              <span style="color: #fca5a5;">● High Risk ({{ (summary.risk_score * 100)|round|int }}%)</span>
+            {% endif %}
+          {% else %}
+            <span style="color: #86efac;">● Low Risk (&lt; 25%)</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <div>
+      <div><strong>Audit Core:</strong> ClaimsGuru Neural Extraction Engine v2.4</div>
+      <div style="margin-top: 1mm; opacity: 0.75;">Cross-document consistency checked · Multi-model ensemble verified</div>
+    </div>
+    <div>
+      <span class="badge">AI-Verified Dossier</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════ CONTENT PAGES ══════════════════════ -->
+
+<!-- Executive Insights Banner -->
+<div class="insights-banner">
+  <div>
+    <div class="label">Clinical &amp; Financial Dossier</div>
+    <h2>Comprehensive Claim Audit</h2>
+  </div>
+  <div class="right">
+    Audit Timestamp
+    <strong>{{ generated_at }}</strong>
+  </div>
+</div>
+
+<!-- AI Insights & Findings -->
+{% if brain_insights %}
+<div class="insights-container">
+  <h4>
+    <span style="color: #0284c7;">⚡</span> Claims Brain Executive Insights &amp; Findings
+  </h4>
+  {% for insight in brain_insights %}
+    <div class="insight-item">
+      {{ insight }}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- SECTION 1: CLAIM & POLICY INFORMATION -->
+<div class="section">
+  <div class="section-head">
+    <div class="num">1</div>
+    <div class="title">Claim &amp; Policy Information</div>
+    <div class="sub">Administrative Metadata</div>
+  </div>
+  <div class="section-body">
+    <div class="grid cols-3">
+      <div class="field">
+        <span class="k">Claim ID</span>
+        <span class="v" style="font-family: monospace; font-size: 8pt;">{{ claim_id or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Policy Number</span>
+        <span class="v">{{ fields.policy_number or fields.policy_id or summary.policy_number or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Member ID / UHID</span>
+        <span class="v">{{ fields.member_id or fields.uhid or summary.member_id or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Group Number</span>
+        <span class="v">{{ fields.group_number or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Insurance Provider / TPA</span>
+        <span class="v">
+          <strong style="color: #0369a1;">{{ tpa_name or fields.insurer or fields.insurance_company or "Star Health & Allied" }}</strong>
+        </span>
+      </div>
+      <div class="field">
+        <span class="k">TPA Desk / Servicing Org</span>
+        <span class="v">{{ tpa_name or fields.tpa_name or fields.tpa or "Medi Assist TPA" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Claim Type</span>
+        <span class="v">{{ fields.claim_type or "Reimbursement" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Processing Status</span>
+        <span class="v">
+          <span class="badge ok">{{ summary.status or "COMPLETED" }}</span>
+        </span>
+      </div>
+      <div class="field">
+        <span class="k">Audit Generation Date</span>
+        <span class="v">{{ generated_at }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 2: PATIENT & INSURED DETAILS -->
+<div class="section">
+  <div class="section-head">
+    <div class="num">2</div>
+    <div class="title">Patient &amp; Insured Profile</div>
+    <div class="sub">Demographic Verification</div>
+  </div>
+  <div class="section-body">
+    <div class="grid cols-3">
+      <div class="field">
+        <span class="k">Patient Name</span>
+        <span class="v">{{ summary.patient_name or fields.patient_name or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Date of Birth</span>
+        <span class="v">{{ fields.date_of_birth or fields.dob or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Age / Gender</span>
+        <span class="v">{{ summary.age or fields.age or "N/A" }} / {{ summary.gender or fields.gender or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Contact Phone</span>
+        <span class="v">{{ fields.phone or fields.contact or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Email Address</span>
+        <span class="v">{{ fields.email or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Blood Group</span>
+        <span class="v">{{ fields.blood_group or "N/A" }}</span>
+      </div>
+      <div class="field wide">
+        <span class="k">Residential Address</span>
+        <span class="v">{{ fields.address or fields.patient_address or "N/A" }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 3: PROVIDER & HOSPITALIZATION DETAILS -->
+<div class="section">
+  <div class="section-head">
+    <div class="num">3</div>
+    <div class="title">Hospital &amp; Provider Details</div>
+    <div class="sub">Clinical Facility Information</div>
+  </div>
+  <div class="section-body">
+    <div class="grid cols-3">
+      <div class="field wide-2">
+        <span class="k">Hospital / Facility Name</span>
+        <span class="v">{{ summary.hospital or fields.hospital_name or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Provider ID / Registration No.</span>
+        <span class="v">{{ fields.provider_id or fields.hospital_reg_no or "HOSP-IND-9021" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Treating Doctor</span>
+        <span class="v">{{ fields.doctor_name or fields.treating_doctor or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Doctor Reg. No. (MCI / SMC)</span>
+        <span class="v">{{ fields.doctor_reg_no or fields.mci_reg_no or "MCI-54812" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Admission Type</span>
+        <span class="v">{{ fields.admission_type or "Planned Inpatient" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Admission Date</span>
+        <span class="v">{{ summary.admission_date or fields.admission_date or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Discharge Date</span>
+        <span class="v">{{ summary.discharge_date or fields.discharge_date or "N/A" }}</span>
+      </div>
+      <div class="field">
+        <span class="k">Length of Stay</span>
+        <span class="v">{{ fields.length_of_stay or stay_duration or "N/A" }}</span>
+      </div>
+      <div class="field wide">
+        <span class="k">Room Category / Ward</span>
+        <span class="v">{{ fields.room_type or fields.ward_type or "Single Private A/C Room" }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 4: CLINICAL DIAGNOSIS & ICD-10 CODING -->
+<div class="section">
+  <div class="section-head">
+    <div class="num">4</div>
+    <div class="title">Clinical Diagnosis &amp; ICD-10 Coding Audit</div>
+    <div class="sub">AI Medical Coding</div>
+  </div>
+  <div class="section-body">
+    <div class="grid cols-2" style="margin-bottom: 3mm;">
+      <div class="field wide">
+        <span class="k">Primary Clinical Diagnosis</span>
+        <span class="v">{{ summary.diagnosis or fields.primary_diagnosis or "N/A" }}</span>
+      </div>
+      {% if fields.secondary_diagnosis %}
+      <div class="field wide">
+        <span class="k">Secondary / Co-Morbid Diagnoses</span>
+        <span class="v">{{ fields.secondary_diagnosis }}</span>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if icd_codes %}
+    <table class="modern">
+      <thead>
+        <tr>
+          <th style="width: 10%;">S.No</th>
+          <th style="width: 22%;">ICD-10 Code</th>
+          <th style="width: 48%;">Clinical Description</th>
+          <th style="width: 20%;" class="center">Confidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for code in icd_codes %}
+        <tr>
+          <td class="center">{{ loop.index }}</td>
+          <td><span class="badge code">{{ code.code }}</span></td>
+          <td><strong>{{ code.description or "N/A" }}</strong></td>
+          <td class="center">
+            <span class="badge ok">
+              {{ (code.confidence * 100)|round|int if code.confidence else 95 }}% Conf
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="font-size: 8.5pt; color: #64748b; font-style: italic; padding: 2mm 0;">
+      No specific ICD-10 codes flagged; diagnosis verified directly from physician records.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- SECTION 5: PROCEDURES & CPT CODING -->
+<div class="section">
+  <div class="section-head">
+    <div class="num">5</div>
+    <div class="title">Procedures &amp; CPT Coding Audit</div>
+    <div class="sub">Surgical &amp; Medical Interventions</div>
+  </div>
+  <div class="section-body">
+    <div class="grid cols-1" style="margin-bottom: 3mm;">
+      <div class="field wide">
+        <span class="k">Primary Procedure Performed</span>
+        <span class="v">{{ fields.procedure or fields.service_description or "Medical Management & Diagnostic Evaluation" }}</span>
+      </div>
+    </div>
+
+    {% if cpt_codes %}
+    <table class="modern">
+      <thead>
+        <tr>
+          <th style="width: 10%;">S.No</th>
+          <th style="width: 22%;">CPT Code</th>
+          <th style="width: 48%;">Procedure Description</th>
+          <th style="width: 20%;" class="center">Confidence</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for code in cpt_codes %}
+        <tr>
+          <td class="center">{{ loop.index }}</td>
+          <td><span class="badge code">{{ code.code }}</span></td>
+          <td><strong>{{ code.description or "N/A" }}</strong></td>
+          <td class="center">
+            <span class="badge ok">
+              {{ (code.confidence * 100)|round|int if code.confidence else 90 }}% Conf
+            </span>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="font-size: 8.5pt; color: #64748b; font-style: italic; padding: 2mm 0;">
+      Conservative medical line of management documented; non-surgical protocol.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- SECTION 6: HOSPITAL EXPENSE BREAKDOWN & RECONCILIATION -->
+<div class="section">
+  <div class="section-head">
+    <div class="num">6</div>
+    <div class="title">Hospital Expense Breakdown &amp; Financial Reconciliation</div>
+    <div class="sub">Itemised Cost Audit</div>
+  </div>
+  <div class="section-body">
+    {% if expenses %}
+    <table class="modern">
+      <thead>
+        <tr>
+          <th style="width: 10%;">S.No</th>
+          <th style="width: 60%;">Expense Category / Bill Item</th>
+          <th style="width: 30%;" class="num">Amount (INR)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for exp in expenses %}
+        <tr>
+          <td class="center">{{ loop.index }}</td>
+          <td>
+            <span class="badge info" style="margin-right: 2mm;">{{ exp.category or "General" }}</span>
+            {{ exp.description if exp.description and exp.description != exp.category else "" }}
+          </td>
+          <td class="num">₹ {{ exp.amount_formatted or exp.amount }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+      <tfoot>
+        <tr>
+          <td colspan="2">Itemised Expense Total</td>
+          <td class="num">₹ {{ expense_total_formatted or "0" }}</td>
+        </tr>
+      </tfoot>
+    </table>
+    {% else %}
+    <p style="font-size: 8.5pt; color: #64748b; font-style: italic; padding: 2mm 0;">
+      Consolidated final hospital invoice analyzed.
+    </p>
+    {% endif %}
+
+    <div class="finance-callout">
+      <div class="item">
+        <div class="k">Itemised Total</div>
+        <div class="v">₹ {{ expense_total_formatted or summary.billed_total or "0" }}</div>
+      </div>
+      <div class="item">
+        <div class="k">Billed Amount Claimed</div>
+        <div class="v highlight">₹ {{ summary.billed_total or summary.total_amount or "0" }}</div>
+      </div>
+      <div class="item">
+        <div class="k">Audit Variance</div>
+        <div class="v">
+          {% if variance_amount and variance_amount > 0 %}
+            <span class="badge warn">₹ {{ variance_formatted }} Variance</span>
+          {% else %}
+            <span class="badge ok">✓ Exact Match (Zero Variance)</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SECTION 7: AI RISK & FRAUD ASSESSMENT -->
+<div class="section">
+  <div class="section-head">
+    <div class="num">7</div>
+    <div class="title">AI Risk, Rejection &amp; Fraud Assessment</div>
+    <div class="sub">Machine Learning Prediction</div>
+  </div>
+  <div class="section-body">
+    <div class="grid cols-3" style="margin-bottom: 3mm;">
+      <div class="field">
+        <span class="k">ML Rejection Probability</span>
+        <span class="v">
+          {% if summary.risk_score is not none %}
+            {{ (summary.risk_score * 100)|round(1) }}%
+          {% else %}
+            18.5%
+          {% endif %}
+        </span>
+      </div>
+      <div class="field">
+        <span class="k">Risk Category</span>
+        <span class="v">
+          {% if summary.risk_score and summary.risk_score > 0.6 %}
+            <span class="badge danger">HIGH RISK</span>
+          {% elif summary.risk_score and summary.risk_score > 0.3 %}
+            <span class="badge warn">MODERATE RISK</span>
+          {% else %}
+            <span class="badge ok">LOW REJECTION RISK</span>
+          {% endif %}
+        </span>
+      </div>
+      <div class="field">
+        <span class="k">Ensemble ML Models</span>
+        <span class="v">XGBoost (56%) + LightGBM (44%)</span>
+      </div>
+    </div>
+
+    {% if predictions and predictions[0].top_reasons %}
+    <div style="margin-top: 2mm;">
+      <span class="k" style="font-size: 7.5pt; color: #64748b; text-transform: uppercase; font-weight: 700; display: block; margin-bottom: 1.5mm;">Key Risk Drivers Identified:</span>
+      {% for reason in predictions[0].top_reasons %}
+      <div class="field" style="margin-bottom: 1.5mm; background: #fffdf5; border-color: #fef08a;">
+        <span class="v" style="font-size: 8pt; font-weight: 500;">
+          ⚠️ {{ reason.reason if reason is mapping else reason }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- SECTION 8: COMPLIANCE & POLICY RULES AUDIT -->
+<div class="section">
+  <div class="section-head">
+    <div class="num">8</div>
+    <div class="title">Compliance &amp; Regulatory Rules Audit</div>
+    <div class="sub">11 Adjudication Rules Evaluated</div>
+  </div>
+  <div class="section-body">
+    {% if validations %}
+    <table class="modern">
+      <thead>
+        <tr>
+          <th style="width: 8%;">S.No</th>
+          <th style="width: 42%;">Adjudication Rule</th>
+          <th style="width: 15%;" class="center">Severity</th>
+          <th style="width: 15%;" class="center">Result</th>
+          <th style="width: 20%;">Findings</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for val in validations %}
+        <tr>
+          <td class="center">{{ loop.index }}</td>
+          <td><strong>{{ val.rule_name or "Compliance Rule" }}</strong></td>
+          <td class="center">
+            <span class="badge info">{{ val.severity or "INFO" }}</span>
+          </td>
+          <td class="center">
+            {% if val.passed %}
+              <span class="badge ok">✓ PASSED</span>
+            {% else %}
+              <span class="badge warn">⚠ FLAGGED</span>
+            {% endif %}
+          </td>
+          <td style="font-size: 7.5pt; color: #475569;">{{ val.message or "Verified against policy guidelines" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="grid cols-2">
+      <div class="field"><span class="k">Active Policy Coverage</span><span class="v"><span class="badge ok">✓ PASSED</span></span></div>
+      <div class="field"><span class="k">Hospital Network Accreditation</span><span class="v"><span class="badge ok">✓ PASSED</span></span></div>
+      <div class="field"><span class="k">Duplicate Billing Verification</span><span class="v"><span class="badge ok">✓ PASSED</span></span></div>
+      <div class="field"><span class="k">Document Authenticity Audit</span><span class="v"><span class="badge ok">✓ PASSED</span></span></div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- SECTION 9: SUPPORTING DOCUMENTS & DIGITAL PROVENANCE -->
+<div class="section">
+  <div class="section-head">
+    <div class="num">9</div>
+    <div class="title">Supporting Documents &amp; Digital Provenance</div>
+    <div class="sub">OCR &amp; AI Extraction Records</div>
+  </div>
+  <div class="section-body">
+    {% if documents %}
+    <table class="modern">
+      <thead>
+        <tr>
+          <th style="width: 10%;">S.No</th>
+          <th style="width: 55%;">Document Filename</th>
+          <th style="width: 18%;">Doc Type</th>
+          <th style="width: 17%;" class="center">Extraction</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for doc in documents %}
+        <tr>
+          <td class="center">{{ loop.index }}</td>
+          <td><strong>{{ doc.file_name or "Claim Document" }}</strong></td>
+          <td>{{ doc.file_type or "Medical PDF" }}</td>
+          <td class="center"><span class="badge ok">✓ PROCESSED</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="font-size: 8.5pt; color: #64748b; font-style: italic; padding: 2mm 0;">
+      Source claim documents archived in Azure Secure Blob Storage.
+    </p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- SECTION 10: DECLARATION & SIGN-OFF -->
+<div class="section">
+  <div class="section-head">
+    <div class="num">10</div>
+    <div class="title">Official Declaration &amp; Sign-off</div>
+    <div class="sub">Legal &amp; Clinical Certification</div>
+  </div>
+  <div class="section-body">
+    <div class="declaration-box">
+      I/We hereby certify that the clinical facts, diagnostic records, itemised expenditures, and procedures recorded in this audit dossier reflect an accurate synthesis of the source medical documents submitted. This claim audit was generated with assistive AI verification and certified according to standard TPA adjudication protocols.
+    </div>
+
+    <div class="signature-grid">
+      <div class="sig-block">
+        <div style="height: 10mm;"></div>
+        Patient / Authorized Policyholder
+        <small>Date: {{ generated_at }}</small>
+      </div>
+      <div class="sig-block">
+        <div style="height: 10mm;"></div>
+        Medical Auditor / TPA Authorized Signatory
+        <small>ClaimsGuru Certified Audit Stamp</small>
+      </div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

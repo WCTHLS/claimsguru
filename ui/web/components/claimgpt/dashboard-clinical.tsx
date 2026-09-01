@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import fullLogo from './ClaimsGuru Black PNG.png';
 
 import {
@@ -60,7 +60,28 @@ export function DashboardClinical() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
-  const filteredClaims = s.recentClaims.filter((claim) => {
+  // Merge currently active processing claim into the list if not already present
+  const allClaims = useMemo(() => {
+    const list = [...s.recentClaims];
+    if (s.claimId && !list.some((c) => c.id === s.claimId)) {
+      list.unshift({
+        id: s.claimId,
+        patient_name: s.patientName || (s.analyzing ? "Processing..." : "Active Claim"),
+        status: s.analyzing ? (s.activeStage === "ocr" ? "UPLOADED" : "PARSING") : "COMPLETED",
+        created_at: new Date().toISOString(),
+        total_amount: "",
+        documents: s.files.map((f, i) => ({ id: `doc-${i}`, file_name: f.name })),
+        progress: {
+          percentage: s.progress,
+          step: s.stepDescription,
+          is_complete: s.progress >= 100,
+        },
+      } as any);
+    }
+    return list;
+  }, [s.recentClaims, s.claimId, s.patientName, s.analyzing, s.activeStage, s.progress, s.stepDescription, s.files]);
+
+  const filteredClaims = allClaims.filter((claim) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase().trim();
     const rawId = (claim.id || "").toLowerCase();
@@ -257,7 +278,7 @@ export function DashboardClinical() {
                       </button>
                     )}
                     <span className="rounded-full bg-accent/10 px-2.5 py-0.5 text-[11px] font-semibold text-accent">
-                      {searchQuery.trim() ? `${filteredClaims.length}/${s.recentClaims.length}` : (s.recentClaims.length || (s.claimId ? 1 : 0))}
+                      {searchQuery.trim() ? `${filteredClaims.length}/${allClaims.length}` : allClaims.length}
                     </span>
                   </div>
                 </div>
@@ -307,7 +328,9 @@ export function DashboardClinical() {
                     filteredClaims.map((claim) => {
                       const isSelected = claim.id === s.claimId;
                       const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
-                      const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
+                      const docs = (claim.documents && claim.documents.length > 0)
+                        ? claim.documents
+                        : (isSelected && s.analyzing && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
                       const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has((claim.status || "").toUpperCase());
                       const isClaimProcessing = isClaimActiveStatus || (isSelected && s.analyzing);
                       const currentProgress = isSelected && s.analyzing ? s.progress : (claim.progress?.percentage || (claim.status === "UPLOADED" ? 20 : 55));
@@ -450,7 +473,7 @@ export function DashboardClinical() {
                   {/* Ultra-compact 1-line flex row for both mobile & desktop */}
                   <div
                     onClick={() => {
-                      if (!isUploadOpenEffective && s.isLiveSessionCompleted) {
+                      if (!isUploadOpenEffective) {
                         s.resetState();
                       } else {
                         s.toggleUploadOpen();
@@ -475,7 +498,7 @@ export function DashboardClinical() {
                       size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (!isUploadOpenEffective && s.isLiveSessionCompleted) {
+                        if (!isUploadOpenEffective) {
                           s.resetState();
                         } else {
                           s.toggleUploadOpen();
@@ -829,7 +852,7 @@ export function DashboardClinical() {
                         <div className="min-w-0 flex-1">
                           <h2 className="text-xs sm:text-sm font-bold text-foreground truncate">Processing Pipeline</h2>
                           <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate font-mono mt-0.5">
-                            ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : "CLM-2026-08842"}
+                            ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : (s.analyzing ? "Generating..." : "Ready for Upload")}
                           </p>
                         </div>
 
@@ -848,6 +871,11 @@ export function DashboardClinical() {
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 border border-emerald-500/30">
                               <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                               100% COMPLETE
+                            </span>
+                          ) : s.progress === 0 && !s.analyzing ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold text-slate-500 border border-slate-200">
+                              <Clock className="h-3 w-3 text-slate-400" />
+                              0%
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-cyan-700 border border-cyan-500/30 animate-pulse">
@@ -875,20 +903,26 @@ export function DashboardClinical() {
                           <div
                             className={cn(
                               "h-full rounded-full transition-all duration-500",
-                              s.isDocumentsRequested
+                              s.progress === 0 && !s.analyzing
+                                ? "bg-slate-200"
+                                : s.isDocumentsRequested
                                 ? "bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]"
                                 : "bg-gradient-to-r from-teal-500 via-emerald-500 to-teal-600 shadow-[0_0_10px_rgba(16,185,129,0.4)]"
                             )}
-                            style={{ width: `${Math.max(s.progress, 5)}%` }}
+                            style={{ width: `${s.progress === 0 && !s.analyzing ? 0 : Math.max(s.progress, 5)}%` }}
                           />
                         </div>
                         <div className="mt-1.5 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            {s.progress < 100 && !s.isDocumentsRequested && (
+                            {s.analyzing && s.progress < 100 && !s.isDocumentsRequested && (
                               <span className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-ping flex-none" />
                             )}
                             <span className="text-[11px] font-semibold text-slate-700 truncate">
-                              {s.progress >= 100 ? "AI Verification Complete" : (s.stepDescription || "Analyzing documents...")}
+                              {s.progress >= 100
+                                ? "AI Verification Complete"
+                                : s.analyzing
+                                ? (s.stepDescription || "Analyzing documents...")
+                                : "Ready for Document Upload"}
                             </span>
                           </div>
                           <span className="font-mono font-extrabold text-[11px] text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full flex-none">
@@ -908,13 +942,16 @@ export function DashboardClinical() {
                             style={{
                               width: s.progress >= 100
                                 ? 'calc(100% - 32px)'
+                                : s.progress === 0 && !s.analyzing
+                                ? '0%'
                                 : `${Math.min(100, Math.max(0, (s.stageIndex / 4) * 100))}%`,
                             }}
                           />
 
                           {PIPELINE.map((stage, i) => {
-                            const done = i < s.stageIndex || s.progress >= 100;
-                            const current = i === s.stageIndex && s.progress < 100;
+                            const isIdle = s.progress === 0 && !s.analyzing;
+                            const done = !isIdle && (i < s.stageIndex || s.progress >= 100);
+                            const current = s.analyzing && i === s.stageIndex && s.progress < 100;
                             const shortLabels = ['Attached', 'OCR Text', 'Parsing', 'Coding', 'Settled'];
 
                             return (
@@ -926,13 +963,13 @@ export function DashboardClinical() {
                               >
                                 <div
                                   className={cn(
-                                    "flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold transition-all shadow-xs",
+                                    "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition-all shadow-xs",
                                     done && "bg-emerald-600 text-white shadow-emerald-500/20",
-                                    current && "bg-teal-600 text-white ring-4 ring-teal-500/20 animate-pulse scale-110 shadow-md",
-                                    !done && !current && "bg-white text-slate-400 border-2 border-slate-200"
+                                    current && "bg-teal-600 text-white ring-2 ring-teal-500/40 ring-offset-2 scale-110",
+                                    !done && !current && "bg-white border-2 border-slate-200 text-slate-400"
                                   )}
                                 >
-                                  {done ? <Check className="h-3 w-3" /> : i + 1}
+                                  {done ? <Check className="h-3.5 w-3.5" /> : i + 1}
                                 </div>
                                 <span
                                   className={cn(
@@ -953,8 +990,9 @@ export function DashboardClinical() {
                       {/* Desktop: 5 Stage Cards */}
                       <div className="hidden sm:grid grid-cols-5 gap-2 pt-3 border-t border-border/50">
                         {PIPELINE.map((stage, i) => {
-                          const done = i < s.stageIndex || s.progress >= 100;
-                          const current = i === s.stageIndex && s.progress < 100;
+                          const isIdle = s.progress === 0 && !s.analyzing;
+                          const done = !isIdle && (i < s.stageIndex || s.progress >= 100);
+                          const current = s.analyzing && i === s.stageIndex && s.progress < 100;
                           return (
                             <button
                               key={stage.key}
@@ -975,9 +1013,14 @@ export function DashboardClinical() {
                               )}>
                                 {done ? <Check className="h-3 w-3" /> : i + 1}
                               </span>
-                              <p className={cn("text-xs font-semibold leading-tight truncate", done || current ? "text-foreground" : "text-muted-foreground")}>
+                              <span className={cn(
+                                "text-xs font-semibold truncate",
+                                done && "text-emerald-900 font-bold",
+                                current && "text-teal-900 font-bold",
+                                !done && !current && "text-slate-500"
+                              )}>
                                 {stage.label}
-                              </p>
+                              </span>
                             </button>
                           );
                         })}

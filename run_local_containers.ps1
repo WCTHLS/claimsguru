@@ -12,49 +12,68 @@ param (
     [switch]$Stop = $false
 )
 
-$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Continue"
 $ProjectRoot = $PSScriptRoot
 
 if ($Stop) {
-    Write-Host "🛑 Stopping all ClaimsGuru containers..." -ForegroundColor Yellow
-    docker rm -f claimsguru-api-test claimsguru-worker-ocr claimsguru-worker-default claimsguru-web-test 2>$null
-    docker compose -f "$ProjectRoot/infra/docker/docker-compose.yml" stop mssql-db redis 2>$null
-    Write-Host "✓ All containers stopped." -ForegroundColor Green
+    Write-Host "Stopping all ClaimsGuru containers..." -ForegroundColor Yellow
+    $oldContainers = @("claimsguru-api-test", "claimsguru-worker-ocr", "claimsguru-worker-default", "claimsguru-web-test")
+    foreach ($c in $oldContainers) {
+        if (docker ps -a -q -f "name=^/${c}$") {
+            docker rm -f $c 2>&1 | Out-Null
+        }
+    }
+    docker compose -f "$ProjectRoot/infra/docker/docker-compose.yml" stop mssql-db redis 2>&1 | Out-Null
+    Write-Host "All containers stopped." -ForegroundColor Green
     exit 0
 }
 
 Write-Host "==========================================================" -ForegroundColor Cyan
-Write-Host " 🚀 Starting ClaimsGuru Cloud-Ready Local Container Stack" -ForegroundColor Cyan
+Write-Host " Starting ClaimsGuru Cloud-Ready Local Container Stack" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Cyan
 
 # 1. Ensure SQL Server and Redis are running
-Write-Host "`n[1/5] Starting Local SQL Server & Redis..." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[1/5] Starting Local SQL Server and Redis..." -ForegroundColor Yellow
 docker compose -f "$ProjectRoot/infra/docker/docker-compose.yml" up -d mssql-db redis
 
 # 2. Wait for SQL Server to be healthy and initialize database
-Write-Host "`n[2/5] Initializing Database Schema..." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[2/5] Initializing Database Schema..." -ForegroundColor Yellow
 Start-Sleep -Seconds 3
 docker exec -i claimgpt-feature-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -C -Q "IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'claimgpt') CREATE DATABASE claimgpt;" 2>$null
-if (Test-Path "$ProjectRoot\.venv\Scripts\python.exe") {
-    & "$ProjectRoot\.venv\Scripts\python.exe" "$ProjectRoot\init_db.py"
+
+$VenvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
+$InitDbScript = Join-Path $ProjectRoot "init_db.py"
+if (Test-Path $VenvPython) {
+    & $VenvPython $InitDbScript
 }
 
 # 3. Build Docker Images if requested or missing
 if ($Rebuild -or -not (docker images -q claimsguru-core:test)) {
-    Write-Host "`n[3/5] Building claimsguru-core:test..." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "[3/5] Building claimsguru-core:test..." -ForegroundColor Yellow
     docker build -t claimsguru-core:test -f "$ProjectRoot/infra/docker/Dockerfile.core" "$ProjectRoot"
 }
 
 if ($Rebuild -or -not (docker images -q claimsguru-frontend:test)) {
-    Write-Host "`n[4/5] Building claimsguru-frontend:test..." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "[4/5] Building claimsguru-frontend:test..." -ForegroundColor Yellow
     docker build -t claimsguru-frontend:test -f "$ProjectRoot/infra/docker/Dockerfile.web" "$ProjectRoot"
 }
 
-# 4. Remove old application containers
-docker rm -f claimsguru-api-test claimsguru-worker-ocr claimsguru-worker-default claimsguru-web-test 2>$null
+# 4. Remove old application containers & free port 8000
+$oldContainers = @("claimsguru-api-test", "claimsguru-worker-ocr", "claimsguru-worker-default", "claimsguru-web-test")
+foreach ($c in $oldContainers) {
+    if (docker ps -a -q -f "name=^/${c}$") {
+        docker rm -f $c 2>&1 | Out-Null
+    }
+}
+docker stop claimgpt-feature-nginx-1 2>&1 | Out-Null
 
 # 5. Launch API Gateway
-Write-Host "`n[5/5] Launching API Gateway & Celery Workers..." -ForegroundColor Yellow
+Write-Host ""
+Write-Host "[5/5] Launching API Gateway and Celery Workers..." -ForegroundColor Yellow
 
 # API Gateway
 docker run -d --name claimsguru-api-test -p 8000:8000 `
@@ -96,10 +115,11 @@ docker run -d --name claimsguru-web-test -p 3000:3000 `
   -e INGRESS_API="http://claimsguru-api-test:8000/ingress" `
   claimsguru-frontend:test
 
-Write-Host "`n==========================================================" -ForegroundColor Green
-Write-Host " ✓ ClaimsGuru Stack is Live and Ready!" -ForegroundColor Green
+Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Green
-Write-Host " 🌐 Frontend Portal:      http://localhost:3000" -ForegroundColor Cyan
-Write-Host " 🔌 Ingress API Gateway:  http://localhost:8000/docs" -ForegroundColor Cyan
-Write-Host " 📊 Health Check:         http://localhost:8000/health" -ForegroundColor Cyan
+Write-Host " ClaimsGuru Stack is Live and Ready!" -ForegroundColor Green
+Write-Host "==========================================================" -ForegroundColor Green
+Write-Host " Frontend Portal:      http://localhost:3000" -ForegroundColor Cyan
+Write-Host " Ingress API Gateway:  http://localhost:8000/docs" -ForegroundColor Cyan
+Write-Host " Health Check:         http://localhost:8000/health" -ForegroundColor Cyan
 Write-Host "==========================================================" -ForegroundColor Green

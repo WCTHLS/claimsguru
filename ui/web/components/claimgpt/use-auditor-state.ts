@@ -233,30 +233,45 @@ export function useAuditorState() {
     try {
       let patientId: string | undefined = undefined;
       const session = getStoredAuthSession();
-      if (session?.user?.name) {
+      if (session?.user?.name && session.user.name !== 'User') {
         patientId = session.user.name;
       } else {
         const savedName = localStorage.getItem('claimgpt_user_name');
-        if (savedName) patientId = savedName;
+        if (savedName && savedName !== 'User') patientId = savedName;
       }
       const claims = await fetchRecentClaims(patientId);
-      setRecentClaims(claims);
+      if (claims && claims.length > 0) {
+        setRecentClaims(claims);
+      }
     } catch (err) {
       console.warn("Failed to load recent claims list:", err);
     }
   };
 
-  /* Periodic background sync to keep claim statuses and names fresh */
+  /* Periodic background sync to keep claim statuses and names fresh without overlapping */
   useEffect(() => {
-    const interval = setInterval(() => {
-      reloadRecentClaims();
-    }, 4000);
-    return () => clearInterval(interval);
+    let active = true;
+    let isFetching = false;
+
+    const runSync = async () => {
+      if (isFetching || !active) return;
+      isFetching = true;
+      try {
+        await reloadRecentClaims();
+      } finally {
+        isFetching = false;
+      }
+    };
+
+    const interval = setInterval(runSync, 8000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   /* On mount: load latest claim data for auditor workspace & recent claims list */
   useEffect(() => {
-    syncUserSession();
     async function loadInitial() {
       try {
         let patientId: string | undefined = undefined;
@@ -267,8 +282,9 @@ export function useAuditorState() {
           const savedName = localStorage.getItem('claimgpt_user_name');
           if (savedName) patientId = savedName;
         }
-        await reloadRecentClaims();
-        const latestId = await fetchLatestClaimId(patientId);
+        const claims = await fetchRecentClaims(patientId);
+        setRecentClaims(claims);
+        const latestId = claims.length > 0 ? claims[0].id : null;
         if (latestId) {
           activeClaimIdRef.current = latestId;
           setClaimId(latestId);
@@ -541,10 +557,19 @@ export function useAuditorState() {
   const resetState = () => {
     setPendingFiles([]);
     setFiles([]);
+    setClaimId(null);
+    setRealPreview(null);
+    setProgress(0);
+    setActiveStage('staged');
+    setStepDescription("Claim Attached");
+    setAnalyzing(false);
     setUploading(false);
     setIsLiveSessionCompleted(false);
+    setIsDocumentsRequested(false);
+    setMissingGroups([]);
     setIsUploadOpen(true);
     setActiveDocumentId(null);
+    activeClaimIdRef.current = null;
   };
 
   /* Direct upload & instant analysis */
@@ -574,12 +599,14 @@ export function useAuditorState() {
       setAnalyzing(false);
       setIsLiveSessionCompleted(true);
       
-      const idToQuery = targetClaimId || (await fetchLatestClaimId()) || "CLM-2026-8842";
-      setClaimId(idToQuery);
-      const finalData = await fetchClaimPreview(idToQuery);
-      if (finalData) {
-        setRealPreview(finalData);
-        setPreviewVersion((v) => v + 1);
+      const idToQuery = targetClaimId || (await fetchLatestClaimId()) || null;
+      if (idToQuery) {
+        setClaimId(idToQuery);
+        const finalData = await fetchClaimPreview(idToQuery);
+        if (finalData) {
+          setRealPreview(finalData);
+          setPreviewVersion((v) => v + 1);
+        }
       }
       reloadRecentClaims();
     };
@@ -720,26 +747,9 @@ export function useAuditorState() {
 
     scrollToPipeline();
 
-    let targetUserName = userName;
-    try {
-      const session = getStoredAuthSession();
-      if (session?.user?.name) {
-        targetUserName = session.user.name;
-      } else {
-        const savedName = localStorage.getItem('claimgpt_user_name');
-        if (savedName) targetUserName = savedName;
-      }
-    } catch {
-      /* ignore */
-    }
-
     let activeClaimId: string | null = null;
     try {
-      const res = await uploadClaimDocument(
-        targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)),
-        targetUserName,
-        (appendToActive && claimId) ? claimId : undefined
-      );
+      const res = await uploadClaimDocument(targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), userName, (appendToActive && claimId) ? claimId : undefined);
       if (res.claim_id) {
         if (res.status === "COMPLETED" || res.task_id === null) {
           setDuplicateClaimId(res.claim_id);
@@ -757,6 +767,27 @@ export function useAuditorState() {
         activeClaimId = res.claim_id;
         activeClaimIdRef.current = res.claim_id;
         setClaimId(res.claim_id);
+
+        // Optimistically add the new processing claim to recentClaims at the top
+        setRecentClaims((prev) => {
+          if (prev.some((c) => c.id === res.claim_id)) return prev;
+          return [
+            {
+              id: res.claim_id,
+              patient_name: "Processing...",
+              status: "UPLOADED",
+              created_at: new Date().toISOString(),
+              total_amount: "",
+              documents: targetFiles.map((f, i) => ({ id: `doc-${i}`, file_name: f.name })),
+              progress: {
+                percentage: 20,
+                step: "OCR (extracting text) - 20%",
+                is_complete: false,
+              },
+            } as any,
+            ...prev,
+          ];
+        });
 
         // Try immediate prefetch for this claim ID
         const initialPreview = await fetchClaimPreview(res.claim_id);
@@ -813,10 +844,43 @@ export function useAuditorState() {
   const markEdited = (key: string) =>
     setEdited((e) => (e[key] ? e : { ...e, [key]: true }));
 
+  /* Resolve enrolled TPA / Insurer from registration, profile, or preview */
+  const enrolledTpa = useMemo(() => {
+    try {
+      const email = userEmail || "";
+      const name = userName || "";
+      const session = getStoredAuthSession();
+      const sessionEmail = session?.user?.email || "";
+      const sessionName = session?.user?.name || "";
+
+      const stored =
+        (sessionEmail && localStorage.getItem(`claimgpt_user_insurer_${sessionEmail}`)) ||
+        (sessionName && localStorage.getItem(`claimgpt_user_insurer_${sessionName}`)) ||
+        (email && localStorage.getItem(`claimgpt_user_insurer_${email}`)) ||
+        (name && localStorage.getItem(`claimgpt_user_insurer_${name}`)) ||
+        localStorage.getItem("claimgpt_user_insurer") ||
+        (sessionEmail && localStorage.getItem(`claimgpt_user_org_${sessionEmail}`)) ||
+        (sessionName && localStorage.getItem(`claimgpt_user_org_${sessionName}`)) ||
+        (email && localStorage.getItem(`claimgpt_user_org_${email}`)) ||
+        (name && localStorage.getItem(`claimgpt_user_org_${name}`)) ||
+        localStorage.getItem("claimgpt_user_org") ||
+        (realPreview?.summary as any)?.insurer ||
+        (realPreview?.parsed_fields as any)?.insurer ||
+        (realPreview?.parsed_fields as any)?.insurance_company ||
+        (realPreview?.parsed_fields as any)?.tpa_name ||
+        "Star Health";
+      return stored;
+    } catch {
+      return "Star Health";
+    }
+  }, [userEmail, userName, realPreview]);
+
+  const tpaParam = enrolledTpa ? `&tpa_name=${encodeURIComponent(enrolledTpa)}` : "";
+
   /* PDF Report URLs */
-  const tpaPdfUrl = claimId ? `${SUBMISSION_API}/claims/${claimId}/tpa-pdf` : null;
+  const tpaPdfUrl = claimId ? `${SUBMISSION_API}/claims/${claimId}/tpa-pdf?${tpaParam.slice(1)}` : null;
   const irdaPdfUrl = claimId ? `${SUBMISSION_API}/claims/${claimId}/irda-pdf` : null;
-  const tpaPdfViewUrl = claimId ? `${SUBMISSION_API}/claims/${claimId}/tpa-pdf?view=true` : null;
+  const tpaPdfViewUrl = claimId ? `${SUBMISSION_API}/claims/${claimId}/tpa-pdf?view=true${tpaParam}` : null;
   const irdaPdfViewUrl = claimId ? `${SUBMISSION_API}/claims/${claimId}/irda-pdf?view=true` : null;
 
   /* Detect Patient Name Mismatch warning from backend preview */

@@ -200,5 +200,8 @@ for prefix, module_path, attr, tag in SERVICES:
         mod = importlib.import_module(module_path)
         svc_router = getattr(mod, attr)
         app.include_router(svc_router, prefix=prefix, tags=[tag])
+        # Also mount ingress and submission at root so both /claims and /ingress/claims work seamlessly
+        if prefix in ("/ingress", "/submission"):
+            app.include_router(svc_router, tags=[f"{tag} Root"])
     except Exception as exc:  # noqa: BLE001
         print(f"⚠ Skipping {prefix}: {exc}")

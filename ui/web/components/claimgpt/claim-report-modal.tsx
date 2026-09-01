@@ -161,12 +161,24 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error('HTTP error ' + res.status);
+      const contentType = res.headers.get('content-type') || '';
       const blob = await res.blob();
+      if (!contentType.includes('application/pdf') && blob.type !== 'application/pdf') {
+        const text = await blob.text();
+        let errorDetail = 'Could not render PDF report';
+        try {
+          const json = JSON.parse(text);
+          if (json.detail) errorDetail = json.detail;
+        } catch {
+          /* ignore */
+        }
+        throw new Error(errorDetail);
+      }
       const pdfBlob = new Blob([blob], { type: 'application/pdf' });
       const blobUrl = URL.createObjectURL(pdfBlob);
       setInlinePdf({ url: blobUrl, title, type });
     } catch (err) {
-      console.warn('Direct blob fetch fallback:', err);
+      console.warn('PDF preview error:', err);
       setInlinePdf({ url, title, type });
     } finally {
       setLoadingPdf(null);

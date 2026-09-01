@@ -44,9 +44,11 @@ logger = logging.getLogger("celery")
 broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
 backend_url = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
 
-# 1. Parse Azure Service Bus connection string if available
+# 1. Parse Azure Service Bus connection string if explicitly enabled
 servicebus_conn = os.getenv("AZURE_SERVICEBUS_CONNECTION_STRING")
-if servicebus_conn:
+use_servicebus = os.getenv("CELERY_USE_AZURE_SERVICEBUS", "0").lower() in ("1", "true", "yes")
+
+if servicebus_conn and use_servicebus:
     try:
         servicebus_conn = servicebus_conn.strip('"' + "'")
         parts = {}
@@ -192,6 +194,9 @@ celery_app.conf.update(
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     task_publish_retry=True,
+    broker_connection_retry=True,
+    broker_connection_retry_on_startup=True,
+    broker_connection_max_retries=None,
     worker_max_tasks_per_child=50,
     worker_max_memory_per_child=2000000, # 2GB limit per process (in KB)
     worker_proc_alive_timeout=120.0,
