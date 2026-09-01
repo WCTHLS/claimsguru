@@ -1778,7 +1778,50 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         {"user_id": user_id},
                     ).mappings().first()
 
-                    needs_onboarding = not bool(profile_row and profile_row["policy_number"])
+                    # If incoming payload provides onboarding info, update the profile immediately
+                    if payload.policy or payload.dob or payload.gender or payload.sum_insured or payload.first_name:
+                        sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else None
+                        if profile_row:
+                            db.execute(
+                                text("""
+                                    UPDATE patient_profiles
+                                    SET first_name = COALESCE(:first_name, first_name),
+                                        last_name = COALESCE(:last_name, last_name),
+                                        gender = COALESCE(:gender, gender),
+                                        policy_number = COALESCE(:policy_number, policy_number),
+                                        sum_insured = COALESCE(:sum_insured, sum_insured),
+                                        coverage_verified = 1,
+                                        updated_at = CURRENT_TIMESTAMP
+                                    WHERE user_id = :user_id
+                                """),
+                                {
+                                    "user_id": user_id,
+                                    "first_name": payload.first_name or None,
+                                    "last_name": payload.last_name or None,
+                                    "gender": payload.gender or None,
+                                    "policy_number": payload.policy or None,
+                                    "sum_insured": sum_val,
+                                },
+                            )
+                        else:
+                            db.execute(
+                                text("""
+                                    INSERT INTO patient_profiles (id, user_id, first_name, last_name, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
+                                    VALUES (:id, :user_id, :first_name, :last_name, :gender, :policy_number, :sum_insured, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                """),
+                                {
+                                    "id": uuid.uuid4(),
+                                    "user_id": user_id,
+                                    "first_name": first_name,
+                                    "last_name": last_name or "",
+                                    "gender": payload.gender or None,
+                                    "policy_number": payload.policy or "POL-DEFAULT",
+                                    "sum_insured": sum_val or 500000.0,
+                                },
+                            )
+                        needs_onboarding = False
+                    else:
+                        needs_onboarding = not bool(profile_row and profile_row["policy_number"])
 
                     db.execute(
                         text("""
@@ -1793,10 +1836,16 @@ def sync_entra_user(payload: SyncEntraUserIn):
                     )
                     db.commit()
 
+                    p_fname = (profile_row["first_name"] if profile_row else None) or first_name
+                    p_lname = (profile_row["last_name"] if profile_row else None) or last_name
+
                     return {
                         "success": True,
                         "user_id": str(user_id),
                         "email": email,
+                        "name": f"{p_fname} {p_lname}".strip() or email.split("@")[0],
+                        "first_name": p_fname,
+                        "last_name": p_lname,
                         "role": "patient",
                         "account_role": "submitter",
                         "is_new_user": False,
@@ -1838,17 +1887,24 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         {"id": uuid.uuid4(), "user_id": new_user_id, "role_id": role_id},
                     )
 
+                    sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else None
+                    has_policy = bool(payload.policy)
+
                     # Create initial patient profile
                     db.execute(
                         text("""
-                            INSERT INTO patient_profiles (id, user_id, first_name, last_name, coverage_verified, created_at, updated_at)
-                            VALUES (:id, :user_id, :first_name, :last_name, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            INSERT INTO patient_profiles (id, user_id, first_name, last_name, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
+                            VALUES (:id, :user_id, :first_name, :last_name, :gender, :policy_number, :sum_insured, :coverage_verified, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """),
                         {
                             "id": uuid.uuid4(),
                             "user_id": new_user_id,
                             "first_name": first_name,
-                            "last_name": last_name,
+                            "last_name": last_name or "",
+                            "gender": payload.gender or None,
+                            "policy_number": payload.policy or None,
+                            "sum_insured": sum_val,
+                            "coverage_verified": 1 if has_policy else 0,
                         },
                     )
 
@@ -1858,12 +1914,147 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         "success": True,
                         "user_id": str(new_user_id),
                         "email": email,
+                        "name": f"{first_name} {last_name}".strip() or email.split("@")[0],
+                        "first_name": first_name,
+                        "last_name": last_name,
                         "role": "patient",
                         "account_role": "submitter",
                         "is_new_user": True,
-                        "needs_onboarding": True,
+                        "needs_onboarding": not has_policy,
                         "message": "New patient registered in database successfully",
                     }
+
+
+class RegisterUserIn(BaseModel):
+    username: str
+    password: str | None = None
+    password_hash: str | None = None
+    role: str = "submitter"
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
+    organization: str | None = None
+    employee_id: str | None = None
+    dob: str | None = None
+    gender: str | None = None
+    policy: str | None = None
+    sum_insured: float | str | None = None
+    provider: str = "local"
+
+
+@router.post("/auth/register", status_code=200)
+def register_user_profile(payload: RegisterUserIn):
+    """Complete registration and store patient/staff profile into database."""
+    email = str(payload.username).strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email is required")
+
+    pwd = payload.password_hash or payload.password or None
+
+    with force_master_session():
+        with SessionLocal() as db:
+            user_row = db.execute(
+                text("SELECT id FROM users WHERE lower(email) = lower(:email)"),
+                {"email": email},
+            ).mappings().first()
+
+            if user_row:
+                user_id = user_row["id"]
+                db.execute(
+                    text("UPDATE users SET status = 'ACTIVE', updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
+                    {"id": user_id},
+                )
+            else:
+                user_id = uuid.uuid4()
+                db.execute(
+                    text("""
+                        INSERT INTO users (id, email, phone, external_provider, external_subject_id, status, email_verified, password_hash, created_at, updated_at)
+                        VALUES (:id, :email, :phone, :provider, :email, 'ACTIVE', 1, :pwd, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """),
+                    {
+                        "id": user_id,
+                        "email": email,
+                        "phone": payload.phone or None,
+                        "provider": payload.provider or "local",
+                        "pwd": pwd,
+                    },
+                )
+
+                role_name = "admin" if payload.role in ("admin", "tpa") else "submitter"
+                role_row = db.execute(
+                    text("SELECT id FROM roles WHERE name = :rname"),
+                    {"rname": role_name},
+                ).mappings().first()
+
+                if not role_row:
+                    r_id = uuid.uuid4()
+                    db.execute(
+                        text("INSERT INTO roles (id, name, description, created_at) VALUES (:id, :name, 'Role', CURRENT_TIMESTAMP)"),
+                        {"id": r_id, "name": role_name},
+                    )
+                else:
+                    r_id = role_row["id"]
+
+                db.execute(
+                    text("INSERT INTO user_roles (id, user_id, role_id, created_at) VALUES (:id, :user_id, :role_id, CURRENT_TIMESTAMP)"),
+                    {"id": uuid.uuid4(), "user_id": user_id, "role_id": r_id},
+                )
+
+            # Insert or update patient profile
+            sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else 500000.0
+            prof_row = db.execute(
+                text("SELECT id FROM patient_profiles WHERE user_id = :user_id"),
+                {"user_id": user_id},
+            ).mappings().first()
+
+            if prof_row:
+                db.execute(
+                    text("""
+                        UPDATE patient_profiles
+                        SET first_name = COALESCE(:first_name, first_name),
+                            last_name = COALESCE(:last_name, last_name),
+                            gender = COALESCE(:gender, gender),
+                            policy_number = COALESCE(:policy_number, policy_number),
+                            sum_insured = COALESCE(:sum_insured, sum_insured),
+                            coverage_verified = 1,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = :user_id
+                    """),
+                    {
+                        "user_id": user_id,
+                        "first_name": payload.first_name or "Patient",
+                        "last_name": payload.last_name or "",
+                        "gender": payload.gender or "Male",
+                        "policy_number": payload.policy or "POL-DEFAULT",
+                        "sum_insured": sum_val,
+                    },
+                )
+            else:
+                db.execute(
+                    text("""
+                        INSERT INTO patient_profiles (id, user_id, first_name, last_name, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
+                        VALUES (:id, :user_id, :first_name, :last_name, :gender, :policy_number, :sum_insured, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """),
+                    {
+                        "id": uuid.uuid4(),
+                        "user_id": user_id,
+                        "first_name": payload.first_name or "Patient",
+                        "last_name": payload.last_name or "",
+                        "gender": payload.gender or "Male",
+                        "policy_number": payload.policy or "POL-DEFAULT",
+                        "sum_insured": sum_val,
+                    },
+                )
+
+            db.commit()
+
+            return {
+                "success": True,
+                "user_id": str(user_id),
+                "email": email,
+                "needs_onboarding": False,
+                "message": "User and profile saved successfully",
+            }
 
 
 # ------------------------------------------------------------------ TPA registration

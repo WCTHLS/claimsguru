@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { type AuthRole, getStoredAuthSession } from '@/lib/auth';
+import { type AuthRole, getStoredAuthSession, saveSession } from '@/lib/auth';
 import {
   ArrowLeft,
   ArrowRight,
@@ -219,6 +219,14 @@ export function RegisterClinical() {
       }
 
       if (isEntraMode) {
+        const currentSession = getStoredAuthSession();
+        if (currentSession) {
+          currentSession.needsOnboarding = false;
+          currentSession.user.name = fullName;
+          currentSession.user.firstName = firstName;
+          currentSession.user.lastName = lastName;
+          saveSession(currentSession);
+        }
         // Redirect directly to Patient Workspace
         router.replace('/app');
       } else {

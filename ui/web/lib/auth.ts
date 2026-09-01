@@ -346,7 +346,7 @@ function buildSession(
   };
 }
 
-function saveSession(session: AuthSession) {
+export function saveSession(session: AuthSession) {
   sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
 }
 

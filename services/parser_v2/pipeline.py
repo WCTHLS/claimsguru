@@ -145,19 +145,26 @@ def load_azure_layout_into_doc(azure_json_paths: list[str], tokens: list[Token])
                 if len(table_data) < 2:
                     continue
                 rows = []
+                # Detect if this table is an expense table from header keywords
+                header_text = " ".join(str(c) for c in table_data[0]).lower()
+                is_expense_table = any(kw in header_text for kw in ["date", "description", "particular", "amount", "charge", "rate", "qty", "item", "fee", "cost", "rs", "price", "service", "np"])
+                table_kind = "expenses" if is_expense_table else "generic_table"
+
                 for r_idx, row_data in enumerate(table_data):
                     cells = []
+                    # Assign discrete, non-colliding vertical coordinates for each row
+                    y0 = float(r_idx * 30.0)
+                    y1 = float((r_idx + 1) * 30.0)
                     for c_idx, cell_text in enumerate(row_data):
                         # Construct a mock bbox based on column index
-                        # Column 0: x0=0, Column 1: x0=100, etc. This aligns perfectly with overlap logic.
-                        x0 = float(c_idx * 100)
-                        x1 = float((c_idx + 1) * 100)
+                        x0 = float(c_idx * 100.0)
+                        x1 = float((c_idx + 1) * 100.0)
                         cell = Cell(
                             cell_id=f"cell_{page_num}_{t_idx}_{r_idx}_{c_idx}",
                             row_id=f"row_{page_num}_{t_idx}_{r_idx}",
                             column_id=f"col_{page_num}_{t_idx}_{c_idx}",
-                            text=str(cell_text),
-                            bbox=[x0, 0.0, x1, 10.0],
+                            text=str(cell_text).strip(),
+                            bbox=[x0, y0, x1, y1],
                             tokens=[]
                         )
                         cells.append(cell)
@@ -165,17 +172,17 @@ def load_azure_layout_into_doc(azure_json_paths: list[str], tokens: list[Token])
                         row_id=f"row_{page_num}_{t_idx}_{r_idx}",
                         row_index=r_idx,
                         cells=cells,
-                        bbox=[0.0, 0.0, len(row_data) * 100.0, 10.0]
+                        bbox=[0.0, y0, len(row_data) * 100.0, y1]
                     )
                     rows.append(row)
                 
                 table_region = TableRegion(
                     region_id=f"azure_table_p{page_num}_{t_idx}",
-                    bbox=[0.0, 0.0, len(table_data[0]) * 100.0, 10.0],
+                    bbox=[0.0, 0.0, len(table_data[0]) * 100.0, len(table_data) * 30.0],
                     rows=rows,
                     page=page_num,
                     confidence=1.0,
-                    table_kind="generic_table"
+                    table_kind=table_kind
                 )
                 tables.append(table_region)
                 

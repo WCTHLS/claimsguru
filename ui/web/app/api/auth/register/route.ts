@@ -45,12 +45,14 @@ export async function POST(request: NextRequest) {
       sum_insured: body.sum_insured,
     };
 
-    const rawBase = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8001';
+    const rawBase = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000/ingress';
     const cleanBase = rawBase.replace(/\/+$/, '');
 
     const urlsToTry = [
-      'http://127.0.0.1:8001/auth/register',
+      'http://claimsguru-api-test:8000/ingress/auth/register',
+      'http://host.docker.internal:8000/ingress/auth/register',
       'http://127.0.0.1:8000/ingress/auth/register',
+      'http://localhost:8000/ingress/auth/register',
       `${cleanBase}/auth/register`,
       `${cleanBase}/ingress/auth/register`,
     ];

@@ -44,12 +44,14 @@ export async function POST(request: NextRequest) {
       sum_insured: body.sum_insured,
     };
 
-    const rawBase = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8001';
+    const rawBase = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000/ingress';
     const cleanBase = rawBase.replace(/\/+$/, '');
 
     const urlsToTry = [
-      'http://127.0.0.1:8001/auth/sync-entra-user',
+      'http://claimsguru-api-test:8000/ingress/auth/sync-entra-user',
+      'http://host.docker.internal:8000/ingress/auth/sync-entra-user',
       'http://127.0.0.1:8000/ingress/auth/sync-entra-user',
+      'http://localhost:8000/ingress/auth/sync-entra-user',
       `${cleanBase}/auth/sync-entra-user`,
       `${cleanBase}/ingress/auth/sync-entra-user`,
     ];

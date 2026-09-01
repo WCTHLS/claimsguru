@@ -89,7 +89,12 @@ docker run -d --name claimsguru-worker-default `
 
 # Frontend Web Portal
 Stop-Process -Name "node" -Force -ErrorAction SilentlyContinue
-docker run -d --name claimsguru-web-test -p 3000:3000 claimsguru-frontend:test
+docker run -d --name claimsguru-web-test -p 3000:3000 `
+  --network claimgpt-feature_default `
+  --dns 8.8.8.8 --dns 1.1.1.1 `
+  -e NEXT_PUBLIC_API_BASE="http://localhost:8000" `
+  -e INGRESS_API="http://claimsguru-api-test:8000/ingress" `
+  claimsguru-frontend:test
 
 Write-Host "`n==========================================================" -ForegroundColor Green
 Write-Host " ✓ ClaimsGuru Stack is Live and Ready!" -ForegroundColor Green
