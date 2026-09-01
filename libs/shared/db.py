@@ -84,20 +84,22 @@ def compile_uuid_mssql(type_, compiler, **kw):
 
 Base = declarative_base()
 
-# Create write and read engines
+# Create write and read engines with production QueuePool headroom
 writer_engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=20,
+    max_overflow=30,
+    pool_timeout=30,
     pool_recycle=300
 )
 
 reader_engine = create_engine(
     settings.database_read_url or settings.database_url,
     pool_pre_ping=True,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=20,
+    max_overflow=30,
+    pool_timeout=30,
     pool_recycle=300
 )
 

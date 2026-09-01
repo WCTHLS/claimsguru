@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "eastus"
+    },
+    "environmentName": {
+      "value": "stage"
+    },
+    "appName": {
+      "value": "claimsguru"
+    },
+    "imageTag": {
+      "value": "stage-latest"
+    },
+    "acrLoginServer": {
+      "value": "claimsgurucr.azurecr.io"
+    },
+    "sqlAdminLogin": {
+      "value": "claimsgurustageadmin"
+    },
+    "sqlAdminPassword": {
+      "value": "ClaimsGuruStagePass!2026"
+    }
+  }
+}

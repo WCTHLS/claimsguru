@@ -1,0 +1,72 @@
+# ==============================================================================
+# ClaimsGuru Frontend (Next.js 14) Production Dockerfile
+# Multi-stage build with build-time environment variable injection
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Stage 1: Dependencies Cache
+# ------------------------------------------------------------------------------
+FROM node:20-alpine AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+
+COPY ui/web/package.json ui/web/package-lock.json ./
+RUN npm ci
+
+# ------------------------------------------------------------------------------
+# Stage 2: Next.js Production Builder
+# ------------------------------------------------------------------------------
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY ui/web ./
+
+# Build arguments for Next.js static client-side bundle
+ARG NEXT_PUBLIC_API_BASE
+ARG NEXT_PUBLIC_APP_NAME
+ARG NEXT_PUBLIC_ENABLE_ENTRA_ID
+ARG NEXT_PUBLIC_AUTH_PROVIDER
+ARG NEXT_PUBLIC_ENTRA_PATIENT_CLIENT_ID
+ARG NEXT_PUBLIC_ORG_ENTRA_CLIENT_ID
+ARG NEXT_PUBLIC_ENTRA_TENANT_ID
+ARG NEXT_PUBLIC_ENTRA_SUBDOMAIN
+ARG NEXT_PUBLIC_ENTRA_AUTHORITY
+ARG NEXT_PUBLIC_ENTRA_REDIRECT_URI
+
+# Only set ENV if the ARG was actually passed, otherwise allow .env file defaults to load
+RUN if [ -n "$NEXT_PUBLIC_API_BASE" ]; then export NEXT_PUBLIC_API_BASE="$NEXT_PUBLIC_API_BASE"; fi && \
+    if [ -n "$NEXT_PUBLIC_APP_NAME" ]; then export NEXT_PUBLIC_APP_NAME="$NEXT_PUBLIC_APP_NAME"; fi && \
+    if [ -n "$NEXT_PUBLIC_ENABLE_ENTRA_ID" ]; then export NEXT_PUBLIC_ENABLE_ENTRA_ID="$NEXT_PUBLIC_ENABLE_ENTRA_ID"; fi && \
+    if [ -n "$NEXT_PUBLIC_AUTH_PROVIDER" ]; then export NEXT_PUBLIC_AUTH_PROVIDER="$NEXT_PUBLIC_AUTH_PROVIDER"; fi && \
+    if [ -n "$NEXT_PUBLIC_ENTRA_PATIENT_CLIENT_ID" ]; then export NEXT_PUBLIC_ENTRA_PATIENT_CLIENT_ID="$NEXT_PUBLIC_ENTRA_PATIENT_CLIENT_ID"; fi && \
+    if [ -n "$NEXT_PUBLIC_ORG_ENTRA_CLIENT_ID" ]; then export NEXT_PUBLIC_ORG_ENTRA_CLIENT_ID="$NEXT_PUBLIC_ORG_ENTRA_CLIENT_ID"; fi && \
+    if [ -n "$NEXT_PUBLIC_ENTRA_TENANT_ID" ]; then export NEXT_PUBLIC_ENTRA_TENANT_ID="$NEXT_PUBLIC_ENTRA_TENANT_ID"; fi && \
+    if [ -n "$NEXT_PUBLIC_ENTRA_SUBDOMAIN" ]; then export NEXT_PUBLIC_ENTRA_SUBDOMAIN="$NEXT_PUBLIC_ENTRA_SUBDOMAIN"; fi && \
+    if [ -n "$NEXT_PUBLIC_ENTRA_AUTHORITY" ]; then export NEXT_PUBLIC_ENTRA_AUTHORITY="$NEXT_PUBLIC_ENTRA_AUTHORITY"; fi && \
+    if [ -n "$NEXT_PUBLIC_ENTRA_REDIRECT_URI" ]; then export NEXT_PUBLIC_ENTRA_REDIRECT_URI="$NEXT_PUBLIC_ENTRA_REDIRECT_URI"; fi && \
+    NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production npm run build
+
+# ------------------------------------------------------------------------------
+# Stage 3: Production Runner
+# ------------------------------------------------------------------------------
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+
+USER nextjs
+
+EXPOSE 3000
+
+CMD ["npm", "start"]

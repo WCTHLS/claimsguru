@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "eastus"
+    },
+    "environmentName": {
+      "value": "preprod"
+    },
+    "appName": {
+      "value": "claimsguru"
+    },
+    "imageTag": {
+      "value": "preprod-latest"
+    },
+    "acrLoginServer": {
+      "value": "claimsgurucr.azurecr.io"
+    },
+    "sqlAdminLogin": {
+      "value": "claimsgurupreprodadmin"
+    },
+    "sqlAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/claimsguru-preprod-rg/providers/Microsoft.KeyVault/vaults/claimsguru-preprod-kv"
+        },
+        "secretName": "sql-admin-password"
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "eastus"
+    },
+    "environmentName": {
+      "value": "prod"
+    },
+    "appName": {
+      "value": "claimsguru"
+    },
+    "imageTag": {
+      "value": "v1.0.0"
+    },
+    "acrLoginServer": {
+      "value": "claimsgurucr.azurecr.io"
+    },
+    "sqlAdminLogin": {
+      "value": "claimsguruadmin"
+    },
+    "sqlAdminPassword": {
+      "reference": {
+        "keyVault": {
+          "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/<RESOURCE_GROUP>/providers/Microsoft.KeyVault/vaults/<KEY_VAULT_NAME>"
+        },
+        "secretName": "sql-admin-password"
+      }
+    }
+  }
+}

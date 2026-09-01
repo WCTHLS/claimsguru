@@ -53,6 +53,10 @@ export interface RecentClaimSummary {
   status: string;
   created_at: string;
   total_amount?: string;
+  hospital_name?: string;
+  diagnosis?: string;
+  policy_id?: string;
+  patient_id?: string;
   documents?: Array<{ id: string; file_name: string; doc_type?: string }>;
   progress?: { percentage: number; step: string };
 }
@@ -156,7 +160,7 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
 
     const url = claimId 
       ? `${INGRESS_API}/claims/${claimId}/documents` 
-      : `${INGRESS_API}/claims/`;
+      : `${INGRESS_API}/claims`;
 
     let res = await safeFetch(url, {
       method: "POST",
@@ -164,24 +168,16 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
       headers: getAuthHeaders(),
     }, 12000);
 
-    if (!res || !res.ok) {
-      res = await safeFetch(claimId ? url : `${INGRESS_API}/claims`, {
-        method: "POST",
-        body: formData,
-        headers: getAuthHeaders(),
-      }, 12000);
-    }
-
     if (res && res.ok) {
       const data = await res.json();
       const taskId = data.task_id || data.claim_id || data.id;
       let finalClaimId = taskId || fallbackClaimId;
       let finalDocId = data.document_id || (data.documents && data.documents[0]?.id) || "doc-1";
 
-      // If backend returned queued task ID, attempt quick lookup
+      // If backend returned queued task ID, attempt quick lookup for created claim ID
       if (taskId && (taskId.includes("-") || taskId.length > 8)) {
-        for (let attempt = 0; attempt < 8; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, 250));
+        for (let attempt = 0; attempt < 15; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 350));
           const queryParams = new URLSearchParams({ limit: "200", t: Date.now().toString() });
           if (userName) {
             queryParams.append("patient_id", userName);
@@ -195,14 +191,13 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
             const claims = claimsData.claims || claimsData.results || (Array.isArray(claimsData) ? claimsData : []);
             
             const matchingClaim = claims.find((c: any) => 
-              (!userName || (c.patient_id && c.patient_id.toLowerCase() === userName.toLowerCase())) &&
               c.documents && c.documents.some((d: any) => 
-                d.file_name && fileNames.includes(d.file_name.toLowerCase())
+                d.file_name && fileNames.some(fn => d.file_name.toLowerCase().includes(fn) || fn.includes(d.file_name.toLowerCase()))
               )
-            );
+            ) || (claims.length > 0 ? claims[0] : null);
 
-            if (matchingClaim) {
-              finalClaimId = matchingClaim.id || matchingClaim.claim_id;
+            if (matchingClaim && matchingClaim.id) {
+              finalClaimId = matchingClaim.id;
               if (matchingClaim.documents && matchingClaim.documents.length > 0) {
                 finalDocId = matchingClaim.documents[0].id;
               }
@@ -229,7 +224,7 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
 /**
  * Poll processing progress safely — checks both ingress progress & submission preview readiness
  */
-export async function fetchClaimProgress(claimId: string): Promise<{ percentage: number; step: string; status: string; is_complete: boolean }> {
+export async function fetchClaimProgress(claimId: string): Promise<{ percentage: number; step: string; status: string; is_complete: boolean; not_found?: boolean }> {
   if (isMockId(claimId)) {
     return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
   }
@@ -240,23 +235,28 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
       cache: "no-store",
       headers: getAuthHeaders(),
     }, 2500);
-    if (res && res.ok) {
-      const data = await res.json();
-      let pct = typeof data.percentage === "number" ? data.percentage : 0;
-      const stepStr = data.step || data.current_step || "";
-      const statusStr = (data.status || "").toUpperCase();
-      const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 100);
-
-      if (isComplete) {
-        return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
+    if (res) {
+      if (res.status === 404) {
+        return { percentage: 0, step: "Claim not found", status: "NOT_FOUND", is_complete: true, not_found: true };
       }
+      if (res.ok) {
+        const data = await res.json();
+        let pct = typeof data.percentage === "number" ? data.percentage : 0;
+        const stepStr = data.step || data.current_step || "";
+        const statusStr = (data.status || "").toUpperCase();
+        const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 100);
 
-      return {
-        percentage: Math.max(pct, 20),
-        step: stepStr || (statusStr === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"),
-        status: statusStr || "UPLOADED",
-        is_complete: false,
-      };
+        if (isComplete) {
+          return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
+        }
+
+        return {
+          percentage: Math.max(pct, 20),
+          step: stepStr || (statusStr === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"),
+          status: statusStr || "UPLOADED",
+          is_complete: false,
+        };
+      }
     }
 
     // 2. Query live ingress status endpoint
@@ -264,23 +264,28 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
       cache: "no-store",
       headers: getAuthHeaders(),
     }, 2500);
-    if (statusRes && statusRes.ok) {
-      const data = await statusRes.json();
-      let pct = typeof data.percentage === "number" ? data.percentage : (typeof data.pct === "number" ? data.pct : 0);
-      const stepStr = data.current_step || data.step || "";
-      const statusStr = (data.status || "").toUpperCase();
-      const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 100);
-
-      if (isComplete) {
-        return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
+    if (statusRes) {
+      if (statusRes.status === 404) {
+        return { percentage: 0, step: "Claim not found", status: "NOT_FOUND", is_complete: true, not_found: true };
       }
+      if (statusRes.ok) {
+        const data = await statusRes.json();
+        let pct = typeof data.percentage === "number" ? data.percentage : (typeof data.pct === "number" ? data.pct : 0);
+        const stepStr = data.current_step || data.step || "";
+        const statusStr = (data.status || "").toUpperCase();
+        const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 100);
 
-      return {
-        percentage: Math.max(pct, 20),
-        step: stepStr || "OCR (extracting text)",
-        status: statusStr || "UPLOADED",
-        is_complete: false,
-      };
+        if (isComplete) {
+          return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
+        }
+
+        return {
+          percentage: Math.max(pct, 20),
+          step: stepStr || "OCR (extracting text)",
+          status: statusStr || "UPLOADED",
+          is_complete: false,
+        };
+      }
     }
   } catch (err) {
     /* safe catch */

@@ -143,6 +143,13 @@ async def log_requests(request: Request, call_next):
     response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type, Accept, Origin, User-Agent, DNT, Cache-Control, X-Requested-With, ngrok-skip-browser-warning"
     response.headers["Access-Control-Max-Age"] = "86400"
     
+    # Standard Security Headers (OWASP)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if os.getenv("APP_ENV", "development").lower() == "production":
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    
     elapsed_ms = (time.perf_counter() - started) * 1000
     if not quiet_poll:
         logger.info("%s %s -> %s (%.1fms)", request.method, request.url.path, response.status_code, elapsed_ms)

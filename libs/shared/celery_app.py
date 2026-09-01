@@ -68,19 +68,13 @@ if servicebus_conn:
                 
             broker_url = f"azureservicebus://{key_name}:{key}@{namespace}"
             logger.info(f"[CELERY APP] Swapped broker to Azure Service Bus namespace: {namespace}")
-            
-            # Automatically swap result backend to DB if it was left on localhost Redis default
-            if "localhost" in backend_url or "127.0.0.1" in backend_url:
-                backend_url = "db"
     except Exception as e:
         logger.exception(f"Failed to parse AZURE_SERVICEBUS_CONNECTION_STRING: {e}")
 
-# 2. Configure Database backend if "db" is chosen or defaulted
-db_conn = os.getenv("DATABASE_URL") or os.getenv("INGRESS_DATABASE_URL")
-if db_conn and (backend_url == "db" or "redis" not in backend_url.lower()):
-    if db_conn.startswith("mssql"):
-        backend_url = f"db+{db_conn}"
-        logger.info("[CELERY APP] Swapped result backend to SQL Database (SQLAlchemy)")
+redis_env_url = os.getenv("REDIS_URL")
+if redis_env_url and ("localhost" in backend_url or "127.0.0.1" in backend_url or backend_url == "db"):
+    backend_url = redis_env_url
+    logger.info(f"[CELERY APP] Using Redis result backend: {backend_url}")
 
 # Override os.environ to prevent Celery from defaulting back to Redis env variables
 os.environ["CELERY_BROKER_URL"] = broker_url
@@ -136,7 +130,9 @@ celery_app.conf.update(
     task_track_started=True,
     task_serializer="json",
     result_persistent=True,
-    worker_send_task_events=True,
+    worker_send_task_events=False,
+    task_send_sent_event=False,
+    worker_enable_remote_control=False,
     imports=("services.shared_tasks",),
     broker_transport_options=broker_transport_options,
     result_backend_transport_options=result_backend_transport_options,
@@ -191,7 +187,8 @@ celery_app.conf.update(
     task_default_exchange="default",
     task_default_routing_key="default",
     worker_prefetch_multiplier=1,
-    task_create_missing_queues=True,
+    task_create_missing_queues=False,
+    broker_pool_limit=10,
     task_acks_late=True,
     task_reject_on_worker_lost=True,
     task_publish_retry=True,
@@ -238,15 +235,7 @@ def run_prewarm():
     is_parser = "parser_queue" in args_str
     is_coding = "default" in args_str or not any(q in args_str for q in ["ocr_queue", "parser_queue"])
 
-    print(f"[CELERY PREWARM] Loading models in parent process (pre-fork). Role: OCR={is_ocr}, Parser={is_parser}, Coding={is_coding}")
-
-    if is_ocr and os.environ.get("DISABLE_OCR_PREWARM") != "1":
-        try:
-            from services.ocr.app.engine import prewarm_ocr_engines
-            prewarm_ocr_engines()
-            print("[CELERY PREWARM] Parent successfully pre-warmed OCR engines")
-        except Exception as e:
-            print(f"[CELERY PREWARM] Warning: Parent failed to prewarm OCR engines: {e}")
+    print(f"[CELERY PREWARM] Starting worker pre-fork initialization. Role: OCR={is_ocr}, Parser={is_parser}, Coding={is_coding}")
 
     if is_coding and os.environ.get("DISABLE_CODING_PREWARM") != "1":
         try:
@@ -255,14 +244,6 @@ def run_prewarm():
             print("[CELERY PREWARM] Parent successfully pre-warmed RAG coding models")
         except Exception as e:
             print(f"[CELERY PREWARM] Warning: Parent failed to prewarm RAG coding models: {e}")
-
-    if is_parser and os.environ.get("DISABLE_PARSER_PREWARM") != "1":
-        try:
-            from services.parser.app.layout_analyzer import init_pp_structure
-            init_pp_structure()
-            print("[CELERY PREWARM] Parent successfully pre-warmed Parser layout models")
-        except Exception as e:
-            print(f"[CELERY PREWARM] Warning: Parent failed to prewarm Parser layout models: {e}")
 
 # Run in the main parent worker process at import time before forks occur
 if any("celery" in arg for arg in sys.argv) and "worker" in sys.argv:

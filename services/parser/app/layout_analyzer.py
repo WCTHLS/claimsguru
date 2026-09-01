@@ -17,24 +17,11 @@ os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
 os.environ["FLAGS_allocator_strategy"] = "naive_best_fit"
 
 _PP_STRUCTURE_ENGINE = None
-_PP_STRUCTURE_ERROR = None
+_PP_STRUCTURE_ERROR = "PaddleX/PP-Structure disabled in cloud pipeline (using Azure Document Intelligence + geometry)"
 
 def init_pp_structure():
-    global _PP_STRUCTURE_ENGINE, _PP_STRUCTURE_ERROR
-    if _PP_STRUCTURE_ENGINE is not None:
-        logger.info("PP-DocLayoutV3 engine already initialised")
-        return True
-    try:
-        from paddlex import create_model
-        logger.info("Initializing PP-DocLayoutV3 engine...")
-        # Use the local DocLayout model found in .paddlex cache
-        _PP_STRUCTURE_ENGINE = create_model("PP-DocLayoutV3")
-        logger.info("PP-DocLayoutV3 engine initialised successfully")
-        return True
-    except Exception as e:
-        _PP_STRUCTURE_ERROR = f"Failed to initialize AI Engine: {e}"
-        logger.error(_PP_STRUCTURE_ERROR)
-        return False
+    """PP-Structure/PaddleX is disabled; pipeline uses Azure Document Intelligence and geometry."""
+    return False
 
 def bbox_for_tokens(tokens: List[Dict[str, Any]]) -> List[float]:
     """Computes a bounding box [x0, y0, x1, y1] for a list of tokens."""

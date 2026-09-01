@@ -7,6 +7,7 @@ interface RegisterBody {
   password?: string;
   password_hash?: string;
   role: 'patient' | 'tpa';
+  provider?: string;
   first_name?: string;
   last_name?: string;
   phone?: string;
@@ -22,15 +23,16 @@ export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as RegisterBody;
 
+    const isEntra = body?.provider === 'entra';
     const pwd = (body.password_hash || body.password || '').trim();
-    if (!body?.username || !body?.role || !pwd) {
+    if (!body?.username || !body?.role || (!isEntra && !pwd)) {
       return NextResponse.json({ error: 'Missing required registration fields.' }, { status: 400 });
     }
 
     const profilePayload: Record<string, unknown> = {
-      provider: 'local',
+      provider: body.provider || 'local',
       username: body.username,
-      password_hash: body.password_hash || pwd,
+      password_hash: body.password_hash || pwd || undefined,
       role: body.role === 'patient' ? 'submitter' : 'admin',
       first_name: body.first_name,
       last_name: body.last_name,

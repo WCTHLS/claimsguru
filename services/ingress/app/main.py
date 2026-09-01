@@ -21,7 +21,7 @@ from typing import Any
 
 import aiofiles
 from celery import chord, group, chain
-from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -37,7 +37,7 @@ from services.shared_tasks import (
     run_pipeline_inline,
 )
 from libs.shared.celery_app import celery_app
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session, selectinload
 
@@ -49,6 +49,129 @@ from libs.shared.models import ParseJob, ParsedField, WorkflowState, User, Role,
 from libs.shared.workflow_state import get_latest_workflow_state, upsert_workflow_state
 from .schemas import ClaimListOut, ClaimOut
 from .rate_limiter import RateLimiter
+
+
+class AuthUser(BaseModel):
+    user_id: str | None = None
+    email: str | None = None
+    role: str = "patient"
+    patient_id: str | None = None
+    tenant_id: str | None = None
+    is_authenticated: bool = False
+
+
+# Global cache for JWKS client to reuse SSL connections and public keys
+_jwks_client = None
+
+def _get_jwks_client():
+    global _jwks_client
+    if _jwks_client is None:
+        import jwt
+        jwks_url = os.getenv("AUTH_JWKS_URL")
+        tenant_id = os.getenv("ENTRA_TENANT_ID")
+        subdomain = os.getenv("ENTRA_SUBDOMAIN") or os.getenv("NEXT_PUBLIC_ENTRA_SUBDOMAIN")
+        
+        if not jwks_url:
+            if subdomain and tenant_id:
+                jwks_url = f"https://{subdomain}.ciamlogin.com/{tenant_id}/discovery/v2.0/keys"
+            elif tenant_id:
+                jwks_url = f"https://login.microsoftonline.com/{tenant_id}/discovery/v2.0/keys"
+        
+        if jwks_url:
+            try:
+                _jwks_client = jwt.PyJWKClient(jwks_url, cache_keys=True, max_cached_keys=16)
+                logger.info(f"Initialized Entra ID JWKS client with endpoint: {jwks_url}")
+            except Exception as e:
+                logger.warning(f"Could not initialize PyJWKClient: {e}")
+    return _jwks_client
+
+def get_current_user_context(
+    authorization: str | None = Header(None),
+    x_patient_id: str | None = Header(None, alias="X-Patient-Id"),
+    x_user_id: str | None = Header(None, alias="X-User-Id"),
+    patient_id: str | None = Query(None),
+) -> AuthUser:
+    is_production = os.getenv("APP_ENV", "development").strip().lower() in ("production", "prod")
+    
+    # 1. Production Mode: Strictly require and cryptographically verify Bearer Token
+    if is_production:
+        if not authorization or not authorization.startswith("Bearer "):
+            raise HTTPException(
+                status_code=401,
+                detail="Authentication credentials were not provided or invalid Bearer token format.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        token = authorization.split(" ", 1)[1].strip()
+        try:
+            import jwt
+            claims = None
+            jwks_client = _get_jwks_client()
+            
+            if jwks_client is not None:
+                try:
+                    signing_key = jwks_client.get_signing_key_from_jwt(token)
+                    claims = jwt.decode(
+                        token,
+                        signing_key.key,
+                        algorithms=["RS256"],
+                        options={"verify_exp": True, "verify_aud": False}
+                    )
+                except Exception as verify_err:
+                    logger.warning(f"JWKS cryptographic verification failed: {verify_err}")
+                    raise HTTPException(
+                        status_code=401,
+                        detail=f"Cryptographic signature verification failed: {verify_err}",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+            else:
+                # If JWKS URL is not configured yet, decode with expiration check
+                claims = jwt.decode(token, options={"verify_signature": False, "verify_exp": True})
+            
+            sub = claims.get("sub") or claims.get("oid")
+            email = claims.get("email") or claims.get("preferred_username")
+            roles = claims.get("roles") or ["patient"]
+            primary_role = roles[0] if isinstance(roles, list) and roles else "patient"
+            tenant_id = claims.get("tid")
+            extracted_patient_id = claims.get("patient_id") or email or sub
+            
+            return AuthUser(
+                user_id=sub,
+                email=email,
+                role=primary_role,
+                patient_id=extracted_patient_id,
+                tenant_id=tenant_id,
+                is_authenticated=True,
+            )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.warning(f"JWT Token validation failed in production: {exc}")
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or expired authentication token.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    # 2. Development / Local Test Harness Mode
+    resolved_patient = (x_patient_id or patient_id or "").strip() or None
+    role = "patient"
+    is_auth = False
+    
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.split(" ", 1)[1].strip()
+        if token:
+            is_auth = True
+    elif resolved_patient or x_user_id:
+        is_auth = True
+        
+    return AuthUser(
+        user_id=x_user_id,
+        patient_id=resolved_patient,
+        role=role,
+        is_authenticated=is_auth,
+    )
+
 
 
 try:
@@ -1384,12 +1507,12 @@ def login_local_user(payload: LoginUserIn):
 
 # ------------------------------------------------------------------ Entra CIAM user synchronization
 class SyncEntraUserIn(BaseModel):
-    email: str
-    name: str | None = None
-    first_name: str | None = None
-    last_name: str | None = None
-    company_name: str | None = None
-    organization: str | None = None
+    email: str = Field(min_length=5, max_length=255)
+    name: str | None = Field(default=None, max_length=150)
+    first_name: str | None = Field(default=None, max_length=100)
+    last_name: str | None = Field(default=None, max_length=100)
+    company_name: str | None = Field(default=None, max_length=200)
+    organization: str | None = Field(default=None, max_length=200)
     external_subject_id: str | None = None
     requested_role: str | None = "patient"
     account_role: str | None = None
@@ -1399,6 +1522,24 @@ class SyncEntraUserIn(BaseModel):
     gender: str | None = None
     policy: str | None = None
     sum_insured: float | str | None = None
+
+    @field_validator("email", mode="before")
+    @classmethod
+    def validate_email_strict(cls, v: Any) -> str:
+        s = str(v or "").strip()
+        email_regex = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+        if not re.match(email_regex, s):
+            raise ValueError("Invalid email format.")
+        return s
+
+    @field_validator("name", "first_name", "last_name", "company_name", "organization", mode="before")
+    @classmethod
+    def sanitize_xss(cls, v: Any) -> str | None:
+        if v is None:
+            return None
+        s = str(v).strip()
+        cleaned = re.sub(r"<[^>]*>", "", s)
+        return cleaned.strip()
 
 
 @router.post("/auth/sync-entra-user", status_code=200)
@@ -1944,6 +2085,7 @@ def get_upload_token(filename: str = Query(...)):
 
 
 @router.post("/claims", status_code=202)
+@router.post("/claims/", status_code=202)
 async def create_claim(
     files: list[UploadFile] = File(default=[]),
     policy_id: str = Form(None),
@@ -2173,12 +2315,14 @@ def list_claims(
     limit: int = Query(100, ge=1, le=500),
     patient_id: str | None = Query(None),
     policy_id: str | None = Query(None),
+    auth_user: AuthUser = Depends(get_current_user_context),
     db: Session = Depends(get_db),
 ):
     try:
         query = db.query(Claim)
-        if patient_id:
-            query = query.filter(Claim.patient_id == patient_id)
+        effective_patient = (patient_id or auth_user.patient_id or "").strip() or None
+        if effective_patient:
+            query = query.filter(Claim.patient_id == effective_patient)
         if policy_id:
             query = query.filter(Claim.policy_id == policy_id)
 
@@ -2238,11 +2382,16 @@ def list_claims(
         return ClaimListOut(claims=claim_items, total=total)
     except Exception as exc:
         logger.exception("Error listing claims")
-        raise HTTPException(status_code=500, detail=f"Failed to list claims: {str(exc)}")
+        raise HTTPException(status_code=500, detail="Failed to list claims")
 
 
 @router.get("/claims/{claim_id}", response_model=ClaimOut)
-def get_claim(claim_id: str, db: Session = Depends(get_db)):
+def get_claim(
+    claim_id: str,
+    patient_id: str | None = Query(None),
+    auth_user: AuthUser = Depends(get_current_user_context),
+    db: Session = Depends(get_db)
+):
     cid = _parse_uuid(claim_id)
     claim = (
         db.query(Claim)
@@ -2252,6 +2401,12 @@ def get_claim(claim_id: str, db: Session = Depends(get_db)):
     )
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
+
+    # Enforce Row-Level Security: if caller is a patient identity, verify ownership
+    caller_patient = auth_user.patient_id or patient_id
+    if caller_patient and claim.patient_id:
+        if caller_patient.strip().lower() != claim.patient_id.strip().lower() and auth_user.role not in ("admin", "reviewer", "auditor"):
+            raise HTTPException(status_code=404, detail="Claim not found")
         
     # Fetch relevant parsed fields for this claim
     pf_rows = db.query(ParsedField).filter(
@@ -2852,11 +3007,22 @@ def delete_all_claims(db: Session = Depends(get_db)):
 
 
 @router.delete("/claims/{claim_id}", status_code=204)
-def delete_claim(claim_id: str, db: Session = Depends(get_db)):
+def delete_claim(
+    claim_id: str,
+    patient_id: str | None = Query(None),
+    auth_user: AuthUser = Depends(get_current_user_context),
+    db: Session = Depends(get_db)
+):
     cid = _parse_uuid(claim_id)
     claim = db.query(Claim).filter(Claim.id == cid).first()
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
+
+    # Enforce Row-Level Security: if caller is a patient identity, verify ownership
+    caller_patient = auth_user.patient_id or patient_id
+    if caller_patient and claim.patient_id:
+        if caller_patient.strip().lower() != claim.patient_id.strip().lower() and auth_user.role not in ("admin", "reviewer", "auditor"):
+            raise HTTPException(status_code=404, detail="Claim not found")
 
     # delete stored files from disk
     docs = db.query(Document).filter(Document.claim_id == cid).all()

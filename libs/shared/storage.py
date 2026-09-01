@@ -28,6 +28,10 @@ class MinioStorage:
         if cls._azure_blob_service_client is None:
             connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
             account_url = os.getenv("AZURE_STORAGE_ACCOUNT_URL")
+            if connection_string:
+                connection_string = connection_string.strip('"\'')
+            if account_url:
+                account_url = account_url.strip('"\'')
             
             if not connection_string and not account_url:
                 raise ValueError("Neither AZURE_STORAGE_CONNECTION_STRING nor AZURE_STORAGE_ACCOUNT_URL is configured.")
@@ -322,7 +326,7 @@ class MinioStorage:
                 
                 service_client = cls.get_azure_client()
                 account_name = service_client.account_name
-                connection_string = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
+                connection_string = (os.getenv("AZURE_STORAGE_CONNECTION_STRING") or "").strip('"\'')
                 
                 # Check start/expiry times
                 start_time = datetime.now(timezone.utc) - timedelta(minutes=5)

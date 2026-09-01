@@ -36,9 +36,11 @@ import {
   XCircle,
   Building2,
   FileCheck2,
-  LogOut,
   Lock,
+  LogOut,
   UserCircle,
+  UserPlus,
+  Mail,
   ArrowRight,
 } from 'lucide-react';
 
@@ -312,77 +314,29 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
   const userName = session?.user?.name || 'Admin';
   const userEmail = session?.user?.email || `admin@${orgSlug || 'apollo'}.org`;
 
-  /* Organization Registration Form State (Embedded from /register/organization) */
-  const [orgFirstName, setOrgFirstName] = useState('');
-  const [orgLastName, setOrgLastName] = useState('');
-  const [orgEmail, setOrgEmail] = useState('');
-  const [orgMobile, setOrgMobile] = useState('');
-  const [orgName, setOrgName] = useState(orgSlug ? orgSlug.toUpperCase() : '');
-  const [orgEmployeeId, setOrgEmployeeId] = useState('');
-  const [orgPassword, setOrgPassword] = useState('');
-  const [orgConfirmPassword, setOrgConfirmPassword] = useState('');
-  const [orgAgree, setOrgAgree] = useState(false);
-  const [orgSubmitting, setOrgSubmitting] = useState(false);
-  const [orgMessage, setOrgMessage] = useState<string | null>(null);
-  const [orgSuccess, setOrgSuccess] = useState(false);
+  /* Invite Claim Reviewer State */
+  const [reviewerFirstName, setReviewerFirstName] = useState('');
+  const [reviewerLastName, setReviewerLastName] = useState('');
+  const [reviewerEmail, setReviewerEmail] = useState('');
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
+  const [inviteSuccess, setInviteSuccess] = useState(false);
 
-  const handleOrgRegister = async (e: React.FormEvent<HTMLFormElement>) => {
+  const orgDisplayName =
+    session?.organization ||
+    (orgSlug
+      ? orgSlug
+        .split('-')
+        .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
+        .join(' ')
+      : 'Star Health');
+
+  const handleInviteReviewer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!orgEmail || !orgPassword || !orgConfirmPassword) {
-      setOrgMessage('Please enter work email address and password.');
-      return;
-    }
-    if (orgPassword !== orgConfirmPassword) {
-      setOrgMessage('Password confirmation does not match.');
-      return;
-    }
-    setOrgSubmitting(true);
-    setOrgMessage(null);
-    setOrgSuccess(false);
-
-    try {
-      const passwordHash = await (globalThis as typeof globalThis & { crypto: Crypto }).crypto.subtle.digest(
-        'SHA-256',
-        new TextEncoder().encode(orgPassword),
-      ).then((digest) => Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join(''));
-
-      const payload: Record<string, unknown> = {
-        username: orgEmail,
-        password_hash: `sha256$${passwordHash}`,
-        role: 'tpa',
-        first_name: orgFirstName,
-        last_name: orgLastName,
-        phone: orgMobile || undefined,
-        organization: orgName || orgSlug,
-        employee_id: orgEmployeeId || undefined,
-      };
-
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(typeof (data as any).error === 'string' ? (data as any).error : 'Unable to register organization account.');
-      }
-
-      setOrgSuccess(true);
-      setOrgMessage('Organization admin / staff registered successfully!');
-      setOrgFirstName('');
-      setOrgLastName('');
-      setOrgEmail('');
-      setOrgMobile('');
-      setOrgEmployeeId('');
-      setOrgPassword('');
-      setOrgConfirmPassword('');
-      setOrgAgree(false);
-    } catch (error) {
-      setOrgMessage(error instanceof Error ? error.message : 'Registration failed.');
-    } finally {
-      setOrgSubmitting(false);
-    }
+    // Direct reviewer invitation from frontend is disabled for now.
+    // Reviewers are provisioned directly in Microsoft Entra External ID.
+    setInviteMessage('Direct reviewer invitation is temporarily disabled. Please add reviewers through Microsoft Entra ID.');
+    setInviteSuccess(false);
   };
 
   /* Document & Summary Viewer Modals */
@@ -740,8 +694,6 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
 
   const highRiskCount = claims.filter((c) => getPriorityLevel(c) === 'high').length;
 
-  const orgDisplayName = orgSlug ? orgSlug.toUpperCase() : 'ORGANIZATION';
-
   return (
     <div className="relative min-h-screen overflow-x-hidden bg-slate-100/80 text-foreground font-sans">
       {/* Drawer & User Profile Modals */}
@@ -958,20 +910,20 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
             </div>
           </StaggerItem>
 
-          {/* Embedded Organization Registration Form (from http://localhost:3001/register/organization) */}
+          {/* Invite Claim Reviewer Form */}
           <StaggerItem index={2}>
             <div className="rounded-2xl border border-teal-200 bg-gradient-to-b from-teal-50/40 to-white p-6 shadow-sm space-y-6">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-teal-100 pb-4">
                 <div>
                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-teal-700">
-                    <UserCircle className="h-4 w-4 text-teal-600" />
-                    Organization Registration Form
+                    <UserPlus className="h-4 w-4 text-teal-600" />
+                    Reviewer Team Management
                   </div>
                   <h2 className="font-display text-xl font-bold text-slate-900 mt-1">
-                    Add an Organization / Register Admin
+                    Invite Claim Reviewer
                   </h2>
                   <p className="text-xs text-slate-600">
-                    Register new TPA or insurer organizations and staff directly from this workspace.
+                    Invite a reviewer to assess, verify, and process claims for {orgDisplayName}.
                   </p>
                 </div>
                 <button
@@ -983,166 +935,106 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
                 </button>
               </div>
 
-              <form onSubmit={handleOrgRegister} className="space-y-6">
-                <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                  {/* Contact Section */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-teal-700 block">1. Contact Info</span>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-firstName" className="text-xs">First Name</Label>
-                      <div className="relative">
-                        <User className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                        <Input
-                          id="org-firstName"
-                          value={orgFirstName}
-                          onChange={(e) => setOrgFirstName(e.target.value)}
-                          placeholder="e.g. John"
-                          className="h-9 pl-9 text-xs"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-lastName" className="text-xs">Last Name</Label>
-                      <div className="relative">
-                        <User className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                        <Input
-                          id="org-lastName"
-                          value={orgLastName}
-                          onChange={(e) => setOrgLastName(e.target.value)}
-                          placeholder="e.g. Doe"
-                          className="h-9 pl-9 text-xs"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-email" className="text-xs">Work Email Address</Label>
+              <form onSubmit={handleInviteReviewer} className="space-y-6">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  {/* First Name */}
+                  <div className="space-y-2">
+                    <Label htmlFor="reviewer-firstName" className="text-xs font-medium text-slate-700">
+                      First Name <span className="text-rose-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <User className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                       <Input
-                        id="org-email"
-                        type="email"
-                        value={orgEmail}
-                        onChange={(e) => setOrgEmail(e.target.value)}
-                        placeholder="john@yourcompany.com"
-                        className="h-9 text-xs"
+                        id="reviewer-firstName"
+                        value={reviewerFirstName}
+                        onChange={(e) => setReviewerFirstName(e.target.value)}
+                        placeholder="e.g. Rahul"
+                        className="h-10 pl-9 text-xs"
                         required
                       />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-mobile" className="text-xs">Mobile Number</Label>
+                  </div>
+
+                  {/* Last Name */}
+                  <div className="space-y-2">
+                    <Label htmlFor="reviewer-lastName" className="text-xs font-medium text-slate-700">
+                      Last Name <span className="text-rose-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <User className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                       <Input
-                        id="org-mobile"
-                        type="tel"
-                        value={orgMobile}
-                        onChange={(e) => setOrgMobile(e.target.value)}
-                        placeholder="9876543210"
-                        className="h-9 text-xs"
+                        id="reviewer-lastName"
+                        value={reviewerLastName}
+                        onChange={(e) => setReviewerLastName(e.target.value)}
+                        placeholder="e.g. Sharma"
+                        className="h-10 pl-9 text-xs"
+                        required
                       />
                     </div>
                   </div>
 
-                  {/* Organization Section */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-teal-700 block">2. Organization Details</span>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-name" className="text-xs">Organization (Insurer / TPA)</Label>
-                      <div className="relative">
-                        <Building2 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                        <Input
-                          id="org-name"
-                          value={orgName}
-                          onChange={(e) => setOrgName(e.target.value)}
-                          placeholder="e.g. Medi Assist"
-                          className="h-9 pl-9 text-xs"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-employeeId" className="text-xs">Employee ID</Label>
+                  {/* Work Email */}
+                  <div className="space-y-2">
+                    <Label htmlFor="reviewer-email" className="text-xs font-medium text-slate-700">
+                      Work Mail <span className="text-rose-500">*</span>
+                    </Label>
+                    <div className="relative">
+                      <Mail className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                       <Input
-                        id="org-employeeId"
-                        value={orgEmployeeId}
-                        onChange={(e) => setOrgEmployeeId(e.target.value)}
-                        placeholder="e.g. EMP-12345"
-                        className="h-9 text-xs"
+                        id="reviewer-email"
+                        type="email"
+                        value={reviewerEmail}
+                        onChange={(e) => setReviewerEmail(e.target.value)}
+                        placeholder="reviewer@starhealth.in"
+                        className="h-10 pl-9 text-xs"
+                        required
                       />
                     </div>
                   </div>
 
-                  {/* Security Section */}
-                  <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-xs space-y-3">
-                    <span className="text-xs font-bold uppercase tracking-wider text-teal-700 block">3. Security Credentials</span>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-password" className="text-xs">Password</Label>
-                      <div className="relative">
-                        <Lock className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                        <Input
-                          id="org-password"
-                          type="password"
-                          value={orgPassword}
-                          onChange={(e) => setOrgPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="h-9 pl-9 text-xs"
-                          required
-                        />
-                      </div>
+                  {/* Organization (Non-editable) */}
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="reviewer-org" className="text-xs font-medium text-slate-700">
+                        Organization
+                      </Label>
+                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Fixed</span>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="org-confirmPassword" className="text-xs">Confirm Password</Label>
-                      <div className="relative">
-                        <Lock className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-                        <Input
-                          id="org-confirmPassword"
-                          type="password"
-                          value={orgConfirmPassword}
-                          onChange={(e) => setOrgConfirmPassword(e.target.value)}
-                          placeholder="••••••••"
-                          className="h-9 pl-9 text-xs"
-                          required
-                        />
-                      </div>
+                    <div className="relative">
+                      <Building2 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+                      <Input
+                        id="reviewer-org"
+                        value={orgDisplayName}
+                        disabled
+                        readOnly
+                        className="h-10 pl-9 pr-8 text-xs bg-slate-100/80 text-slate-700 font-medium cursor-not-allowed border-slate-200"
+                      />
+                      <Lock className="pointer-events-none absolute right-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
                     </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between pt-2">
-                  <div className="flex items-start gap-2 max-w-xl">
-                    <Checkbox
-                      id="org-agree"
-                      checked={orgAgree}
-                      onCheckedChange={(v) => setOrgAgree(v === true)}
-                      className="mt-0.5"
-                    />
-                    <Label htmlFor="org-agree" className="text-xs text-slate-600 leading-relaxed">
-                      I agree to the <span className="font-semibold text-teal-700">Terms of Service</span>,{' '}
-                      <span className="font-semibold text-teal-700">Privacy Policy</span>, and{' '}
-                      <span className="font-semibold text-teal-700">data protection</span> compliance terms.
-                    </Label>
-                  </div>
-
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+                  <span className="text-[11px] text-slate-500">
+                    Reviewers are provisioned directly via Microsoft Entra External ID.
+                  </span>
                   <button
                     type="submit"
-                    disabled={orgSubmitting || !orgAgree}
-                    className="inline-flex h-10 items-center justify-center rounded-xl bg-teal-600 px-6 text-xs font-semibold text-white shadow-sm hover:bg-teal-700 disabled:opacity-50 transition-colors"
+                    disabled={true}
+                    title="Direct reviewer invitations are managed directly through Microsoft Entra ID"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-200 px-6 text-xs font-semibold text-slate-500 cursor-not-allowed transition-colors"
                   >
-                    {orgSubmitting ? (
-                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    ) : (
-                      <>
-                        Register Organization
-                        <ArrowRight className="ml-2 h-3.5 w-3.5" />
-                      </>
-                    )}
+                    <Send className="h-3.5 w-3.5" />
+                    Invite Reviewer (Disabled)
                   </button>
                 </div>
 
-                {orgMessage && (
+                {inviteMessage && (
                   <p className={cn(
                     'rounded-lg px-3 py-2 text-xs font-medium border',
-                    orgSuccess ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
+                    inviteSuccess ? 'bg-emerald-50 text-emerald-800 border-emerald-200' : 'bg-rose-50 text-rose-800 border-rose-200'
                   )}>
-                    {orgMessage}
+                    {inviteMessage}
                   </p>
                 )}
               </form>

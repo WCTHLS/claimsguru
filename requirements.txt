@@ -91,3 +91,4 @@ pymssql>=2.3.0
 azure-storage-blob>=12.19.0
 azure-identity>=1.15.0
 azure-servicebus>=7.14.0
+PyJWT[crypto]>=2.8.0

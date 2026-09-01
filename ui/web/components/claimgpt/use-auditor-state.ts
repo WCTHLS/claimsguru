@@ -256,6 +256,7 @@ export function useAuditorState() {
 
   /* On mount: load latest claim data for auditor workspace & recent claims list */
   useEffect(() => {
+    syncUserSession();
     async function loadInitial() {
       try {
         let patientId: string | undefined = undefined;
@@ -274,6 +275,16 @@ export function useAuditorState() {
           setIsUploadOpen(false); // Collapse upload panel when existing claim is loaded
 
           const statusInfo = await fetchClaimProgress(latestId);
+          if (statusInfo?.not_found || statusInfo?.status === "NOT_FOUND") {
+            setClaimId(null);
+            setRealPreview(null);
+            setFiles([]);
+            setProgress(0);
+            setActiveStage('staged');
+            setIsUploadOpen(true);
+            return;
+          }
+
           const isComplete = Boolean(
             statusInfo?.is_complete ||
             (statusInfo?.percentage ?? 0) >= 100 ||
@@ -400,6 +411,15 @@ export function useAuditorState() {
 
     try {
       const statusInfo = await fetchClaimProgress(targetId);
+      if (statusInfo?.not_found || statusInfo?.status === "NOT_FOUND") {
+        setAnalyzing(false);
+        setIsLiveSessionCompleted(false);
+        setClaimId(null);
+        setRealPreview(null);
+        reloadRecentClaims();
+        return;
+      }
+
       const isComplete = Boolean(
         statusInfo?.is_complete ||
         (statusInfo?.percentage ?? 0) >= 100 ||
@@ -602,6 +622,14 @@ export function useAuditorState() {
 
       const statusInfo = await fetchClaimProgress(idToQuery);
       if (statusInfo) {
+        if (statusInfo.not_found || statusInfo.status === "NOT_FOUND") {
+          clearInterval(pollInterval);
+          if (activePollRef.current === pollInterval) activePollRef.current = null;
+          setAnalyzing(false);
+          reloadRecentClaims();
+          return;
+        }
+
         if (statusInfo.is_complete || statusInfo.percentage >= 100 || statusInfo.status === "COMPLETED" || statusInfo.status === "VALIDATED") {
           try {
             const finalData = await fetchClaimPreview(idToQuery);
@@ -692,9 +720,26 @@ export function useAuditorState() {
 
     scrollToPipeline();
 
+    let targetUserName = userName;
+    try {
+      const session = getStoredAuthSession();
+      if (session?.user?.name) {
+        targetUserName = session.user.name;
+      } else {
+        const savedName = localStorage.getItem('claimgpt_user_name');
+        if (savedName) targetUserName = savedName;
+      }
+    } catch {
+      /* ignore */
+    }
+
     let activeClaimId: string | null = null;
     try {
-      const res = await uploadClaimDocument(targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), userName, (appendToActive && claimId) ? claimId : undefined);
+      const res = await uploadClaimDocument(
+        targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)),
+        targetUserName,
+        (appendToActive && claimId) ? claimId : undefined
+      );
       if (res.claim_id) {
         if (res.status === "COMPLETED" || res.task_id === null) {
           setDuplicateClaimId(res.claim_id);

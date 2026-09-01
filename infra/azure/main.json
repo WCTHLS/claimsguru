@@ -1,0 +1,619 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "_generator": {
+      "name": "bicep",
+      "version": "0.46.1.21595",
+      "templateHash": "15573694600334590868"
+    }
+  },
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "[resourceGroup().location]",
+      "metadata": {
+        "description": "Azure Region for ClaimsGuru Deployment"
+      }
+    },
+    "environmentName": {
+      "type": "string",
+      "defaultValue": "prod",
+      "metadata": {
+        "description": "Environment Name suffix (stage, preprod, prod)"
+      }
+    },
+    "appName": {
+      "type": "string",
+      "defaultValue": "claimsguru",
+      "metadata": {
+        "description": "Base Project / App Name"
+      }
+    },
+    "imageTag": {
+      "type": "string",
+      "defaultValue": "latest",
+      "metadata": {
+        "description": "Container Image Tags"
+      }
+    },
+    "acrLoginServer": {
+      "type": "string",
+      "metadata": {
+        "description": "Azure Container Registry Login Server"
+      }
+    },
+    "sqlAdminLogin": {
+      "type": "string",
+      "defaultValue": "claimsguruadmin",
+      "metadata": {
+        "description": "SQL Administrator Login"
+      }
+    },
+    "sqlAdminPassword": {
+      "type": "securestring",
+      "metadata": {
+        "description": "SQL Administrator Password"
+      }
+    }
+  },
+  "variables": {
+    "prefix": "[format('{0}-{1}', parameters('appName'), parameters('environmentName'))]",
+    "uniqueSuffix": "[uniqueString(resourceGroup().id)]",
+    "keyVaultName": "[take(format('{0}-{1}-kv-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix')), 24)]",
+    "storageAccountName": "[take(format('{0}{1}st{2}', replace(parameters('appName'), '-', ''), parameters('environmentName'), variables('uniqueSuffix')), 24)]",
+    "docIntelName": "[format('{0}-docintel-{1}', variables('prefix'), variables('uniqueSuffix'))]",
+    "logAnalyticsName": "[format('{0}-law', variables('prefix'))]",
+    "acaEnvName": "[format('{0}-aca-env', variables('prefix'))]",
+    "redisName": "[format('{0}-{1}-redis-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
+    "serviceBusName": "[format('{0}-{1}-sb-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
+    "sqlServerName": "[format('{0}-{1}-sql-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
+    "sqlDbName": "claimsguru"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "[variables('logAnalyticsName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "PerGB2018"
+        },
+        "retentionInDays": 30
+      }
+    },
+    {
+      "type": "Microsoft.App/managedEnvironments",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('acaEnvName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "appLogsConfiguration": {
+          "destination": "log-analytics",
+          "logAnalyticsConfiguration": {
+            "customerId": "[reference(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName')), '2022-10-01').customerId]",
+            "sharedKey": "[listKeys(resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName')), '2022-10-01').primarySharedKey]"
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.OperationalInsights/workspaces', variables('logAnalyticsName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('storageAccountName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "minimumTlsVersion": "TLS1_2",
+        "allowBlobPublicAccess": false,
+        "supportsHttpsTrafficOnly": true,
+        "accessTier": "Hot"
+      }
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}', variables('storageAccountName'), 'default')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+      "apiVersion": "2023-01-01",
+      "name": "[format('{0}/{1}/{2}', variables('storageAccountName'), 'default', 'claimgpt')]",
+      "properties": {
+        "publicAccess": "None"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts/blobServices', variables('storageAccountName'), 'default')]"
+      ]
+    },
+    {
+      "type": "Microsoft.CognitiveServices/accounts",
+      "apiVersion": "2023-05-01",
+      "name": "[variables('docIntelName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "S0"
+      },
+      "kind": "FormRecognizer",
+      "properties": {
+        "customSubDomainName": "[variables('docIntelName')]",
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[variables('serviceBusName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard",
+        "tier": "Standard"
+      }
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces/queues",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', variables('serviceBusName'), 'default')]",
+      "properties": {
+        "maxDeliveryCount": 10,
+        "deadLetteringOnMessageExpiration": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces/queues",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', variables('serviceBusName'), 'ocr_queue')]",
+      "properties": {
+        "maxDeliveryCount": 10,
+        "deadLetteringOnMessageExpiration": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces/queues",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', variables('serviceBusName'), 'parser_queue')]",
+      "properties": {
+        "maxDeliveryCount": 10,
+        "deadLetteringOnMessageExpiration": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.ServiceBus/namespaces/queues",
+      "apiVersion": "2022-10-01-preview",
+      "name": "[format('{0}/{1}', variables('serviceBusName'), 'dead_letter')]",
+      "properties": {
+        "maxDeliveryCount": 10,
+        "deadLetteringOnMessageExpiration": true
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Cache/redis",
+      "apiVersion": "2023-08-01",
+      "name": "[variables('redisName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "name": "Basic",
+          "family": "C",
+          "capacity": 1
+        },
+        "enableNonSslPort": false,
+        "minimumTlsVersion": "1.2"
+      }
+    },
+    {
+      "type": "Microsoft.Sql/servers",
+      "apiVersion": "2022-05-01-preview",
+      "name": "[variables('sqlServerName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "administratorLogin": "[parameters('sqlAdminLogin')]",
+        "administratorLoginPassword": "[parameters('sqlAdminPassword')]",
+        "version": "12.0",
+        "publicNetworkAccess": "Enabled"
+      }
+    },
+    {
+      "type": "Microsoft.Sql/servers/firewallRules",
+      "apiVersion": "2022-05-01-preview",
+      "name": "[format('{0}/{1}', variables('sqlServerName'), 'AllowAllWindowsAzureIps')]",
+      "properties": {
+        "startIpAddress": "0.0.0.0",
+        "endIpAddress": "0.0.0.0"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Sql/servers/databases",
+      "apiVersion": "2022-05-01-preview",
+      "name": "[format('{0}/{1}', variables('sqlServerName'), variables('sqlDbName'))]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Standard",
+        "tier": "Standard",
+        "capacity": 20
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.KeyVault/vaults",
+      "apiVersion": "2023-07-01",
+      "name": "[variables('keyVaultName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "sku": {
+          "family": "A",
+          "name": "standard"
+        },
+        "tenantId": "[subscription().tenantId]",
+        "enableRbacAuthorization": true
+      }
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-ingress', variables('prefix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 8000,
+            "transport": "auto"
+          }
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "claimsguru-ingress",
+              "image": "[format('{0}/claimsguru-core:{1}', parameters('acrLoginServer'), parameters('imageTag'))]",
+              "env": [
+                {
+                  "name": "APP_ENV",
+                  "value": "production"
+                },
+                {
+                  "name": "APP_NAME",
+                  "value": "ClaimsGuru"
+                },
+                {
+                  "name": "LOG_LEVEL",
+                  "value": "INFO"
+                },
+                {
+                  "name": "DATABASE_URL",
+                  "value": "[format('mssql+pyodbc://{0}:{1}@{2}:1433/{3}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes', parameters('sqlAdminLogin'), parameters('sqlAdminPassword'), reference(resourceId('Microsoft.Sql/servers', variables('sqlServerName')), '2022-05-01-preview').fullyQualifiedDomainName, variables('sqlDbName'))]"
+                },
+                {
+                  "name": "REDIS_URL",
+                  "value": "[format('rediss://:{0}@{1}:{2}/0', listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').sslPort)]"
+                },
+                {
+                  "name": "AZURE_SERVICEBUS_CONNECTION_STRING",
+                  "value": "[listKeys(format('{0}/AuthorizationRules/RootManageSharedAccessKey', resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))), '2022-10-01-preview').primaryConnectionString]"
+                },
+                {
+                  "name": "AZURE_STORAGE_CONNECTION_STRING",
+                  "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-01-01').keys[0].value, environment().suffixes.storage)]"
+                },
+                {
+                  "name": "AZURE_STORAGE_ACCOUNT_URL",
+                  "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-01-01').primaryEndpoints.blob]"
+                },
+                {
+                  "name": "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
+                  "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), '2023-05-01').endpoint]"
+                },
+                {
+                  "name": "AZURE_DOCUMENT_INTELLIGENCE_KEY",
+                  "value": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), '2023-05-01').key1]"
+                },
+                {
+                  "name": "CELERY_BROKER_URL",
+                  "value": "[format('azure-servicebus://RootManageSharedAccessKey:{0}@{1}', listKeys(format('{0}/AuthorizationRules/RootManageSharedAccessKey', resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))), '2022-10-01-preview').primaryKey, variables('serviceBusName'))]"
+                },
+                {
+                  "name": "CELERY_RESULT_BACKEND",
+                  "value": "[format('rediss://:{0}@{1}:{2}/0', listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').sslPort)]"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('1.0')]",
+                "memory": "2.0Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 10
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName'))]",
+        "[resourceId('Microsoft.Cache/redis', variables('redisName'))]",
+        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]",
+        "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-worker-ocr', variables('prefix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "template": {
+          "containers": [
+            {
+              "name": "claimsguru-worker-ocr",
+              "image": "[format('{0}/claimsguru-core:{1}', parameters('acrLoginServer'), parameters('imageTag'))]",
+              "command": [
+                "celery",
+                "-A",
+                "libs.shared.celery_app",
+                "worker",
+                "-l",
+                "info",
+                "-Q",
+                "ocr_queue",
+                "-c",
+                "2"
+              ],
+              "env": [
+                {
+                  "name": "APP_ENV",
+                  "value": "production"
+                },
+                {
+                  "name": "CELERY_WORKER",
+                  "value": "true"
+                },
+                {
+                  "name": "DATABASE_URL",
+                  "value": "[format('mssql+pyodbc://{0}:{1}@{2}:1433/{3}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes', parameters('sqlAdminLogin'), parameters('sqlAdminPassword'), reference(resourceId('Microsoft.Sql/servers', variables('sqlServerName')), '2022-05-01-preview').fullyQualifiedDomainName, variables('sqlDbName'))]"
+                },
+                {
+                  "name": "REDIS_URL",
+                  "value": "[format('rediss://:{0}@{1}:{2}/0', listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').sslPort)]"
+                },
+                {
+                  "name": "AZURE_SERVICEBUS_CONNECTION_STRING",
+                  "value": "[listKeys(format('{0}/AuthorizationRules/RootManageSharedAccessKey', resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))), '2022-10-01-preview').primaryConnectionString]"
+                },
+                {
+                  "name": "AZURE_STORAGE_CONNECTION_STRING",
+                  "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-01-01').keys[0].value, environment().suffixes.storage)]"
+                },
+                {
+                  "name": "AZURE_STORAGE_ACCOUNT_URL",
+                  "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-01-01').primaryEndpoints.blob]"
+                },
+                {
+                  "name": "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
+                  "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), '2023-05-01').endpoint]"
+                },
+                {
+                  "name": "AZURE_DOCUMENT_INTELLIGENCE_KEY",
+                  "value": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), '2023-05-01').key1]"
+                },
+                {
+                  "name": "OCR_USE_AZURE_OCR",
+                  "value": "True"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('2.0')]",
+                "memory": "4.0Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 8
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName'))]",
+        "[resourceId('Microsoft.Cache/redis', variables('redisName'))]",
+        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]",
+        "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-worker-default', variables('prefix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "template": {
+          "containers": [
+            {
+              "name": "claimsguru-worker-default",
+              "image": "[format('{0}/claimsguru-core:{1}', parameters('acrLoginServer'), parameters('imageTag'))]",
+              "command": [
+                "celery",
+                "-A",
+                "libs.shared.celery_app",
+                "worker",
+                "-l",
+                "info",
+                "-Q",
+                "default,parser_queue",
+                "-c",
+                "2"
+              ],
+              "env": [
+                {
+                  "name": "APP_ENV",
+                  "value": "production"
+                },
+                {
+                  "name": "CELERY_WORKER",
+                  "value": "true"
+                },
+                {
+                  "name": "DATABASE_URL",
+                  "value": "[format('mssql+pyodbc://{0}:{1}@{2}:1433/{3}?driver=ODBC+Driver+18+for+SQL+Server&TrustServerCertificate=yes', parameters('sqlAdminLogin'), parameters('sqlAdminPassword'), reference(resourceId('Microsoft.Sql/servers', variables('sqlServerName')), '2022-05-01-preview').fullyQualifiedDomainName, variables('sqlDbName'))]"
+                },
+                {
+                  "name": "REDIS_URL",
+                  "value": "[format('rediss://:{0}@{1}:{2}/0', listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').sslPort)]"
+                },
+                {
+                  "name": "AZURE_SERVICEBUS_CONNECTION_STRING",
+                  "value": "[listKeys(format('{0}/AuthorizationRules/RootManageSharedAccessKey', resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))), '2022-10-01-preview').primaryConnectionString]"
+                },
+                {
+                  "name": "AZURE_STORAGE_CONNECTION_STRING",
+                  "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-01-01').keys[0].value, environment().suffixes.storage)]"
+                },
+                {
+                  "name": "AZURE_STORAGE_ACCOUNT_URL",
+                  "value": "[reference(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-01-01').primaryEndpoints.blob]"
+                },
+                {
+                  "name": "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
+                  "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), '2023-05-01').endpoint]"
+                },
+                {
+                  "name": "AZURE_DOCUMENT_INTELLIGENCE_KEY",
+                  "value": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), '2023-05-01').key1]"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('1.0')]",
+                "memory": "2.0Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 6
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "[resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName'))]",
+        "[resourceId('Microsoft.Cache/redis', variables('redisName'))]",
+        "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]",
+        "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-frontend', variables('prefix'))]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "configuration": {
+          "ingress": {
+            "external": true,
+            "targetPort": 3000,
+            "transport": "auto"
+          }
+        },
+        "template": {
+          "containers": [
+            {
+              "name": "claimsguru-frontend",
+              "image": "[format('{0}/claimsguru-frontend:{1}', parameters('acrLoginServer'), parameters('imageTag'))]",
+              "env": [
+                {
+                  "name": "NODE_ENV",
+                  "value": "production"
+                },
+                {
+                  "name": "NEXT_PUBLIC_APP_NAME",
+                  "value": "ClaimsGuru"
+                },
+                {
+                  "name": "NEXT_PUBLIC_API_BASE",
+                  "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', format('{0}-ingress', variables('prefix'))), '2023-05-01').configuration.ingress.fqdn)]"
+                }
+              ],
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1.0Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 5
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "[resourceId('Microsoft.App/containerApps', format('{0}-ingress', variables('prefix')))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "ingressFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', format('{0}-ingress', variables('prefix'))), '2023-05-01').configuration.ingress.fqdn]"
+    },
+    "frontendFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.App/containerApps', format('{0}-frontend', variables('prefix'))), '2023-05-01').configuration.ingress.fqdn]"
+    },
+    "sqlServerFqdn": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Sql/servers', variables('sqlServerName')), '2022-05-01-preview').fullyQualifiedDomainName]"
+    },
+    "redisHost": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName]"
+    },
+    "serviceBusName": {
+      "type": "string",
+      "value": "[variables('serviceBusName')]"
+    },
+    "storageAccountName": {
+      "type": "string",
+      "value": "[variables('storageAccountName')]"
+    },
+    "docIntelEndpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), '2023-05-01').endpoint]"
+    }
+  }
+}
