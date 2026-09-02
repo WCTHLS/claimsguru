@@ -60,10 +60,12 @@ import { CountUp, SpotlightCard, StaggerContainer, StaggerItem } from '@/compone
 import { formatINR, useAuditorState } from '@/components/claimgpt/use-auditor-state';
 import { cn } from '@/lib/utils';
 
-export const INGRESS_API = process.env.NEXT_PUBLIC_INGRESS_API || 'http://127.0.0.1:8001';
-export const SUBMISSION_API = process.env.NEXT_PUBLIC_SUBMISSION_API || 'http://127.0.0.1:8008';
-export const CHAT_API = process.env.NEXT_PUBLIC_CHAT_API || 'http://127.0.0.1:8009';
-export const SEARCH_API = process.env.NEXT_PUBLIC_SEARCH_API || 'http://127.0.0.1:8000/search';
+import { getIngressApiUrl, getSubmissionApiUrl, getChatApiUrl, getApiBaseUrl } from '@/lib/api-client';
+
+export const INGRESS_API = typeof window !== 'undefined' ? getIngressApiUrl() : 'http://127.0.0.1:8000/ingress';
+export const SUBMISSION_API = typeof window !== 'undefined' ? getSubmissionApiUrl() : 'http://127.0.0.1:8000/submission';
+export const CHAT_API = typeof window !== 'undefined' ? getChatApiUrl() : 'http://127.0.0.1:8000/chat';
+export const SEARCH_API = typeof window !== 'undefined' ? `${getApiBaseUrl()}/search` : 'http://127.0.0.1:8000/search';
 
 export interface Doc {
   id: string;

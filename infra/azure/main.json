@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "15573694600334590868"
+      "templateHash": "1180994514496240922"
     }
   },
   "parameters": {
@@ -65,10 +65,10 @@
     "docIntelName": "[format('{0}-docintel-{1}', variables('prefix'), variables('uniqueSuffix'))]",
     "logAnalyticsName": "[format('{0}-law', variables('prefix'))]",
     "acaEnvName": "[format('{0}-aca-env', variables('prefix'))]",
-    "redisName": "[format('{0}-{1}-redis-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
     "serviceBusName": "[format('{0}-{1}-sb-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
     "sqlServerName": "[format('{0}-{1}-sql-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
-    "sqlDbName": "claimsguru"
+    "sqlDbName": "claimsguru",
+    "redisConnectionString": "[format('redis://{0}-redis:6379/0', variables('prefix'))]"
   },
   "resources": [
     {
@@ -209,19 +209,39 @@
       ]
     },
     {
-      "type": "Microsoft.Cache/redis",
-      "apiVersion": "2023-08-01",
-      "name": "[variables('redisName')]",
+      "type": "Microsoft.App/containerApps",
+      "apiVersion": "2023-05-01",
+      "name": "[format('{0}-redis', variables('prefix'))]",
       "location": "[parameters('location')]",
       "properties": {
-        "sku": {
-          "name": "Basic",
-          "family": "C",
-          "capacity": 1
+        "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "configuration": {
+          "ingress": {
+            "external": false,
+            "targetPort": 6379,
+            "transport": "tcp"
+          }
         },
-        "enableNonSslPort": false,
-        "minimumTlsVersion": "1.2"
-      }
+        "template": {
+          "containers": [
+            {
+              "name": "redis",
+              "image": "redis:7-alpine",
+              "resources": {
+                "cpu": "[json('0.5')]",
+                "memory": "1.0Gi"
+              }
+            }
+          ],
+          "scale": {
+            "minReplicas": 1,
+            "maxReplicas": 1
+          }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]"
+      ]
     },
     {
       "type": "Microsoft.Sql/servers",
@@ -313,7 +333,7 @@
                 },
                 {
                   "name": "REDIS_URL",
-                  "value": "[format('rediss://:{0}@{1}:{2}/0', listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').sslPort)]"
+                  "value": "[variables('redisConnectionString')]"
                 },
                 {
                   "name": "AZURE_SERVICEBUS_CONNECTION_STRING",
@@ -341,7 +361,7 @@
                 },
                 {
                   "name": "CELERY_RESULT_BACKEND",
-                  "value": "[format('rediss://:{0}@{1}:{2}/0', listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').sslPort)]"
+                  "value": "[variables('redisConnectionString')]"
                 }
               ],
               "resources": {
@@ -359,7 +379,6 @@
       "dependsOn": [
         "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName'))]",
-        "[resourceId('Microsoft.Cache/redis', variables('redisName'))]",
         "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]",
         "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
@@ -404,7 +423,7 @@
                 },
                 {
                   "name": "REDIS_URL",
-                  "value": "[format('rediss://:{0}@{1}:{2}/0', listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').sslPort)]"
+                  "value": "[variables('redisConnectionString')]"
                 },
                 {
                   "name": "AZURE_SERVICEBUS_CONNECTION_STRING",
@@ -446,7 +465,6 @@
       "dependsOn": [
         "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName'))]",
-        "[resourceId('Microsoft.Cache/redis', variables('redisName'))]",
         "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]",
         "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
@@ -491,7 +509,7 @@
                 },
                 {
                   "name": "REDIS_URL",
-                  "value": "[format('rediss://:{0}@{1}:{2}/0', listKeys(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').primaryKey, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName, reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').sslPort)]"
+                  "value": "[variables('redisConnectionString')]"
                 },
                 {
                   "name": "AZURE_SERVICEBUS_CONNECTION_STRING",
@@ -529,7 +547,6 @@
       "dependsOn": [
         "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName'))]",
-        "[resourceId('Microsoft.Cache/redis', variables('redisName'))]",
         "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]",
         "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
@@ -601,7 +618,7 @@
     },
     "redisHost": {
       "type": "string",
-      "value": "[reference(resourceId('Microsoft.Cache/redis', variables('redisName')), '2023-08-01').hostName]"
+      "value": "[format('{0}-redis', variables('prefix'))]"
     },
     "serviceBusName": {
       "type": "string",

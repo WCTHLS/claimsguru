@@ -27,7 +27,6 @@ var storageAccountName = take('${replace(appName, '-', '')}${environmentName}st$
 var docIntelName = '${prefix}-docintel-${uniqueSuffix}'
 var logAnalyticsName = '${prefix}-law'
 var acaEnvName = '${prefix}-aca-env'
-var redisName = '${appName}-${environmentName}-redis-${uniqueSuffix}'
 var serviceBusName = '${appName}-${environmentName}-sb-${uniqueSuffix}'
 var sqlServerName = '${appName}-${environmentName}-sql-${uniqueSuffix}'
 var sqlDbName = 'claimsguru'
@@ -152,22 +151,39 @@ resource queueDeadLetter 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-prev
 
 var serviceBusConnectionString = listKeys('${serviceBus.id}/AuthorizationRules/RootManageSharedAccessKey', serviceBus.apiVersion).primaryConnectionString
 
-// 6. Azure Cache for Redis
-resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
-  name: redisName
+// 6. ClaimsGuru Redis Cache (Internal Container App)
+resource redisApp 'Microsoft.App/containerApps@2023-05-01' = {
+  name: '${prefix}-redis'
   location: location
   properties: {
-    sku: {
-      name: 'Basic'
-      family: 'C'
-      capacity: 1
+    managedEnvironmentId: containerAppEnv.id
+    configuration: {
+      ingress: {
+        external: false
+        targetPort: 6379
+        transport: 'tcp'
+      }
     }
-    enableNonSslPort: false
-    minimumTlsVersion: '1.2'
+    template: {
+      containers: [
+        {
+          name: 'redis'
+          image: 'redis:7-alpine'
+          resources: {
+            cpu: json('0.5')
+            memory: '1.0Gi'
+          }
+        }
+      ]
+      scale: {
+        minReplicas: 1
+        maxReplicas: 1
+      }
+    }
   }
 }
 
-var redisConnectionString = 'rediss://:${redisCache.listKeys().primaryKey}@${redisCache.properties.hostName}:${redisCache.properties.sslPort}/0'
+var redisConnectionString = 'redis://${prefix}-redis:6379/0'
 
 // 7. Azure SQL Database Server & Database
 resource sqlServer 'Microsoft.Sql/servers@2022-05-01-preview' = {
@@ -217,6 +233,11 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
+var acrName = split(acrLoginServer, '.')[0]
+resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
+  name: acrName
+}
+
 // 9. ClaimsGuru Ingress API Container App (FastAPI Gateway)
 resource ingressApp 'Microsoft.App/containerApps@2023-05-01' = {
   name: '${prefix}-ingress'
@@ -224,6 +245,19 @@ resource ingressApp 'Microsoft.App/containerApps@2023-05-01' = {
   properties: {
     managedEnvironmentId: containerAppEnv.id
     configuration: {
+      secrets: [
+        {
+          name: 'acr-password'
+          value: acr.listCredentials().passwords[0].value
+        }
+      ]
+      registries: [
+        {
+          server: acrLoginServer
+          username: acr.listCredentials().username
+          passwordSecretRef: 'acr-password'
+        }
+      ]
       ingress: {
         external: true
         targetPort: 8000
@@ -246,7 +280,7 @@ resource ingressApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storageAccount.properties.primaryEndpoints.blob }
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', value: docIntelligence.properties.endpoint }
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_KEY', value: docIntelligence.listKeys().key1 }
-            { name: 'CELERY_BROKER_URL', value: 'azure-servicebus://RootManageSharedAccessKey:${listKeys('${serviceBus.id}/AuthorizationRules/RootManageSharedAccessKey', serviceBus.apiVersion).primaryKey}@${serviceBus.name}' }
+            { name: 'CELERY_BROKER_URL', value: redisConnectionString }
             { name: 'CELERY_RESULT_BACKEND', value: redisConnectionString }
           ]
           resources: {
@@ -269,6 +303,21 @@ resource workerOcrApp 'Microsoft.App/containerApps@2023-05-01' = {
   location: location
   properties: {
     managedEnvironmentId: containerAppEnv.id
+    configuration: {
+      secrets: [
+        {
+          name: 'acr-password'
+          value: acr.listCredentials().passwords[0].value
+        }
+      ]
+      registries: [
+        {
+          server: acrLoginServer
+          username: acr.listCredentials().username
+          passwordSecretRef: 'acr-password'
+        }
+      ]
+    }
     template: {
       containers: [
         {
@@ -296,6 +345,8 @@ resource workerOcrApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storageAccount.properties.primaryEndpoints.blob }
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', value: docIntelligence.properties.endpoint }
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_KEY', value: docIntelligence.listKeys().key1 }
+            { name: 'CELERY_BROKER_URL', value: redisConnectionString }
+            { name: 'CELERY_RESULT_BACKEND', value: redisConnectionString }
             { name: 'OCR_USE_AZURE_OCR', value: 'True' }
           ]
           resources: {
@@ -318,6 +369,21 @@ resource workerDefaultApp 'Microsoft.App/containerApps@2023-05-01' = {
   location: location
   properties: {
     managedEnvironmentId: containerAppEnv.id
+    configuration: {
+      secrets: [
+        {
+          name: 'acr-password'
+          value: acr.listCredentials().passwords[0].value
+        }
+      ]
+      registries: [
+        {
+          server: acrLoginServer
+          username: acr.listCredentials().username
+          passwordSecretRef: 'acr-password'
+        }
+      ]
+    }
     template: {
       containers: [
         {
@@ -345,6 +411,8 @@ resource workerDefaultApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storageAccount.properties.primaryEndpoints.blob }
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', value: docIntelligence.properties.endpoint }
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_KEY', value: docIntelligence.listKeys().key1 }
+            { name: 'CELERY_BROKER_URL', value: redisConnectionString }
+            { name: 'CELERY_RESULT_BACKEND', value: redisConnectionString }
           ]
           resources: {
             cpu: json('1.0')
@@ -367,6 +435,19 @@ resource frontendApp 'Microsoft.App/containerApps@2023-05-01' = {
   properties: {
     managedEnvironmentId: containerAppEnv.id
     configuration: {
+      secrets: [
+        {
+          name: 'acr-password'
+          value: acr.listCredentials().passwords[0].value
+        }
+      ]
+      registries: [
+        {
+          server: acrLoginServer
+          username: acr.listCredentials().username
+          passwordSecretRef: 'acr-password'
+        }
+      ]
       ingress: {
         external: true
         targetPort: 3000
@@ -401,7 +482,7 @@ resource frontendApp 'Microsoft.App/containerApps@2023-05-01' = {
 output ingressFqdn string = ingressApp.properties.configuration.ingress.fqdn
 output frontendFqdn string = frontendApp.properties.configuration.ingress.fqdn
 output sqlServerFqdn string = sqlServer.properties.fullyQualifiedDomainName
-output redisHost string = redisCache.properties.hostName
+output redisHost string = '${prefix}-redis'
 output serviceBusName string = serviceBus.name
 output storageAccountName string = storageAccount.name
 output docIntelEndpoint string = docIntelligence.properties.endpoint

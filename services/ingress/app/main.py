@@ -232,6 +232,26 @@ async def validation_exception_handler(request, exc):
         content={"detail": str(exc)},
     )
 
+@app.on_event("startup")
+async def startup_event():
+    try:
+        from libs.shared.models import Base as SharedBase
+        logger.info("Auto-initializing database tables on startup...")
+        SharedBase.metadata.create_all(bind=engine)
+        try:
+            from services.coding.app.db import Base as CodingBase
+            CodingBase.metadata.create_all(bind=engine)
+        except Exception as ce:
+            logger.warning("CodingBase schema init skipped: %s", ce)
+        try:
+            from services.predictor.app.db import Base as PredictorBase
+            PredictorBase.metadata.create_all(bind=engine)
+        except Exception as pe:
+            logger.warning("PredictorBase schema init skipped: %s", pe)
+        logger.info("Database tables initialized successfully.")
+    except Exception as e:
+        logger.exception("Failed to initialize database tables on startup: %s", e)
+
 @app.on_event("shutdown")
 async def shutdown_event():
     from .rate_limiter import limiter_manager

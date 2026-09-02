@@ -121,7 +121,8 @@ export function getEntraConfig(role?: AuthRole, overrideClientId?: string): Entr
 
   const tenantId = process.env.NEXT_PUBLIC_ENTRA_TENANT_ID || 'common';
   const subdomain = process.env.NEXT_PUBLIC_ENTRA_SUBDOMAIN || '';
-  const redirectUri = process.env.NEXT_PUBLIC_ENTRA_REDIRECT_URI || `${origin}/auth/callback`;
+  const dynamicOrigin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : origin;
+  const redirectUri = dynamicOrigin ? `${dynamicOrigin}/auth/callback` : (process.env.NEXT_PUBLIC_ENTRA_REDIRECT_URI || `${origin}/auth/callback`);
   const scopes = process.env.NEXT_PUBLIC_ENTRA_SCOPES || 'openid profile email offline_access';
 
   let authority = process.env.NEXT_PUBLIC_ENTRA_AUTHORITY || '';

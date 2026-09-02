@@ -6,9 +6,42 @@
 
 import { getStoredAuthSession } from '@/lib/auth';
 
-export const INGRESS_API = process.env.NEXT_PUBLIC_INGRESS_API || "http://127.0.0.1:8000/ingress";
-export const SUBMISSION_API = process.env.NEXT_PUBLIC_SUBMISSION_API || "http://127.0.0.1:8000/submission";
-export const CHAT_API = process.env.NEXT_PUBLIC_CHAT_API || "http://127.0.0.1:8000/chat";
+export function getApiBaseUrl(): string {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host.includes('azurecontainerapps.io')) {
+      const ingressHost = host.replace(/frontend/i, 'ingress');
+      return `https://${ingressHost}`;
+    }
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return 'http://127.0.0.1:8000';
+    }
+  }
+  const raw = process.env.NEXT_PUBLIC_API_BASE || '';
+  if (raw && !raw.includes('127.0.0.1') && !raw.includes('localhost')) {
+    return raw;
+  }
+  return 'http://127.0.0.1:8000';
+}
+
+export function getIngressApiUrl(): string {
+  const base = getApiBaseUrl();
+  return `${base}/ingress`;
+}
+
+export function getSubmissionApiUrl(): string {
+  const base = getApiBaseUrl();
+  return `${base}/submission`;
+}
+
+export function getChatApiUrl(): string {
+  const base = getApiBaseUrl();
+  return `${base}/chat`;
+}
+
+export const INGRESS_API = typeof window !== 'undefined' ? getIngressApiUrl() : 'http://127.0.0.1:8000/ingress';
+export const SUBMISSION_API = typeof window !== 'undefined' ? getSubmissionApiUrl() : 'http://127.0.0.1:8000/submission';
+export const CHAT_API = typeof window !== 'undefined' ? getChatApiUrl() : 'http://127.0.0.1:8000/chat';
 
 export interface ClaimDocumentPreview {
   document_id?: string;

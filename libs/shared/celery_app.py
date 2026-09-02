@@ -41,10 +41,17 @@ import logging
 
 logger = logging.getLogger("celery")
 
-broker_url = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
-backend_url = os.getenv("CELERY_RESULT_BACKEND", "redis://localhost:6379/0")
+broker_url = os.getenv("CELERY_BROKER_URL", "")
+backend_url = os.getenv("CELERY_RESULT_BACKEND", "")
+redis_env_url = os.getenv("REDIS_URL")
 
-# 1. Parse Azure Service Bus connection string if explicitly enabled
+if not broker_url or "azure-servicebus" in broker_url or ("localhost" in broker_url and redis_env_url):
+    broker_url = redis_env_url or "redis://localhost:6379/0"
+
+if not backend_url or ("localhost" in backend_url and redis_env_url) or backend_url == "db":
+    backend_url = redis_env_url or "redis://localhost:6379/0"
+
+# 1. Parse Azure Service Bus connection string only if explicitly enabled
 servicebus_conn = os.getenv("AZURE_SERVICEBUS_CONNECTION_STRING")
 use_servicebus = os.getenv("CELERY_USE_AZURE_SERVICEBUS", "0").lower() in ("1", "true", "yes")
 
@@ -73,12 +80,7 @@ if servicebus_conn and use_servicebus:
     except Exception as e:
         logger.exception(f"Failed to parse AZURE_SERVICEBUS_CONNECTION_STRING: {e}")
 
-redis_env_url = os.getenv("REDIS_URL")
-if redis_env_url and ("localhost" in backend_url or "127.0.0.1" in backend_url or backend_url == "db"):
-    backend_url = redis_env_url
-    logger.info(f"[CELERY APP] Using Redis result backend: {backend_url}")
-
-# Override os.environ to prevent Celery from defaulting back to Redis env variables
+# Override os.environ to ensure Celery uses the resolved URLs
 os.environ["CELERY_BROKER_URL"] = broker_url
 os.environ["CELERY_RESULT_BACKEND"] = backend_url
 
