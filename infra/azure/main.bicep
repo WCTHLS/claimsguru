@@ -20,13 +20,13 @@ param sqlAdminLogin string = 'claimsguruadmin'
 @description('SQL Administrator Password')
 param sqlAdminPassword string
 
-var prefix = '${appName}-${environmentName}'
+var prefix = '${appName}-${environmentName}-${location}'
 var uniqueSuffix = uniqueString(resourceGroup().id, location)
 var keyVaultName = take('${appName}-${environmentName}-kv-${uniqueSuffix}', 24)
 var storageAccountName = take('${replace(appName, '-', '')}${environmentName}st${uniqueSuffix}', 24)
 var docIntelName = '${prefix}-docintel-${uniqueSuffix}'
-var logAnalyticsName = '${prefix}-law-${location}'
-var acaEnvName = '${prefix}-aca-env-${location}'
+var logAnalyticsName = '${prefix}-law'
+var acaEnvName = '${prefix}-aca-env'
 var serviceBusName = '${appName}-${environmentName}-sb-${uniqueSuffix}'
 var sqlServerName = '${appName}-${environmentName}-sql-${uniqueSuffix}'
 var sqlDbName = 'claimsguru'
