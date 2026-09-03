@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "996149860275474985"
+      "templateHash": "3207952447315271333"
     }
   },
   "parameters": {
@@ -58,15 +58,16 @@
     }
   },
   "variables": {
-    "prefix": "[format('{0}-{1}-{2}', parameters('appName'), parameters('environmentName'), parameters('location'))]",
+    "locCode": "[if(equals(parameters('location'), 'centralindia'), 'cin', if(equals(parameters('location'), 'eastus'), 'eus', take(parameters('location'), 4)))]",
+    "prefix": "[format('cg-{0}-{1}', parameters('environmentName'), variables('locCode'))]",
     "uniqueSuffix": "[uniqueString(resourceGroup().id, parameters('location'))]",
-    "keyVaultName": "[take(format('{0}-{1}-kv-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix')), 24)]",
-    "storageAccountName": "[take(format('{0}{1}st{2}', replace(parameters('appName'), '-', ''), parameters('environmentName'), variables('uniqueSuffix')), 24)]",
-    "docIntelName": "[format('{0}-docintel-{1}', variables('prefix'), variables('uniqueSuffix'))]",
+    "keyVaultName": "[take(format('cg-{0}-kv-{1}', parameters('environmentName'), variables('uniqueSuffix')), 24)]",
+    "storageAccountName": "[take(format('cg{0}st{1}', parameters('environmentName'), variables('uniqueSuffix')), 24)]",
+    "docIntelName": "[format('cg-{0}-docintel-{1}', parameters('environmentName'), variables('uniqueSuffix'))]",
     "logAnalyticsName": "[format('{0}-law', variables('prefix'))]",
     "acaEnvName": "[format('{0}-aca-env', variables('prefix'))]",
-    "serviceBusName": "[format('{0}-{1}-sb-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
-    "sqlServerName": "[format('{0}-{1}-sql-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
+    "serviceBusName": "[format('cg-{0}-sb-{1}', parameters('environmentName'), variables('uniqueSuffix'))]",
+    "sqlServerName": "[format('cg-{0}-sql-{1}', parameters('environmentName'), variables('uniqueSuffix'))]",
     "sqlDbName": "claimsguru",
     "redisConnectionString": "[format('redis://{0}-redis:6379/0', variables('prefix'))]",
     "acrName": "[split(parameters('acrLoginServer'), '.')[0]]"
