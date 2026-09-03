@@ -46,17 +46,22 @@ echo -e "\n[Step 3/7] Ensuring Resource Group ($RESOURCE_GROUP) exists in $LOCAT
 az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
 echo " [OK] Resource Group ready: $RESOURCE_GROUP"
 
-# 4. Create or Locate Azure Container Registry
-echo -e "\n[Step 4/7] Ensuring Azure Container Registry ($ACR_NAME) is Ready..."
-ACR_CHECK=$(az acr check-name --name "$ACR_NAME" --output json 2>/dev/null || true)
-if echo "$ACR_CHECK" | grep -q '"nameAvailable": *true'; then
+# 4. Create or Locate Dedicated Azure Container Registry in this Resource Group
+CLEAN_RG=$(echo "$RESOURCE_GROUP" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]' | cut -c1-12)
+DEFAULT_ACR_NAME="acr${CLEAN_RG}${ENVIRONMENT}"
+ACR_NAME="${4:-$DEFAULT_ACR_NAME}"
+echo -e "\n[Step 4/7] Ensuring Dedicated Azure Container Registry ($ACR_NAME) in $RESOURCE_GROUP..."
+
+ACR_EXISTS=$(az acr show --resource-group "$RESOURCE_GROUP" --name "$ACR_NAME" --query "name" -o tsv 2>/dev/null || true)
+if [ -z "$ACR_EXISTS" ]; then
+    echo " [*] Creating new Container Registry '$ACR_NAME' in $RESOURCE_GROUP..."
     az acr create --resource-group "$RESOURCE_GROUP" --name "$ACR_NAME" --sku Standard --admin-enabled true --location "$LOCATION" --output none
     echo " [OK] ACR Created: $ACR_NAME"
 else
     echo " [*] Using existing ACR: $ACR_NAME"
 fi
 
-ACR_LOGIN_SERVER=$(az acr show --name "$ACR_NAME" --query "loginServer" -o tsv 2>/dev/null || true)
+ACR_LOGIN_SERVER=$(az acr show --resource-group "$RESOURCE_GROUP" --name "$ACR_NAME" --query "loginServer" -o tsv 2>/dev/null || true)
 if [ -z "$ACR_LOGIN_SERVER" ]; then
     ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
 fi
@@ -68,12 +73,12 @@ CORE_IMAGE="$ACR_LOGIN_SERVER/claimsguru-core:$IMAGE_TAG"
 FRONTEND_IMAGE="$ACR_LOGIN_SERVER/claimsguru-frontend:$IMAGE_TAG"
 
 echo " [*] Authenticating Docker with ACR ($ACR_NAME)..."
-TOKEN=$(az acr login --name "$ACR_NAME" --expose-token --output json 2>/dev/null | grep -o '"accessToken": *"[^"]*"' | head -1 | cut -d'"' -f4 || true)
-if [ -n "$TOKEN" ]; then
-    echo "$TOKEN" | docker login "$ACR_LOGIN_SERVER" -u 00000000-0000-0000-0000-000000000000 --password-stdin 2>/dev/null || true
+ACR_PASS=$(az acr credential show --resource-group "$RESOURCE_GROUP" --name "$ACR_NAME" --query "passwords[0].value" -o tsv 2>/dev/null || true)
+if [ -n "$ACR_PASS" ]; then
+    echo "$ACR_PASS" | docker login "$ACR_LOGIN_SERVER" -u "$ACR_NAME" --password-stdin 2>/dev/null
     echo " [OK] Docker authenticated with ACR."
 else
-    az acr login --name "$ACR_NAME" || true
+    az acr login --name "$ACR_NAME"
 fi
 
 echo " [*] Building ClaimsGuru Core API & Workers Image: $CORE_IMAGE"
