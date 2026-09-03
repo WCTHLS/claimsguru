@@ -42,9 +42,16 @@ done
 echo " [OK] Resource providers registered."
 
 # 3. Create or Verify Resource Group
-echo -e "\n[Step 3/7] Ensuring Resource Group ($RESOURCE_GROUP) exists in $LOCATION..."
-az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
-echo " [OK] Resource Group ready: $RESOURCE_GROUP"
+echo -e "\n[Step 3/7] Checking Resource Group ($RESOURCE_GROUP)..."
+RG_EXISTS=$(az group exists --name "$RESOURCE_GROUP" 2>/dev/null || true)
+if [ "$RG_EXISTS" = "true" ]; then
+    RG_LOC=$(az group show --name "$RESOURCE_GROUP" --query "location" -o tsv 2>/dev/null || true)
+    echo " [OK] Using existing Resource Group '$RESOURCE_GROUP' (Metadata location: $RG_LOC, Deploying services to: $LOCATION)"
+else
+    echo " [*] Creating new Resource Group '$RESOURCE_GROUP' in $LOCATION..."
+    az group create --name "$RESOURCE_GROUP" --location "$LOCATION" --output none
+    echo " [OK] Resource Group ready: $RESOURCE_GROUP"
+fi
 
 # 4. Create or Locate Dedicated Azure Container Registry in this Resource Group
 CLEAN_RG=$(echo "$RESOURCE_GROUP" | tr '[:upper:]' '[:lower:]' | tr -cd '[:alnum:]' | cut -c1-12)
