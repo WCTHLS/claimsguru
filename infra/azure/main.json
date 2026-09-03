@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "5772554348471756449"
+      "templateHash": "14976393610530751156"
     }
   },
   "parameters": {
@@ -59,12 +59,12 @@
   },
   "variables": {
     "prefix": "[format('{0}-{1}', parameters('appName'), parameters('environmentName'))]",
-    "uniqueSuffix": "[uniqueString(resourceGroup().id)]",
+    "uniqueSuffix": "[uniqueString(resourceGroup().id, parameters('location'))]",
     "keyVaultName": "[take(format('{0}-{1}-kv-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix')), 24)]",
     "storageAccountName": "[take(format('{0}{1}st{2}', replace(parameters('appName'), '-', ''), parameters('environmentName'), variables('uniqueSuffix')), 24)]",
     "docIntelName": "[format('{0}-docintel-{1}', variables('prefix'), variables('uniqueSuffix'))]",
-    "logAnalyticsName": "[format('{0}-law', variables('prefix'))]",
-    "acaEnvName": "[format('{0}-aca-env', variables('prefix'))]",
+    "logAnalyticsName": "[format('{0}-law-{1}', variables('prefix'), parameters('location'))]",
+    "acaEnvName": "[format('{0}-aca-env-{1}', variables('prefix'), parameters('location'))]",
     "serviceBusName": "[format('{0}-{1}-sb-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
     "sqlServerName": "[format('{0}-{1}-sql-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
     "sqlDbName": "claimsguru",
