@@ -3,7 +3,7 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "location": {
-      "value": "eastus"
+      "value": "centralindia"
     },
     "environmentName": {
       "value": "preprod"
@@ -21,12 +21,7 @@
       "value": "claimsgurupreprodadmin"
     },
     "sqlAdminPassword": {
-      "reference": {
-        "keyVault": {
-          "id": "/subscriptions/<SUBSCRIPTION_ID>/resourceGroups/claimsguru-preprod-rg/providers/Microsoft.KeyVault/vaults/claimsguru-preprod-kv"
-        },
-        "secretName": "sql-admin-password"
-      }
+      "value": "ClaimsGuruPreProdPass!2026"
     }
   }
 }

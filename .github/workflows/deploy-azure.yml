@@ -1,0 +1,65 @@
+name: ClaimsGuru Azure Cloud Deployment
+
+on:
+  push:
+    branches:
+      - main
+      - release/azure-staging-deployment
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Target Environment'
+        required: true
+        default: 'preprod'
+        type: choice
+        options:
+          - stage
+          - preprod
+          - prod
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Log in to Azure
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Resolve Environment & ACR
+        id: env-setup
+        run: |
+          ENV_NAME="${{ github.event.inputs.environment || 'preprod' }}"
+          echo "ENV_NAME=$ENV_NAME" >> $GITHUB_OUTPUT
+          ACR_NAME="${{ secrets.ACR_NAME || 'claimsgurucr' }}"
+          echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
+          ACR_SERVER="$ACR_NAME.azurecr.io"
+          echo "ACR_SERVER=$ACR_SERVER" >> $GITHUB_OUTPUT
+          RG_NAME="claimsguru-$ENV_NAME-centralindia-rg"
+          echo "RG_NAME=$RG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Log in to Azure Container Registry
+        run: |
+          az acr login --name ${{ steps.env-setup.outputs.ACR_NAME }}
+
+      - name: Build & Push Backend Core Image
+        run: |
+          IMAGE_TAG="${{ steps.env-setup.outputs.ENV_NAME }}-latest"
+          docker build -t ${{ steps.env-setup.outputs.ACR_SERVER }}/claimsguru-core:$IMAGE_TAG -f infra/docker/Dockerfile.core .
+          docker push ${{ steps.env-setup.outputs.ACR_SERVER }}/claimsguru-core:$IMAGE_TAG
+
+      - name: Build & Push Frontend Image
+        run: |
+          IMAGE_TAG="${{ steps.env-setup.outputs.ENV_NAME }}-latest"
+          docker build -t ${{ steps.env-setup.outputs.ACR_SERVER }}/claimsguru-frontend:$IMAGE_TAG -f infra/docker/Dockerfile.web .
+          docker push ${{ steps.env-setup.outputs.ACR_SERVER }}/claimsguru-frontend:$IMAGE_TAG
+
+      - name: Deploy Azure Infrastructure via Bicep
+        uses: azure/arm-deploy@v2
+        with:
+          resourceGroupName: ${{ steps.env-setup.outputs.RG_NAME }}
+          template: ./infra/azure/main.bicep
+          parameters: ./infra/azure/parameters.${{ steps.env-setup.outputs.ENV_NAME }}.json location=centralindia acrLoginServer=${{ steps.env-setup.outputs.ACR_SERVER }} imageTag=${{ steps.env-setup.outputs.ENV_NAME }}-latest

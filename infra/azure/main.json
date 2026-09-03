@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "1180994514496240922"
+      "templateHash": "5772554348471756449"
     }
   },
   "parameters": {
@@ -68,7 +68,8 @@
     "serviceBusName": "[format('{0}-{1}-sb-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
     "sqlServerName": "[format('{0}-{1}-sql-{2}', parameters('appName'), parameters('environmentName'), variables('uniqueSuffix'))]",
     "sqlDbName": "claimsguru",
-    "redisConnectionString": "[format('redis://{0}-redis:6379/0', variables('prefix'))]"
+    "redisConnectionString": "[format('redis://{0}-redis:6379/0', variables('prefix'))]",
+    "acrName": "[split(parameters('acrLoginServer'), '.')[0]]"
   },
   "resources": [
     {
@@ -303,6 +304,19 @@
       "properties": {
         "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
         "configuration": {
+          "secrets": [
+            {
+              "name": "acr-password",
+              "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').passwords[0].value]"
+            }
+          ],
+          "registries": [
+            {
+              "server": "[parameters('acrLoginServer')]",
+              "username": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').username]",
+              "passwordSecretRef": "acr-password"
+            }
+          ],
           "ingress": {
             "external": true,
             "targetPort": 8000,
@@ -357,7 +371,7 @@
                 },
                 {
                   "name": "CELERY_BROKER_URL",
-                  "value": "[format('azure-servicebus://RootManageSharedAccessKey:{0}@{1}', listKeys(format('{0}/AuthorizationRules/RootManageSharedAccessKey', resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))), '2022-10-01-preview').primaryKey, variables('serviceBusName'))]"
+                  "value": "[variables('redisConnectionString')]"
                 },
                 {
                   "name": "CELERY_RESULT_BACKEND",
@@ -391,6 +405,21 @@
       "location": "[parameters('location')]",
       "properties": {
         "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "configuration": {
+          "secrets": [
+            {
+              "name": "acr-password",
+              "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').passwords[0].value]"
+            }
+          ],
+          "registries": [
+            {
+              "server": "[parameters('acrLoginServer')]",
+              "username": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').username]",
+              "passwordSecretRef": "acr-password"
+            }
+          ]
+        },
         "template": {
           "containers": [
             {
@@ -446,6 +475,14 @@
                   "value": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), '2023-05-01').key1]"
                 },
                 {
+                  "name": "CELERY_BROKER_URL",
+                  "value": "[variables('redisConnectionString')]"
+                },
+                {
+                  "name": "CELERY_RESULT_BACKEND",
+                  "value": "[variables('redisConnectionString')]"
+                },
+                {
                   "name": "OCR_USE_AZURE_OCR",
                   "value": "True"
                 }
@@ -477,6 +514,21 @@
       "location": "[parameters('location')]",
       "properties": {
         "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
+        "configuration": {
+          "secrets": [
+            {
+              "name": "acr-password",
+              "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').passwords[0].value]"
+            }
+          ],
+          "registries": [
+            {
+              "server": "[parameters('acrLoginServer')]",
+              "username": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').username]",
+              "passwordSecretRef": "acr-password"
+            }
+          ]
+        },
         "template": {
           "containers": [
             {
@@ -530,6 +582,14 @@
                 {
                   "name": "AZURE_DOCUMENT_INTELLIGENCE_KEY",
                   "value": "[listKeys(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), '2023-05-01').key1]"
+                },
+                {
+                  "name": "CELERY_BROKER_URL",
+                  "value": "[variables('redisConnectionString')]"
+                },
+                {
+                  "name": "CELERY_RESULT_BACKEND",
+                  "value": "[variables('redisConnectionString')]"
                 }
               ],
               "resources": {
@@ -560,6 +620,19 @@
       "properties": {
         "managedEnvironmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
         "configuration": {
+          "secrets": [
+            {
+              "name": "acr-password",
+              "value": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').passwords[0].value]"
+            }
+          ],
+          "registries": [
+            {
+              "server": "[parameters('acrLoginServer')]",
+              "username": "[listCredentials(resourceId('Microsoft.ContainerRegistry/registries', variables('acrName')), '2023-07-01').username]",
+              "passwordSecretRef": "acr-password"
+            }
+          ],
           "ingress": {
             "external": true,
             "targetPort": 3000,
