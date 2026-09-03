@@ -67,30 +67,14 @@ if [ -z "$ACR_LOGIN_SERVER" ]; then
 fi
 echo " [OK] ACR Login Server: $ACR_LOGIN_SERVER"
 
-# 5. Build & Push Container Images
-echo -e "\n[Step 5/7] Building & Pushing Multi-Stage Images for [$ENVIRONMENT]..."
-CORE_IMAGE="$ACR_LOGIN_SERVER/claimsguru-core:$IMAGE_TAG"
-FRONTEND_IMAGE="$ACR_LOGIN_SERVER/claimsguru-frontend:$IMAGE_TAG"
+# 5. Build & Push Container Images (Built directly in Azure Cloud via ACR Build)
+echo -e "\n[Step 5/7] Building Images directly in Azure Cloud (ACR Cloud Build)..."
+echo " [*] Building ClaimsGuru Core API & Workers Image in Azure..."
+az acr build --resource-group "$RESOURCE_GROUP" --registry "$ACR_NAME" --image "claimsguru-core:$IMAGE_TAG" --file infra/docker/Dockerfile.core .
 
-echo " [*] Authenticating Docker with ACR ($ACR_NAME)..."
-ACR_PASS=$(az acr credential show --resource-group "$RESOURCE_GROUP" --name "$ACR_NAME" --query "passwords[0].value" -o tsv 2>/dev/null || true)
-if [ -n "$ACR_PASS" ]; then
-    echo "$ACR_PASS" | docker login "$ACR_LOGIN_SERVER" -u "$ACR_NAME" --password-stdin 2>/dev/null
-    echo " [OK] Docker authenticated with ACR."
-else
-    az acr login --name "$ACR_NAME"
-fi
-
-echo " [*] Building ClaimsGuru Core API & Workers Image: $CORE_IMAGE"
-docker build -t "$CORE_IMAGE" -f infra/docker/Dockerfile.core .
-
-echo " [*] Building ClaimsGuru Frontend UI Image: $FRONTEND_IMAGE"
-docker build -t "$FRONTEND_IMAGE" -f infra/docker/Dockerfile.web .
-
-echo " [*] Pushing images to ACR..."
-docker push "$CORE_IMAGE"
-docker push "$FRONTEND_IMAGE"
-echo " [OK] Container images pushed successfully."
+echo " [*] Building ClaimsGuru Frontend UI Image in Azure..."
+az acr build --resource-group "$RESOURCE_GROUP" --registry "$ACR_NAME" --image "claimsguru-frontend:$IMAGE_TAG" --file infra/docker/Dockerfile.web .
+echo " [OK] Container images built and pushed directly in Azure Cloud!"
 
 # 6. Deploy Infrastructure via Bicep
 echo -e "\n[Step 6/7] Provisioning [$ENVIRONMENT] Infrastructure via Bicep..."
