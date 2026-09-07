@@ -473,37 +473,46 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
     codes = db.query(MedicalCode).filter(MedicalCode.claim_id == claim.id).all()
     docs = db.query(Document).filter(Document.claim_id == claim.id).all()
 
-    identity_rows = db.query(DocValidation).filter(
-        DocValidation.claim_id == claim.id,
-        DocValidation.doc_type == "IDENTITY_GATE",
-    ).all()
-    identity_excluded_doc_ids = {
-        r.document_id
-        for r in identity_rows
-        if (r.validation_metadata or {}).get("excluded_from_pipeline")
-    }
-    identity_warnings = [
-        {
-            "document_id": str(r.document_id),
-            "file_name": (r.validation_metadata or {}).get("file_name", ""),
-            "reason": (r.validation_metadata or {}).get("reason", "Manual review required"),
+    identity_rows = []
+    identity_excluded_doc_ids = set()
+    identity_warnings = []
+    try:
+        identity_rows = db.query(DocValidation).filter(
+            DocValidation.claim_id == claim.id,
+            DocValidation.doc_type == "IDENTITY_GATE",
+        ).all()
+        identity_excluded_doc_ids = {
+            r.document_id
+            for r in identity_rows
+            if (r.validation_metadata or {}).get("excluded_from_pipeline")
         }
-        for r in identity_rows
-        if (r.validation_metadata or {}).get("needs_manual_review")
-    ]
+        identity_warnings = [
+            {
+                "document_id": str(r.document_id),
+                "file_name": (r.validation_metadata or {}).get("file_name", ""),
+                "reason": (r.validation_metadata or {}).get("reason", "Manual review required"),
+            }
+            for r in identity_rows
+            if (r.validation_metadata or {}).get("needs_manual_review")
+        ]
+    except Exception as exc:
+        logger.warning(f"Could not load DocValidation for claim {claim.id}: {exc}")
 
     # OCR text
     doc_ids = [d.id for d in docs]
     ocr_text = ""
     doc_ocr_map: dict[str, str] = {}  # doc_id -> full OCR text
     if doc_ids:
-        rows = db.query(OcrResult).filter(OcrResult.document_id.in_(doc_ids)).order_by(OcrResult.page_number).all()
-        # Build per-document OCR text
-        for r in rows:
-            if r.text:
-                did = str(r.document_id)
-                doc_ocr_map[did] = (doc_ocr_map.get(did, "") + " " + r.text).strip()
-        ocr_text = " ".join(r.text for r in rows if r.text)[:2000]
+        try:
+            rows = db.query(OcrResult).filter(OcrResult.document_id.in_(doc_ids)).order_by(OcrResult.page_number).all()
+            # Build per-document OCR text
+            for r in rows:
+                if r.text:
+                    did = str(r.document_id)
+                    doc_ocr_map[did] = (doc_ocr_map.get(did, "") + " " + r.text).strip()
+            ocr_text = " ".join(r.text for r in rows if r.text)[:2000]
+        except Exception as exc:
+            logger.warning(f"Could not load OcrResult for claim {claim.id}: {exc}")
     # Fallback: read PDF directly
     if not ocr_text and docs:
         for doc in docs:
@@ -1127,21 +1136,25 @@ def preview_claim_data(claim_id: str, db: Session = Depends(get_db)):
 
     # Attach feedback map: { field_name: { original, corrected, updated_at } }
     # so the UI can highlight user-edited fields and offer a one-click revert.
-    fb_rows = (
-        db.query(ClaimFieldFeedback)
-        .filter(ClaimFieldFeedback.claim_id == cid)
-        .all()
-    )
-    data["field_feedback"] = {
-        row.field_name: {
-            "original": row.original_value,
-            "corrected": row.corrected_value,
-            "updated_at": row.updated_at.isoformat() if row.updated_at else None,
-            "user_email": row.user_email,
-            "document_id": str(row.document_id) if row.document_id else None,
+    try:
+        fb_rows = (
+            db.query(ClaimFieldFeedback)
+            .filter(ClaimFieldFeedback.claim_id == cid)
+            .all()
+        )
+        data["field_feedback"] = {
+            row.field_name: {
+                "original": row.original_value,
+                "corrected": row.corrected_value,
+                "updated_at": row.updated_at.isoformat() if row.updated_at else None,
+                "user_email": row.user_email,
+                "document_id": str(row.document_id) if row.document_id else None,
+            }
+            for row in fb_rows
         }
-        for row in fb_rows
-    }
+    except Exception as exc:
+        logger.warning(f"Could not load field_feedback for claim {cid}: {exc}")
+        data["field_feedback"] = {}
 
     # Enrich with formatted summary for UI display
     fields = data.get("parsed_fields", {})
@@ -1180,10 +1193,18 @@ def preview_claim_data(claim_id: str, db: Session = Depends(get_db)):
     }
 
     # AI Brain insights — synthesized intelligence from all documents
-    data["brain_insights"] = _generate_brain_insights(data)
+    try:
+        data["brain_insights"] = _generate_brain_insights(data)
+    except Exception as exc:
+        logger.warning(f"Failed to generate brain insights for claim {cid}: {exc}")
+        data["brain_insights"] = []
 
     # Cross-document reimbursement intelligence
-    data["reimbursement_brain"] = _generate_reimbursement_brain(data)
+    try:
+        data["reimbursement_brain"] = _generate_reimbursement_brain(data)
+    except Exception as exc:
+        logger.warning(f"Failed to generate reimbursement brain for claim {cid}: {exc}")
+        data["reimbursement_brain"] = []
 
     # Attach structured document list for multi-doc carousel & page image previews
     try:

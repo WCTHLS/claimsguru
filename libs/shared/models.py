@@ -108,14 +108,15 @@ class Document(Base):
 
     claim = relationship("Claim", back_populates="documents")
     ocr_results = relationship("OcrResult", back_populates="document", cascade="all, delete-orphan", passive_deletes=True)
-    scan_analyses = relationship("ScanAnalysis", back_populates="document")
+    scan_analyses = relationship("ScanAnalysis", back_populates="document", cascade="all, delete-orphan", passive_deletes=True)
+    doc_validations = relationship("DocValidation", back_populates="document", cascade="all, delete-orphan", passive_deletes=True)
 
 
 class DocValidation(Base):
     __tablename__ = "document_validations"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id"), nullable=False)
+    document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
     claim_id = Column(UUID(as_uuid=True), ForeignKey("claims.id", ondelete="CASCADE"), nullable=False)
     status = Column(Text, nullable=False)
     doc_type = Column(Text, nullable=True)
@@ -130,6 +131,7 @@ class DocValidation(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     claim = relationship("Claim", back_populates="doc_validations")
+    document = relationship("Document", back_populates="doc_validations")
 
 
 class OcrResult(Base):

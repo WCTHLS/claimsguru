@@ -196,8 +196,12 @@ def _generate_brain_insights(claim_data: dict[str, Any]) -> list[str]:
     # Risk intelligence
     if preds:
         p = preds[0]
-        score = p.get("rejection_score", 0)
-        reasons = p.get("top_reasons", [])
+        raw_score = p.get("rejection_score")
+        try:
+            score = float(raw_score) if raw_score is not None else 0.0
+        except (ValueError, TypeError):
+            score = 0.0
+        reasons = p.get("top_reasons", []) or []
         model = p.get("model_name", "ensemble")
         risk = "HIGH" if score > 0.6 else "LOW" if score <= 0.3 else "MODERATE"
         insights.append(

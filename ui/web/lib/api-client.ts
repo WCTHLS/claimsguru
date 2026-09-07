@@ -156,7 +156,12 @@ async function safeFetch(url: string, options?: RequestInit, timeoutMs = 8000): 
 /**
  * Upload a document with offline fallback support
  */
-export async function uploadClaimDocument(files: File | File[], userName?: string, claimId?: string): Promise<{ claim_id: string; document_id: string; status?: string; task_id?: string | null }> {
+export async function uploadClaimDocument(
+  files: File | File[], 
+  userName?: string, 
+  claimId?: string,
+  force: boolean = false
+): Promise<{ claim_id: string; document_id: string; status?: string; task_id?: string | null; is_duplicate?: boolean }> {
   const fileArray = Array.isArray(files) ? files : [files];
   const fileNames = fileArray.map(f => f.name.toLowerCase());
   const fallbackClaimId = `CLM-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -170,6 +175,20 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
       formData.append("policy_id", userName);
       formData.append("patient_id", userName);
     }
+    if (force) {
+      formData.append("force", "true");
+    }
+    try {
+      if (typeof window !== "undefined") {
+        const rawUser = localStorage.getItem("claimsguru_user") || localStorage.getItem("user");
+        if (rawUser) {
+          const parsedUser = JSON.parse(rawUser);
+          if (parsedUser?.email) {
+            formData.append("email", parsedUser.email);
+          }
+        }
+      }
+    } catch (_) {}
 
     const url = claimId 
       ? `${INGRESS_API}/claims/${claimId}/documents` 
@@ -233,7 +252,8 @@ export async function uploadClaimDocument(files: File | File[], userName?: strin
         claim_id: finalClaimId || fallbackClaimId, 
         document_id: finalDocId,
         status: data.status,
-        task_id: data.task_id
+        task_id: data.task_id,
+        is_duplicate: Boolean(data.is_duplicate || (data.status === "COMPLETED" && data.task_id === null))
       };
     }
   } catch (err) {

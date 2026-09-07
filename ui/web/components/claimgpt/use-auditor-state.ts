@@ -69,6 +69,8 @@ export function useAuditorState() {
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState<boolean>(false);
   const [duplicateClaimId, setDuplicateClaimId] = useState<string | null>(null);
+  const [duplicateFiles, setDuplicateFiles] = useState<File[]>([]);
+  const [isReprocessing, setIsReprocessing] = useState<boolean>(false);
 
   const syncUserSession = () => {
     try {
@@ -284,7 +286,15 @@ export function useAuditorState() {
         }
         const claims = await fetchRecentClaims(patientId);
         setRecentClaims(claims);
-        const latestId = claims.length > 0 ? claims[0].id : null;
+
+        // Check if a specific claim was requested via URL query string
+        let targetId: string | null = null;
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          targetId = params.get('claim_id') || params.get('claimId') || params.get('id');
+        }
+
+        const latestId = targetId || (claims.length > 0 ? claims[0].id : null);
         if (latestId) {
           activeClaimIdRef.current = latestId;
           setClaimId(latestId);
@@ -751,8 +761,9 @@ export function useAuditorState() {
     try {
       const res = await uploadClaimDocument(targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), userName, (appendToActive && claimId) ? claimId : undefined);
       if (res.claim_id) {
-        if (res.status === "COMPLETED" || res.task_id === null) {
+        if (res.is_duplicate || res.status === "COMPLETED" || res.task_id === null) {
           setDuplicateClaimId(res.claim_id);
+          setDuplicateFiles(targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile).filter(Boolean));
           setAnalyzing(false);
           setUploading(false);
           setProgress(0);
@@ -800,6 +811,79 @@ export function useAuditorState() {
       console.warn("Backend API upload error:", err);
     } finally {
       setUploading(false);
+    }
+
+    runProgressSequence(activeClaimId);
+  };
+
+  /* Force re-upload and re-process duplicate document, replacing the old record */
+  const handleReprocessAnyway = async () => {
+    const filesToUpload = duplicateFiles.length > 0 
+      ? duplicateFiles 
+      : (pendingFiles.length > 0 ? pendingFiles : files.map((f: any) => f.rawFile).filter(Boolean));
+      
+    if (filesToUpload.length === 0) return;
+
+    const oldDupId = duplicateClaimId;
+    setIsReprocessing(true);
+    setDuplicateClaimId(null);
+    setDuplicateFiles([]);
+    setRealPreview(null);
+    setClaimId(null);
+    setIsDocumentsRequested(false);
+    setMissingGroups([]);
+
+    setAnalyzing(true);
+    setUploading(true);
+    setShowReportModal(false);
+    setIsLiveSessionCompleted(false);
+    setIsUploadOpen(true);
+    setActiveStage('ocr');
+    setProgress(20);
+    setStepDescription("OCR (extracting text) · 20%");
+
+    scrollToPipeline();
+
+    let activeClaimId: string | null = null;
+    try {
+      const res = await uploadClaimDocument(filesToUpload, userName, undefined, true);
+      if (res.claim_id) {
+        activeClaimId = res.claim_id;
+        activeClaimIdRef.current = res.claim_id;
+        setClaimId(res.claim_id);
+
+        // Optimistically remove old duplicate claim from list & prepend new claim
+        setRecentClaims((prev) => {
+          const filtered = prev.filter((c) => c.id !== oldDupId && c.id !== res.claim_id);
+          return [
+            {
+              id: res.claim_id,
+              patient_name: "Processing...",
+              status: "UPLOADED",
+              created_at: new Date().toISOString(),
+              total_amount: "",
+              documents: filesToUpload.map((f, i) => ({ id: `doc-${i}`, file_name: f.name })),
+              progress: {
+                percentage: 20,
+                step: "OCR (extracting text) - 20%",
+                is_complete: false,
+              },
+            } as any,
+            ...filtered,
+          ];
+        });
+
+        const initialPreview = await fetchClaimPreview(res.claim_id);
+        if (initialPreview) {
+          setRealPreview(initialPreview);
+          setPreviewVersion((v) => v + 1);
+        }
+      }
+    } catch (err) {
+      console.warn("Backend API forced reprocess error:", err);
+    } finally {
+      setUploading(false);
+      setIsReprocessing(false);
     }
 
     runProgressSequence(activeClaimId);
@@ -1014,6 +1098,8 @@ export function useAuditorState() {
     closeMenuDrawer: () => setShowMenuDrawer(false),
     duplicateClaimId,
     setDuplicateClaimId,
+    handleReprocessAnyway,
+    isReprocessing,
     saveExpenses,
     saveDetails,
   };

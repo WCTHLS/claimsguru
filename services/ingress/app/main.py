@@ -1272,6 +1272,21 @@ def register_local_user(payload: RegisterUserIn):
                     )
 
             db.commit()
+
+            # Trigger asynchronous welcome notification via Azure Communication Services
+            try:
+                from services.shared_tasks import dispatch_notification_async
+                dispatch_notification_async(
+                    "USER_WELCOME",
+                    {
+                        "email": email,
+                        "name": f"{first_name} {last_name}".strip(),
+                        "phone": payload.phone,
+                    },
+                )
+            except Exception as notify_err:
+                logger.warning(f"Failed to dispatch welcome notification: {notify_err}")
+
             return {
                 "success": True,
                 "user_id": str(user_id),
@@ -1745,6 +1760,20 @@ def sync_entra_user(payload: SyncEntraUserIn):
                     )
                     db.commit()
 
+                    # Trigger asynchronous welcome notification
+                    try:
+                        from services.shared_tasks import dispatch_notification_async
+                        dispatch_notification_async(
+                            "USER_WELCOME",
+                            {
+                                "email": email,
+                                "name": f"{first_name} {last_name}".strip(),
+                                "phone": payload.phone,
+                            },
+                        )
+                    except Exception as notify_err:
+                        logger.warning(f"Failed to dispatch welcome notification: {notify_err}")
+
                     return {
                         "success": True,
                         "user_id": str(user_id),
@@ -1924,6 +1953,20 @@ def sync_entra_user(payload: SyncEntraUserIn):
 
                     db.commit()
 
+                    # Trigger asynchronous welcome notification
+                    try:
+                        from services.shared_tasks import dispatch_notification_async
+                        dispatch_notification_async(
+                            "USER_WELCOME",
+                            {
+                                "email": email,
+                                "name": f"{first_name} {last_name}".strip(),
+                                "phone": payload.phone,
+                            },
+                        )
+                    except Exception as notify_err:
+                        logger.warning(f"Failed to dispatch welcome notification: {notify_err}")
+
                     return {
                         "success": True,
                         "user_id": str(new_user_id),
@@ -2061,6 +2104,20 @@ def register_user_profile(payload: RegisterUserIn):
                 )
 
             db.commit()
+
+            # Trigger asynchronous welcome notification
+            try:
+                from services.shared_tasks import dispatch_notification_async
+                dispatch_notification_async(
+                    "USER_WELCOME",
+                    {
+                        "email": email,
+                        "name": f"{payload.first_name or 'Patient'} {payload.last_name or ''}".strip(),
+                        "phone": payload.phone,
+                    },
+                )
+            except Exception as notify_err:
+                logger.warning(f"Failed to dispatch welcome notification: {notify_err}")
 
             return {
                 "success": True,
@@ -2289,22 +2346,93 @@ def get_upload_token(filename: str = Query(...)):
         raise HTTPException(status_code=500, detail=f"Failed to generate secure upload token: {e}")
 
 
+def _delete_claim_internal(db: Session, cid: uuid.UUID) -> bool:
+    """Internal helper to fully delete a claim, its storage files (MinIO/disk), and database records."""
+    claim = db.query(Claim).filter(Claim.id == cid).first()
+    if not claim:
+        return False
+
+    # 1. Clean up documents from MinIO / disk storage
+    from libs.shared.storage import MinioStorage
+    docs = db.query(Document).filter(Document.claim_id == cid).all()
+    for doc in docs:
+        if doc.minio_path:
+            if doc.minio_path.startswith("s3://"):
+                try:
+                    MinioStorage.delete_file(doc.minio_path)
+                except Exception as e:
+                    logger.warning(f"Failed to delete S3 file {doc.minio_path}: {e}")
+            else:
+                try:
+                    p = Path(doc.minio_path).resolve()
+                    if str(p).startswith(str(RAW_STORAGE)):
+                        p.unlink(missing_ok=True)
+                except OSError:
+                    logger.warning("Failed to delete file %s", doc.minio_path)
+
+    # 2. Explicitly remove all child table records across all models to prevent FK violations
+    try:
+        from libs.shared.models import (
+            ParsedField, ParseJob, Feature, Prediction, Validation, FraudAssessment,
+            WorkflowState, WorkflowJob, Submission, ChatMessage, AuditLog,
+            OcrResult, DocValidation, ScanAnalysis, MedicalCode, OcrJob, ClaimFieldFeedback, MedicalEntity
+        )
+        doc_ids = [d.id for d in docs]
+        if doc_ids:
+            db.query(OcrResult).filter(OcrResult.document_id.in_(doc_ids)).delete(synchronize_session=False)
+            db.query(DocValidation).filter(DocValidation.document_id.in_(doc_ids)).delete(synchronize_session=False)
+            db.query(ScanAnalysis).filter(ScanAnalysis.document_id.in_(doc_ids)).delete(synchronize_session=False)
+
+        db.query(DocValidation).filter(DocValidation.claim_id == cid).delete(synchronize_session=False)
+        db.query(ScanAnalysis).filter(ScanAnalysis.claim_id == cid).delete(synchronize_session=False)
+        db.query(ParsedField).filter(ParsedField.claim_id == cid).delete(synchronize_session=False)
+        db.query(ClaimFieldFeedback).filter(ClaimFieldFeedback.claim_id == cid).delete(synchronize_session=False)
+        db.query(MedicalEntity).filter(MedicalEntity.claim_id == cid).delete(synchronize_session=False)
+        db.query(MedicalCode).filter(MedicalCode.claim_id == cid).delete(synchronize_session=False)
+        db.query(Feature).filter(Feature.claim_id == cid).delete(synchronize_session=False)
+        db.query(Prediction).filter(Prediction.claim_id == cid).delete(synchronize_session=False)
+        db.query(Validation).filter(Validation.claim_id == cid).delete(synchronize_session=False)
+        db.query(FraudAssessment).filter(FraudAssessment.claim_id == cid).delete(synchronize_session=False)
+        db.query(ParseJob).filter(ParseJob.claim_id == cid).delete(synchronize_session=False)
+        db.query(OcrJob).filter(OcrJob.claim_id == cid).delete(synchronize_session=False)
+        db.query(WorkflowState).filter(WorkflowState.claim_id == cid).delete(synchronize_session=False)
+        db.query(WorkflowJob).filter(WorkflowJob.claim_id == cid).delete(synchronize_session=False)
+        db.query(Submission).filter(Submission.claim_id == cid).delete(synchronize_session=False)
+        db.query(ChatMessage).filter(ChatMessage.claim_id == cid).delete(synchronize_session=False)
+        db.query(AuditLog).filter(AuditLog.claim_id == cid).delete(synchronize_session=False)
+        db.query(Document).filter(Document.claim_id == cid).delete(synchronize_session=False)
+    except Exception as e:
+        logger.warning("Child table cleanup encountered: %s", e)
+
+    # 3. Explicitly delete loaded objects from session and commit
+    for doc in docs:
+        try:
+            db.delete(doc)
+        except Exception:
+            pass
+    db.delete(claim)
+    db.commit()
+    logger.info("Successfully deleted claim %s", cid)
+    return True
+
+
 @router.post("/claims", status_code=202)
 @router.post("/claims/", status_code=202)
 async def create_claim(
     files: list[UploadFile] = File(default=[]),
     policy_id: str = Form(None),
     patient_id: str = Form(None),
+    email: str = Form(None),
     storage_paths: list[str] = Form(None),
+    force: bool = Form(False),
     db: Session = Depends(get_db),
 ):
     """Create a new claim by uploading files or passing pre-uploaded storage paths.
     
-    This endpoint accepts files or direct storage paths, and enqueues the pipeline.
-    All database operations (idempotency, deduplication) are handled by the 
-    intake_task in the Celery worker.
+    This endpoint accepts files or direct storage paths, creates the Claim and Document records
+    synchronously, triggers the notification, and enqueues the processing pipeline.
+    If force=True, any previous duplicate completed claim with matching set_hash will be replaced.
     """
-    # Ensure either files or storage_paths are provided
     storage_paths_list = []
     if storage_paths:
         if len(storage_paths) == 1 and (storage_paths[0].startswith("[") or "," in storage_paths[0]):
@@ -2321,22 +2449,23 @@ async def create_claim(
     files_count = len(files) if files else 0
     paths_count = len(storage_paths_list)
     
-    logger.info(f"[create_claim] Starting with {files_count} files and {paths_count} storage paths")
+    logger.info(f"[create_claim] Starting with {files_count} files, {paths_count} storage paths, force={force}")
     upload_log.info(
-        "UPLOAD_START | endpoint=create_claim files=%d paths=%d policy_id=%s patient_id=%s",
+        "UPLOAD_START | endpoint=create_claim files=%d paths=%d policy_id=%s patient_id=%s email=%s force=%s",
         files_count,
         paths_count,
         policy_id,
         patient_id,
+        email,
+        force,
     )
     
     if not files and not storage_paths_list:
         upload_log.warning("UPLOAD_REJECTED | endpoint=create_claim reason=no_files_or_paths")
         raise HTTPException(status_code=400, detail="At least one file or storage_path is required")
 
-    # --- Validate all files and read content ---
-    file_metadata_list: list[dict[str, str]] = []  # Will hold metadata for intake_task
-    saved_paths: list[Any] = []
+    file_metadata_list: list[dict[str, Any]] = []
+    saved_paths: list[str] = []
     
     try:
         if storage_paths_list:
@@ -2361,19 +2490,13 @@ async def create_claim(
                 
                 file_metadata_list.append({
                     "path": sp,
+                    "file_bytes": None,
                     "safe_name": safe_name,
                     "content_hash": content_hash,
                     "effective_ct": effective_ct,
                 })
-                saved_paths.append(sp)
-                
-                upload_log.info(
-                    "DIRECT_FILE_RECEIVED | endpoint=create_claim file=%s path=%s type=%s",
-                    safe_name, sp, effective_ct
-                )
         else:
             for idx, file in enumerate(files):
-                # Validate content type
                 effective_ct, ok = _resolve_content_type(file)
                 if not ok:
                     upload_log.warning(
@@ -2386,7 +2509,6 @@ async def create_claim(
                         f"Allowed: {', '.join(sorted(settings.allowed_content_types))}",
                     )
                 
-                # Read and validate file size
                 file_bytes = await file.read()
                 if len(file_bytes) > settings.max_upload_bytes:
                     upload_log.warning(
@@ -2398,25 +2520,13 @@ async def create_claim(
                         detail=f"File '{file.filename}' too large ({len(file_bytes)} bytes). Max: {settings.max_upload_bytes} bytes",
                     )
                 
-                # Calculate content hash and safe filename
                 safe_name = _safe_filename(file.filename)
                 content_hash = hashlib.sha256(file_bytes).hexdigest()
                 logger.info(f"[create_claim] File validated: {safe_name}, hash={content_hash}")
                 
-                # Upload file directly to MinIO under a temporary key
-                from libs.shared.storage import MinioStorage
-                temp_key = f"pending/{uuid.uuid4().hex}_{safe_name}"
-                try:
-                    minio_uri = MinioStorage.upload_file(temp_key, file_bytes)
-                    saved_paths.append(minio_uri)
-                    logger.info(f"[create_claim] File uploaded directly to MinIO: {minio_uri}")
-                except Exception as e:
-                    logger.exception(f"[create_claim] Failed to upload file to MinIO: {temp_key}")
-                    raise HTTPException(status_code=500, detail="Failed to store uploaded file in object storage")
-                
-                # Store metadata for intake_task
                 file_metadata_list.append({
-                    "path": minio_uri,
+                    "path": None,
+                    "file_bytes": file_bytes,
                     "safe_name": safe_name,
                     "content_hash": content_hash,
                     "effective_ct": effective_ct,
@@ -2427,90 +2537,145 @@ async def create_claim(
                     safe_name, len(file_bytes), effective_ct, content_hash,
                 )
 
-        # Synchronous duplicate check using sorted set_hash (works for both single & multi-file uploads)
-        if file_metadata_list:
-            hashes = [metadata["content_hash"] for metadata in file_metadata_list if metadata["content_hash"]]
-            hashes.sort()
-            set_hash = hashlib.sha256(",".join(hashes).encode("utf-8")).hexdigest()
+        # Synchronous duplicate check using sorted set_hash
+        hashes = [metadata["content_hash"] for metadata in file_metadata_list if metadata["content_hash"]]
+        hashes.sort()
+        set_hash = hashlib.sha256(",".join(hashes).encode("utf-8")).hexdigest()
 
-            target_user = patient_id or policy_id
-            existing_job = None
+        target_user = patient_id or policy_id
+        from sqlalchemy import func
+        from libs.shared.models import ParseJob
+        
+        dup_query = (
+            db.query(ParseJob)
+            .join(Claim, ParseJob.claim_id == Claim.id)
+            .filter(
+                ParseJob.set_hash == set_hash,
+                Claim.status == "COMPLETED"
+            )
+        )
+        if target_user:
+            dup_query = dup_query.filter(func.lower(Claim.patient_id) == func.lower(target_user))
+            
+        existing_jobs = dup_query.all()
 
-            if target_user:
-                from sqlalchemy import func
-                from libs.shared.models import ParseJob
-                existing_job = (
-                    db.query(ParseJob)
-                    .join(Claim, ParseJob.claim_id == Claim.id)
-                    .filter(
-                        ParseJob.set_hash == set_hash, 
-                        Claim.status == "COMPLETED",
-                        func.lower(Claim.patient_id) == func.lower(target_user)
-                    )
-                    .first()
-                )
-
-            if existing_job:
+        if existing_jobs:
+            if not force:
+                existing_job = existing_jobs[0]
                 upload_log.info(
-                    "UPLOAD_DUPLICATE | Found completed claim %s matching set_hash for user %s, returning immediately",
+                    "UPLOAD_DUPLICATE | Found completed claim %s matching set_hash for user %s, returning duplicate status",
                     existing_job.claim_id, target_user
                 )
-                # Clean up the temporarily uploaded MinIO files
-                from libs.shared.storage import MinioStorage
-                for uri in saved_paths:
-                    try:
-                        MinioStorage.delete_file(uri)
-                    except Exception:
-                        pass
-
                 return {
                     "claim_id": str(existing_job.claim_id),
+                    "id": str(existing_job.claim_id),
                     "task_id": None,
                     "status": "COMPLETED",
+                    "is_duplicate": True,
                     "message": "Claim already processed.",
                 }
-        
-        # --- Enqueue pipeline with file metadata ---
-        # The intake_task will:
-        # 1. Create the claim in the database
-        # 2. Create document rows
-        # 3. Check for idempotency/deduplication
-        # 4. Move files to permanent location with claim_id
-        task_id = _enqueue_pipeline(file_metadata_list, policy_id, patient_id)
+            else:
+                upload_log.info(
+                    "UPLOAD_FORCE_REPROCESS | Force reprocess requested for duplicate claim matching set_hash for user %s. Deleting %d old claim(s).",
+                    target_user, len(existing_jobs)
+                )
+                for ej in existing_jobs:
+                    _delete_claim_internal(db, ej.claim_id)
+
+        # 1. Create Claim in Database
+        claim_id = uuid.uuid4()
+        claim = Claim(
+            id=claim_id,
+            policy_id=policy_id,
+            patient_id=patient_id,
+            status="UPLOADED",
+            source="PATIENT",
+        )
+        db.add(claim)
+        db.flush()
+
+        # 2. Upload files to permanent location and create Document records
+        from libs.shared.storage import MinioStorage
+        created_docs: list[Document] = []
+        for idx, metadata in enumerate(file_metadata_list):
+            safe_name = metadata["safe_name"]
+            effective_ct = metadata["effective_ct"]
+            content_hash = metadata["content_hash"]
+            file_bytes = metadata.get("file_bytes")
+            raw_path = metadata.get("path")
+            
+            ext = Path(safe_name).suffix or ".bin"
+            stored_name = f"{claim_id}_{idx}{ext}" if len(file_metadata_list) > 1 else f"{claim_id}{ext}"
+            s3_key = f"claims/{claim_id}/{stored_name}"
+
+            if file_bytes is not None:
+                minio_uri = MinioStorage.upload_file(s3_key, file_bytes)
+            elif raw_path and raw_path.startswith("s3://"):
+                minio_uri = MinioStorage.copy_file(raw_path, s3_key)
+                MinioStorage.delete_file(raw_path)
+            else:
+                minio_uri = MinioStorage.upload_file(s3_key, raw_path)
+
+            saved_paths.append(minio_uri)
+            
+            doc = Document(
+                claim_id=claim_id,
+                file_name=safe_name,
+                file_type=effective_ct,
+                minio_path=minio_uri,
+                content_hash=content_hash,
+            )
+            db.add(doc)
+            created_docs.append(doc)
+
+        # 3. Create ParseJob
+        from libs.shared.models import ParseJob
+        parse_job = ParseJob(claim_id=claim_id, status="PENDING", set_hash=set_hash)
+        db.add(parse_job)
+
+        # 4. Upsert initial workflow state
+        upsert_workflow_state(db, claim_id, "STARTING", status="RUNNING")
+        db.commit()
+
+        # 5. Enqueue processing pipeline starting from OCR (Adjudication notification with attachments is sent upon completion)
+        task_id = _enqueue_pipeline(str(claim_id))
         
         upload_log.info(
-            "UPLOAD_SUCCESS | endpoint=create_claim files=%d task_id=%s",
-            len(file_metadata_list), task_id,
+            "UPLOAD_SUCCESS | endpoint=create_claim claim_id=%s files=%d task_id=%s",
+            str(claim_id), len(created_docs), task_id,
         )
         
         return {
+            "claim_id": str(claim_id),
+            "id": str(claim_id),
+            "document_id": str(created_docs[0].id) if created_docs else None,
             "task_id": task_id,
-            "status": "QUEUED",
-            "message": "Claim upload queued. Check status via /claims/{claim_id}/progress endpoint.",
+            "status": "UPLOADED",
+            "message": "Claim upload successful. Processing started.",
+            "documents": [{"id": str(d.id), "file_name": d.file_name} for d in created_docs],
         }
     
     except HTTPException:
-        # Clean up already uploaded MinIO files on validation error
         from libs.shared.storage import MinioStorage
         for uri in saved_paths:
             try:
                 MinioStorage.delete_file(uri)
             except Exception:
-                logger.warning(f"Failed to clean up pending MinIO file: {uri}")
+                pass
         raise
     except Exception as exc:
+        db.rollback()
         logger.exception("Error during file upload processing")
         upload_log.exception(
             "UPLOAD_FAILURE | endpoint=create_claim files=%d error=%s",
             len(files), exc,
         )
-        # Clean up already uploaded MinIO files
         from libs.shared.storage import MinioStorage
         for uri in saved_paths:
             try:
                 MinioStorage.delete_file(uri)
             except Exception:
-                logger.warning(f"Failed to clean up pending MinIO file: {uri}")
+                pass
         raise HTTPException(status_code=500, detail="Failed to process file upload")
 
 
@@ -2527,7 +2692,40 @@ def list_claims(
         query = db.query(Claim)
         effective_patient = (patient_id or auth_user.patient_id or "").strip() or None
         if effective_patient:
-            query = query.filter(Claim.patient_id == effective_patient)
+            matched_ids = {effective_patient}
+            try:
+                # 1. Resolve by User account (email or subject ID)
+                u_row = db.query(User).filter(
+                    (User.email.ilike(effective_patient)) |
+                    (User.external_subject_id == effective_patient)
+                ).first()
+                if u_row:
+                    if u_row.email:
+                        matched_ids.add(u_row.email)
+                    prof = db.query(PatientProfile).filter(PatientProfile.user_id == u_row.id).first()
+                    if prof:
+                        if prof.first_name:
+                            matched_ids.add(prof.first_name)
+                            matched_ids.add(f"{prof.first_name} {prof.last_name or ''}".strip())
+
+                # 2. Resolve by PatientProfile (full name, first name, policy number)
+                prof_row = db.query(PatientProfile).filter(
+                    ((PatientProfile.first_name + " " + PatientProfile.last_name).ilike(effective_patient)) |
+                    (PatientProfile.first_name.ilike(effective_patient)) |
+                    (PatientProfile.policy_number.ilike(effective_patient))
+                ).first()
+                if prof_row:
+                    if prof_row.first_name:
+                        matched_ids.add(prof_row.first_name)
+                        matched_ids.add(f"{prof_row.first_name} {prof_row.last_name or ''}".strip())
+                    if prof_row.user_id:
+                        p_user = db.query(User).filter(User.id == prof_row.user_id).first()
+                        if p_user and p_user.email:
+                            matched_ids.add(p_user.email)
+            except Exception as e:
+                logger.debug(f"[list_claims] Error expanding matched_ids: {e}")
+
+            query = query.filter(Claim.patient_id.in_(list(matched_ids)))
         if policy_id:
             query = query.filter(Claim.policy_id == policy_id)
 
@@ -2607,10 +2805,39 @@ def get_claim(
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
 
-    # Enforce Row-Level Security: if caller is a patient identity, verify ownership
-    caller_patient = auth_user.patient_id or patient_id
-    if caller_patient and claim.patient_id:
-        if caller_patient.strip().lower() != claim.patient_id.strip().lower() and auth_user.role not in ("admin", "reviewer", "auditor"):
+    # Enforce Row-Level Security: if caller is a patient identity, verify ownership in production
+    is_production = os.getenv("APP_ENV", "development").strip().lower() in ("production", "prod")
+    caller_patient = (patient_id or auth_user.patient_id or "").strip()
+    if is_production and caller_patient and claim.patient_id and auth_user.role not in ("admin", "reviewer", "auditor"):
+        matched_ids = {caller_patient.lower()}
+        try:
+            u_row = db.query(User).filter(
+                (User.email.ilike(caller_patient)) |
+                (User.external_subject_id == caller_patient)
+            ).first()
+            if u_row:
+                if u_row.email:
+                    matched_ids.add(u_row.email.lower())
+                prof = db.query(PatientProfile).filter(PatientProfile.user_id == u_row.id).first()
+                if prof and prof.first_name:
+                    matched_ids.add(prof.first_name.lower())
+                    matched_ids.add(f"{prof.first_name} {prof.last_name or ''}".strip().lower())
+            
+            prof_row = db.query(PatientProfile).filter(
+                ((PatientProfile.first_name + " " + PatientProfile.last_name).ilike(caller_patient)) |
+                (PatientProfile.first_name.ilike(caller_patient))
+            ).first()
+            if prof_row:
+                if prof_row.first_name:
+                    matched_ids.add(prof_row.first_name.lower())
+                    matched_ids.add(f"{prof_row.first_name} {prof_row.last_name or ''}".strip().lower())
+                if prof_row.user_id:
+                    p_user = db.query(User).filter(User.id == prof_row.user_id).first()
+                    if p_user and p_user.email:
+                        matched_ids.add(p_user.email.lower())
+        except Exception:
+            pass
+        if claim.patient_id.lower() not in matched_ids:
             raise HTTPException(status_code=404, detail="Claim not found")
         
     # Fetch relevant parsed fields for this claim
@@ -3164,12 +3391,21 @@ def delete_document(
 ):
     """Delete a single document from a claim."""
     cid = _parse_uuid(claim_id)
-    did = _parse_uuid(doc_id)
+    did = None
+    try:
+        did = _parse_uuid(doc_id)
+    except Exception:
+        pass
+
     claim = db.query(Claim).filter(Claim.id == cid).first()
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
 
-    doc = db.query(Document).filter(Document.id == did, Document.claim_id == cid).first()
+    if did:
+        doc = db.query(Document).filter(Document.id == did, Document.claim_id == cid).first()
+    else:
+        doc = db.query(Document).filter(Document.file_name == doc_id, Document.claim_id == cid).first()
+        
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
@@ -3178,35 +3414,63 @@ def delete_document(
     if doc_count <= 1:
         raise HTTPException(status_code=400, detail="Cannot delete the only document. Delete the claim instead.")
 
-    # Remove file from disk
-    try:
-        p = Path(doc.minio_path).resolve()
-        if str(p).startswith(str(RAW_STORAGE)):
-            p.unlink(missing_ok=True)
-    except OSError:
-        logger.warning("Failed to delete file %s", doc.minio_path)
+    # Remove file from storage
+    if doc.minio_path:
+        if doc.minio_path.startswith("s3://"):
+            try:
+                from libs.shared.storage import MinioStorage
+                MinioStorage.delete_file(doc.minio_path)
+            except Exception:
+                pass
+        else:
+            try:
+                p = Path(doc.minio_path).resolve()
+                if str(p).startswith(str(RAW_STORAGE)):
+                    p.unlink(missing_ok=True)
+            except OSError:
+                logger.warning("Failed to delete file %s", doc.minio_path)
 
+    try:
+        from libs.shared.models import OcrResult, DocValidation, ScanAnalysis
+        db.query(OcrResult).filter(OcrResult.document_id == doc.id).delete(synchronize_session=False)
+        db.query(DocValidation).filter(DocValidation.document_id == doc.id).delete(synchronize_session=False)
+        db.query(ScanAnalysis).filter(ScanAnalysis.document_id == doc.id).delete(synchronize_session=False)
+    except Exception:
+        pass
+
+    actual_did = doc.id
+    actual_fname = doc.file_name
     db.delete(doc)
     db.commit()
     db.refresh(claim)
-    _audit(db, "DOCUMENT_DELETED", claim_id=cid, metadata={"document_id": str(did), "file_name": doc.file_name})
+    _audit(db, "DOCUMENT_DELETED", claim_id=cid, metadata={"document_id": str(actual_did), "file_name": actual_fname})
     logger.info("Deleted doc %s from claim %s", doc_id, claim_id)
     return _build_claim_response(db, cid)
 
 
 @router.delete("/claims", status_code=204)
 def delete_all_claims(db: Session = Depends(get_db)):
-    # Delete all raw files from disk
+    # Delete all raw files from disk / MinIO
+    from libs.shared.storage import MinioStorage
     docs = db.query(Document).all()
     for doc in docs:
-        try:
-            p = Path(doc.minio_path).resolve()
-            if str(p).startswith(str(RAW_STORAGE)):
-                p.unlink(missing_ok=True)
-        except OSError:
-            logger.warning("Failed to delete file %s", doc.minio_path)
+        if doc.minio_path:
+            if doc.minio_path.startswith("s3://"):
+                try:
+                    MinioStorage.delete_file(doc.minio_path)
+                except Exception:
+                    pass
+            else:
+                try:
+                    p = Path(doc.minio_path).resolve()
+                    if str(p).startswith(str(RAW_STORAGE)):
+                        p.unlink(missing_ok=True)
+                except OSError:
+                    pass
 
-    db.query(Claim).delete()
+    claims = db.query(Claim).all()
+    for c in claims:
+        _delete_claim_internal(db, c.id)
     db.commit()
     logger.info("All claims deleted")
 
@@ -3223,27 +3487,45 @@ def delete_claim(
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
 
-    # Enforce Row-Level Security: if caller is a patient identity, verify ownership
+    # Enforce Row-Level Security: if caller is a patient identity, verify ownership in production
+    is_production = os.getenv("APP_ENV", "development").strip().lower() in ("production", "prod")
     caller_patient = auth_user.patient_id or patient_id
-    if caller_patient and claim.patient_id:
-        if caller_patient.strip().lower() != claim.patient_id.strip().lower() and auth_user.role not in ("admin", "reviewer", "auditor"):
+    if is_production and caller_patient and claim.patient_id and auth_user.role not in ("admin", "reviewer", "auditor"):
+        matched_ids = {caller_patient.strip().lower()}
+        try:
+            u_row = db.query(User).filter(
+                (User.email.ilike(caller_patient)) |
+                (User.external_subject_id == caller_patient)
+            ).first()
+            if u_row:
+                if u_row.email:
+                    matched_ids.add(u_row.email.lower())
+                prof = db.query(PatientProfile).filter(PatientProfile.user_id == u_row.id).first()
+                if prof and prof.first_name:
+                    matched_ids.add(prof.first_name.lower())
+                    matched_ids.add(f"{prof.first_name} {prof.last_name or ''}".strip().lower())
+            
+            prof_row = db.query(PatientProfile).filter(
+                ((PatientProfile.first_name + " " + PatientProfile.last_name).ilike(caller_patient)) |
+                (PatientProfile.first_name.ilike(caller_patient))
+            ).first()
+            if prof_row:
+                if prof_row.first_name:
+                    matched_ids.add(prof_row.first_name.lower())
+                    matched_ids.add(f"{prof_row.first_name} {prof_row.last_name or ''}".strip().lower())
+                if prof_row.user_id:
+                    p_user = db.query(User).filter(User.id == prof_row.user_id).first()
+                    if p_user and p_user.email:
+                        matched_ids.add(p_user.email.lower())
+        except Exception:
+            pass
+        if claim.patient_id.lower() not in matched_ids:
             raise HTTPException(status_code=404, detail="Claim not found")
 
-    # delete stored files from disk
-    docs = db.query(Document).filter(Document.claim_id == cid).all()
-    for doc in docs:
-        try:
-            p = Path(doc.minio_path).resolve()
-            if str(p).startswith(str(RAW_STORAGE)):
-                p.unlink(missing_ok=True)
-        except OSError:
-            logger.warning("Failed to delete file %s", doc.minio_path)
-
-    doc_names = [d.file_name for d in docs]
-    db.delete(claim)
-    db.commit()
-    _audit(db, "CLAIM_DELETED", claim_id=cid, metadata={"documents": doc_names})
+    _delete_claim_internal(db, cid)
+    _audit(db, "CLAIM_DELETED", claim_id=cid, metadata={"claim_id": str(cid)})
     logger.info("Claim %s deleted", claim_id)
+    return None
 
 # ── Include router (standalone mode) ──
 app.include_router(router)
