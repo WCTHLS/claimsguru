@@ -423,10 +423,10 @@ export async function fetchRecentClaims(patientId?: string): Promise<RecentClaim
 export async function deleteClaimApi(claimId: string): Promise<boolean> {
   if (isMockId(claimId)) return true;
   try {
-    const res = await safeFetch(`${INGRESS_API}/claims/${claimId}`, {
+    const res = await safeFetch(`${INGRESS_API}/claims/${encodeURIComponent(claimId)}`, {
       method: "DELETE",
-    }, 4000);
-    return Boolean(res && res.ok);
+    }, 6000);
+    return Boolean(res && (res.ok || res.status === 204 || res.status === 404));
   } catch (err) {
     return false;
   }
@@ -438,10 +438,10 @@ export async function deleteClaimApi(claimId: string): Promise<boolean> {
 export async function deleteClaimDocumentApi(claimId: string, docId: string): Promise<boolean> {
   if (isMockId(claimId)) return true;
   try {
-    const res = await safeFetch(`${INGRESS_API}/claims/${claimId}/documents/${docId}`, {
+    const res = await safeFetch(`${INGRESS_API}/claims/${encodeURIComponent(claimId)}/documents/${encodeURIComponent(docId)}`, {
       method: "DELETE",
-    }, 4000);
-    return Boolean(res && res.ok);
+    }, 6000);
+    return Boolean(res && (res.ok || res.status === 204 || res.status === 404));
   } catch (err) {
     return false;
   }
