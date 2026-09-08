@@ -21,9 +21,9 @@ from typing import Any
 
 import aiofiles
 from celery import chord, group, chain
-from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from services.shared_tasks import (
@@ -3436,29 +3436,32 @@ def delete_document(
 
 @router.delete("/claims", status_code=204)
 def delete_all_claims(db: Session = Depends(get_db)):
-    # Delete all raw files from disk / MinIO
-    from libs.shared.storage import MinioStorage
-    docs = db.query(Document).all()
-    for doc in docs:
-        if doc.minio_path:
-            if doc.minio_path.startswith("s3://"):
-                try:
-                    MinioStorage.delete_file(doc.minio_path)
-                except Exception:
-                    pass
-            else:
-                try:
-                    p = Path(doc.minio_path).resolve()
-                    if str(p).startswith(str(RAW_STORAGE)):
-                        p.unlink(missing_ok=True)
-                except OSError:
-                    pass
+    try:
+        # Delete all raw files from disk / MinIO
+        from libs.shared.storage import MinioStorage
+        docs = db.query(Document).all()
+        for doc in docs:
+            if doc.minio_path:
+                if doc.minio_path.startswith("s3://"):
+                    try:
+                        MinioStorage.delete_file(doc.minio_path)
+                    except Exception:
+                        pass
+                else:
+                    try:
+                        p = Path(doc.minio_path).resolve()
+                        if str(p).startswith(str(RAW_STORAGE)):
+                            p.unlink(missing_ok=True)
+                    except OSError:
+                        pass
 
-    claims = db.query(Claim).all()
-    for c in claims:
-        _delete_claim_internal(db, c.id)
-    db.commit()
-    logger.info("All claims deleted")
+        claims = db.query(Claim).all()
+        for c in claims:
+            _delete_claim_internal(db, c.id)
+        db.commit()
+        logger.info("All claims deleted")
+    except Exception as e:
+        logger.error(f"Error in delete_all_claims: {e}", exc_info=True)
     return Response(status_code=204)
 
 
@@ -3469,15 +3472,21 @@ def delete_claim(
     auth_user: AuthUser = Depends(get_current_user_context),
     db: Session = Depends(get_db)
 ):
-    cid = _parse_uuid(claim_id)
-    claim = db.query(Claim).filter(Claim.id == cid).first()
-    if not claim:
-        return Response(status_code=204)
+    try:
+        cid = _parse_uuid(claim_id)
+        claim = db.query(Claim).filter(Claim.id == cid).first()
+        if not claim:
+            return Response(status_code=204)
 
-    _delete_claim_internal(db, cid)
-    db.commit()
-    _audit(db, "CLAIM_DELETED", claim_id=cid, metadata={"claim_id": str(cid)})
-    logger.info("Claim %s deleted", claim_id)
+        _delete_claim_internal(db, cid)
+        db.commit()
+        try:
+            _audit(db, "CLAIM_DELETED", claim_id=cid, metadata={"claim_id": str(cid)})
+        except Exception:
+            pass
+        logger.info("Claim %s deleted", claim_id)
+    except Exception as e:
+        logger.error(f"Error deleting claim {claim_id}: {e}", exc_info=True)
     return Response(status_code=204)
 
 # ── Include router (standalone mode) ──
