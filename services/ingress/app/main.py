@@ -1027,6 +1027,29 @@ def _ensure_users_password_hash_column() -> None:
     pass
 
 
+def _assign_user_role(db, user_id, role_id):
+    """Safely assign a role to a user, accommodating schemas with or without an 'id' column."""
+    try:
+        existing = db.execute(
+            text("SELECT 1 FROM user_roles WHERE user_id = :u AND role_id = :r"),
+            {"u": user_id, "r": role_id}
+        ).first()
+        if existing:
+            return
+        db.execute(
+            text("INSERT INTO user_roles (user_id, role_id, created_at) VALUES (:u, :r, CURRENT_TIMESTAMP)"),
+            {"u": user_id, "r": role_id}
+        )
+    except Exception:
+        try:
+            db.execute(
+                text("INSERT INTO user_roles (id, user_id, role_id, created_at) VALUES (:id, :u, :r, CURRENT_TIMESTAMP)"),
+                {"id": uuid.uuid4(), "u": user_id, "r": role_id}
+            )
+        except Exception as e:
+            logger.warning(f"Could not assign user role {role_id} to user {user_id}: {e}")
+
+
 class RegisterUserIn(BaseModel):
     username: str
     password: str | None = None
@@ -1148,15 +1171,7 @@ def register_local_user(payload: RegisterUserIn):
             else:
                 role_id = role_row["id"]
 
-            role_exists = db.execute(
-                text("SELECT 1 FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"),
-                {"user_id": user_id, "role_id": role_id}
-            ).scalar()
-            if not role_exists:
-                db.execute(
-                    text("INSERT INTO user_roles (id, user_id, role_id) VALUES (:id, :user_id, :role_id)"),
-                    {"id": uuid.uuid4(), "user_id": user_id, "role_id": role_id}
-                )
+            _assign_user_role(db, user_id, role_id)
 
             # 3. Create/Update Profile depending on role
             if normalized_role == "submitter":
@@ -1571,6 +1586,9 @@ class SyncEntraUserIn(BaseModel):
         return cleaned.strip()
 
 
+
+
+
 @router.post("/auth/sync-entra-user", status_code=200)
 def sync_entra_user(payload: SyncEntraUserIn):
     """Synchronize a Microsoft Entra External ID authenticated user with the database.
@@ -1740,8 +1758,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         db.add(admin_role)
                         db.flush()
 
-                    db.add(UserRoleTable(id=uuid.uuid4(), user_id=user_id, role_id=admin_role.id))
-                    db.flush()
+                    _assign_user_role(db, user_id, admin_role.id)
 
                     # 4. Create staff_profiles record
                     db.execute(
@@ -1925,10 +1942,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
                     else:
                         role_id = role_row["id"]
 
-                    db.execute(
-                        text("INSERT INTO user_roles (id, user_id, role_id, created_at) VALUES (:id, :user_id, :role_id, CURRENT_TIMESTAMP)"),
-                        {"id": uuid.uuid4(), "user_id": new_user_id, "role_id": role_id},
-                    )
+                    _assign_user_role(db, new_user_id, role_id)
 
                     sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else None
                     has_policy = bool(payload.policy)
@@ -2052,10 +2066,7 @@ def register_user_profile(payload: RegisterUserIn):
                 else:
                     r_id = role_row["id"]
 
-                db.execute(
-                    text("INSERT INTO user_roles (id, user_id, role_id, created_at) VALUES (:id, :user_id, :role_id, CURRENT_TIMESTAMP)"),
-                    {"id": uuid.uuid4(), "user_id": user_id, "role_id": r_id},
-                )
+                _assign_user_role(db, user_id, r_id)
 
             # Insert or update patient profile
             sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else 500000.0
@@ -2277,13 +2288,11 @@ def register_tpa_adjuster(payload: TpaRegistrationIn):
                 """),
                 {"id": uuid.uuid4(), "user_id": user_id, "organization_id": str(payload.organization_id), "employee_id": payload.employee_id or None},
             )
-            db.execute(
-                text("""
-                    INSERT INTO user_roles (id, user_id, role_id)
-                    SELECT :id, :user_id, id FROM roles WHERE name = 'reviewer'
-                """),
-                {"id": uuid.uuid4(), "user_id": user_id},
-            )
+            reviewer_role = db.execute(
+                text("SELECT id FROM roles WHERE name = 'reviewer'"),
+            ).mappings().first()
+            if reviewer_role:
+                _assign_user_role(db, user_id, reviewer_role["id"])
             db.commit()
     except Exception as exc:
         logger.exception("Keycloak user %s was created but local profile creation failed", keycloak_user_id)
