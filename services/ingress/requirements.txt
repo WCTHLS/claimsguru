@@ -18,3 +18,4 @@ redis==5.2.1
 # llama-cpp-python is optional for local LLM support; skip it in container builds unless needed.
 boto3==1.34.69
 prometheus-client>=0.20.0
+azure-communication-email>=1.1.0

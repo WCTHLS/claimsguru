@@ -4,9 +4,14 @@ import tempfile
 from typing import Any
 from io import BytesIO
 from pathlib import Path
-import boto3
-from botocore.client import Config
-from botocore.exceptions import ClientError
+try:
+    import boto3
+    from botocore.client import Config
+    from botocore.exceptions import ClientError
+except Exception:
+    boto3 = None  # type: ignore
+    Config = None  # type: ignore
+    ClientError = Exception  # type: ignore
 
 logger = logging.getLogger("storage")
 

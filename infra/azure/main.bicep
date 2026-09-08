@@ -464,6 +464,8 @@ resource frontendApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'NODE_ENV', value: 'production' }
             { name: 'NEXT_PUBLIC_APP_NAME', value: 'ClaimsGuru' }
             { name: 'NEXT_PUBLIC_API_BASE', value: 'https://${ingressApp.properties.configuration.ingress.fqdn}' }
+            { name: 'INGRESS_API', value: 'https://${ingressApp.properties.configuration.ingress.fqdn}/ingress' }
+            { name: 'INTERNAL_INGRESS_URL', value: 'http://${prefix}-ingress:8000/ingress' }
           ]
           resources: {
             cpu: json('0.5')

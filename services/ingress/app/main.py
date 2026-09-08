@@ -2387,8 +2387,8 @@ def _delete_claim_internal(db: Session, cid: uuid.UUID) -> bool:
         db.query(ScanAnalysis).filter(ScanAnalysis.claim_id == cid).delete(synchronize_session=False)
         db.query(ParsedField).filter(ParsedField.claim_id == cid).delete(synchronize_session=False)
         db.query(ClaimFieldFeedback).filter(ClaimFieldFeedback.claim_id == cid).delete(synchronize_session=False)
-        db.query(MedicalEntity).filter(MedicalEntity.claim_id == cid).delete(synchronize_session=False)
         db.query(MedicalCode).filter(MedicalCode.claim_id == cid).delete(synchronize_session=False)
+        db.query(MedicalEntity).filter(MedicalEntity.claim_id == cid).delete(synchronize_session=False)
         db.query(Feature).filter(Feature.claim_id == cid).delete(synchronize_session=False)
         db.query(Prediction).filter(Prediction.claim_id == cid).delete(synchronize_session=False)
         db.query(Validation).filter(Validation.claim_id == cid).delete(synchronize_session=False)
@@ -2404,13 +2404,11 @@ def _delete_claim_internal(db: Session, cid: uuid.UUID) -> bool:
     except Exception as e:
         logger.warning("Child table cleanup encountered: %s", e)
 
-    # 3. Explicitly delete loaded objects from session and commit
-    for doc in docs:
-        try:
-            db.delete(doc)
-        except Exception:
-            pass
-    db.delete(claim)
+    # 3. Expire session objects to prevent stale state and delete claim
+    db.expire_all()
+    claim_to_del = db.query(Claim).filter(Claim.id == cid).first()
+    if claim_to_del:
+        db.delete(claim_to_del)
     db.commit()
     logger.info("Successfully deleted claim %s", cid)
     return True
@@ -2579,8 +2577,9 @@ async def create_claim(
                     "UPLOAD_FORCE_REPROCESS | Force reprocess requested for duplicate claim matching set_hash for user %s. Deleting %d old claim(s).",
                     target_user, len(existing_jobs)
                 )
-                for ej in existing_jobs:
-                    _delete_claim_internal(db, ej.claim_id)
+                dup_claim_ids = [ej.claim_id for ej in existing_jobs if ej.claim_id]
+                for old_cid in dup_claim_ids:
+                    _delete_claim_internal(db, old_cid)
 
         # 1. Create Claim in Database
         claim_id = uuid.uuid4()

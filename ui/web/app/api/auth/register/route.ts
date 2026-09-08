@@ -45,27 +45,35 @@ export async function POST(request: NextRequest) {
       sum_insured: body.sum_insured,
     };
 
-    const rawBase = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8000/ingress';
-    const cleanBase = rawBase.replace(/\/+$/, '');
+    const urlsToTry: string[] = [];
+    const envBase = process.env.INTERNAL_INGRESS_URL || process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE;
+    if (envBase) {
+      const clean = envBase.replace(/\/+$/, '');
+      if (clean.endsWith('/ingress')) {
+        urlsToTry.push(`${clean}/auth/register`);
+        urlsToTry.push(`${clean.replace(/\/ingress$/, '')}/auth/register`);
+      } else {
+        urlsToTry.push(`${clean}/ingress/auth/register`);
+        urlsToTry.push(`${clean}/auth/register`);
+      }
+    }
+    urlsToTry.push('http://claimsguru-api-test:8000/ingress/auth/register');
+    urlsToTry.push('http://claimsguru-ingress:8000/ingress/auth/register');
+    urlsToTry.push('http://127.0.0.1:8000/ingress/auth/register');
+    urlsToTry.push('http://localhost:8000/ingress/auth/register');
 
-    const urlsToTry = [
-      'http://claimsguru-api-test:8000/ingress/auth/register',
-      'http://host.docker.internal:8000/ingress/auth/register',
-      'http://127.0.0.1:8000/ingress/auth/register',
-      'http://localhost:8000/ingress/auth/register',
-      `${cleanBase}/auth/register`,
-      `${cleanBase}/ingress/auth/register`,
-    ];
+    const uniqueUrls = Array.from(new Set(urlsToTry));
 
     let res: Response | null = null;
     let data: any = null;
 
-    for (const url of urlsToTry) {
+    for (const url of uniqueUrls) {
       try {
         const attempt = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(profilePayload),
+          signal: AbortSignal.timeout(3500),
         });
         if (attempt.status !== 404) {
           res = attempt;

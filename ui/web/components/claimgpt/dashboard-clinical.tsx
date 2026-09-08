@@ -1285,13 +1285,17 @@ export function DashboardClinical() {
             s.setDuplicateClaimId(null);
             s.resetState();
           }}
-          onConfirm={() => {
+          onViewExisting={() => {
             const targetId = s.duplicateClaimId;
             s.setDuplicateClaimId(null);
             if (targetId) {
               s.selectClaim(targetId);
             }
           }}
+          onReprocess={() => {
+            s.handleReprocessAnyway();
+          }}
+          isReprocessing={s.isReprocessing}
         />
       )}
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -14,6 +15,8 @@ from celery.exceptions import Ignore, SoftTimeLimitExceeded
 from libs.utils.audit import AuditLogger
 from libs.shared.models import Claim, OcrJob, ParseJob, WorkflowState, Document
 from libs.shared.workflow_state import upsert_workflow_state
+
+logger = logging.getLogger("shared_tasks")
 # Service-specific imports are lazy-loaded within functions/tasks below to avoid import-time dependency crashes.
 
 # Eager imports of service sub-packages are removed here to prevent worker startup crashes on missing dependencies (e.g. 'faiss' in OCR worker).
@@ -843,6 +846,147 @@ def finalize_claim_task(self, previous_result: Any) -> dict[str, Any]:
         except Exception:
             pass
 
+        # Dispatch Claim Completion Notification with Attached Reports
+        try:
+            from services.submission.app.main import _gather_claim_data_full
+            from services.submission.app.tpa_pdf import generate_tpa_pdf
+            from services.submission.app.irda_pdf import generate_irda_pdf
+            try:
+                from services.submission.app.tpa_pdf_modern import generate_tpa_pdf_modern
+            except Exception:
+                generate_tpa_pdf_modern = None
+            try:
+                from services.submission.app.irda_pdf_modern import generate_irda_pdf_modern
+            except Exception:
+                generate_irda_pdf_modern = None
+
+            claim_data = _gather_claim_data_full(db, claim)
+            
+            # Generate TPA PDF bytes
+            tpa_bytes = None
+            try:
+                if generate_tpa_pdf_modern is not None:
+                    tpa_bytes = generate_tpa_pdf_modern(claim_data)
+                else:
+                    tpa_bytes = generate_tpa_pdf(claim_data)
+            except Exception as tpa_err:
+                logger.warning(f"[Finalize] Modern TPA PDF fallback: {tpa_err}")
+                try:
+                    tpa_bytes = generate_tpa_pdf(claim_data)
+                except Exception:
+                    pass
+
+            # Generate IRDAI PDF bytes
+            irda_bytes = None
+            try:
+                if generate_irda_pdf_modern is not None:
+                    irda_bytes = generate_irda_pdf_modern(claim_data)
+                else:
+                    irda_bytes = generate_irda_pdf(claim_data)
+            except Exception as irda_err:
+                logger.warning(f"[Finalize] Modern IRDAI PDF fallback: {irda_err}")
+                try:
+                    irda_bytes = generate_irda_pdf(claim_data)
+                except Exception:
+                    pass
+
+            attachments_list = []
+            if tpa_bytes:
+                attachments_list.append({
+                    "name": f"TPA_Claim_Audit_{str(cid)[:8]}.pdf",
+                    "contentType": "application/pdf",
+                    "data": tpa_bytes,
+                })
+            if irda_bytes:
+                attachments_list.append({
+                    "name": f"IRDAI_Adjudication_Sheet_{str(cid)[:8]}.pdf",
+                    "contentType": "application/pdf",
+                    "data": irda_bytes,
+                })
+
+            pf = claim_data.get("parsed_fields", {})
+            patient_name = (pf.get("patient_name") or pf.get("member_name") or pf.get("insured_name") or claim.patient_id or "Patient").strip()
+            hospital_name = (pf.get("hospital_name") or pf.get("hospital") or "Treating Healthcare Provider").strip()
+            claim_amt = (
+                claim_data.get("billed_total")
+                or claim_data.get("expense_total")
+                or (claim_data.get("cost_summary") or {}).get("grand_total")
+                or pf.get("total_claim_amount")
+                or pf.get("total_amount")
+                or pf.get("net_amount")
+                or pf.get("bill_amount")
+                or pf.get("gross_total")
+                or pf.get("net_payable")
+                or pf.get("claim_amount")
+                or pf.get("claimed_total")
+            )
+            diagnosis_val = pf.get("diagnosis") or pf.get("primary_diagnosis") or pf.get("chief_complaint") or "Clinical Review Completed"
+            adm_date = pf.get("admission_date") or pf.get("date_of_admission")
+            dis_date = pf.get("discharge_date") or pf.get("date_of_discharge")
+
+            from libs.shared.models import MedicalCode, Prediction
+            med_codes = db.query(MedicalCode).filter(MedicalCode.claim_id == cid).all()
+            icd_list = [c.code for c in med_codes if c.code]
+
+            pred = db.query(Prediction).filter(Prediction.claim_id == cid).order_by(Prediction.created_at.desc()).first()
+            risk_val = f"{pred.rejection_score * 100:.0f}%" if pred and pred.rejection_score is not None else "Low Risk"
+
+            from libs.shared.models import User, PatientProfile
+            dest_email = None
+            dest_phone = None
+            
+            target = (claim.patient_id or claim.policy_id or "").strip()
+            if target and "@" in target:
+                dest_email = target
+                u = db.query(User).filter(User.email.ilike(target)).first()
+                if u:
+                    dest_phone = u.phone
+            elif target:
+                u = db.query(User).filter(
+                    (User.email.ilike(f"%{target}%")) |
+                    (User.external_subject_id == str(target))
+                ).first()
+                if u:
+                    dest_email = u.email
+                    dest_phone = u.phone
+                else:
+                    prof = db.query(PatientProfile).filter(
+                        (PatientProfile.first_name.ilike(f"%{target}%")) |
+                        ((PatientProfile.first_name + " " + PatientProfile.last_name).ilike(target))
+                    ).first()
+                    if prof and prof.user_id:
+                        pu = db.query(User).filter(User.id == prof.user_id).first()
+                        if pu and pu.email:
+                            dest_email = pu.email
+                            dest_phone = pu.phone
+
+            if not dest_email:
+                latest_u = db.query(User).filter(User.status == "ACTIVE", User.email.isnot(None)).order_by(User.created_at.desc()).first()
+                if latest_u:
+                    dest_email = latest_u.email
+                    dest_phone = latest_u.phone
+
+            if dest_email:
+                dispatch_notification_async(
+                    "CLAIM_PROCESSED",
+                    {
+                        "claim_id": str(claim_id),
+                        "email": dest_email,
+                        "phone": dest_phone,
+                        "patient_name": patient_name,
+                        "hospital_name": hospital_name,
+                        "claim_amount": claim_amt,
+                        "diagnosis": diagnosis_val,
+                        "icd_codes": icd_list,
+                        "risk_score": risk_val,
+                        "admission_date": adm_date,
+                        "discharge_date": dis_date,
+                        "attachments": attachments_list,
+                    },
+                )
+        except Exception as notify_err:
+            logging.getLogger("finalize").warning(f"[Finalize] Failed to dispatch completed claim notification: {notify_err}")
+
         return {
             "claim_id": claim_id,
             "status": "COMPLETED",
@@ -1052,3 +1196,131 @@ def _check_asynchronous_identity_gate(claim_id: str) -> tuple[bool, str | None, 
     """
     # DUMMY BYPASS: Always return True (satisfied) to disable name mismatch verification checks
     return True, None, None
+
+
+# ================================================================== Notifications (Azure Communication Services)
+
+@shared_task(
+    bind=True,
+    autoretry_for=(Exception,),
+    dont_autoretry_for=(NonRetryableTaskError, Ignore),
+    retry_backoff=True,
+    max_retries=3,
+    soft_time_limit=45,
+    time_limit=60,
+)
+def send_notification_task(self, event_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+    """Asynchronously execute notification dispatch via Azure Communication Services."""
+    from libs.shared.notifications import notification_service
+    import logging
+    logger = logging.getLogger("notifications")
+    logger.info(f"[NotificationTask] Dispatching event={event_type} for payload={payload}")
+
+    try:
+        if event_type == "USER_WELCOME":
+            return notification_service.send_welcome_notification(
+                email=payload.get("email", ""),
+                name=payload.get("name"),
+                phone=payload.get("phone"),
+                base_url=payload.get("base_url"),
+            )
+        elif event_type == "CLAIM_INTAKE":
+            return notification_service.send_claim_received_notification(
+                claim_id=payload.get("claim_id", ""),
+                email=payload.get("email"),
+                phone=payload.get("phone"),
+                patient_name=payload.get("patient_name"),
+                hospital_name=payload.get("hospital_name"),
+                claim_amount=payload.get("claim_amount"),
+                submitted_date=payload.get("submitted_date"),
+                file_count=payload.get("file_count", 1),
+                base_url=payload.get("base_url"),
+            )
+        elif event_type == "CLAIM_PROCESSED":
+            return notification_service.send_claim_processed_notification(
+                claim_id=payload.get("claim_id", ""),
+                email=payload.get("email"),
+                phone=payload.get("phone"),
+                patient_name=payload.get("patient_name"),
+                hospital_name=payload.get("hospital_name"),
+                claim_amount=payload.get("claim_amount"),
+                diagnosis=payload.get("diagnosis"),
+                icd_codes=payload.get("icd_codes"),
+                risk_score=payload.get("risk_score"),
+                admission_date=payload.get("admission_date"),
+                discharge_date=payload.get("discharge_date"),
+                attachments=payload.get("attachments"),
+                base_url=payload.get("base_url"),
+            )
+        else:
+            logger.warning(f"[NotificationTask] Unknown notification event: {event_type}")
+            return {"status": "SKIPPED", "reason": f"Unknown event {event_type}"}
+    except Exception as exc:
+        logger.exception(f"[NotificationTask] Failed to execute notification {event_type}: {exc}")
+        if self.request.retries >= self.max_retries:
+            raise
+        raise self.retry(exc=exc)
+
+
+def dispatch_notification_async(event_type: str, payload: dict[str, Any]) -> None:
+    """Helper to dispatch notification asynchronously via Celery worker or daemon thread."""
+    import logging
+    import os
+    import threading
+
+    logger = logging.getLogger("notifications")
+
+    def _bg_runner():
+        try:
+            from libs.shared.notifications import notification_service
+            if event_type == "USER_WELCOME":
+                notification_service.send_welcome_notification(
+                    email=payload.get("email", ""),
+                    name=payload.get("name"),
+                    phone=payload.get("phone"),
+                    base_url=payload.get("base_url"),
+                )
+            elif event_type == "CLAIM_INTAKE":
+                notification_service.send_claim_received_notification(
+                    claim_id=payload.get("claim_id", ""),
+                    email=payload.get("email"),
+                    phone=payload.get("phone"),
+                    patient_name=payload.get("patient_name"),
+                    hospital_name=payload.get("hospital_name"),
+                    claim_amount=payload.get("claim_amount"),
+                    submitted_date=payload.get("submitted_date"),
+                    file_count=payload.get("file_count", 1),
+                    base_url=payload.get("base_url"),
+                )
+            elif event_type == "CLAIM_PROCESSED":
+                notification_service.send_claim_processed_notification(
+                    claim_id=payload.get("claim_id", ""),
+                    email=payload.get("email"),
+                    phone=payload.get("phone"),
+                    patient_name=payload.get("patient_name"),
+                    hospital_name=payload.get("hospital_name"),
+                    claim_amount=payload.get("claim_amount"),
+                    diagnosis=payload.get("diagnosis"),
+                    icd_codes=payload.get("icd_codes"),
+                    risk_score=payload.get("risk_score"),
+                    admission_date=payload.get("admission_date"),
+                    discharge_date=payload.get("discharge_date"),
+                    attachments=payload.get("attachments"),
+                    base_url=payload.get("base_url"),
+                )
+        except Exception as e:
+            logger.warning(f"[NotificationDispatch] Background notification error: {e}")
+
+    # If Celery worker is running in container or broker is active
+    use_celery = os.getenv("CELERY_WORKER") == "true" or os.getenv("APP_ENV") == "production"
+    if use_celery:
+        try:
+            send_notification_task.apply_async(args=[event_type, payload], retry=False)
+            logger.info(f"[NotificationDispatch] Queued {event_type} notification via Celery")
+            return
+        except Exception as exc:
+            logger.debug(f"[NotificationDispatch] Celery dispatch skipped ({exc}), falling back to thread")
+
+    # Local / fast daemon thread dispatch
+    thread = threading.Thread(target=_bg_runner, name=f"notify-{event_type.lower()}", daemon=True)
+    thread.start()

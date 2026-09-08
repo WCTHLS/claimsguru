@@ -348,7 +348,7 @@ export async function fetchClaimPreview(claimId: string): Promise<RealClaimPrevi
     const res = await safeFetch(`${SUBMISSION_API}/claims/${claimId}/preview?t=${Date.now()}`, {
       cache: "no-store",
       headers: getAuthHeaders(),
-    }, 4000);
+    }, 12000);
     if (!res || !res.ok) return null;
     return await res.json();
   } catch (err) {
