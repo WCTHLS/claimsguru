@@ -23,6 +23,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { getStoredAuthSession, clearAuthSession } from '@/lib/auth';
+import { getApiBaseUrl } from '@/lib/api-client';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';
 import { formatDob } from '@/lib/claimgpt-data';
 
@@ -35,18 +36,18 @@ interface UserProfileModalProps {
   variant?: 'neon' | 'clinical' | 'executive';
 }
 
-export function UserProfileModal({
+export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   isOpen,
   onClose,
   s,
   userName,
   userEmail,
-  variant = 'neon',
-}: UserProfileModalProps) {
+  variant = 'clinical',
+}) => {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
   const [userMeta, setUserMeta] = useState({
-    dob: '01 Jan 2000',
+    dob: '01/01/2000',
     gender: 'Male',
     insurer: 'Star Health',
     policyNo: 'P-0007401',
@@ -55,12 +56,12 @@ export function UserProfileModal({
 
   const handleLogout = () => {
     try {
-      clearAuthSession();
       localStorage.removeItem('claimgpt_user_name');
       localStorage.removeItem('claimgpt_user_email');
     } catch {
       /* ignore */
     }
+    clearAuthSession();
     onClose();
     router.push('/login');
   };
@@ -74,19 +75,25 @@ export function UserProfileModal({
     try {
       const session = getStoredAuthSession();
       const currentEmail = userEmail || session?.user?.email || '';
+      const emailKey = currentEmail.toLowerCase();
       const rawDob =
+        localStorage.getItem(`claimgpt_user_dob_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_dob_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_dob');
       const insurer =
+        localStorage.getItem(`claimgpt_user_insurer_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_insurer_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_insurer');
       const policy =
+        localStorage.getItem(`claimgpt_user_policy_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_policy_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_policy');
       const sum =
+        localStorage.getItem(`claimgpt_user_sum_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_sum_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_sum');
       const gender =
+        localStorage.getItem(`claimgpt_user_gender_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_gender_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_gender');
 
@@ -99,6 +106,48 @@ export function UserProfileModal({
           ? (sum.startsWith('₹') ? sum : `₹${Number(sum).toLocaleString('en-IN')}`)
           : '₹5,000,000',
       });
+
+      // Cross-device fallback: If policy is not in local storage on this device, fetch live from SQL Server
+      if (!policy && currentEmail) {
+        const base = getApiBaseUrl().replace(/\/+$/, '');
+        fetch(`${base}/auth/profile/${encodeURIComponent(currentEmail)}`)
+          .then(res => (res.ok ? res.json() : null))
+          .then(data => {
+            if (data && data.success) {
+              if (data.policy_number) {
+                localStorage.setItem(`claimgpt_user_policy_${emailKey}`, data.policy_number);
+                localStorage.setItem('claimgpt_user_policy', data.policy_number);
+              }
+              if (data.sum_insured) {
+                localStorage.setItem(`claimgpt_user_sum_${emailKey}`, String(data.sum_insured));
+                localStorage.setItem('claimgpt_user_sum', String(data.sum_insured));
+              }
+              if (data.dob) {
+                localStorage.setItem(`claimgpt_user_dob_${emailKey}`, data.dob);
+                localStorage.setItem('claimgpt_user_dob', data.dob);
+              }
+              if (data.gender) {
+                localStorage.setItem(`claimgpt_user_gender_${emailKey}`, data.gender);
+                localStorage.setItem('claimgpt_user_gender', data.gender);
+              }
+              if (data.name) {
+                localStorage.setItem(`claimgpt_user_name_${emailKey}`, data.name);
+                localStorage.setItem('claimgpt_user_name', data.name);
+              }
+
+              setUserMeta(prev => ({
+                ...prev,
+                policyNo: data.policy_number || prev.policyNo,
+                dob: data.dob ? formatDob(data.dob) : prev.dob,
+                gender: data.gender || prev.gender,
+                sumInsured: data.sum_insured
+                  ? `₹${Number(data.sum_insured).toLocaleString('en-IN')}`
+                  : prev.sumInsured,
+              }));
+            }
+          })
+          .catch(() => {});
+      }
     } catch {
       /* ignore localStorage error */
     }

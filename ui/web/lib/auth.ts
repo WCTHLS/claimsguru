@@ -518,6 +518,12 @@ export async function authenticateWithPassword({
           ? backendData.organization_slug
           : (organization ? organization.toLowerCase().replace(/[^a-z0-9]+/g, '-') : (role === 'tpa' ? 'star-health' : undefined));
 
+        const resolvedName = backendData.name || (
+          backendData.first_name || backendData.last_name
+            ? `${backendData.first_name || ''} ${backendData.last_name || ''}`.trim()
+            : username.split('@')[0] || username
+        );
+
         const localSession: AuthSession = {
           accessToken: `local-token-${Date.now()}`,
           refreshToken: `local-refresh-${Date.now()}`,
@@ -530,10 +536,34 @@ export async function authenticateWithPassword({
           provider: 'local',
           user: {
             email: username,
-            name: username.split('@')[0] || username,
+            name: resolvedName,
+            firstName: backendData.first_name || undefined,
+            lastName: backendData.last_name || undefined,
             preferredUsername: username,
           },
         };
+
+        try {
+          const emailKey = username.toLowerCase();
+          localStorage.setItem(`claimgpt_user_name_${emailKey}`, resolvedName);
+          localStorage.setItem('claimgpt_user_name', resolvedName);
+          if (backendData.policy_number) {
+            localStorage.setItem(`claimgpt_user_policy_${emailKey}`, backendData.policy_number);
+            localStorage.setItem('claimgpt_user_policy', backendData.policy_number);
+          }
+          if (backendData.sum_insured) {
+            localStorage.setItem(`claimgpt_user_sum_${emailKey}`, String(backendData.sum_insured));
+            localStorage.setItem('claimgpt_user_sum', String(backendData.sum_insured));
+          }
+          if (backendData.dob) {
+            localStorage.setItem(`claimgpt_user_dob_${emailKey}`, backendData.dob);
+            localStorage.setItem('claimgpt_user_dob', backendData.dob);
+          }
+          if (backendData.gender) {
+            localStorage.setItem(`claimgpt_user_gender_${emailKey}`, backendData.gender);
+            localStorage.setItem('claimgpt_user_gender', backendData.gender);
+          }
+        } catch {}
 
         sessionStorage.setItem(ROLE_HINT_KEY, role);
         sessionStorage.setItem(AUTH_ACTION_KEY, 'login');
@@ -736,6 +766,30 @@ export async function completeAuthCallback() {
     if (syncData.needs_onboarding !== undefined) {
       session.needsOnboarding = Boolean(syncData.needs_onboarding);
     }
+
+    try {
+      const emailKey = session.user.email.toLowerCase();
+      if (session.user.name) {
+        localStorage.setItem(`claimgpt_user_name_${emailKey}`, session.user.name);
+        localStorage.setItem('claimgpt_user_name', session.user.name);
+      }
+      if (syncData.policy_number) {
+        localStorage.setItem(`claimgpt_user_policy_${emailKey}`, syncData.policy_number);
+        localStorage.setItem('claimgpt_user_policy', syncData.policy_number);
+      }
+      if (syncData.sum_insured) {
+        localStorage.setItem(`claimgpt_user_sum_${emailKey}`, String(syncData.sum_insured));
+        localStorage.setItem('claimgpt_user_sum', String(syncData.sum_insured));
+      }
+      if (syncData.dob) {
+        localStorage.setItem(`claimgpt_user_dob_${emailKey}`, syncData.dob);
+        localStorage.setItem('claimgpt_user_dob', syncData.dob);
+      }
+      if (syncData.gender) {
+        localStorage.setItem(`claimgpt_user_gender_${emailKey}`, syncData.gender);
+        localStorage.setItem('claimgpt_user_gender', syncData.gender);
+      }
+    } catch {}
   }
 
   saveSession(session);

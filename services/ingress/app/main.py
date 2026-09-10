@@ -1418,7 +1418,7 @@ def login_local_user(payload: LoginUserIn):
     with force_master_session():
         with SessionLocal() as db:
             user_row = db.execute(
-                text("SELECT id, password_hash, status FROM users WHERE lower(email) = lower(:email)"),
+                text("SELECT id, email, phone, password_hash, status FROM users WHERE lower(email) = lower(:email)"),
                 {"email": email},
             ).mappings().first()
 
@@ -1503,21 +1503,123 @@ def login_local_user(payload: LoginUserIn):
                         },
                     )
 
+            patient_profile = None
+            if normalized_role == "submitter":
+                patient_profile = db.execute(
+                    text("SELECT first_name, last_name, dob, gender, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
+                    {"user_id": user_row["id"]},
+                ).mappings().first()
+
             db.execute(
                 text("UPDATE users SET last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
                 {"id": user_row["id"]},
             )
             db.commit()
 
+    p_first = (patient_profile["first_name"] if patient_profile else None) or email.split("@")[0]
+    p_last = (patient_profile["last_name"] if patient_profile else "")
+    p_name = f"{p_first} {p_last}".strip() if p_first else email.split("@")[0]
+
     return {
         "success": True,
         "user_id": str(user_row["id"]),
         "email": email,
+        "name": p_name,
+        "first_name": p_first,
+        "last_name": p_last,
+        "phone": user_row.get("phone"),
+        "dob": str(patient_profile["dob"]) if patient_profile and patient_profile["dob"] else None,
+        "gender": patient_profile["gender"] if patient_profile else None,
+        "policy_number": patient_profile["policy_number"] if patient_profile else None,
+        "sum_insured": float(patient_profile["sum_insured"]) if patient_profile and patient_profile["sum_insured"] else None,
         "role": normalized_role,
         "organization": organization_name,
         "organization_slug": organization_slug,
         "message": "Login successful",
     }
+
+
+@router.get("/auth/profile/{user_id}", status_code=200)
+@router.get("/ingress/auth/profile/{user_id}", status_code=200)
+def get_user_profile(user_id: str):
+    """Retrieve live user and patient/staff profile from MSSQL database."""
+    clean_id = user_id.strip()
+    with force_master_session(), SessionLocal() as db:
+        # Check if clean_id is a valid UUID
+        is_uuid = False
+        parsed_uuid = None
+        try:
+            parsed_uuid = uuid.UUID(clean_id)
+            is_uuid = True
+        except ValueError:
+            is_uuid = False
+
+        if is_uuid:
+            user = db.execute(
+                text("""
+                    SELECT id, email, phone, status 
+                    FROM users 
+                    WHERE id = :id 
+                       OR external_subject_id = :subj
+                """),
+                {"id": parsed_uuid, "subj": clean_id},
+            ).mappings().first()
+        else:
+            user = db.execute(
+                text("""
+                    SELECT id, email, phone, status 
+                    FROM users 
+                    WHERE lower(email) = lower(:email) 
+                       OR external_subject_id = :subj
+                """),
+                {"email": clean_id, "subj": clean_id},
+            ).mappings().first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # 2. Resolve Role
+        role_row = db.execute(
+            text("SELECT r.name FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :uid"),
+            {"uid": user["id"]},
+        ).mappings().first()
+        role_name = role_row["name"] if role_row else "submitter"
+
+        # 3. Resolve Patient Profile
+        profile = db.execute(
+            text("SELECT first_name, last_name, dob, gender, policy_number, sum_insured FROM patient_profiles WHERE user_id = :uid"),
+            {"uid": user["id"]},
+        ).mappings().first()
+
+        # 4. Resolve Staff Profile if reviewer/admin
+        org_name = None
+        if role_name in ("admin", "reviewer"):
+            staff = db.execute(
+                text("SELECT o.name FROM staff_profiles sp JOIN organizations o ON o.id = sp.organization_id WHERE sp.user_id = :uid"),
+                {"uid": user["id"]},
+            ).mappings().first()
+            if staff:
+                org_name = staff["name"]
+
+        first_name = (profile["first_name"] if profile else "") or user["email"].split("@")[0]
+        last_name = (profile["last_name"] if profile else "")
+        full_name = f"{first_name} {last_name}".strip()
+
+        return {
+            "success": True,
+            "user_id": str(user["id"]),
+            "email": user["email"],
+            "name": full_name,
+            "first_name": first_name,
+            "last_name": last_name,
+            "phone": user.get("phone"),
+            "dob": str(profile["dob"]) if profile and profile["dob"] else None,
+            "gender": profile["gender"] if profile else None,
+            "policy_number": profile["policy_number"] if profile else None,
+            "sum_insured": float(profile["sum_insured"]) if profile and profile["sum_insured"] else None,
+            "role": role_name,
+            "organization": org_name,
+        }
 
 
 # ------------------------------------------------------------------ Entra CIAM user synchronization
@@ -1584,8 +1686,8 @@ def sync_entra_user(payload: SyncEntraUserIn):
     with force_master_session():
         with SessionLocal() as db:
             user_row = db.execute(
-                text("SELECT id, email, status FROM users WHERE lower(email) = lower(:email)"),
-                {"email": email},
+                text("SELECT id, email, phone, status FROM users WHERE lower(email) = lower(:email) OR (external_provider = 'entra' AND external_subject_id = :subject_id)"),
+                {"email": email, "subject_id": subject_id or ""},
             ).mappings().first()
 
             if is_org_login:
@@ -1805,7 +1907,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
 
                     # Check patient profile
                     profile_row = db.execute(
-                        text("SELECT id, first_name, last_name, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
+                        text("SELECT id, first_name, last_name, dob, gender, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
                         {"user_id": user_id},
                     ).mappings().first()
 
@@ -1818,6 +1920,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
                                     UPDATE patient_profiles
                                     SET first_name = COALESCE(:first_name, first_name),
                                         last_name = COALESCE(:last_name, last_name),
+                                        dob = COALESCE(:dob, dob),
                                         gender = COALESCE(:gender, gender),
                                         policy_number = COALESCE(:policy_number, policy_number),
                                         sum_insured = COALESCE(:sum_insured, sum_insured),
@@ -1829,6 +1932,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
                                     "user_id": user_id,
                                     "first_name": payload.first_name or None,
                                     "last_name": payload.last_name or None,
+                                    "dob": payload.dob or None,
                                     "gender": payload.gender or None,
                                     "policy_number": payload.policy or None,
                                     "sum_insured": sum_val,
@@ -1837,19 +1941,25 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         else:
                             db.execute(
                                 text("""
-                                    INSERT INTO patient_profiles (id, user_id, first_name, last_name, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
-                                    VALUES (:id, :user_id, :first_name, :last_name, :gender, :policy_number, :sum_insured, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                    INSERT INTO patient_profiles (id, user_id, first_name, last_name, dob, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
+                                    VALUES (:id, :user_id, :first_name, :last_name, :dob, :gender, :policy_number, :sum_insured, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                                 """),
                                 {
                                     "id": uuid.uuid4(),
                                     "user_id": user_id,
                                     "first_name": first_name,
                                     "last_name": last_name or "",
+                                    "dob": payload.dob or None,
                                     "gender": payload.gender or None,
                                     "policy_number": payload.policy or "POL-DEFAULT",
                                     "sum_insured": sum_val or 500000.0,
                                 },
                             )
+                        # Reload profile after update
+                        profile_row = db.execute(
+                            text("SELECT id, first_name, last_name, dob, gender, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
+                            {"user_id": user_id},
+                        ).mappings().first()
                         needs_onboarding = False
                     else:
                         needs_onboarding = not bool(profile_row and profile_row["policy_number"])
@@ -1877,6 +1987,11 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         "name": f"{p_fname} {p_lname}".strip() or email.split("@")[0],
                         "first_name": p_fname,
                         "last_name": p_lname,
+                        "phone": (user_row["phone"] if user_row and user_row.get("phone") else None) or payload.phone,
+                        "dob": str(profile_row["dob"]) if profile_row and profile_row.get("dob") else None,
+                        "gender": profile_row["gender"] if profile_row else None,
+                        "policy_number": profile_row["policy_number"] if profile_row else None,
+                        "sum_insured": float(profile_row["sum_insured"]) if profile_row and profile_row.get("sum_insured") else None,
                         "role": "patient",
                         "account_role": "submitter",
                         "is_new_user": False,
@@ -1921,14 +2036,15 @@ def sync_entra_user(payload: SyncEntraUserIn):
                     # Create initial patient profile
                     db.execute(
                         text("""
-                            INSERT INTO patient_profiles (id, user_id, first_name, last_name, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
-                            VALUES (:id, :user_id, :first_name, :last_name, :gender, :policy_number, :sum_insured, :coverage_verified, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            INSERT INTO patient_profiles (id, user_id, first_name, last_name, dob, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
+                            VALUES (:id, :user_id, :first_name, :last_name, :dob, :gender, :policy_number, :sum_insured, :coverage_verified, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                         """),
                         {
                             "id": uuid.uuid4(),
                             "user_id": new_user_id,
                             "first_name": first_name,
                             "last_name": last_name or "",
+                            "dob": payload.dob or None,
                             "gender": payload.gender or None,
                             "policy_number": payload.policy or None,
                             "sum_insured": sum_val,
@@ -1959,6 +2075,11 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         "name": f"{first_name} {last_name}".strip() or email.split("@")[0],
                         "first_name": first_name,
                         "last_name": last_name,
+                        "phone": payload.phone or None,
+                        "dob": str(payload.dob) if payload.dob else None,
+                        "gender": payload.gender or None,
+                        "policy_number": payload.policy or None,
+                        "sum_insured": sum_val,
                         "role": "patient",
                         "account_role": "submitter",
                         "is_new_user": True,
