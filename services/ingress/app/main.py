@@ -1088,7 +1088,7 @@ def register_local_user(payload: RegisterUserIn):
         if not org_name_check:
             raise HTTPException(status_code=400, detail="Organization name is required for admin registration")
 
-    with SessionLocal() as db:
+    with force_master_session(), SessionLocal() as db:
         try:
             # 1. Create or get User
             user_row = db.execute(
