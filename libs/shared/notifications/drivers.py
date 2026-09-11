@@ -101,6 +101,10 @@ class AzureCommunicationEmailDriver(BaseEmailDriver):
         ).strip('"' + "'")
 
     def is_configured(self) -> bool:
+        enable_notifications = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() not in ("0", "false", "no", "off")
+        enable_email = os.getenv("ENABLE_EMAIL_NOTIFICATIONS", os.getenv("ENABLE_EMAIL", "true")).lower() not in ("0", "false", "no", "off")
+        if not (enable_notifications and enable_email):
+            return False
         return bool(self.connection_string and "endpoint=" in self.connection_string.lower())
 
     def send_email(
@@ -185,6 +189,10 @@ class AzureCommunicationMessagesDriver(BaseWhatsAppDriver):
         ).strip('"' + "'")
 
     def is_configured(self) -> bool:
+        enable_notifications = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() not in ("0", "false", "no", "off")
+        enable_whatsapp = os.getenv("ENABLE_WHATSAPP_NOTIFICATIONS", os.getenv("ENABLE_WHATSAPP", "true")).lower() not in ("0", "false", "no", "off")
+        if not (enable_notifications and enable_whatsapp):
+            return False
         return bool(self.connection_string and "endpoint=" in self.connection_string.lower())
 
     def send_whatsapp_message(

@@ -194,31 +194,31 @@ export function RegisterClinical() {
         /* ignore localStorage error */
       }
 
-      const payload: Record<string, unknown> = {
-        username: email,
-        password_hash: passwordHash,
-        role,
-        first_name: firstName || undefined,
-        last_name: lastName || undefined,
-        dob: formattedDob || undefined,
-        gender: gender || undefined,
-        policy: policy || undefined,
-        sum_insured: sumInsured || undefined,
-        provider: isEntraMode ? 'entra' : 'local',
-      };
-
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(typeof (data as any).error === 'string' ? (data as any).error : 'Unable to complete patient registration.');
-      }
-
       if (isEntraMode) {
+        const syncPayload = {
+          email,
+          name: fullName,
+          first_name: firstName || undefined,
+          last_name: lastName || undefined,
+          dob: formattedDob || undefined,
+          gender: gender || undefined,
+          policy: policy || undefined,
+          sum_insured: sumInsured || undefined,
+          requested_role: 'patient',
+          external_subject_id: getStoredAuthSession()?.user?.oid || getStoredAuthSession()?.user?.sub || email,
+        };
+
+        const syncRes = await fetch('/api/auth/sync-entra', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(syncPayload),
+        });
+
+        const syncData = await syncRes.json().catch(() => ({}));
+        if (!syncRes.ok) {
+          throw new Error(typeof syncData?.error === 'string' ? syncData.error : 'Unable to synchronize patient profile with database.');
+        }
+
         const currentSession = getStoredAuthSession();
         if (currentSession) {
           currentSession.needsOnboarding = false;
@@ -230,6 +230,30 @@ export function RegisterClinical() {
         // Redirect directly to Patient Workspace
         router.replace('/app');
       } else {
+        const payload: Record<string, unknown> = {
+          username: email,
+          password_hash: passwordHash,
+          role,
+          first_name: firstName || undefined,
+          last_name: lastName || undefined,
+          dob: formattedDob || undefined,
+          gender: gender || undefined,
+          policy: policy || undefined,
+          sum_insured: sumInsured || undefined,
+          provider: 'local',
+        };
+
+        const res = await fetch('/api/auth/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(typeof (data as any).error === 'string' ? (data as any).error : 'Unable to complete patient registration.');
+        }
+
         router.replace('/login?registered=1');
       }
     } catch (error) {

@@ -56,8 +56,17 @@ export async function POST(request: NextRequest) {
         urlsToTry.push(`${clean}/auth/sync-entra-user`);
       }
     }
-    urlsToTry.push('http://claimsguru-api-test:8000/ingress/auth/sync-entra-user');
+    // Container App internal DNS names for Preprod and Stage
+    urlsToTry.push('http://cg-preprod-cin-ingress:8000/ingress/auth/sync-entra-user');
+    urlsToTry.push('http://cg-preprod-cin-ingress:8000/auth/sync-entra-user');
+    urlsToTry.push('http://cg-preprod-cin-ingress/ingress/auth/sync-entra-user');
+    urlsToTry.push('http://cg-preprod-cin-ingress/auth/sync-entra-user');
+    urlsToTry.push('http://claimsguru-stage-ingress:8000/ingress/auth/sync-entra-user');
+    urlsToTry.push('http://claimsguru-stage-ingress:8000/auth/sync-entra-user');
+    urlsToTry.push('http://claimsguru-stage-ingress/ingress/auth/sync-entra-user');
+    urlsToTry.push('http://claimsguru-stage-ingress/auth/sync-entra-user');
     urlsToTry.push('http://claimsguru-ingress:8000/ingress/auth/sync-entra-user');
+    urlsToTry.push('http://claimsguru-api-test:8000/ingress/auth/sync-entra-user');
     urlsToTry.push('http://127.0.0.1:8000/ingress/auth/sync-entra-user');
     urlsToTry.push('http://localhost:8000/ingress/auth/sync-entra-user');
 
@@ -72,7 +81,7 @@ export async function POST(request: NextRequest) {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(3500),
+          signal: AbortSignal.timeout(7000),
         });
         if (attempt.status !== 404) {
           res = attempt;
@@ -96,7 +105,7 @@ export async function POST(request: NextRequest) {
         organization: isOrg ? 'Star Health' : undefined,
         organization_slug: isOrg ? 'star-health' : undefined,
         is_new_user: false,
-        needs_onboarding: !isOrg,
+        needs_onboarding: false,
         is_local_demo: true,
       });
     }

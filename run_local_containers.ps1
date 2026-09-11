@@ -15,6 +15,16 @@ param (
 $ErrorActionPreference = "Continue"
 $ProjectRoot = $PSScriptRoot
 
+# Ensure .env file exists
+if (-not (Test-Path "$ProjectRoot/.env")) {
+    if (Test-Path "$ProjectRoot/.env.example") {
+        Copy-Item "$ProjectRoot/.env.example" "$ProjectRoot/.env" -Force
+        Write-Host "Created .env from .env.example" -ForegroundColor DarkGray
+    } else {
+        New-Item -ItemType File -Path "$ProjectRoot/.env" -Force | Out-Null
+    }
+}
+
 if ($Stop) {
     Write-Host "Stopping all ClaimsGuru containers..." -ForegroundColor Yellow
     $oldContainers = @("claimsguru-api-test", "claimsguru-worker-ocr", "claimsguru-worker-default", "claimsguru-web-test")
@@ -23,7 +33,7 @@ if ($Stop) {
             docker rm -f $c 2>&1 | Out-Null
         }
     }
-    docker compose -f "$ProjectRoot/infra/docker/docker-compose.yml" stop mssql-db redis 2>&1 | Out-Null
+    docker compose -p claimgpt-feature -f "$ProjectRoot/infra/docker/docker-compose.yml" stop mssql-db redis 2>&1 | Out-Null
     Write-Host "All containers stopped." -ForegroundColor Green
     exit 0
 }
@@ -35,7 +45,7 @@ Write-Host "==========================================================" -Foregro
 # 1. Ensure SQL Server and Redis are running
 Write-Host ""
 Write-Host "[1/5] Starting Local SQL Server and Redis..." -ForegroundColor Yellow
-docker compose -f "$ProjectRoot/infra/docker/docker-compose.yml" up -d mssql-db redis
+docker compose -p claimgpt-feature -f "$ProjectRoot/infra/docker/docker-compose.yml" up -d mssql-db redis
 
 # 2. Wait for SQL Server to be healthy and initialize database
 Write-Host ""

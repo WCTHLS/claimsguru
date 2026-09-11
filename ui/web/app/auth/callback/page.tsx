@@ -11,11 +11,16 @@ export default function AuthCallbackPage() {
   const isExecutingRef = useRef(false);
 
   useEffect(() => {
-    // If we already have an active valid session, immediately redirect
-    const existingSession = getStoredAuthSession();
-    if (existingSession) {
-      router.replace(getAuthRedirectPath(existingSession));
-      return;
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    const code = params.get('code');
+
+    // If there is NO incoming OAuth code and we already have a valid session, redirect
+    if (!code) {
+      const existingSession = getStoredAuthSession();
+      if (existingSession) {
+        router.replace(getAuthRedirectPath(existingSession));
+        return;
+      }
     }
 
     if (isExecutingRef.current) {

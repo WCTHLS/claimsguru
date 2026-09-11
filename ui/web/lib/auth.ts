@@ -398,6 +398,9 @@ export async function beginEntraAuthFlow({ role, isRegister = false, loginHint }
   const verifier = createRandomString(64);
   const challenge = await createPkceChallenge(verifier);
 
+  // Clear any existing session before starting fresh authentication
+  clearAuthSession();
+
   sessionStorage.setItem(PKCE_STATE_KEY, state);
   sessionStorage.setItem(PKCE_VERIFIER_KEY, verifier);
   sessionStorage.setItem(ROLE_HINT_KEY, role);
@@ -447,6 +450,9 @@ export async function beginAuthFlow({ role, isRegister = false, loginHint }: Beg
   const state = createRandomString(24);
   const verifier = createRandomString(64);
   const challenge = await createPkceChallenge(verifier);
+
+  // Clear any existing session before starting fresh authentication
+  clearAuthSession();
 
   sessionStorage.setItem(PKCE_STATE_KEY, state);
   sessionStorage.setItem(PKCE_VERIFIER_KEY, verifier);

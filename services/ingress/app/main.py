@@ -60,6 +60,16 @@ class AuthUser(BaseModel):
     is_authenticated: bool = False
 
 
+JWT_SECRET = os.getenv("JWT_SECRET", "claimsguru-enterprise-secure-jwt-secret-key-2026")
+
+def create_session_jwt(payload: dict[str, Any]) -> str:
+    """Generate signed JWT token for direct database / mobile authentication."""
+    import jwt
+    from datetime import datetime, timezone, timedelta
+    exp = datetime.now(timezone.utc) + timedelta(days=30)
+    data = {**payload, "exp": exp, "iat": datetime.now(timezone.utc)}
+    return jwt.encode(data, JWT_SECRET, algorithm="HS256")
+
 # Global cache for JWKS client to reuse SSL connections and public keys
 _jwks_client = None
 
@@ -93,43 +103,54 @@ def get_current_user_context(
 ) -> AuthUser:
     resolved_patient = (x_patient_id or patient_id or "").strip() or None
     
-    # 1. If Bearer Token is provided, decode and verify it
+    # 1. If Bearer Token is provided, decode and verify it (supports both Mobile HS256 & Entra RS256)
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ", 1)[1].strip()
         try:
             import jwt
-            jwks_client = _get_jwks_client()
             claims = None
-            if jwks_client is not None:
-                try:
-                    signing_key = jwks_client.get_signing_key_from_jwt(token)
-                    claims = jwt.decode(
-                        token,
-                        signing_key.key,
-                        algorithms=["RS256"],
-                        options={"verify_exp": True, "verify_aud": False}
-                    )
-                except Exception as verify_err:
-                    logger.debug(f"JWKS verification failed: {verify_err}")
-            
+
+            # First attempt: Local/Mobile JWT signature (HS256)
+            try:
+                claims = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            except Exception:
+                pass
+
+            # Second attempt: Microsoft Entra ID signature (RS256)
+            if not claims:
+                jwks_client = _get_jwks_client()
+                if jwks_client is not None:
+                    try:
+                        signing_key = jwks_client.get_signing_key_from_jwt(token)
+                        claims = jwt.decode(
+                            token,
+                            signing_key.key,
+                            algorithms=["RS256"],
+                            options={"verify_exp": True, "verify_aud": False}
+                        )
+                    except Exception as verify_err:
+                        logger.debug(f"JWKS verification failed: {verify_err}")
+
+            # Fallback decode if unverified payload is available
             if not claims:
                 claims = jwt.decode(token, options={"verify_signature": False, "verify_exp": False})
             
-            sub = claims.get("sub") or claims.get("oid")
-            email = claims.get("email") or claims.get("preferred_username")
-            roles = claims.get("roles") or ["patient"]
-            primary_role = roles[0] if isinstance(roles, list) and roles else "patient"
-            tenant_id = claims.get("tid")
-            extracted_patient_id = claims.get("patient_id") or email or sub or resolved_patient
-            
-            return AuthUser(
-                user_id=sub or x_user_id or "user",
-                email=email or (resolved_patient if resolved_patient and "@" in resolved_patient else None),
-                role=primary_role,
-                patient_id=extracted_patient_id,
-                tenant_id=tenant_id,
-                is_authenticated=True,
-            )
+            if claims:
+                sub = claims.get("sub") or claims.get("oid") or claims.get("user_id")
+                email = claims.get("email") or claims.get("preferred_username")
+                roles = claims.get("roles") or [claims.get("role", "patient")]
+                primary_role = roles[0] if isinstance(roles, list) and roles else (claims.get("role") or "patient")
+                tenant_id = claims.get("tid")
+                extracted_patient_id = claims.get("patient_id") or email or sub or resolved_patient
+                
+                return AuthUser(
+                    user_id=sub or x_user_id or "user",
+                    email=email or (resolved_patient if resolved_patient and "@" in resolved_patient else None),
+                    role=primary_role,
+                    patient_id=extracted_patient_id,
+                    tenant_id=tenant_id,
+                    is_authenticated=True,
+                )
         except Exception as exc:
             logger.debug(f"JWT Token validation fallback: {exc}")
 
@@ -140,7 +161,7 @@ def get_current_user_context(
         role="patient",
         patient_id=resolved_patient,
         tenant_id=None,
-        is_authenticated=bool(resolved_patient or x_user_id),
+        is_authenticated=False,
     )
 
 
@@ -999,26 +1020,22 @@ def _ensure_users_password_hash_column() -> None:
 
 
 def _assign_user_role(db, user_id, role_id):
-    """Safely assign a role to a user, accommodating schemas with or without an 'id' column."""
+    """Safely assign a role to a user in MSSQL user_roles table with composite key (user_id, role_id)."""
     try:
+        u_val = str(user_id)
+        r_val = str(role_id)
         existing = db.execute(
             text("SELECT 1 FROM user_roles WHERE user_id = :u AND role_id = :r"),
-            {"u": user_id, "r": role_id}
+            {"u": u_val, "r": r_val}
         ).first()
         if existing:
             return
         db.execute(
             text("INSERT INTO user_roles (user_id, role_id, created_at) VALUES (:u, :r, CURRENT_TIMESTAMP)"),
-            {"u": user_id, "r": role_id}
+            {"u": u_val, "r": r_val}
         )
-    except Exception:
-        try:
-            db.execute(
-                text("INSERT INTO user_roles (id, user_id, role_id, created_at) VALUES (:id, :u, :r, CURRENT_TIMESTAMP)"),
-                {"id": uuid.uuid4(), "u": user_id, "r": role_id}
-            )
-        except Exception as e:
-            logger.warning(f"Could not assign user role {role_id} to user {user_id}: {e}")
+    except Exception as e:
+        logger.warning(f"Could not assign user role {role_id} to user {user_id}: {e}")
 
 
 class RegisterUserIn(BaseModel):
@@ -1088,8 +1105,22 @@ def register_local_user(payload: RegisterUserIn):
         if not org_name_check:
             raise HTTPException(status_code=400, detail="Organization name is required for admin registration")
 
+    phone_val = (payload.phone or "").strip() or None
+
     with SessionLocal() as db:
         try:
+            # 0. Check phone collision if phone is provided
+            if phone_val:
+                phone_conflict = db.execute(
+                    text("SELECT id, email FROM users WHERE phone = :phone AND lower(email) != lower(:email)"),
+                    {"phone": phone_val, "email": email},
+                ).mappings().first()
+                if phone_conflict:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"The mobile number '{phone_val}' is already registered with another account ({phone_conflict['email']}).",
+                    )
+
             # 1. Create or get User
             user_row = db.execute(
                 text("SELECT id FROM users WHERE lower(email) = lower(:email)"),
@@ -1105,16 +1136,17 @@ def register_local_user(payload: RegisterUserIn):
                     text("""
                         UPDATE users
                         SET status = 'ACTIVE',
+                            phone = COALESCE(:phone, phone),
                             password_hash = COALESCE(:password_hash, password_hash),
                             updated_at = CURRENT_TIMESTAMP
                         WHERE id = :id
                     """),
-                    {"id": user_id, "password_hash": password_hash},
+                    {"id": user_id, "phone": phone_val, "password_hash": password_hash},
                 )
             else:
                 new_user = User(
                     email=email,
-                    phone=payload.phone or None,
+                    phone=phone_val,
                     external_provider='local',
                     external_subject_id=email,
                     status='ACTIVE',
@@ -1273,11 +1305,28 @@ def register_local_user(payload: RegisterUserIn):
             except Exception as notify_err:
                 logger.warning(f"Failed to dispatch welcome notification: {notify_err}")
 
+            token = create_session_jwt({
+                "sub": str(user_id),
+                "email": email,
+                "role": normalized_role,
+                "patient_id": str(user_id)
+            })
+
             return {
                 "success": True,
                 "user_id": str(user_id),
                 "email": email,
                 "role": normalized_role,
+                "name": f"{first_name} {last_name}".strip() or email.split("@")[0],
+                "first_name": first_name,
+                "last_name": last_name,
+                "phone": payload.phone,
+                "dob": str(dob_val) if dob_val else None,
+                "gender": payload.gender or None,
+                "policy_number": payload.policy or None,
+                "sum_insured": sum_insured_val,
+                "access_token": token,
+                "token": token,
                 "organization": payload.organization if normalized_role == "reviewer" else None,
                 "message": "User registered and profile stored in database successfully",
             }
@@ -1487,14 +1536,22 @@ def login_local_user(payload: LoginUserIn):
                 organization_name = org_row["name"]
                 organization_slug = _slugify_org(organization_name)
             else:
-                role_match = db.execute(
-                    text(
-                        "SELECT 1 FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id AND r.name = :role_name"
-                    ),
-                    {"user_id": user_row["id"], "role_name": normalized_role},
-                ).scalar()
-
+                role_match = (
+                    (actual_role in ("submitter", "patient") and normalized_role in ("submitter", "patient"))
+                    or (actual_role == normalized_role)
+                )
                 if not role_match:
+                    try:
+                        role_match = bool(db.execute(
+                            text(
+                                "SELECT 1 FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id AND r.name = :role_name"
+                            ),
+                            {"user_id": user_row["id"], "role_name": normalized_role},
+                        ).scalar())
+                    except Exception:
+                        role_match = True
+
+                if not role_match and actual_role:
                     raise HTTPException(
                         status_code=403,
                         detail={
@@ -1503,17 +1560,62 @@ def login_local_user(payload: LoginUserIn):
                         },
                     )
 
+            first_name = None
+            last_name = None
+            dob_str = None
+            gender = None
+            policy_num = None
+            sum_insured_val = None
+
+            if normalized_role in ("submitter", "patient"):
+                patient_row = db.execute(
+                    text("SELECT first_name, last_name, dob, gender, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
+                    {"user_id": user_row["id"]},
+                ).mappings().first()
+                if patient_row:
+                    first_name = patient_row["first_name"]
+                    last_name = patient_row["last_name"]
+                    dob_str = str(patient_row["dob"]) if patient_row["dob"] else None
+                    gender = patient_row["gender"]
+                    policy_num = patient_row["policy_number"]
+                    sum_insured_val = float(patient_row["sum_insured"]) if patient_row["sum_insured"] is not None else None
+            else:
+                staff_row = db.execute(
+                    text("SELECT first_name, last_name FROM staff_profiles WHERE user_id = :user_id"),
+                    {"user_id": user_row["id"]},
+                ).mappings().first()
+                if staff_row:
+                    first_name = staff_row["first_name"]
+                    last_name = staff_row["last_name"]
+
             db.execute(
                 text("UPDATE users SET last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
                 {"id": user_row["id"]},
             )
             db.commit()
 
+    token = create_session_jwt({
+        "sub": str(user_row["id"]),
+        "email": email,
+        "role": normalized_role,
+        "patient_id": str(user_row["id"])
+    })
+
+    resolved_name = f"{first_name or ''} {last_name or ''}".strip() or email.split("@")[0]
     return {
         "success": True,
         "user_id": str(user_row["id"]),
         "email": email,
+        "name": resolved_name,
+        "first_name": first_name,
+        "last_name": last_name,
+        "dob": dob_str,
+        "gender": gender,
+        "policy_number": policy_num,
+        "sum_insured": sum_insured_val,
         "role": normalized_role,
+        "access_token": token,
+        "token": token,
         "organization": organization_name,
         "organization_slug": organization_slug,
         "message": "Login successful",
@@ -2279,29 +2381,7 @@ def health():
     return {"status": status, "database": "up" if db_ok else "down"}
 
 
-@router.post("/auth/login")
-@router.post("/auth/register")
-def authenticate_or_register_user(data: dict[str, Any] = Body(...), db: Session = Depends(get_db)):
-    username = data.get("username") or data.get("name") or data.get("email", "Swagath")
-    if isinstance(username, str) and "@" in username:
-        username = username.split("@")[0]
-    username = str(username).strip().capitalize()
-    
-    email = data.get("email") or f"{username.lower()}@example.com"
-    role = data.get("role", "patient")
-    
-    _audit(db, "USER_LOGIN_OR_REGISTER", metadata={"username": username, "email": email, "role": role})
-    logger.info("User registered/authenticated in Docker backend: %s (%s)", username, email)
-    return {
-        "status": "success",
-        "message": f"Account {username} initialized in backend",
-        "user": {
-            "name": username,
-            "email": email,
-            "role": role,
-            "account_id": f"ACC-{username.upper()}-2026"
-        }
-    }
+
 
 
 @router.get("/claims/upload-token", dependencies=[Depends(RateLimiter(limit=10, window_seconds=60))])
@@ -2403,6 +2483,7 @@ async def create_claim(
     email: str = Form(None),
     storage_paths: list[str] = Form(None),
     force: bool = Form(False),
+    auth_user: AuthUser = Depends(get_current_user_context),
     db: Session = Depends(get_db),
 ):
     """Create a new claim by uploading files or passing pre-uploaded storage paths.
@@ -2411,6 +2492,16 @@ async def create_claim(
     synchronously, triggers the notification, and enqueues the processing pipeline.
     If force=True, any previous duplicate completed claim with matching set_hash will be replaced.
     """
+    if not auth_user.is_authenticated:
+        upload_log.warning("UPLOAD_REJECTED | endpoint=create_claim reason=unauthorized")
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please log in to upload claim documents."
+        )
+
+    resolved_patient_id = patient_id or auth_user.patient_id or auth_user.user_id
+    resolved_email = email or auth_user.email
+
     storage_paths_list = []
     if storage_paths:
         if len(storage_paths) == 1 and (storage_paths[0].startswith("[") or "," in storage_paths[0]):
@@ -2433,8 +2524,8 @@ async def create_claim(
         files_count,
         paths_count,
         policy_id,
-        patient_id,
-        email,
+        resolved_patient_id,
+        resolved_email,
         force,
     )
     
@@ -2667,6 +2758,9 @@ def list_claims(
     auth_user: AuthUser = Depends(get_current_user_context),
     db: Session = Depends(get_db),
 ):
+    if not auth_user.is_authenticated:
+        raise HTTPException(status_code=401, detail="Authentication required to view claims.")
+
     try:
         query = db.query(Claim)
         effective_patient = (patient_id or auth_user.patient_id or "").strip() or None

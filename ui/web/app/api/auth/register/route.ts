@@ -57,8 +57,16 @@ export async function POST(request: NextRequest) {
         urlsToTry.push(`${clean}/auth/register`);
       }
     }
-    urlsToTry.push('http://claimsguru-api-test:8000/ingress/auth/register');
+    urlsToTry.push('http://cg-preprod-cin-ingress:8000/ingress/auth/register');
+    urlsToTry.push('http://cg-preprod-cin-ingress:8000/auth/register');
+    urlsToTry.push('http://cg-preprod-cin-ingress/ingress/auth/register');
+    urlsToTry.push('http://cg-preprod-cin-ingress/auth/register');
+    urlsToTry.push('http://claimsguru-stage-ingress:8000/ingress/auth/register');
+    urlsToTry.push('http://claimsguru-stage-ingress:8000/auth/register');
+    urlsToTry.push('http://claimsguru-stage-ingress/ingress/auth/register');
+    urlsToTry.push('http://claimsguru-stage-ingress/auth/register');
     urlsToTry.push('http://claimsguru-ingress:8000/ingress/auth/register');
+    urlsToTry.push('http://claimsguru-api-test:8000/ingress/auth/register');
     urlsToTry.push('http://127.0.0.1:8000/ingress/auth/register');
     urlsToTry.push('http://localhost:8000/ingress/auth/register');
 
