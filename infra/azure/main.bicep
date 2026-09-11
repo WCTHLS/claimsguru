@@ -31,6 +31,8 @@ var acaEnvName = '${prefix}-aca-env'
 var serviceBusName = 'cg-${environmentName}-sb-${uniqueSuffix}'
 var sqlServerName = 'cg-${environmentName}-sql-${uniqueSuffix}'
 var sqlDbName = 'claimsguru'
+var acsName = 'cg-${environmentName}-acs-${uniqueSuffix}'
+var emailServiceName = 'cg-${environmentName}-email-${uniqueSuffix}'
 
 // 1. Log Analytics Workspace
 resource logAnalytics 'Microsoft.OperationalInsights/workspaces@2022-10-01' = {
@@ -234,6 +236,41 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
+// 8.5. Azure Communication Services (Zero-base PAYG Tier)
+resource communicationService 'Microsoft.Communication/communicationServices@2023-04-01' = {
+  name: acsName
+  location: 'global'
+  properties: {
+    dataLocation: 'India'
+  }
+}
+
+// 8.6. Azure Email Communication Services with Free Azure Managed Domain
+resource emailService 'Microsoft.Communication/emailServices@2023-04-01' = {
+  name: emailServiceName
+  location: 'global'
+  properties: {
+    dataLocation: 'India'
+  }
+}
+
+resource emailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' = {
+  parent: emailService
+  name: 'AzureManagedDomain'
+  location: 'global'
+  properties: {
+    domainManagement: 'AzureManaged'
+  }
+}
+
+resource linkedDomain 'Microsoft.Communication/communicationServices/domains@2023-04-01' = {
+  parent: communicationService
+  name: emailDomain.name
+  properties: {
+    domainResourceId: emailDomain.id
+  }
+}
+
 var acrName = split(acrLoginServer, '.')[0]
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
   name: acrName
@@ -283,6 +320,10 @@ resource ingressApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_KEY', value: docIntelligence.listKeys().key1 }
             { name: 'CELERY_BROKER_URL', value: redisConnectionString }
             { name: 'CELERY_RESULT_BACKEND', value: redisConnectionString }
+            { name: 'AZURE_COMMUNICATION_CONNECTION_STRING', value: communicationService.listKeys().primaryConnectionString }
+            { name: 'AZURE_COMMUNICATION_SENDER_EMAIL', value: 'DoNotReply@${emailDomain.properties.fromSenderDomain}' }
+            { name: 'ENABLE_EMAIL_NOTIFICATIONS', value: 'false' }
+            { name: 'ENABLE_NOTIFICATIONS', value: 'false' }
           ]
           resources: {
             cpu: json('1.0')
@@ -414,6 +455,10 @@ resource workerDefaultApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_KEY', value: docIntelligence.listKeys().key1 }
             { name: 'CELERY_BROKER_URL', value: redisConnectionString }
             { name: 'CELERY_RESULT_BACKEND', value: redisConnectionString }
+            { name: 'AZURE_COMMUNICATION_CONNECTION_STRING', value: communicationService.listKeys().primaryConnectionString }
+            { name: 'AZURE_COMMUNICATION_SENDER_EMAIL', value: 'DoNotReply@${emailDomain.properties.fromSenderDomain}' }
+            { name: 'ENABLE_EMAIL_NOTIFICATIONS', value: 'false' }
+            { name: 'ENABLE_NOTIFICATIONS', value: 'false' }
           ]
           resources: {
             cpu: json('1.0')
@@ -489,3 +534,5 @@ output redisHost string = '${prefix}-redis'
 output serviceBusName string = serviceBus.name
 output storageAccountName string = storageAccount.name
 output docIntelEndpoint string = docIntelligence.properties.endpoint
+output communicationServiceEndpoint string = communicationService.properties.hostName
+output emailSenderDomain string = emailDomain.properties.fromSenderDomain
