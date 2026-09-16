@@ -23,6 +23,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { getStoredAuthSession, clearAuthSession } from '@/lib/auth';
+import { getIngressApiUrl } from '@/lib/api-client';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';
 import { formatDob } from '@/lib/claimgpt-data';
 
@@ -74,19 +75,26 @@ export function UserProfileModal({
     try {
       const session = getStoredAuthSession();
       const currentEmail = userEmail || session?.user?.email || '';
+      const emailKey = currentEmail.toLowerCase();
+
       const rawDob =
+        localStorage.getItem(`claimgpt_user_dob_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_dob_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_dob');
       const insurer =
+        localStorage.getItem(`claimgpt_user_insurer_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_insurer_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_insurer');
       const policy =
+        localStorage.getItem(`claimgpt_user_policy_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_policy_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_policy');
       const sum =
+        localStorage.getItem(`claimgpt_user_sum_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_sum_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_sum');
       const gender =
+        localStorage.getItem(`claimgpt_user_gender_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_gender_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_gender');
 
@@ -99,6 +107,49 @@ export function UserProfileModal({
           ? (sum.startsWith('₹') ? sum : `₹${Number(sum).toLocaleString('en-IN')}`)
           : '₹5,000,000',
       });
+
+      // Always fetch live profile from backend database to ensure 100% sync across devices and Incognito
+      if (currentEmail) {
+        const ingressBase = getIngressApiUrl().replace(/\/+$/, '');
+        fetch(`${ingressBase}/auth/profile/${encodeURIComponent(currentEmail)}`)
+          .then(res => (res.ok ? res.json() : null))
+          .then(data => {
+            if (data && data.success) {
+              if (data.policy_number) {
+                localStorage.setItem(`claimgpt_user_policy_${emailKey}`, data.policy_number);
+                localStorage.setItem('claimgpt_user_policy', data.policy_number);
+              }
+              if (data.sum_insured) {
+                localStorage.setItem(`claimgpt_user_sum_${emailKey}`, String(data.sum_insured));
+                localStorage.setItem('claimgpt_user_sum', String(data.sum_insured));
+              }
+              if (data.dob) {
+                localStorage.setItem(`claimgpt_user_dob_${emailKey}`, data.dob);
+                localStorage.setItem('claimgpt_user_dob', data.dob);
+              }
+              if (data.gender) {
+                localStorage.setItem(`claimgpt_user_gender_${emailKey}`, data.gender);
+                localStorage.setItem('claimgpt_user_gender', data.gender);
+              }
+              if (data.name) {
+                localStorage.setItem(`claimgpt_user_name_${emailKey}`, data.name);
+                localStorage.setItem('claimgpt_user_name', data.name);
+              }
+
+              setUserMeta(prev => ({
+                ...prev,
+                policyNo: data.policy_number || prev.policyNo,
+                dob: data.dob ? formatDob(data.dob) : prev.dob,
+                gender: data.gender || prev.gender,
+                sumInsured: data.sum_insured
+                  ? `₹${Number(data.sum_insured).toLocaleString('en-IN')}`
+                  : prev.sumInsured,
+                insurer: data.organization || prev.insurer,
+              }));
+            }
+          })
+          .catch(() => {});
+      }
     } catch {
       /* ignore localStorage error */
     }

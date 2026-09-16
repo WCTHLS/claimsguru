@@ -121,10 +121,16 @@ export function isMockId(id?: string | null): boolean {
 function getAuthHeaders(): Record<string, string> {
   const session = getStoredAuthSession();
   const token = session?.accessToken || session?.idToken;
+  const headers: Record<string, string> = {};
   if (token) {
-    return { Authorization: `Bearer ${token}` };
+    headers.Authorization = `Bearer ${token}`;
   }
-  return {};
+  const uid = session?.user?.id || session?.user?.sub || session?.user?.oid || session?.user?.email;
+  if (uid) {
+    headers['X-Patient-Id'] = uid;
+    headers['X-User-Id'] = uid;
+  }
+  return headers;
 }
 
 /**
@@ -160,7 +166,8 @@ export async function uploadClaimDocument(
   files: File | File[], 
   userName?: string, 
   claimId?: string,
-  force: boolean = false
+  force: boolean = false,
+  patientId?: string
 ): Promise<{ claim_id: string; document_id: string; status?: string; task_id?: string | null; is_duplicate?: boolean }> {
   const fileArray = Array.isArray(files) ? files : [files];
   const fileNames = fileArray.map(f => f.name.toLowerCase());
@@ -171,24 +178,29 @@ export async function uploadClaimDocument(
     for (const f of fileArray) {
       formData.append("files", f);
     }
-    if (userName) {
-      formData.append("policy_id", userName);
-      formData.append("patient_id", userName);
+    let userSessionEmail: string | undefined = undefined;
+    let userSessionId: string | undefined = undefined;
+    try {
+      const session = getStoredAuthSession();
+      if (session?.user) {
+        if (session.user.email) userSessionEmail = session.user.email;
+        if (session.user.id || session.user.sub || session.user.oid) {
+          userSessionId = session.user.id || session.user.sub || session.user.oid;
+        }
+      }
+    } catch (_) {}
+
+    const effectivePatientId = patientId || userSessionId || userSessionEmail;
+    if (effectivePatientId) {
+      formData.append("patient_id", effectivePatientId);
+      formData.append("policy_id", effectivePatientId);
+    }
+    if (userSessionEmail) {
+      formData.append("email", userSessionEmail);
     }
     if (force) {
       formData.append("force", "true");
     }
-    try {
-      if (typeof window !== "undefined") {
-        const rawUser = localStorage.getItem("claimsguru_user") || localStorage.getItem("user");
-        if (rawUser) {
-          const parsedUser = JSON.parse(rawUser);
-          if (parsedUser?.email) {
-            formData.append("email", parsedUser.email);
-          }
-        }
-      }
-    } catch (_) {}
 
     const url = claimId 
       ? `${INGRESS_API}/claims/${claimId}/documents` 
@@ -385,23 +397,19 @@ export async function fetchLatestClaimId(patientId?: string): Promise<string | n
 export async function fetchRecentClaims(patientId?: string): Promise<RecentClaimSummary[]> {
   try {
     const params = new URLSearchParams({ limit: "50", t: Date.now().toString() });
-    if (patientId) {
-      params.append("patient_id", patientId);
+    let effectivePatientId = patientId;
+    if (!effectivePatientId) {
+      const session = getStoredAuthSession();
+      effectivePatientId = session?.user?.id || session?.user?.email || undefined;
+    }
+    if (effectivePatientId) {
+      params.append("patient_id", effectivePatientId);
     }
     const url = `${INGRESS_API}/claims?${params.toString()}`;
-    const res = await safeFetch(url, { cache: "no-store" }, 8000);
+    const res = await safeFetch(url, { cache: "no-store", headers: getAuthHeaders() }, 8000);
     if (!res || !res.ok) return [];
     const data = await res.json();
-    let claims = data.claims || data.results || (Array.isArray(data) ? data : []);
-    
-    // If patient-specific filter returned 0 results, fall back to fetching all recent claims
-    if (claims.length === 0 && patientId) {
-      const fallbackRes = await safeFetch(`${INGRESS_API}/claims?limit=50&t=${Date.now()}`, { cache: "no-store" }, 8000);
-      if (fallbackRes && fallbackRes.ok) {
-        const fallbackData = await fallbackRes.json();
-        claims = fallbackData.claims || fallbackData.results || (Array.isArray(fallbackData) ? fallbackData : []);
-      }
-    }
+    const claims = data.claims || data.results || (Array.isArray(data) ? data : []);
 
     return claims.map((c: any) => ({
       id: c.id || c.claim_id,

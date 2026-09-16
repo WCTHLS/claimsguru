@@ -235,16 +235,15 @@ export function useAuditorState() {
     try {
       let patientId: string | undefined = undefined;
       const session = getStoredAuthSession();
-      if (session?.user?.name && session.user.name !== 'User') {
-        patientId = session.user.name;
-      } else {
-        const savedName = localStorage.getItem('claimgpt_user_name');
-        if (savedName && savedName !== 'User') patientId = savedName;
+      if (session?.user?.id) {
+        patientId = session.user.id;
+      } else if (session?.user?.email) {
+        patientId = session.user.email;
+      } else if (session?.user?.sub && session.user.sub !== 'User') {
+        patientId = session.user.sub;
       }
       const claims = await fetchRecentClaims(patientId);
-      if (claims && claims.length > 0) {
-        setRecentClaims(claims);
-      }
+      setRecentClaims(claims || []);
     } catch (err) {
       console.warn("Failed to load recent claims list:", err);
     }
@@ -278,14 +277,15 @@ export function useAuditorState() {
       try {
         let patientId: string | undefined = undefined;
         const session = getStoredAuthSession();
-        if (session?.user?.name) {
-          patientId = session.user.name;
-        } else {
-          const savedName = localStorage.getItem('claimgpt_user_name');
-          if (savedName) patientId = savedName;
+        if (session?.user?.id) {
+          patientId = session.user.id;
+        } else if (session?.user?.email) {
+          patientId = session.user.email;
+        } else if (session?.user?.sub && session.user.sub !== 'User') {
+          patientId = session.user.sub;
         }
         const claims = await fetchRecentClaims(patientId);
-        setRecentClaims(claims);
+        setRecentClaims(claims || []);
 
         // Check if a specific claim was requested via URL query string
         let targetId: string | null = null;
@@ -759,7 +759,15 @@ export function useAuditorState() {
 
     let activeClaimId: string | null = null;
     try {
-      const res = await uploadClaimDocument(targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), userName, (appendToActive && claimId) ? claimId : undefined);
+      const session = getStoredAuthSession();
+      const effectivePatientId = session?.user?.id || session?.user?.sub || session?.user?.oid || session?.user?.email || userEmail;
+      const res = await uploadClaimDocument(
+        targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), 
+        userName, 
+        (appendToActive && claimId) ? claimId : undefined,
+        false,
+        effectivePatientId
+      );
       if (res.claim_id) {
         if (res.is_duplicate || res.status === "COMPLETED" || res.task_id === null) {
           setDuplicateClaimId(res.claim_id);
@@ -846,7 +854,9 @@ export function useAuditorState() {
 
     let activeClaimId: string | null = null;
     try {
-      const res = await uploadClaimDocument(filesToUpload, userName, undefined, true);
+      const session = getStoredAuthSession();
+      const effectivePatientId = session?.user?.id || session?.user?.sub || session?.user?.oid || session?.user?.email || userEmail;
+      const res = await uploadClaimDocument(filesToUpload, userName, undefined, true, effectivePatientId);
       if (res.claim_id) {
         activeClaimId = res.claim_id;
         activeClaimIdRef.current = res.claim_id;

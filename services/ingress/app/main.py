@@ -19,6 +19,14 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
+def _safe_parse_uuid(val: Any) -> uuid.UUID | None:
+    if not val:
+        return None
+    try:
+        return uuid.UUID(str(val).strip())
+    except Exception:
+        return None
+
 import aiofiles
 from celery import chord, group, chain
 from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, Response
@@ -1131,31 +1139,23 @@ def register_local_user(payload: RegisterUserIn):
             password_hash = supplied_hash or (hash_password(payload.password) if payload.password else None)
 
             if user_row:
-                user_id = user_row["id"]
-                db.execute(
-                    text("""
-                        UPDATE users
-                        SET status = 'ACTIVE',
-                            phone = COALESCE(:phone, phone),
-                            password_hash = COALESCE(:password_hash, password_hash),
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id
-                    """),
-                    {"id": user_id, "phone": phone_val, "password_hash": password_hash},
+                raise HTTPException(
+                    status_code=409,
+                    detail="An account with this email address already exists. Please sign in with your credentials or Microsoft Entra ID.",
                 )
-            else:
-                new_user = User(
-                    email=email,
-                    phone=phone_val,
-                    external_provider='local',
-                    external_subject_id=email,
-                    status='ACTIVE',
-                    email_verified=True,
-                    password_hash=password_hash
-                )
-                db.add(new_user)
-                db.flush()
-                user_id = new_user.id
+
+            new_user = User(
+                email=email,
+                phone=phone_val,
+                external_provider='local',
+                external_subject_id=email,
+                status='ACTIVE',
+                email_verified=True,
+                password_hash=password_hash
+            )
+            db.add(new_user)
+            db.flush()
+            user_id = new_user.id
 
             # 2. Assign Role
             role_row = db.execute(
@@ -1662,6 +1662,89 @@ class SyncEntraUserIn(BaseModel):
 
 
 
+
+@router.get("/auth/profile/{user_id_or_email}")
+def get_user_profile(user_id_or_email: str, db: Session = Depends(get_db)):
+    """Fetch complete user identity and patient/staff profile by user ID, email, or external subject ID."""
+    clean_id = user_id_or_email.strip()
+    if not clean_id:
+        raise HTTPException(status_code=400, detail="User ID or email is required")
+
+    uid_parsed = _safe_parse_uuid(clean_id)
+
+    with force_master_session():
+        user = db.execute(
+            text("""
+                SELECT id, email, phone, external_provider, external_subject_id, status 
+                FROM users 
+                WHERE lower(email) = lower(:id) 
+                   OR external_subject_id = :id 
+                   OR (:uid IS NOT NULL AND id = :uid)
+            """),
+            {"id": clean_id, "uid": uid_parsed}
+        ).mappings().first()
+
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        u_id = user["id"]
+        email = user["email"]
+
+        # 1. Fetch role
+        role_row = db.query(Role.name).join(
+            UserRoleTable, UserRoleTable.role_id == Role.id
+        ).filter(
+            UserRoleTable.user_id == u_id
+        ).order_by(Role.name).first()
+        role_name = role_row[0] if role_row else "patient"
+
+        # 2. Check patient profile
+        profile = db.execute(
+            text("""
+                SELECT first_name, last_name, dob, gender, policy_number, sum_insured 
+                FROM patient_profiles 
+                WHERE user_id = :user_id
+            """),
+            {"user_id": u_id}
+        ).mappings().first()
+
+        # 3. Check staff profile (if org user)
+        staff = None
+        org_name = None
+        if not profile:
+            staff = db.execute(
+                text("""
+                    SELECT sp.first_name, sp.last_name, o.name AS org_name
+                    FROM staff_profiles sp
+                    LEFT JOIN organizations o ON o.id = sp.organization_id
+                    WHERE sp.user_id = :user_id
+                """),
+                {"user_id": u_id}
+            ).mappings().first()
+            if staff:
+                org_name = staff["org_name"]
+
+        first_name = (profile["first_name"] if profile else (staff["first_name"] if staff else None)) or ""
+        last_name = (profile["last_name"] if profile else (staff["last_name"] if staff else None)) or ""
+        full_name = f"{first_name} {last_name}".strip() or email.split("@")[0]
+
+        return {
+            "success": True,
+            "user_id": str(u_id),
+            "email": email,
+            "name": full_name,
+            "first_name": first_name,
+            "last_name": last_name,
+            "phone": user["phone"],
+            "dob": str(profile["dob"]) if profile and profile["dob"] else None,
+            "gender": profile["gender"] if profile else None,
+            "policy_number": profile["policy_number"] if profile else None,
+            "sum_insured": float(profile["sum_insured"]) if profile and profile["sum_insured"] is not None else None,
+            "role": role_name,
+            "organization": org_name,
+        }
+
+
 @router.post("/auth/sync-entra-user", status_code=200)
 def sync_entra_user(payload: SyncEntraUserIn):
     """Synchronize a Microsoft Entra External ID authenticated user with the database.
@@ -1907,7 +1990,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
 
                     # Check patient profile
                     profile_row = db.execute(
-                        text("SELECT id, first_name, last_name, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
+                        text("SELECT * FROM patient_profiles WHERE user_id = :user_id"),
                         {"user_id": user_id},
                     ).mappings().first()
 
@@ -1953,8 +2036,12 @@ def sync_entra_user(payload: SyncEntraUserIn):
                                 },
                             )
                         needs_onboarding = False
+                        profile_row = db.execute(
+                            text("SELECT * FROM patient_profiles WHERE user_id = :user_id"),
+                            {"user_id": user_id},
+                        ).mappings().first()
                     else:
-                        needs_onboarding = not bool(profile_row and profile_row["policy_number"])
+                        needs_onboarding = not bool(profile_row and profile_row.get("policy_number"))
 
                     db.execute(
                         text("""
@@ -1969,8 +2056,12 @@ def sync_entra_user(payload: SyncEntraUserIn):
                     )
                     db.commit()
 
-                    p_fname = (profile_row["first_name"] if profile_row else None) or first_name
-                    p_lname = (profile_row["last_name"] if profile_row else None) or last_name
+                    p_fname = (profile_row.get("first_name") if profile_row else None) or first_name
+                    p_lname = (profile_row.get("last_name") if profile_row else None) or last_name
+                    p_dob = str(profile_row["dob"]) if profile_row and profile_row.get("dob") else None
+                    p_gender = profile_row.get("gender") if profile_row else None
+                    p_policy = profile_row.get("policy_number") if profile_row else None
+                    p_sum = float(profile_row["sum_insured"]) if profile_row and profile_row.get("sum_insured") is not None else None
 
                     return {
                         "success": True,
@@ -1979,6 +2070,11 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         "name": f"{p_fname} {p_lname}".strip() or email.split("@")[0],
                         "first_name": p_fname,
                         "last_name": p_lname,
+                        "phone": (user_row.get("phone") if user_row else None) or payload.phone,
+                        "dob": p_dob,
+                        "gender": p_gender,
+                        "policy_number": p_policy,
+                        "sum_insured": p_sum,
                         "role": "patient",
                         "account_role": "submitter",
                         "is_new_user": False,
@@ -2061,6 +2157,11 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         "name": f"{first_name} {last_name}".strip() or email.split("@")[0],
                         "first_name": first_name,
                         "last_name": last_name,
+                        "phone": payload.phone or None,
+                        "dob": str(payload.dob) if payload.dob else None,
+                        "gender": payload.gender or None,
+                        "policy_number": payload.policy or None,
+                        "sum_insured": sum_val,
                         "role": "patient",
                         "account_role": "submitter",
                         "is_new_user": True,
@@ -2209,6 +2310,128 @@ def register_user_profile(payload: RegisterUserIn):
                 "email": email,
                 "needs_onboarding": False,
                 "message": "User and profile saved successfully",
+            }
+
+
+@router.get("/auth/profile/{user_id_or_email}", status_code=200)
+def get_user_profile(user_id_or_email: str):
+    """
+    Fetch comprehensive live user and patient/staff profile details by UUID, email, or external subject ID.
+    Guarantees cross-device and Incognito consistency directly from Azure SQL.
+    """
+    target = str(user_id_or_email).strip()
+    if not target:
+        raise HTTPException(status_code=400, detail="Target user identifier is required")
+
+    target_uuid = _safe_parse_uuid(target)
+
+    with force_master_session():
+        with SessionLocal() as db:
+            # 1. Lookup user in users table
+            user_row = None
+            if target_uuid:
+                user_row = db.execute(
+                    text("SELECT * FROM users WHERE id = :id"),
+                    {"id": target_uuid}
+                ).mappings().first()
+
+            if not user_row and "@" in target:
+                user_row = db.execute(
+                    text("SELECT * FROM users WHERE lower(email) = lower(:email)"),
+                    {"email": target}
+                ).mappings().first()
+
+            if not user_row:
+                user_row = db.execute(
+                    text("SELECT * FROM users WHERE external_subject_id = :sid"),
+                    {"sid": target}
+                ).mappings().first()
+
+            if not user_row:
+                # Also check patient_profiles for policy number match
+                prof_row = db.execute(
+                    text("SELECT * FROM patient_profiles WHERE policy_number = :pno"),
+                    {"pno": target}
+                ).mappings().first()
+                if prof_row and prof_row.get("user_id"):
+                    user_row = db.execute(
+                        text("SELECT * FROM users WHERE id = :id"),
+                        {"id": prof_row["user_id"]}
+                    ).mappings().first()
+
+            if not user_row:
+                raise HTTPException(status_code=404, detail="User profile not found in database")
+
+            user_id = user_row["id"]
+            email = user_row.get("email") or ""
+            phone = user_row.get("phone") or None
+
+            # 2. Lookup patient profile
+            prof = db.execute(
+                text("SELECT * FROM patient_profiles WHERE user_id = :uid"),
+                {"uid": user_id}
+            ).mappings().first()
+
+            # 3. Lookup user role
+            role_row = db.execute(
+                text("""
+                    SELECT r.name FROM roles r
+                    JOIN user_roles ur ON ur.role_id = r.id
+                    WHERE ur.user_id = :uid
+                """),
+                {"uid": user_id}
+            ).mappings().first()
+
+            role_name = (role_row["name"] if role_row else "submitter").lower()
+            is_org = role_name in ("admin", "reviewer", "tpa", "auditor")
+            account_role = "admin" if role_name == "admin" else ("reviewer" if role_name in ("reviewer", "tpa", "auditor") else "submitter")
+            ui_role = "tpa" if is_org else "patient"
+
+            first_name = (prof["first_name"] if prof and prof.get("first_name") else None)
+            last_name = (prof["last_name"] if prof and prof.get("last_name") else None)
+            full_name = f"{first_name or ''} {last_name or ''}".strip() or email.split("@")[0]
+
+            dob_str = str(prof["dob"]) if prof and prof.get("dob") else None
+            gender = prof["gender"] if prof and prof.get("gender") else None
+            policy_number = prof["policy_number"] if prof and prof.get("policy_number") else None
+            sum_insured = float(prof["sum_insured"]) if prof and prof.get("sum_insured") is not None else None
+
+            # Organization details for staff
+            org_name = None
+            org_slug = None
+            if is_org:
+                org_row = db.execute(
+                    text("""
+                        SELECT o.name, o.slug FROM organizations o
+                        JOIN user_organizations uo ON uo.organization_id = o.id
+                        WHERE uo.user_id = :uid
+                    """),
+                    {"uid": user_id}
+                ).mappings().first()
+                if org_row:
+                    org_name = org_row["name"]
+                    org_slug = org_row["slug"]
+                else:
+                    org_name = "Star Health"
+                    org_slug = "star-health"
+
+            return {
+                "success": True,
+                "user_id": str(user_id),
+                "email": email,
+                "name": full_name,
+                "first_name": first_name,
+                "last_name": last_name,
+                "phone": phone,
+                "dob": dob_str,
+                "gender": gender,
+                "policy_number": policy_number,
+                "sum_insured": sum_insured,
+                "role": ui_role,
+                "account_role": account_role,
+                "organization": org_name or "ClaimsGuru Patient Portal",
+                "organization_slug": org_slug,
+                "needs_onboarding": not bool(policy_number),
             }
 
 
@@ -2499,7 +2722,40 @@ async def create_claim(
             detail="Authentication required. Please log in to upload claim documents."
         )
 
-    resolved_patient_id = patient_id or auth_user.patient_id or auth_user.user_id
+    # Strict canonical resolution of patient_id to unique User UUID or verified Email
+    resolved_patient_id = None
+    
+    # 1. First preference: authenticated user identity
+    if auth_user and auth_user.is_authenticated:
+        if auth_user.user_id and auth_user.user_id.lower() not in ("user", "anonymous"):
+            resolved_patient_id = str(auth_user.user_id).strip()
+        elif auth_user.email:
+            resolved_patient_id = auth_user.email.strip().lower()
+
+    # 2. Second preference: lookup in User table by email, sub, or user_id
+    if not resolved_patient_id or resolved_patient_id.lower() in ("user", "anonymous"):
+        raw_candidates = [patient_id, email, auth_user.patient_id, auth_user.email]
+        for cand in raw_candidates:
+            if not cand or not str(cand).strip():
+                continue
+            cand_str = str(cand).strip()
+            parsed_uid = _safe_parse_uuid(cand_str)
+            u_rec = db.query(User).filter(
+                (User.email.ilike(cand_str)) |
+                (User.external_subject_id == cand_str) |
+                ((User.id == parsed_uid) if parsed_uid else False)
+            ).first()
+            if u_rec:
+                resolved_patient_id = str(u_rec.id)
+                break
+            if "@" in cand_str or parsed_uid:
+                resolved_patient_id = cand_str
+                break
+
+    # 3. Fallback: if still unresolved, generate a unique owner ID (never a shared display name)
+    if not resolved_patient_id or resolved_patient_id.lower() in ("user", "anonymous", "swagath reddy"):
+        resolved_patient_id = str(uuid.uuid4())
+
     resolved_email = email or auth_user.email
 
     storage_paths_list = []
@@ -2656,8 +2912,8 @@ async def create_claim(
         claim_id = uuid.uuid4()
         claim = Claim(
             id=claim_id,
-            policy_id=policy_id,
-            patient_id=patient_id,
+            policy_id=policy_id or resolved_patient_id,
+            patient_id=resolved_patient_id,
             status="UPLOADED",
             source="PATIENT",
         )
@@ -2763,42 +3019,48 @@ def list_claims(
 
     try:
         query = db.query(Claim)
-        effective_patient = (patient_id or auth_user.patient_id or "").strip() or None
-        if effective_patient:
-            matched_ids = {effective_patient}
-            try:
-                # 1. Resolve by User account (email or subject ID)
-                u_row = db.query(User).filter(
-                    (User.email.ilike(effective_patient)) |
-                    (User.external_subject_id == effective_patient)
-                ).first()
-                if u_row:
-                    if u_row.email:
-                        matched_ids.add(u_row.email)
-                    prof = db.query(PatientProfile).filter(PatientProfile.user_id == u_row.id).first()
-                    if prof:
-                        if prof.first_name:
-                            matched_ids.add(prof.first_name)
-                            matched_ids.add(f"{prof.first_name} {prof.last_name or ''}".strip())
+        is_privileged = auth_user.role.lower() in ("admin", "auditor", "reviewer", "staff", "superadmin", "claims_officer")
+        
+        # Build strict set of IDs belonging to the authenticated caller ONLY (from verified JWT)
+        user_identity_ids = set()
+        if auth_user.user_id and auth_user.user_id.lower() not in ("user", "anonymous"):
+            user_identity_ids.add(str(auth_user.user_id).strip())
+        if auth_user.email:
+            user_identity_ids.add(auth_user.email.strip().lower())
 
-                # 2. Resolve by PatientProfile (full name, first name, policy number)
-                prof_row = db.query(PatientProfile).filter(
-                    ((PatientProfile.first_name + " " + PatientProfile.last_name).ilike(effective_patient)) |
-                    (PatientProfile.first_name.ilike(effective_patient)) |
-                    (PatientProfile.policy_number.ilike(effective_patient))
-                ).first()
-                if prof_row:
-                    if prof_row.first_name:
-                        matched_ids.add(prof_row.first_name)
-                        matched_ids.add(f"{prof_row.first_name} {prof_row.last_name or ''}".strip())
-                    if prof_row.user_id:
-                        p_user = db.query(User).filter(User.id == prof_row.user_id).first()
-                        if p_user and p_user.email:
-                            matched_ids.add(p_user.email)
-            except Exception as e:
-                logger.debug(f"[list_claims] Error expanding matched_ids: {e}")
+        # Expand user ID and email from DB User table for complete mapping
+        try:
+            parsed_uids = []
+            for uid_candidate in list(user_identity_ids):
+                p = _safe_parse_uuid(uid_candidate)
+                if p:
+                    parsed_uids.append(p)
 
-            query = query.filter(Claim.patient_id.in_(list(matched_ids)))
+            matched_users = db.query(User).filter(
+                (User.email.in_([x for x in user_identity_ids if "@" in x])) |
+                (User.external_subject_id.in_(list(user_identity_ids))) |
+                ((User.id.in_(parsed_uids)) if parsed_uids else False)
+            ).all()
+            for u in matched_users:
+                user_identity_ids.add(str(u.id))
+                user_identity_ids.add(str(u.id).upper())
+                user_identity_ids.add(str(u.id).lower())
+                if u.email:
+                    user_identity_ids.add(u.email.strip().lower())
+                if u.external_subject_id:
+                    user_identity_ids.add(u.external_subject_id.strip())
+        except Exception as e:
+            logger.debug(f"[list_claims] Error expanding user identities: {e}")
+
+        if not is_privileged:
+            # Standard users (patients/submitters) ONLY see their own claims.
+            # Any spoofed or external patient_id query param is strictly ignored!
+            query = query.filter(Claim.patient_id.in_(list(user_identity_ids)))
+        else:
+            # Privileged roles (admin/auditor) can query all claims or filter by specific patient_id
+            if patient_id:
+                query = query.filter(Claim.patient_id == patient_id.strip())
+        
         if policy_id:
             query = query.filter(Claim.policy_id == policy_id)
 

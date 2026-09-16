@@ -56,7 +56,9 @@ export async function POST(request: NextRequest) {
         urlsToTry.push(`${clean}/auth/sync-entra-user`);
       }
     }
-    // Container App internal DNS names for Preprod and Stage
+    // Container App internal and external endpoints for Preprod
+    urlsToTry.push('https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io/auth/sync-entra-user');
+    urlsToTry.push('https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io/ingress/auth/sync-entra-user');
     urlsToTry.push('http://cg-preprod-cin-ingress:8000/ingress/auth/sync-entra-user');
     urlsToTry.push('http://cg-preprod-cin-ingress:8000/auth/sync-entra-user');
     urlsToTry.push('http://cg-preprod-cin-ingress/ingress/auth/sync-entra-user');
