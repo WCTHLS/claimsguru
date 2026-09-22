@@ -161,7 +161,11 @@ class AzureCommunicationEmailDriver(BaseEmailDriver):
                     message["attachments"] = formatted_attachments
 
             poller = client.begin_send(message)
-            logger.info(f"[Azure Email] Email queued for {to_email} with {len(attachments or [])} attachments. Poller: {poller}")
+            try:
+                res = poller.result()
+                logger.info(f"[Azure Email] Email delivered successfully to {to_email}. MessageId: {res.get('id') if isinstance(res, dict) else getattr(res, 'id', res)}")
+            except Exception as wait_err:
+                logger.warning(f"[Azure Email] Email transmission initiated for {to_email} (waiting poller returned: {wait_err})")
             return True
         except ImportError:
             logger.warning("[Azure Email] azure-communication-email SDK not installed. Falling back to Mock.")

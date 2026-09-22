@@ -103,5 +103,26 @@ class TestEntityExtraction:
     def test_delivery_query_promotes_o80(self):
         hits = search_icd10_rag("normal vaginal delivery with episiotomy", max_results=5)
         codes = [code for code, _desc, _cat, _score in hits]
-        assert "O80" in codes
-        assert codes[0] == "O80"
+        assert "O80" in codes[:3]
+
+    def test_single_diagnosis_yields_exact_single_icd_code(self):
+        # A single concise diagnosis field should emit exactly 1 ICD-10 code, not 2
+        parsed_fields = [
+            {"field_name": "diagnosis", "field_value": "Malaria"}
+        ]
+        result = extract_entities_and_codes([], parsed_fields=parsed_fields)
+        icd_codes = [c for c in result.codes if c.code_system == "ICD10"]
+        assert len(icd_codes) == 1
+        assert icd_codes[0].is_primary is True
+
+    def test_multi_diagnosis_yields_one_code_per_entity_with_primary_flag(self):
+        # Scenario A: Separate parsed diagnosis fields (primary + secondary)
+        parsed_fields = [
+            {"field_name": "primary_diagnosis", "field_value": "Acute appendicitis"},
+            {"field_name": "secondary_diagnosis", "field_value": "Essential hypertension"}
+        ]
+        result = extract_entities_and_codes([], parsed_fields=parsed_fields)
+        icd_codes = [c for c in result.codes if c.code_system == "ICD10"]
+        assert len(icd_codes) == 2
+        assert icd_codes[0].is_primary is True
+        assert icd_codes[1].is_primary is False

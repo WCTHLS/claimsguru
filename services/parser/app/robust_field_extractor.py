@@ -107,7 +107,7 @@ class RobustFieldExtractor:
         
         "hospital_name": [
             # Standalone hospital name in header without prefix (allows optional trailing city info)
-            r"(?im)^\s*([A-Za-z0-9][A-Za-z0-9\s.,&'\-]{3,80}\b(?:Hospital|Hospitals|Medical\s+Center|Medical\s+Centre|Healthcare|Clinic|Sanatorium|Nursing\s+Home|Maternity\s+Home|Netaralay))\b(?:,\s*[A-Za-z0-9\s.,\-]+)?\s*$",
+            r"(?im)^[ \t]*([A-Za-z0-9][A-Za-z0-9 \t.,&'\-]{3,80}\b(?:Hospital|Hospitals|Medical\s+Center|Medical\s+Centre|Healthcare|Clinic|Sanatorium|Nursing\s+Home|Maternity\s+Home|Netaralay|Health\s+City))\b(?:,[ \t]*[A-Za-z0-9 \t.,\-]+)?[ \t]*$",
             # Format: "Hospital Name: XYZ Medical Center" (line-based)
             r"(?im)^\s*(?:hospital\s+name|name\s+of\s+hospital)\s*[:\-=|]?\s*([^\n|]{5,150})\s*(?:\||$)",
             # Format: "Hospital - Apollo Healthcare" (strict: require Hospital keyword)
@@ -115,11 +115,11 @@ class RobustFieldExtractor:
             # Format: "DISCHARGE SUMMARY XYZ Hospital, Tel: ..." - capture before comma (same line)
             r"(?im)^\s*(?:discharge\s+summary|facility|from)[ \t]+([A-Z][^\n,|]{8,150}?)(?:,\s*tel\b|\s*tel\b|,|\||$)",
             # Format: first header line with claim ref, e.g. "Baystate Wing Hospital Corporation | Claim Ref: ..."
-            r"(?im)^\s*([A-Z][^\n|]{8,120}?\b(?:Hospital|Hospitals|Medical Center|Medical Centre|Healthcare|Clinic|Corporation))\s*\|\s*(?:Claim Ref|Member|Policy)",
+            r"(?im)^\s*([A-Z][^\n|]{4,120}?\b(?:Hospital|Hospitals|Medical Center|Medical Centre|Healthcare|Clinic|Health\s+City|Corporation))\s*\|\s*(?:Claim Ref|Member|Policy)",
             # Format: "treating hospital: Cleveland Medical Center" or "Hospitalized at: ..." (allows 'was'/'is' separators)
-            r"(?im)(?:treating\s+)?hospital(?:\s+of\s+treatment)?\s*(?:[:\-=\.]|\bwas\b|\bis\b)?\s*([^\n\.]{8,120}?(?:Hospital|Hospitals|Medical Center|Medical Centre|Healthcare|Clinic|Corporation))\b",
+            r"(?im)(?:treating\s+)?hospital(?:\s+of\s+treatment)?\s*(?:[:\-=\.]|\bwas\b|\bis\b)?\s*([^\n\.]{4,120}?(?:Hospital|Hospitals|Medical Center|Medical Centre|Healthcare|Clinic|Health\s+City|Corporation))\b",
             # Format: "Patient treated at XYZ Hospital" (require Hospital keyword at end)
-            r"(?im)\b(?:treated|admitted|hospitalized)\s+(?:at|in)\s+([A-Z][^\n\.]{8,120}(?:Hospital|Hospitals|Medical Center|Medical Centre|Clinic|Corporation))\b",
+            r"(?im)\b(?:treated|admitted|hospitalized)\s+(?:at|in)\s+([A-Z][^\n\.]{4,120}(?:Hospital|Hospitals|Medical Center|Medical Centre|Clinic|Health\s+City|Corporation))\b",
         ],
         
         "diagnosis": [
@@ -168,6 +168,14 @@ class RobustFieldExtractor:
         "certified true",
         "office copy",
         "patient copy",
+        "nabh",
+        "nabh accredited",
+        "nabl",
+        "jci",
+        "jci accredited",
+        "accredited",
+        "accreditation",
+        "iso certified",
     }
 
     PATIENT_REJECT_TERMS = {
@@ -239,9 +247,21 @@ class RobustFieldExtractor:
 
     @staticmethod
     def _clean_person_name(value: str) -> str:
-        """Strip OCR noise, honorifics, and embedded digits from a person name."""
+        """Strip OCR noise, honorifics, age/gender prefixes/suffixes, and embedded digits from a person name."""
         if not value:
             return ""
+
+        # Strip leading DOB/dates (e.g. 11/04/1989)
+        value = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", value).strip()
+        # Strip leading age/gender prefix (e.g. "35 Yrs / Female", "35/F", "45 Y / M", "Female / 35 Yrs")
+        value = re.sub(r"^\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\/\-|,:]?\s*(?:female|male|[MF])\b[\/\-|,:]?\s*", "", value, flags=re.IGNORECASE).strip()
+        value = re.sub(r"^\s*(?:female|male|[MF])\b\s*[\/\-|,:]?\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?[\/\-|,:]?\s*", "", value, flags=re.IGNORECASE).strip()
+
+        # Strip trailing parenthesized demographics e.g. (31/F), (52/F), (/F), (31/M), (F), (M), (31 Yrs), (Age: 31)
+        value = re.sub(r"\s*[\(\[]\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]?\s*(?:female|male|[MF])\s*[\)\]].*$", "", value, flags=re.IGNORECASE).strip()
+        value = re.sub(r"\s*[\(\[]\s*(?:female|male|[MF])\s*[\/\-|,:]?\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?)?\s*[\)\]].*$", "", value, flags=re.IGNORECASE).strip()
+        value = re.sub(r"\s*[\(\[]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\)\]].*$", "", value, flags=re.IGNORECASE).strip()
+        value = re.sub(r"\s*[\(\[]\s*(?:age|sex|gender|dob|ipd|opd|uhid)\b.*?[\)\]].*$", "", value, flags=re.IGNORECASE).strip()
 
         value = re.sub(r"\b(?:mr|mrs|ms|miss)\.?[:\-]?\s*", "", value, flags=re.IGNORECASE)
         value = re.sub(r"\b(?:dr)\.?[:\-]?\s*", "", value, flags=re.IGNORECASE)
@@ -249,23 +269,26 @@ class RobustFieldExtractor:
         cutoff_terms = {
             "hereby", "declare", "that", "the", "information", "furnished", "above",
             "is", "true", "and", "correct", "was", "admitted", "to", "on", "at",
-            "patient", "name", "ipd", "reg", "no", "bill", "date", "age", "sex",
+            "patient", "name", "ipd", "reg", "no", "bill", "date", "age", "sex", "gen", "gender",
             "relation", "relative", "relationship", "doctor", "referring", "consultant",
             "treating", "referred", "hospital", "tpa", "insurance", "aged", "upon",
             "under", "for", "active", "admitting", "discharge", "discharged", "treatment",
-            "treated", "by"
+            "treated", "by", "yrs", "years", "female", "male"
         }
 
         parts = []
         for token in value.split():
-            token_clean = token.strip(" ,;:|.-").lower()
-            if token_clean in cutoff_terms or "ipd" in token_clean or "reg" in token_clean:
+            token_clean = token.strip(" ,;:|.-()[]").lower()
+            if token_clean in cutoff_terms or "ipd" in token_clean or "reg" in token_clean or token_clean in {"/f", "/m", "f", "m"}:
                 break
             if len(token_clean) > 2 and token_clean.isalpha() and token.islower():
                 break
+            # Skip pure demographic or punctuation tokens like (/F), (31/F), (M)
+            if re.fullmatch(r"[\(\[]?\s*(?:\d{1,3}\s*)?[\/\-|,:]?\s*(?:female|male|[MF])\s*[\)\]]?", token, re.IGNORECASE):
+                break
             token = re.sub(r"\d+", "", token)
-            token = token.strip(" ,;:|.-")
-            if not token:
+            token = token.strip(" ,;:|.-()[]")
+            if not token or token.lower() in {"/f", "/m"}:
                 continue
             parts.append(token)
 

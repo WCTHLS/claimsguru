@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import fullLogo from './ClaimsGuru Black PNG.png';
 
 import {
@@ -59,6 +59,26 @@ export function DashboardClinical() {
   const [claimToDelete, setClaimToDelete] = useState<{ id: string; name: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const appendFileInputRef = useRef<HTMLInputElement>(null);
+  const targetAppendClaimRef = useRef<string | null>(null);
+
+  const handleAppendRequestedDocClick = (targetClaimId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    targetAppendClaimRef.current = targetClaimId;
+    s.selectClaim(targetClaimId);
+    if (appendFileInputRef.current) {
+      appendFileInputRef.current.value = '';
+      appendFileInputRef.current.click();
+    }
+  };
+
+  const handleAppendFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length > 0 && targetAppendClaimRef.current) {
+      const claimIdToAppend = targetAppendClaimRef.current;
+      s.startClaimAnalysis(selectedFiles, true, claimIdToAppend);
+    }
+  };
 
   // Merge currently active processing claim into the list if not already present
   const allClaims = useMemo(() => {
@@ -449,11 +469,55 @@ export function DashboardClinical() {
                               </p>
                             </div>
                           ) : (
-                            <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
-                              <span className="truncate font-mono">ID: {claim.id.slice(0, 8)}...</span>
-                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 text-[9px] border border-emerald-200">
-                                ✓ Completed
-                              </span>
+                            <div className="space-y-1.5 pt-1">
+                              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                <span className="truncate font-mono">ID: {claim.id.slice(0, 8)}...</span>
+                                {claim.status === "DOCUMENTS_REQUESTED" ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300 animate-pulse">
+                                    ⚠️ Action: Docs Requested
+                                  </span>
+                                ) : claim.status === "MODIFICATION_REQUESTED" ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300">
+                                    ⚠️ Info Requested
+                                  </span>
+                                ) : claim.status === "APPROVED" ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 text-teal-800 font-bold px-2 py-0.5 text-[9px] border border-teal-300">
+                                    ✓ Approved by Insurer
+                                  </span>
+                                ) : claim.status === "SETTLED" ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 text-[9px] border border-emerald-300">
+                                    💎 Settled &amp; Paid
+                                  </span>
+                                ) : claim.status === "REJECTED" ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 font-bold px-2 py-0.5 text-[9px] border border-rose-300">
+                                    ✕ Rejected
+                                  </span>
+                                ) : claim.status === "SUBMITTED" ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-bold px-2 py-0.5 text-[9px] border border-sky-300">
+                                    📤 Submitted to Star Health
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 text-[9px] border border-emerald-200">
+                                    ✓ Audit Ready
+                                  </span>
+                                )}
+                              </div>
+
+                              {claim.status === "DOCUMENTS_REQUESTED" && (
+                                <div className="rounded-lg border border-amber-200 bg-amber-50/90 p-2 text-[10px] text-amber-900 space-y-1">
+                                  <p className="font-semibold flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3 text-amber-600 flex-none" />
+                                    <span>Insurer requested missing documents</span>
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => handleAppendRequestedDocClick(claim.id, e)}
+                                    className="w-full text-center rounded bg-amber-600 hover:bg-amber-700 text-white font-bold py-1.5 px-2 text-[10px] shadow-xs cursor-pointer transition-colors"
+                                  >
+                                    + Upload Requested Document
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -461,6 +525,17 @@ export function DashboardClinical() {
                     })
                   )}
                 </div>
+
+                {/* Hidden File Input for Appending Documents to an Existing Claim */}
+                <input
+                  ref={appendFileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  onChange={handleAppendFileSelected}
+                  className="hidden"
+                  id="append-doc-upload"
+                />
               </div>
             </StaggerItem>
 

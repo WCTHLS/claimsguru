@@ -798,6 +798,75 @@ def intake_task(
         db.close()
 
 
+def _resolve_claim_notification_recipient(db, claim, pf: dict[str, Any] | None = None) -> tuple[str | None, str | None]:
+    """Robust recipient email and phone resolver across user IDs, profiles, parsed fields, and fallbacks."""
+    from libs.shared.models import User, PatientProfile
+    import uuid
+    dest_email = None
+    dest_phone = None
+
+    target = (getattr(claim, "patient_id", None) or getattr(claim, "policy_id", None) or "").strip()
+    
+    # 1. Direct email string in patient_id or policy_id
+    if target and "@" in target:
+        dest_email = target
+        u = db.query(User).filter(User.email.ilike(target)).first()
+        if u:
+            dest_phone = u.phone
+        return dest_email, dest_phone
+
+    # 2. Check if target is a User UUID or PatientProfile UUID
+    if target:
+        target_uuid = None
+        try:
+            target_uuid = uuid.UUID(target)
+        except Exception:
+            pass
+
+        if target_uuid:
+            u = db.query(User).filter(User.id == target_uuid).first()
+            if u and u.email:
+                return u.email, u.phone
+            
+            prof = db.query(PatientProfile).filter((PatientProfile.id == target_uuid) | (PatientProfile.user_id == target_uuid)).first()
+            if prof and prof.user_id:
+                pu = db.query(User).filter(User.id == prof.user_id).first()
+                if pu and pu.email:
+                    return pu.email, pu.phone
+
+        # 3. Check User.external_subject_id or User.email partial
+        u = db.query(User).filter(
+            (User.email.ilike(f"%{target}%")) |
+            (User.external_subject_id == str(target))
+        ).first()
+        if u and u.email:
+            return u.email, u.phone
+
+        # 4. Check PatientProfile name match
+        prof = db.query(PatientProfile).filter(
+            (PatientProfile.first_name.ilike(f"%{target}%")) |
+            ((PatientProfile.first_name + " " + PatientProfile.last_name).ilike(target))
+        ).first()
+        if prof and prof.user_id:
+            pu = db.query(User).filter(User.id == prof.user_id).first()
+            if pu and pu.email:
+                return pu.email, pu.phone
+
+    # 5. Check parsed document fields for patient email
+    if pf and isinstance(pf, dict):
+        for k in ("patient_email", "email", "insured_email", "member_email"):
+            extracted_email = (pf.get(k) or "").strip()
+            if extracted_email and "@" in extracted_email:
+                return extracted_email, pf.get("patient_phone") or pf.get("phone")
+
+    # 6. Fallback to latest active User in database
+    latest_u = db.query(User).filter(User.status == "ACTIVE", User.email.isnot(None)).order_by(User.created_at.desc()).first()
+    if latest_u and latest_u.email:
+        return latest_u.email, latest_u.phone
+
+    return None, None
+
+
 @celery_app.task(
     bind=True,
     autoretry_for=(Exception,),
@@ -931,40 +1000,7 @@ def finalize_claim_task(self, previous_result: Any) -> dict[str, Any]:
             pred = db.query(Prediction).filter(Prediction.claim_id == cid).order_by(Prediction.created_at.desc()).first()
             risk_val = f"{pred.rejection_score * 100:.0f}%" if pred and pred.rejection_score is not None else "Low Risk"
 
-            from libs.shared.models import User, PatientProfile
-            dest_email = None
-            dest_phone = None
-            
-            target = (claim.patient_id or claim.policy_id or "").strip()
-            if target and "@" in target:
-                dest_email = target
-                u = db.query(User).filter(User.email.ilike(target)).first()
-                if u:
-                    dest_phone = u.phone
-            elif target:
-                u = db.query(User).filter(
-                    (User.email.ilike(f"%{target}%")) |
-                    (User.external_subject_id == str(target))
-                ).first()
-                if u:
-                    dest_email = u.email
-                    dest_phone = u.phone
-                else:
-                    prof = db.query(PatientProfile).filter(
-                        (PatientProfile.first_name.ilike(f"%{target}%")) |
-                        ((PatientProfile.first_name + " " + PatientProfile.last_name).ilike(target))
-                    ).first()
-                    if prof and prof.user_id:
-                        pu = db.query(User).filter(User.id == prof.user_id).first()
-                        if pu and pu.email:
-                            dest_email = pu.email
-                            dest_phone = pu.phone
-
-            if not dest_email:
-                latest_u = db.query(User).filter(User.status == "ACTIVE", User.email.isnot(None)).order_by(User.created_at.desc()).first()
-                if latest_u:
-                    dest_email = latest_u.email
-                    dest_phone = latest_u.phone
+            dest_email, dest_phone = _resolve_claim_notification_recipient(db, claim, pf)
 
             if dest_email:
                 dispatch_notification_async(
@@ -1175,6 +1211,85 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
                 )
             except Exception:
                 pass
+
+            # Dispatch Completed Claim Email Notification
+            try:
+                from libs.shared.models import ParsedField, MedicalCode, Prediction, User, PatientProfile, Document
+                from libs.shared.storage import MinioStorage
+
+                # Generate or fetch attachments
+                attachments_list = []
+                try:
+                    from libs.shared.pdf_report import generate_tpa_summary_pdf, generate_irdai_annexure_pdf
+                    tpa_bytes = generate_tpa_summary_pdf(str(cid), db_session=db)
+                    if tpa_bytes:
+                        attachments_list.append({
+                            "name": f"TPA_Summary_{str(cid)[:8]}.pdf",
+                            "content": tpa_bytes,
+                            "type": "application/pdf"
+                        })
+                    irda_bytes = generate_irdai_annexure_pdf(str(cid), db_session=db)
+                    if irda_bytes:
+                        attachments_list.append({
+                            "name": f"IRDAI_Annexure_{str(cid)[:8]}.pdf",
+                            "content": irda_bytes,
+                            "type": "application/pdf"
+                        })
+                except Exception as pdf_err:
+                    log.warning(f"[InlinePipeline] PDF report generation for email skipped: {pdf_err}")
+
+                pf_rows = db.query(ParsedField).filter(ParsedField.claim_id == cid).all()
+                pf = {r.field_name: r.field_value for r in pf_rows if r.field_value}
+
+                patient_name = (
+                    pf.get("patient_name")
+                    or pf.get("member_name")
+                    or pf.get("insured_name")
+                    or "Valued Patient"
+                )
+                hospital_name = pf.get("hospital_name") or pf.get("hospital") or "Hospital / Clinic"
+                claim_amt = (
+                    pf.get("total_amount")
+                    or pf.get("billed_amount")
+                    or pf.get("net_amount")
+                    or pf.get("claim_amount")
+                    or pf.get("claimed_total")
+                )
+                diagnosis_val = pf.get("diagnosis") or pf.get("primary_diagnosis") or pf.get("chief_complaint") or "Clinical Review Completed"
+                adm_date = pf.get("admission_date") or pf.get("date_of_admission")
+                dis_date = pf.get("discharge_date") or pf.get("date_of_discharge")
+
+                med_codes = db.query(MedicalCode).filter(MedicalCode.claim_id == cid).all()
+                icd_list = [c.code for c in med_codes if c.code]
+
+                pred = db.query(Prediction).filter(Prediction.claim_id == cid).order_by(Prediction.created_at.desc()).first()
+                risk_val = f"{pred.rejection_score * 100:.0f}%" if pred and pred.rejection_score is not None else "Low Risk"
+
+                dest_email = None
+                dest_phone = None
+                
+                dest_email, dest_phone = _resolve_claim_notification_recipient(db, claim, pf)
+
+                if dest_email:
+                    dispatch_notification_async(
+                        "CLAIM_PROCESSED",
+                        {
+                            "claim_id": str(claim_id),
+                            "email": dest_email,
+                            "phone": dest_phone,
+                            "patient_name": patient_name,
+                            "hospital_name": hospital_name,
+                            "claim_amount": claim_amt,
+                            "diagnosis": diagnosis_val,
+                            "icd_codes": icd_list,
+                            "risk_score": risk_val,
+                            "admission_date": adm_date,
+                            "discharge_date": dis_date,
+                            "attachments": attachments_list,
+                        },
+                    )
+            except Exception as notify_err:
+                log.warning(f"[InlinePipeline] Failed to dispatch completed claim notification: {notify_err}")
     finally:
         db.close()
     _update_workflow_state(claim_id, "FINISHED", status="FINISHED")
@@ -1311,16 +1426,6 @@ def dispatch_notification_async(event_type: str, payload: dict[str, Any]) -> Non
         except Exception as e:
             logger.warning(f"[NotificationDispatch] Background notification error: {e}")
 
-    # If Celery worker is running in container or broker is active
-    use_celery = os.getenv("CELERY_WORKER") == "true" or os.getenv("APP_ENV") == "production"
-    if use_celery:
-        try:
-            send_notification_task.apply_async(args=[event_type, payload], retry=False)
-            logger.info(f"[NotificationDispatch] Queued {event_type} notification via Celery")
-            return
-        except Exception as exc:
-            logger.debug(f"[NotificationDispatch] Celery dispatch skipped ({exc}), falling back to thread")
-
-    # Local / fast daemon thread dispatch
+    # Run notification asynchronously in background thread
     thread = threading.Thread(target=_bg_runner, name=f"notify-{event_type.lower()}", daemon=True)
     thread.start()

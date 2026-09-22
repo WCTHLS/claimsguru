@@ -35,6 +35,32 @@ def _is_obvious_label(val: str) -> bool:
     return False
 
 
+def _clean_patient_name(val: str) -> str:
+    if not val:
+        return ""
+    text = str(val).strip()
+    # Strip leading DOB/dates (e.g. 11/04/1989)
+    text = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", text).strip()
+    # Strip leading age/gender prefix (e.g. "35 Yrs / Female", "35/F", "45 Y / M", "Female / 35 Yrs")
+    text = re.sub(r"^\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\/\-|,:]?\s*(?:female|male|[MF])\b[\/\-|,:]?\s*", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"^\s*(?:female|male|[MF])\b\s*[\/\-|,:]?\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?[\/\-|,:]?\s*", "", text, flags=re.IGNORECASE).strip()
+    # Strip leading honorifics
+    text = re.sub(r"^\s*(?:mr\.?|mrs\.?|ms\.?|miss|dr\.?|baby\s+of|master)\s+", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing parenthesized demographics e.g. (31/F), (52/F), (/F), (31/M), (F), (M), (31 Yrs), (Age: 31)
+    text = re.sub(r"\s*[\(\[]\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]?\s*(?:female|male|[MF])\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*(?:female|male|[MF])\s*[\/\-|,:]?\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*(?:age|sex|gender|dob|ipd|opd|uhid)\b.*?[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing form labels / age / sex / gen markers (e.g. "Age / Gen", "Age / Sex", "Relation ...", "DOB ...", "IPD ...")
+    text = re.sub(r"\s+(?:Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing unparenthesized demographic tokens like "52/F", "31/M", "/F", "/M"
+    text = re.sub(r"\s+(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]\s*(?:female|male|[MF])\b.*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s+(?:female|male|[MF])\s*[\/\-|,:]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\b.*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing punctuation
+    text = re.sub(r"[\s:\-–—,|/()\[\]]+$", "", text).strip()
+    return text
+
+
 def _validate_patient_name(val: str) -> bool:
     if not val:
         return False
@@ -67,7 +93,21 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
     """
     grouped: Dict[str, List[Candidate]] = {}
     for c in candidates:
-        grouped.setdefault(c.field_name, []).append(c)
+        fname = c.field_name
+        if fname == "patient.name":
+            fname = "patient_name"
+        elif fname == "hospitalization.hospital_name":
+            fname = "hospital_name"
+        elif fname == "hospitalization.doctor_name":
+            fname = "doctor_name"
+        elif fname == "diagnosis.primary":
+            fname = "diagnosis"
+        elif fname == "diagnosis.secondary":
+            fname = "secondary_diagnosis"
+        elif fname == "claims.claimed_total":
+            fname = "claimed_total"
+        c.field_name = fname
+        grouped.setdefault(fname, []).append(c)
 
     resolved: List[Dict[str, Any]] = []
     provenance: Dict[str, Any] = {}
@@ -83,7 +123,10 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
             # Field-specific validators
             reason = None
             accept = True
-            if field == "patient_name":
+            if field in {"patient_name", "patient.name"}:
+                cleaned_val = _clean_patient_name(cand.field_value or "")
+                if cleaned_val:
+                    cand.field_value = cleaned_val
                 if not _validate_patient_name(cand.field_value or ""):
                     accept = False
                     reason = "failed_patient_name_validation"

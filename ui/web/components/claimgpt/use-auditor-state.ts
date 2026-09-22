@@ -239,11 +239,15 @@ export function useAuditorState() {
         patientId = session.user.id;
       } else if (session?.user?.email) {
         patientId = session.user.email;
+      } else if (userEmail) {
+        patientId = userEmail;
       } else if (session?.user?.sub && session.user.sub !== 'User') {
         patientId = session.user.sub;
       }
       const claims = await fetchRecentClaims(patientId);
-      setRecentClaims(claims || []);
+      if (claims) {
+        setRecentClaims(claims);
+      }
     } catch (err) {
       console.warn("Failed to load recent claims list:", err);
     }
@@ -515,11 +519,11 @@ export function useAuditorState() {
     : realPreview?.parsed_fields?.diagnosis || realPreview?.parsed_fields?.primary_diagnosis;
 
   const hasClaim = Boolean(claimId || realPreview);
-  const patientName = extractedPatient || (analyzing ? "Processing..." : (hasClaim ? "Patient Record" : ""));
-  const hospitalName = extractedHospital || (analyzing ? "Processing..." : (hasClaim ? "City Care Hospital" : ""));
-  const admissionDate = extractedAdmission || (analyzing ? "Processing..." : (hasClaim ? "10/06/2026" : ""));
-  const dischargeDate = extractedDischarge || (analyzing ? "Processing..." : (hasClaim ? "14/06/2026" : ""));
-  const diagnosis = extractedDiagnosis || (analyzing ? "Processing..." : (hasClaim ? "Hospital Reimbursement Audit" : ""));
+  const patientName = extractedPatient || (analyzing ? "Processing..." : "");
+  const hospitalName = extractedHospital || (analyzing ? "Processing..." : "");
+  const admissionDate = extractedAdmission || (analyzing ? "Processing..." : "");
+  const dischargeDate = extractedDischarge || (analyzing ? "Processing..." : "");
+  const diagnosis = extractedDiagnosis || (analyzing ? "Processing..." : "");
 
   /* Select file(s) without immediately analyzing — appends new files to pending list */
   /* Select file(s) without immediately analyzing — appends new files to pending list */
@@ -580,6 +584,7 @@ export function useAuditorState() {
     setIsUploadOpen(true);
     setActiveDocumentId(null);
     activeClaimIdRef.current = null;
+    reloadRecentClaims();
   };
 
   /* Direct upload & instant analysis */
@@ -729,7 +734,7 @@ export function useAuditorState() {
   };
 
   /* Begin Claim Analysis action button */
-  const startClaimAnalysis = async (overrideFiles?: File | File[], appendToActive = false) => {
+  const startClaimAnalysis = async (overrideFiles?: File | File[], appendToActive = false, explicitClaimId?: string) => {
     let targetFiles: File[] = [];
     if (overrideFiles) {
       targetFiles = Array.isArray(overrideFiles) ? overrideFiles : [overrideFiles];
@@ -738,6 +743,8 @@ export function useAuditorState() {
     }
 
     if (targetFiles.length === 0 && files.length === 0) return;
+
+    const effectiveTargetClaimId = (appendToActive && (explicitClaimId || claimId)) ? (explicitClaimId || claimId) : null;
 
     if (!appendToActive) {
       setRealPreview(null);
@@ -750,7 +757,7 @@ export function useAuditorState() {
     setUploading(true);
     setShowReportModal(false);
     setIsLiveSessionCompleted(false);
-    setIsUploadOpen(true); // Keep open during analysis to show circular progress
+    setIsUploadOpen(true); // Keep open during analysis to show progress
     setActiveStage('ocr');
     setProgress(20);
     setStepDescription("OCR (extracting text) · 20%");
@@ -764,12 +771,12 @@ export function useAuditorState() {
       const res = await uploadClaimDocument(
         targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), 
         userName, 
-        (appendToActive && claimId) ? claimId : undefined,
+        effectiveTargetClaimId ? effectiveTargetClaimId : undefined,
         false,
         effectivePatientId
       );
       if (res.claim_id) {
-        if (res.is_duplicate || res.status === "COMPLETED" || res.task_id === null) {
+        if (res.is_duplicate && !appendToActive) {
           setDuplicateClaimId(res.claim_id);
           setDuplicateFiles(targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile).filter(Boolean));
           setAnalyzing(false);
@@ -787,26 +794,49 @@ export function useAuditorState() {
         activeClaimIdRef.current = res.claim_id;
         setClaimId(res.claim_id);
 
-        // Optimistically add the new processing claim to recentClaims at the top
-        setRecentClaims((prev) => {
-          if (prev.some((c) => c.id === res.claim_id)) return prev;
-          return [
-            {
-              id: res.claim_id,
-              patient_name: "Processing...",
-              status: "UPLOADED",
-              created_at: new Date().toISOString(),
-              total_amount: "",
-              documents: targetFiles.map((f, i) => ({ id: `doc-${i}`, file_name: f.name })),
-              progress: {
-                percentage: 20,
-                step: "OCR (extracting text) - 20%",
-                is_complete: false,
-              },
-            } as any,
-            ...prev,
-          ];
-        });
+        if (appendToActive && effectiveTargetClaimId) {
+          // In-place update of existing claim record
+          setRecentClaims((prev) =>
+            prev.map((c) => {
+              if (c.id === effectiveTargetClaimId) {
+                const existingDocs = c.documents || [];
+                const newDocEntries = targetFiles.map((f, i) => ({ id: `doc-${existingDocs.length + i}`, file_name: f.name }));
+                return {
+                  ...c,
+                  status: "UPLOADED",
+                  documents: [...existingDocs, ...newDocEntries],
+                  progress: {
+                    percentage: 20,
+                    step: "OCR (extracting text) · 20%",
+                    is_complete: false,
+                  },
+                };
+              }
+              return c;
+            })
+          );
+        } else {
+          // Optimistically add the new processing claim to recentClaims at the top
+          setRecentClaims((prev) => {
+            if (prev.some((c) => c.id === res.claim_id)) return prev;
+            return [
+              {
+                id: res.claim_id,
+                patient_name: "Processing...",
+                status: "UPLOADED",
+                created_at: new Date().toISOString(),
+                total_amount: "",
+                documents: targetFiles.map((f, i) => ({ id: `doc-${i}`, file_name: f.name })),
+                progress: {
+                  percentage: 20,
+                  step: "OCR (extracting text) · 20%",
+                  is_complete: false,
+                },
+              } as any,
+              ...prev,
+            ];
+          });
+        }
 
         // Try immediate prefetch for this claim ID
         const initialPreview = await fetchClaimPreview(res.claim_id);

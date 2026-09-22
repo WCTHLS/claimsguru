@@ -50,6 +50,32 @@ CANONICAL_MAPPING = {
     "uhid": "patient_id",
 }
 
+def _clean_patient_name(val: str) -> str:
+    if not val:
+        return ""
+    text = str(val).strip()
+    # Strip leading DOB/dates (e.g. 11/04/1989)
+    text = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", text).strip()
+    # Strip leading age/gender prefix (e.g. "35 Yrs / Female", "35/F", "45 Y / M", "Female / 35 Yrs")
+    text = re.sub(r"^\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\/\-|,:]?\s*(?:female|male|[MF])\b[\/\-|,:]?\s*", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"^\s*(?:female|male|[MF])\b\s*[\/\-|,:]?\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?[\/\-|,:]?\s*", "", text, flags=re.IGNORECASE).strip()
+    # Strip leading honorifics
+    text = re.sub(r"^\s*(?:mr\.?|mrs\.?|ms\.?|miss|dr\.?|baby\s+of|master)\s+", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing parenthesized demographics e.g. (31/F), (52/F), (/F), (31/M), (F), (M), (31 Yrs), (Age: 31)
+    text = re.sub(r"\s*[\(\[]\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]?\s*(?:female|male|[MF])\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*(?:female|male|[MF])\s*[\/\-|,:]?\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*(?:age|sex|gender|dob|ipd|opd|uhid)\b.*?[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing form labels / age / sex / gen markers (e.g. "Age / Gen", "Age / Sex", "Relation ...", "DOB ...", "IPD ...")
+    text = re.sub(r"\s+(?:Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing unparenthesized demographic tokens like "52/F", "31/M", "/F", "/M"
+    text = re.sub(r"\s+(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]\s*(?:female|male|[MF])\b.*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s+(?:female|male|[MF])\s*[\/\-|,:]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\b.*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing punctuation
+    text = re.sub(r"[\s:\-–—,|/()\[\]]+$", "", text).strip()
+    return text
+
+
 def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
     """Maps geometric fields to canonical schema names."""
     normalized = []
@@ -75,7 +101,7 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
         if canonical_key == "diagnosis" and val_str:
             cleaned_diag = re.sub(r"^(?:none|n/a|null)\s*(?:procedure\s*:?|diagnosis\s*:?)?\s*", "", val_str, flags=re.IGNORECASE).strip()
             cleaned_diag = re.sub(
-                r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s*:?.*|Secondary\s+Diagnosis.*).*$",
+                r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s*:?.*|Secondary\s+Diagnosis.*|Co-?morbidity.*|Comorbidities.*|Chief\s+Complaint.*).*$",
                 "",
                 cleaned_diag,
                 flags=re.IGNORECASE,
@@ -87,15 +113,15 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
             if not val_str or val_str.lower() in {"none", "none procedure", "n/a", "null"}:
                 continue
 
-        # Clean patient_name (strip leading DOB/date prefix)
+        # Clean patient_name (strip leading DOB/date/age/gender prefix and form label suffixes)
         if canonical_key == "patient_name" and val_str:
-            val_str = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", val_str).strip()
+            val_str = _clean_patient_name(val_str)
             val_lower = val_str.lower()
             hospital_keywords = ["hospital", "commission", "clinic", "center", "health", "medical center", "pharmacy"]
             if any(kw in val_lower for kw in hospital_keywords) and "ms." not in val_lower and "mr." not in val_lower:
                 canonical_key = "hospital_name"
 
-        if canonical_key and canonical_key != "signature":
+        if canonical_key and canonical_key != "signature" and val_str:
             normalized.append({
                 "field": key_norm,
                 "canonical_field": canonical_key,

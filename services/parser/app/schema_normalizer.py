@@ -162,10 +162,34 @@ def build_canonical_schema(
             expense_total += float(amt)
 
 
+    def _clean_patient_name(val: str) -> str:
+        if not val:
+            return ""
+        text = str(val).strip()
+        # Strip leading DOB/dates (e.g. 11/04/1989)
+        text = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", text).strip()
+        # Strip leading age/gender prefix (e.g. "35 Yrs / Female", "35/F", "45 Y / M", "Female / 35 Yrs")
+        text = re.sub(r"^\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\/\-|,:]?\s*(?:female|male|[MF])\b[\/\-|,:]?\s*", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"^\s*(?:female|male|[MF])\b\s*[\/\-|,:]?\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?[\/\-|,:]?\s*", "", text, flags=re.IGNORECASE).strip()
+        # Strip leading honorifics
+        text = re.sub(r"^\s*(?:mr\.?|mrs\.?|ms\.?|miss|dr\.?|baby\s+of|master)\s+", "", text, flags=re.IGNORECASE).strip()
+        # Strip trailing parenthesized demographics e.g. (31/F), (52/F), (/F), (31/M), (F), (M), (31 Yrs), (Age: 31)
+        text = re.sub(r"\s*[\(\[]\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]?\s*(?:female|male|[MF])\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"\s*[\(\[]\s*(?:female|male|[MF])\s*[\/\-|,:]?\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"\s*[\(\[]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"\s*[\(\[]\s*(?:age|sex|gender|dob|ipd|opd|uhid)\b.*?[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+        # Strip trailing form labels / age / sex / gen markers (e.g. "Age / Gen", "Age / Sex", "Relation ...", "DOB ...", "IPD ...")
+        text = re.sub(r"\s+(?:Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
+        # Strip trailing unparenthesized demographic tokens like "52/F", "31/M", "/F", "/M"
+        text = re.sub(r"\s+(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]\s*(?:female|male|[MF])\b.*$", "", text, flags=re.IGNORECASE).strip()
+        text = re.sub(r"\s+(?:female|male|[MF])\s*[\/\-|,:]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\b.*$", "", text, flags=re.IGNORECASE).strip()
+        # Strip trailing punctuation
+        text = re.sub(r"[\s:\-–—,|/()\[\]]+$", "", text).strip()
+        return text
+
     patient_name = get_field("patient_name", "patient.name")
     if patient_name and isinstance(patient_name, str):
-        patient_name = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", patient_name).strip()
-        patient_name = re.sub(r"\s+Relation\b.*$", "", patient_name, flags=re.I).strip()
+        patient_name = _clean_patient_name(patient_name)
 
     doc_name = get_field("doctor_name", "hospitalization.doctor_name")
     if doc_name and isinstance(doc_name, str):
@@ -178,7 +202,7 @@ def build_canonical_schema(
             return d_val
         cleaned = re.sub(r"^(?:none|n/a|null)\s*(?:procedure\s*:?|diagnosis\s*:?)?\s*", "", d_val, flags=re.IGNORECASE).strip()
         cleaned = re.sub(
-            r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s*:?.*|Secondary\s+Diagnosis.*).*$",
+            r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s*:?.*|Secondary\s+Diagnosis.*|Co-?morbidity.*|Comorbidities.*|Chief\s+Complaint.*).*$",
             "",
             cleaned,
             flags=re.IGNORECASE,

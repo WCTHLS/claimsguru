@@ -342,7 +342,10 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
   const fetchClaims = useCallback(async () => {
     setLoading(true);
     const token = session?.accessToken;
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const headers: Record<string, string> = {
+      "X-User-Role": session?.role || "reviewer",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
 
     try {
       let rawClaims: Claim[] = [];
@@ -370,12 +373,6 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
           rawClaims = data.claims || data.results || (Array.isArray(data) ? data : []);
           rawTotal = data.total || rawClaims.length;
         }
-      }
-
-      if (rawClaims.length === 0 && !search.trim() && page === 0) {
-        // Fall back to offline mock demonstration data if backend is empty
-        rawClaims = MOCK_CLAIMS as any;
-        rawTotal = MOCK_CLAIMS.length;
       }
 
       if (statusFilter !== 'ALL') {
@@ -407,12 +404,12 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
       setClaims(enriched);
       setTotal(rawTotal);
     } catch {
-      setClaims(MOCK_CLAIMS);
-      setTotal(MOCK_CLAIMS.length);
+      setClaims([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [session?.accessToken, page, search, statusFilter, refreshKey]);
+  }, [session?.accessToken, session?.role, page, search, statusFilter, refreshKey]);
 
   useEffect(() => {
     fetchClaims();
@@ -447,7 +444,10 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
     chatSessionRef.current = `org-review-${claimId}-${Date.now()}`;
 
     const token = session?.accessToken;
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const headers: Record<string, string> = {
+      "X-User-Role": session?.role || "reviewer",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
 
     try {
       const res = await fetch(`${SUBMISSION_API}/claims/${claimId}/preview`, { headers }).catch(() => null);
@@ -455,18 +455,14 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
         const preview = await res.json();
         setExpandedPreview(preview);
       } else {
-        // Fallback for mock claims
         const found = claims.find((c) => c.id === claimId);
         setExpandedPreview({
           summary: found?.summary,
           billed_total: found?.billed_total,
-          predictions: [{ rejection_score: 18, top_reasons: [{ reason: 'Clean documentation provided', weight: 0.1 }] }],
-          validations: [
-            { rule_name: 'Policy Coverage Verification', passed: true, message: 'Policy active & in-network hospital', severity: 'low' },
-            { rule_name: 'Billing Itemization Check', passed: true, message: 'Total matches hospital breakdown', severity: 'low' },
-          ],
-          icd_codes: [{ code: 'K35.80', description: 'Unspecified acute appendicitis' }],
-          cpt_codes: [{ code: '44970', description: 'Laparoscopic appendectomy' }],
+          predictions: [],
+          validations: [],
+          icd_codes: [],
+          cpt_codes: [],
         });
       }
     } catch {
@@ -1018,54 +1014,99 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                               <span className="block text-[11px] text-slate-400">
                                 {new Date(c.created_at || Date.now()).toLocaleDateString()}
                               </span>
-                            </div>
-
-                            {/* Action Buttons */}
+                            </div>                            {/* Status-Aware Action Buttons */}
                             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => openQuickAction(c.id, 'approve', e)}
-                                className="h-8 border-teal-300 text-teal-700 hover:bg-teal-50"
-                                title="Approve Claim"
-                              >
-                                <Check className="h-3.5 w-3.5 sm:mr-1" />
-                                <span className="hidden sm:inline">Approve</span>
-                              </Button>
+                              {c.status === 'SETTLED' ? (
+                                <span className="inline-flex items-center gap-1 rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 border border-emerald-300">
+                                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                  <span>Settled & Paid</span>
+                                </span>
+                              ) : (
+                                <>
+                                  {c.status !== 'APPROVED' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => openQuickAction(c.id, 'approve', e)}
+                                      className="h-8 border-teal-300 text-teal-700 hover:bg-teal-50 font-medium"
+                                      title="Approve Claim"
+                                    >
+                                      <Check className="h-3.5 w-3.5 sm:mr-1" />
+                                      <span className="hidden sm:inline">Approve</span>
+                                    </Button>
+                                  )}
 
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => openQuickAction(c.id, 'reject', e)}
-                                className="h-8 border-rose-300 text-rose-700 hover:bg-rose-50"
-                                title="Reject Claim"
-                              >
-                                <X className="h-3.5 w-3.5 sm:mr-1" />
-                                <span className="hidden sm:inline">Reject</span>
-                              </Button>
+                                  {c.status !== 'REJECTED' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => openQuickAction(c.id, 'reject', e)}
+                                      className="h-8 border-rose-300 text-rose-700 hover:bg-rose-50 font-medium"
+                                      title="Reject Claim"
+                                    >
+                                      <X className="h-3.5 w-3.5 sm:mr-1" />
+                                      <span className="hidden sm:inline">Reject</span>
+                                    </Button>
+                                  )}
 
-                              {c.status === 'APPROVED' && !isPendingAuth && (
-                                <Button
-                                  size="sm"
-                                  onClick={(e) => requestSettlement(c, e)}
-                                  className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white"
-                                  title="Request Payout Authorization"
-                                >
-                                  <DollarSign className="h-3.5 w-3.5 sm:mr-1" />
-                                  <span className="hidden sm:inline">Settle</span>
-                                </Button>
-                              )}
+                                  {c.status === 'DOCUMENTS_REQUESTED' ? (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setMsgClaim(c);
+                                        setMsgText('');
+                                        setMsgSent(false);
+                                      }}
+                                      className="h-8 border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 font-medium"
+                                      title="Awaiting Patient Documents - Click to update note"
+                                    >
+                                      <Clock className="h-3.5 w-3.5 sm:mr-1 text-amber-600 animate-spin" />
+                                      <span className="hidden sm:inline">Awaiting Docs</span>
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setMsgClaim(c);
+                                        setMsgText('');
+                                        setMsgSent(false);
+                                      }}
+                                      className="h-8 border-amber-300 text-amber-700 hover:bg-amber-50 font-medium"
+                                      title="Request Missing Documents or Message Submitter"
+                                    >
+                                      <MessageSquare className="h-3.5 w-3.5 sm:mr-1" />
+                                      <span className="hidden sm:inline">Request Docs</span>
+                                    </Button>
+                                  )}
 
-                              {isPendingAuth && (
-                                <Button
-                                  size="sm"
-                                  onClick={(e) => openSendMoney(c, e)}
-                                  className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse"
-                                  title="Authorize Payout"
-                                >
-                                  <CheckCircle2 className="h-3.5 w-3.5 sm:mr-1" />
-                                  <span className="hidden sm:inline">Authorize Payout</span>
-                                </Button>
+                                  {c.status === 'APPROVED' && !isPendingAuth && (
+                                    <Button
+                                      size="sm"
+                                      onClick={(e) => requestSettlement(c, e)}
+                                      className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-medium"
+                                      title="Request Payout Authorization"
+                                    >
+                                      <DollarSign className="h-3.5 w-3.5 sm:mr-1" />
+                                      <span className="hidden sm:inline">Settle & Pay</span>
+                                    </Button>
+                                  )}
+
+                                  {isPendingAuth && (
+                                    <Button
+                                      size="sm"
+                                      onClick={(e) => openSendMoney(c, e)}
+                                      className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse font-medium"
+                                      title="Authorize Payout"
+                                    >
+                                      <CheckCircle2 className="h-3.5 w-3.5 sm:mr-1" />
+                                      <span className="hidden sm:inline">Authorize Payout</span>
+                                    </Button>
+                                  )}
+                                </>
                               )}
 
                               <Button
@@ -1458,6 +1499,60 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
             <div className="flex justify-end pt-2">
               <Button size="sm" variant="outline" onClick={() => setEditsModalClaim(null)}>
                 Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Patient Message & Document Request Modal */}
+      {msgClaim && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl space-y-4 border border-slate-100">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600 border border-amber-200">
+                  <MessageSquare className="h-4.5 w-4.5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm">Request Documents from Submitter</h3>
+                  <p className="text-[11px] text-slate-500">Claim ID: {msgClaim.id.slice(0, 8)}</p>
+                </div>
+              </div>
+              <button onClick={() => setMsgClaim(null)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Send an official missing document clarification note to <span className="font-semibold text-slate-900">{getPatientName(msgClaim)}</span>:
+            </p>
+
+            <textarea
+              rows={4}
+              value={msgText}
+              onChange={(e) => setMsgText(e.target.value)}
+              placeholder="e.g. Please provide discharge summary page 2 with doctor stamp, or itemized pharmacy bill breakdown..."
+              className="w-full rounded-xl border border-slate-200 p-3 text-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-slate-50/50"
+            />
+
+            {msgSent && (
+              <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
+                <CheckCircle2 className="h-4 w-4 flex-none" /> Request dispatched to submitter dashboard &amp; notification bell!
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <Button variant="outline" size="sm" onClick={() => setMsgClaim(null)}>
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                disabled={msgSending || !msgText.trim()}
+                onClick={sendMessage}
+                className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm"
+              >
+                {msgSending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send Request to Submitter'}
               </Button>
             </div>
           </div>

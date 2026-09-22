@@ -180,8 +180,8 @@ def _resolve_claim(claim_id: str, db: Session) -> Claim | None:
     except Exception:
         pass
 
-    # 3. Fallback: Return most recent claim
-    return db.query(Claim).order_by(Claim.created_at.desc()).first()
+    # 3. If not found by UUID, patient_id, or policy_id, return None
+    return None
 
 def _pick_best_field_value(field_name: str, values: list[tuple[str, str]]) -> str:
     """Pick the best value for a parsed field.
@@ -1367,7 +1367,9 @@ def update_claim_fields(
                     claim_id=cid,
                     field_name=field_name,
                     original_value=prev_val,
+                    predicted_value=prev_val,
                     corrected_value=new_val,
+                    action="edited",
                     user_sub=user_sub,
                     user_email=user_email,
                 )
@@ -1375,6 +1377,7 @@ def update_claim_fields(
             feedback_rows += 1
         else:
             fb.corrected_value = new_val
+            fb.action = "edited"
             fb.user_sub = user_sub or fb.user_sub
             fb.user_email = user_email or fb.user_email
 

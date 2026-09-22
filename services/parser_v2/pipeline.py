@@ -22,6 +22,32 @@ from services.parser.app.lightweight_ner import extract_ner_entities as extract_
 from services.parser.app.robust_field_extractor import RobustFieldExtractor
 
 
+def _clean_patient_name(val: str) -> str:
+    if not val:
+        return ""
+    text = str(val).strip()
+    # Strip leading DOB/dates (e.g. 11/04/1989)
+    text = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", text).strip()
+    # Strip leading age/gender prefix (e.g. "35 Yrs / Female", "35/F", "45 Y / M", "Female / 35 Yrs")
+    text = re.sub(r"^\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\/\-|,:]?\s*(?:female|male|[MF])\b[\/\-|,:]?\s*", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"^\s*(?:female|male|[MF])\b\s*[\/\-|,:]?\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?[\/\-|,:]?\s*", "", text, flags=re.IGNORECASE).strip()
+    # Strip leading honorifics
+    text = re.sub(r"^\s*(?:mr\.?|mrs\.?|ms\.?|miss|dr\.?|baby\s+of|master)\s+", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing parenthesized demographics e.g. (31/F), (52/F), (/F), (31/M), (F), (M), (31 Yrs), (Age: 31)
+    text = re.sub(r"\s*[\(\[]\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]?\s*(?:female|male|[MF])\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*(?:female|male|[MF])\s*[\/\-|,:]?\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*(?:age|sex|gender|dob|ipd|opd|uhid)\b.*?[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing form labels / age / sex / gen markers (e.g. "Age / Gen", "Age / Sex", "Relation ...", "DOB ...", "IPD ...")
+    text = re.sub(r"\s+(?:Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing unparenthesized demographic tokens like "52/F", "31/M", "/F", "/M"
+    text = re.sub(r"\s+(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]\s*(?:female|male|[MF])\b.*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s+(?:female|male|[MF])\s*[\/\-|,:]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\b.*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing punctuation
+    text = re.sub(r"[\s:\-–—,|/()\[\]]+$", "", text).strip()
+    return text
+
+
 def _extract_diagnosis_fields_from_tokens(token_dicts: list[dict[str, Any]]) -> dict[str, str]:
     """Extract primary/secondary diagnosis strings from label-style OCR text.
 
@@ -39,7 +65,8 @@ def _extract_diagnosis_fields_from_tokens(token_dicts: list[dict[str, Any]]) -> 
 
     stop_clause = (
         r"(?:length\s+of\s+stay|diagnosis\s+count|medications|total\s+bill|claim\s+amount|"
-        r"procedure\s*:|cpt\s*code|hospital\s+expense\s+breakdown|sr\.|$)"
+        r"procedure\s*:|cpt\s*code|hospital\s+expense\s+breakdown|sr\.|co-?morbidity|comorbidities|"
+        r"chief\s+complaint|past\s+history|history|$)"
     )
     out: dict[str, str] = {}
 
@@ -429,7 +456,7 @@ def parse_document(
             {
                 "field": field.canonical_field,
                 "canonical_field": field.canonical_field,
-                "value": field.value,
+                "value": _clean_patient_name(field.value) if field.canonical_field == "patient_name" else field.value,
                 "confidence": field.confidence,
                 "bbox": None,
                 "page": next((token.page for token in field.source_tokens if token.page is not None), None),
@@ -474,10 +501,9 @@ def parse_document(
                     doc.normalized_fields.append(field)
                     existing_keys.add(dedupe_key)
 
-    import re as _re
     for nf in doc.normalized_fields:
         if nf.get("canonical_field") == "patient_name" and nf.get("value"):
-            nf["value"] = _re.sub(r"\s+Relation\b.*$", "", str(nf["value"]), flags=_re.IGNORECASE).strip()
+            nf["value"] = _clean_patient_name(str(nf["value"]))
 
     def _append_local_field(field_name: str, value: str | None, confidence: float = 0.75) -> None:
         if not value:
@@ -505,9 +531,7 @@ def parse_document(
                 text = m.group(1)
 
         if field_name == "patient_name":
-            # Strip relation suffix (e.g. "Relation to Brother", "Relation to Husband", etc.)
-            import re as _re
-            text = _re.sub(r"\s+Relation\b.*$", "", text, flags=_re.IGNORECASE).strip()
+            text = _clean_patient_name(text)
         # Avoid exact-duplicate canonical fields (case-insensitive value match)
         existing_value_lower = str(text).strip().lower()
         if any(existing.get("canonical_field") == field_name and str(existing.get("value") or "").strip().lower() == existing_value_lower for existing in doc.normalized_fields):
@@ -627,6 +651,14 @@ def parse_document(
             if any(term in v_lower for term in noise_terms):
                 return True
 
+        elif field_name == "patient_name":
+            # Patient name noise: contains digits, age/sex labels, or multiple header words
+            if any(ch.isdigit() for ch in v):
+                return True
+            noise_terms = ["age", "sex", "gender", "yrs", "years", "female", "male", "gen", "relation", "relative", "uhid", "ipd", "opd", "date", "dob", "patient name", "name:"]
+            if any(term in v_lower for term in noise_terms):
+                return True
+
         elif field_name == "hospital_name":
             # Hospital name noise: contains registration patterns or multiple header labels
             noise_terms = ["reg:", "reg no", "registration", "patient", "admission", "ip no", "ipd", "claim"]
@@ -649,21 +681,28 @@ def parse_document(
     # For noisy canonical patient/hospital/diagnosis fields, prefer robust extractor
     for nf in list(doc.normalized_fields):
         cf = nf.get("canonical_field") or nf.get("field")
-        if cf in {"diagnosis", "doctor_name", "hospital_name"}:
+        if cf in {"diagnosis", "doctor_name", "hospital_name", "patient_name"}:
             val = str(nf.get("value") or "")
             if _is_noisy_field(val, cf):
                 logger.info(f"[NOISY_FIELD] Detected noisy semantic value for {cf}; attempting robust backfill")
                 fallback = RobustFieldExtractor.extract_from_tokens(all_token_dicts).get(cf)
                 if fallback:
+                    cleaned_fallback = _clean_patient_name(fallback) if cf == "patient_name" else fallback
                     # remove existing noisy field and append cleaned value
                     doc.normalized_fields = [f for f in doc.normalized_fields if not (f.get("canonical_field") == cf and f.get("value") == nf.get("value"))]
-                    _append_local_field(cf, fallback, confidence=0.9)
-                    logger.info(f"[NOISY_FIELD] Replaced {cf} with robust value: {fallback}")
+                    _append_local_field(cf, cleaned_fallback, confidence=0.9)
+                    logger.info(f"[NOISY_FIELD] Replaced {cf} with robust value: {cleaned_fallback}")
                 else:
                     # If robust extractor has no fallback and doctor_name is noisy signature text, remove it
                     if cf == "doctor_name":
                         doc.normalized_fields = [f for f in doc.normalized_fields if not (f.get("canonical_field") == cf and f.get("value") == nf.get("value"))]
                         logger.info(f"[NOISY_FIELD] Removed noisy doctor_name value without fallback: {val}")
+                    elif cf == "patient_name":
+                        cleaned_val = _clean_patient_name(val)
+                        if cleaned_val and cleaned_val != val:
+                            doc.normalized_fields = [f for f in doc.normalized_fields if not (f.get("canonical_field") == cf and f.get("value") == nf.get("value"))]
+                            _append_local_field(cf, cleaned_val, confidence=0.9)
+                            logger.info(f"[NOISY_FIELD] Cleaned patient_name value: '{val}' → '{cleaned_val}'")
 
     # Strip registration/accreditation suffixes from hospital_name
     # e.g. "AIG Hospitals Registration AIG-HYD-2010-0077" → "AIG Hospitals"
@@ -690,8 +729,8 @@ def parse_document(
         cf = nf.get("canonical_field") or nf.get("field")
         if cf in {"diagnosis", "primary_diagnosis", "secondary_diagnosis"}:
             val = str(nf.get("value") or "").strip()
-            # Strip from first "Secondary Diagnosis 2:" onward if embedded
-            cleaned = re.sub(r"\s+Secondary\s+Diagnosis\s+\d+:.*$", "", val, flags=re.IGNORECASE).strip()
+            # Strip from first "Secondary Diagnosis" or "Co-morbidity" onward if embedded
+            cleaned = re.sub(r"\s+(?:Secondary\s+Diagnosis|Co-?morbidity|Comorbidities|Chief\s+Complaint).*$", "", val, flags=re.IGNORECASE).strip()
             # Strip trailing or embedded ICD-10/ICD-9/CPT/Procedure code blocks
             cleaned = re.sub(
                 r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s+\d+:).*$",
