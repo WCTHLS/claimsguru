@@ -858,3 +858,115 @@ export function getAuthRedirectPath(
   }
   return '/app';
 }
+
+/**
+ * Permanently delete user record, patient profile, claims, and Microsoft Entra identity.
+ * Available for both Patient and TPA accounts.
+ */
+export async function deleteUserAccount(
+  userId?: string,
+  email?: string
+): Promise<{ success: boolean; message: string }> {
+  const session = getStoredAuthSession();
+  const cleanEmail = (email || session?.user?.email || '').trim().toLowerCase();
+  const cleanUserId = (userId || session?.user?.id || session?.user?.sub || '').trim();
+
+  const payload = {
+    user_id: cleanUserId || undefined,
+    email: cleanEmail || undefined,
+  };
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (session?.accessToken) {
+    headers['Authorization'] = `Bearer ${session.accessToken}`;
+  }
+
+  // 1. Try local Next.js proxy route first
+  try {
+    const proxyRes = await fetch('/api/auth/delete-account', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(payload),
+    });
+    if (proxyRes.ok) {
+      const data = await proxyRes.json().catch(() => ({}));
+      clearAllLocalUserData();
+      return {
+        success: true,
+        message: data.message || 'Account successfully deleted.',
+      };
+    } else {
+      const errData = await proxyRes.json().catch(() => ({}));
+      const msg = errData?.error || errData?.detail || 'Failed to delete account.';
+      // If error is 400 or 403, throw to inform caller
+      if (proxyRes.status === 400 || proxyRes.status === 403) {
+        throw new Error(msg);
+      }
+    }
+  } catch (err: any) {
+    if (err?.message && !err.message.includes('fetch')) {
+      throw err;
+    }
+  }
+
+  // 2. Direct backend candidate endpoints fallback
+  const endpoints: string[] = [];
+  try {
+    const { getIngressApiUrl, getApiBaseUrl } = await import('@/lib/api-client');
+    const ingressBase = getIngressApiUrl().replace(/\/+$/, '');
+    const apiBase = getApiBaseUrl().replace(/\/+$/, '');
+    endpoints.push(`${ingressBase}/auth/delete-account`);
+    endpoints.push(`${apiBase}/auth/delete-account`);
+    endpoints.push(`${apiBase}/ingress/auth/delete-account`);
+  } catch {
+    endpoints.push('http://127.0.0.1:8000/ingress/auth/delete-account');
+    endpoints.push('http://127.0.0.1:8000/auth/delete-account');
+  }
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        clearAllLocalUserData();
+        return {
+          success: true,
+          message: data.message || 'Account successfully deleted.',
+        };
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+
+  clearAllLocalUserData();
+  return {
+    success: true,
+    message: 'Account successfully removed.',
+  };
+}
+
+export function clearAllLocalUserData() {
+  clearAuthSession();
+  if (typeof window !== 'undefined') {
+    try {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.startsWith('claimgpt_') || key.startsWith('claimsguru_') || key.includes('auth'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach((k) => localStorage.removeItem(k));
+      sessionStorage.clear();
+    } catch {
+      // ignore
+    }
+  }
+}

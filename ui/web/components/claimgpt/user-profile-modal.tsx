@@ -18,11 +18,15 @@ import {
   Building2,
   IndianRupee,
   LogOut,
-  LogIn
+  LogIn,
+  Trash2,
+  AlertTriangle,
+  Loader2,
+  ShieldAlert,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
-import { getStoredAuthSession, clearAuthSession } from '@/lib/auth';
+import { getStoredAuthSession, clearAuthSession, deleteUserAccount } from '@/lib/auth';
 import { getIngressApiUrl } from '@/lib/api-client';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';
 import { formatDob } from '@/lib/claimgpt-data';
@@ -46,6 +50,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 }) => {
   const router = useRouter();
   const [copied, setCopied] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [userMeta, setUserMeta] = useState({
     dob: '01/01/2000',
     gender: 'Male',
@@ -53,6 +60,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     policyNo: 'P-0007401',
     sumInsured: '₹5,000,000',
   });
+
+  const session = getStoredAuthSession();
+  const isTpa = session?.role === 'tpa' || session?.accountRole === 'admin' || session?.accountRole === 'reviewer';
 
   const handleLogout = () => {
     try {
@@ -69,6 +79,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const handleSwitchAccount = () => {
     onClose();
     router.push('/login');
+  };
+
+  const handleDeleteAccount = async () => {
+    try {
+      setIsDeleting(true);
+      setDeleteError(null);
+      const currentEmail = userEmail || session?.user?.email || '';
+      const currentUserId = session?.user?.id || session?.user?.sub || '';
+
+      const res = await deleteUserAccount(currentUserId, currentEmail);
+      if (res && res.success) {
+        onClose();
+        router.push('/login?deleted=true');
+      } else {
+        setDeleteError('Failed to delete account. Please try again.');
+        setIsDeleting(false);
+      }
+    } catch (err: any) {
+      setDeleteError(err?.message || 'Error occurred while deleting account.');
+      setIsDeleting(false);
+    }
   };
 
   useEffect(() => {
@@ -256,7 +287,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         <div className={`flex items-center justify-between px-4 pt-3.5 pb-2 ${themeStyles.headerBg}`}>
           <div className={`flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-semibold backdrop-blur-md ${themeStyles.headerPill}`}>
             <User className="h-3.5 w-3.5" />
-            <span>Patient Profile</span>
+            <span>{isTpa ? (session?.accountRole === 'admin' ? 'Org Admin Profile' : 'TPA Reviewer Profile') : 'Patient Profile'}</span>
           </div>
 
           <button
@@ -282,26 +313,40 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               
               {/* Badges Row */}
               <div className="flex items-center gap-1.5 flex-wrap text-[10px] sm:text-[11px]">
-                {/* Policy ID with copy */}
-                <button
-                  type="button"
-                  onClick={handleCopyPolicy}
-                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-medium transition-colors ${themeStyles.policyPill}`}
-                  title="Copy Policy Number"
-                >
-                  <span>{userMeta.policyNo}</span>
-                  {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3 opacity-80" />}
-                </button>
+                {isTpa ? (
+                  <>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-medium ${themeStyles.policyPill}`}>
+                      <Building2 className="h-3 w-3 opacity-80" />
+                      <span>{session?.organization || userMeta.insurer || 'Star Health'}</span>
+                    </span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase ${themeStyles.tagBadge}`}>
+                      {session?.accountRole === 'admin' ? 'Administrator' : 'Reviewer'}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    {/* Policy ID with copy */}
+                    <button
+                      type="button"
+                      onClick={handleCopyPolicy}
+                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-medium transition-colors ${themeStyles.policyPill}`}
+                      title="Copy Policy Number"
+                    >
+                      <span>{userMeta.policyNo}</span>
+                      {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3 opacity-80" />}
+                    </button>
 
-                {/* Status tag */}
-                <span className={`rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase ${themeStyles.tagBadge}`}>
-                  Active Policy
-                </span>
+                    {/* Status tag */}
+                    <span className={`rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase ${themeStyles.tagBadge}`}>
+                      Active Policy
+                    </span>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
-          {/* 2-Column Grid of Registration Fields ONLY */}
+          {/* 2-Column Grid of Registration Fields */}
           <div className="grid grid-cols-2 gap-2 text-xs">
             {/* EMAIL ADDRESS / CONTACT */}
             <div className={`col-span-2 rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
@@ -311,59 +356,89 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userEmail}</p>
             </div>
 
-            {/* DATE OF BIRTH */}
-            <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-              <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                <Calendar className="h-3 w-3" /> DATE OF BIRTH
-              </span>
-              <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userMeta.dob}</p>
-            </div>
+            {isTpa ? (
+              <>
+                {/* ORGANIZATION */}
+                <div className={`col-span-2 rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                    <Building2 className="h-3 w-3" /> ORGANIZATION
+                  </span>
+                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{session?.organization || userMeta.insurer || 'Star Health'}</p>
+                </div>
 
-            {/* GENDER */}
-            <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-              <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                <User className="h-3 w-3" /> GENDER
-              </span>
-              <p className={`font-bold truncate text-xs ${themeStyles.accentValue}`}>{userMeta.gender}</p>
-            </div>
+                {/* STAFF ROLE */}
+                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                    <ShieldCheck className="h-3 w-3" /> STAFF ROLE
+                  </span>
+                  <p className={`font-bold truncate text-xs ${themeStyles.accentValue}`}>{session?.accountRole === 'admin' ? 'Administrator' : 'Claims Reviewer'}</p>
+                </div>
 
-            {/* INSURER PROVIDER */}
-            <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-              <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                <Building2 className="h-3 w-3" /> INSURER
-              </span>
-              <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userMeta.insurer}</p>
-            </div>
+                {/* AUTH PROVIDER */}
+                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                    <Users className="h-3 w-3" /> AUTH PROVIDER
+                  </span>
+                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{session?.provider === 'entra' ? 'Microsoft Entra' : 'Local / SSO'}</p>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* DATE OF BIRTH */}
+                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                    <Calendar className="h-3 w-3" /> DATE OF BIRTH
+                  </span>
+                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userMeta.dob}</p>
+                </div>
 
-            {/* POLICY NUMBER */}
-            <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-              <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                <CreditCard className="h-3 w-3" /> POLICY NO.
-              </span>
-              <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userMeta.policyNo}</p>
-            </div>
+                {/* GENDER */}
+                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                    <User className="h-3 w-3" /> GENDER
+                  </span>
+                  <p className={`font-bold truncate text-xs ${themeStyles.accentValue}`}>{userMeta.gender}</p>
+                </div>
 
-            {/* SUM INSURED (INR) */}
-            <div className={`col-span-2 rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-              <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                <IndianRupee className="h-3 w-3" /> SUM INSURED (INR)
-              </span>
-              <p className={`font-bold text-xs sm:text-sm truncate ${themeStyles.sumValue}`}>{userMeta.sumInsured}</p>
-            </div>
+                {/* INSURER PROVIDER */}
+                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                    <Building2 className="h-3 w-3" /> INSURER
+                  </span>
+                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userMeta.insurer}</p>
+                </div>
+
+                {/* POLICY NUMBER */}
+                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                    <CreditCard className="h-3 w-3" /> POLICY NO.
+                  </span>
+                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userMeta.policyNo}</p>
+                </div>
+
+                {/* SUM INSURED (INR) */}
+                <div className={`col-span-2 rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                    <IndianRupee className="h-3 w-3" /> SUM INSURED (INR)
+                  </span>
+                  <p className={`font-bold text-xs sm:text-sm truncate ${themeStyles.sumValue}`}>{userMeta.sumInsured}</p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Family & Account Member Claims Submissions */}
           <div className={`space-y-2 pt-2 border-t ${themeStyles.divider}`}>
             <div className="flex items-center justify-between text-xs">
               <span className={`font-bold uppercase tracking-wider text-[10px] ${themeStyles.labelColor}`}>
-                Submissions under {userName}&apos;s Account
+                {isTpa ? `Claims in ${session?.organization || 'Organization'}` : `Submissions under ${userName}'s Account`}
               </span>
               <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${themeStyles.headerPill}`}>
                 {accountClaims.length} Claims
               </span>
             </div>
 
-            <div className="space-y-1.5 max-h-[140px] overflow-y-auto">
+            <div className="space-y-1.5 max-h-[130px] overflow-y-auto">
               {accountClaims.map((claim, idx) => (
                 <div
                   key={claim.id || idx}
@@ -399,7 +474,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         </div>
 
-        {/* Modal Bottom Actions: Switch Account & Sign Out (Visible on all screen sizes) */}
+        {/* Modal Bottom Actions: Switch Account & Sign Out */}
         <div className={`p-3 border-t flex items-center gap-2 ${themeStyles.headerBg}`}>
           <button
             type="button"
@@ -413,12 +488,96 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           <button
             type="button"
             onClick={handleLogout}
-            className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs active:scale-95"
+            className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-slate-500/10 hover:bg-slate-500/20 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs active:scale-95"
           >
             <LogOut className="h-3.5 w-3.5" />
             <span>Sign Out</span>
           </button>
         </div>
+
+        {/* Danger Zone: Delete Account */}
+        <div className="px-3 py-2 border-t border-rose-500/20 bg-rose-500/5 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+            <ShieldAlert className="h-3.5 w-3.5 flex-none text-rose-500" />
+            <span>Danger Zone</span>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteError(null);
+              setShowDeleteConfirm(true);
+            }}
+            className="rounded-lg py-1 px-2.5 text-[11px] font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-xs"
+          >
+            <Trash2 className="h-3 w-3 text-rose-500" />
+            <span>Delete Account</span>
+          </button>
+        </div>
+
+        {/* Delete Account Confirmation Dialog Overlay */}
+        {showDeleteConfirm && (
+          <div className="absolute inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex flex-col justify-center items-center p-5 text-center animate-fade-in">
+            <div className="h-12 w-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-500 flex items-center justify-center mb-3 shadow-lg shadow-rose-500/20">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+
+            <h3 className="text-base font-bold text-white mb-1">
+              Permanently Delete Account?
+            </h3>
+
+            <p className="text-xs text-slate-300 max-w-xs mb-3 leading-relaxed">
+              This action <span className="text-rose-400 font-semibold">cannot be undone</span>. All your personal data, claims, records, and Microsoft Entra login identity will be permanently deleted from ClaimsGuru and Azure.
+            </p>
+
+            <div className="w-full max-w-xs rounded-xl bg-rose-950/40 border border-rose-500/30 p-2.5 mb-3 text-left text-[11px] text-rose-200 space-y-1">
+              <div className="flex items-center gap-1.5 font-semibold text-rose-300">
+                <Trash2 className="h-3.5 w-3.5 text-rose-400 flex-none" />
+                <span>Account to be erased:</span>
+              </div>
+              <p className="font-mono text-white truncate pl-5 text-[11px]">{userEmail || userName}</p>
+            </div>
+
+            {deleteError && (
+              <div className="w-full max-w-xs rounded-xl bg-red-900/60 border border-red-500 p-2 mb-3 text-xs text-red-200">
+                {deleteError}
+              </div>
+            )}
+
+            <div className="flex items-center gap-2 w-full max-w-xs">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => {
+                  setShowDeleteConfirm(false);
+                  setDeleteError(null);
+                }}
+                className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer disabled:opacity-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleDeleteAccount}
+                className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {isDeleting ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    <span>Deleting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-3.5 w-3.5" />
+                    <span>Confirm Delete</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
 
       </div>
     </div>

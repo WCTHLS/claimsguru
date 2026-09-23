@@ -48,6 +48,7 @@ export function LoginClinical() {
   const [submitting, setSubmitting] = useState(false);
   const [entraLoadingRole, setEntraLoadingRole] = useState<Role | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [authErrorField, setAuthErrorField] = useState<AuthErrorField | null>(null);
 
   // Environment feature flag for Entra External ID
@@ -55,6 +56,12 @@ export function LoginClinical() {
 
   useEffect(() => {
     setUseEntra(isEntraEnabled());
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('deleted') === 'true') {
+        setSuccessMessage('Your account, personal data, and Microsoft Entra credentials have been permanently deleted.');
+      }
+    }
   }, []);
 
   const handleEntraSignIn = async (targetRole: Role, isRegister = false) => {
@@ -222,6 +229,12 @@ export function LoginClinical() {
                   </div>
                 </button>
 
+                {successMessage && (
+                  <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs text-emerald-400">
+                    {successMessage}
+                  </p>
+                )}
+
                 {errorMessage && (
                   <p className="rounded-lg border border-red-200/30 bg-red-500/10 px-3 py-2 text-xs text-red-400">
                     {errorMessage}
@@ -296,6 +309,11 @@ export function LoginClinical() {
                       </button>
                     </div>
                   </div>
+                  {successMessage ? (
+                    <p className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-200">
+                      {successMessage}
+                    </p>
+                  ) : null}
                   {errorMessage ? (
                     <p className="rounded-lg border border-red-200/30 bg-red-500/10 px-3 py-2 text-sm text-red-200">
                       {errorMessage}
