@@ -192,7 +192,7 @@ def generate_tpa_pdf_modern(claim_data: dict[str, Any]) -> bytes:
                     "amount_formatted": _money(amt),
                 })
         
-        billed_raw = claim_data.get("billed_total") or fields.get("total_amount") or fields.get("billed_amount") or fields.get("net_payable") or expense_total
+        billed_raw = claim_data.get("billed_total") or fields.get("claimed_total") or fields.get("total_amount") or fields.get("billed_amount") or fields.get("net_payable") or expense_total
         try:
             billed_num = float(str(billed_raw).replace(",", "").replace("₹", "").strip())
         except Exception:

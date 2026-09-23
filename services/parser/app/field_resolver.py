@@ -18,19 +18,26 @@ class Candidate:
     doc_type: str | None = None
 
 
-def _is_obvious_label(val: str) -> bool:
+def _is_obvious_label(val: str, field_name: str | None = None) -> bool:
     if not val:
         return True
     s = str(val).strip()
     if not s:
         return True
+    # If field is an explicit medical code or matches code syntax, it is NOT an obvious label
+    if field_name in {"icd_code", "cpt_code"}:
+        return False
+    if re.match(r"^[A-TV-Z]\d{2}(?:\.\d{1,4})?$", s, re.IGNORECASE):
+        return False
+    if re.match(r"^\d{4,5}$", s):
+        return False
     # common labels
-    labels = {"age", "sex", "address", "patient", "name", "dob", "date"}
+    labels = {"age", "sex", "address", "patient", "name", "dob", "date", "diagnosis", "procedure", "hospital"}
     low = s.lower()
     if low in labels:
         return True
-    # all-caps short tokens like "AGE", "SEX"
-    if s.isupper() and len(s.split()) <= 2:
+    # all-caps short tokens like "AGE", "SEX" (only if purely alphabetic words)
+    if s.isupper() and len(s.split()) <= 2 and not any(ch.isdigit() for ch in s):
         return True
     return False
 
@@ -84,6 +91,15 @@ def _validate_patient_name(val: str) -> bool:
     return True
 
 
+MULTI_VALUE_FIELDS: frozenset[str] = frozenset({
+    "icd_code",
+    "cpt_code",
+    "secondary_diagnosis",
+    "medication",
+    "procedure",
+})
+
+
 def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """Resolve candidates into chosen fields with provenance.
 
@@ -113,6 +129,37 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
     provenance: Dict[str, Any] = {}
 
     for field, group in grouped.items():
+        # Handle multi-value fields (e.g., icd_code, cpt_code, secondary_diagnosis)
+        # where multiple distinct values across pages/sections are legitimate
+        if field in MULTI_VALUE_FIELDS or field.startswith("expense_table_row_"):
+            seen_norm_vals: set[str] = set()
+            # Sub-group candidates by normalized value to deduplicate identical occurrences
+            sub_grouped: Dict[str, List[Candidate]] = {}
+            for cand in group:
+                raw_val = str(cand.field_value or "").strip()
+                if not raw_val or _is_obvious_label(raw_val, field_name=field):
+                    continue
+                norm_key = raw_val.upper() if field in {"icd_code", "cpt_code"} else raw_val.lower()
+                sub_grouped.setdefault(norm_key, []).append(cand)
+
+            for norm_key, sub_cands in sub_grouped.items():
+                best_cand = max(sub_cands, key=lambda x: (x.confidence, len(str(x.field_value or ""))))
+                if norm_key in seen_norm_vals:
+                    continue
+                seen_norm_vals.add(norm_key)
+                resolved.append({
+                    "field_name": best_cand.field_name,
+                    "field_value": best_cand.field_value,
+                    "confidence": best_cand.confidence,
+                    "extractor": best_cand.extractor_name,
+                    "bounding_box": best_cand.bounding_box,
+                    "source_page": best_cand.source_page,
+                    "model_version": best_cand.model_version,
+                    "document_id": best_cand.document_id,
+                    "doc_type": best_cand.doc_type,
+                })
+            continue
+
         # Sort by confidence desc, then extractor preference (already baked into confidence)
         group_sorted = sorted(group, key=lambda x: (x.confidence), reverse=True)
 
@@ -131,7 +178,7 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
                     accept = False
                     reason = "failed_patient_name_validation"
             else:
-                if _is_obvious_label(cand.field_value or ""):
+                if _is_obvious_label(cand.field_value or "", field_name=field):
                     accept = False
                     reason = "obvious_label"
 

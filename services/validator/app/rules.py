@@ -59,7 +59,7 @@ def _rule_has_service_date(ctx: dict[str, Any]) -> tuple[bool, str, str]:
 
 
 def _rule_has_total_amount(ctx: dict[str, Any]) -> tuple[bool, str, str]:
-    ok = _field_present(ctx["field_map"], "total_amount", "amount", "billed_amount", "net_amount", "grand_total")
+    ok = _field_present(ctx["field_map"], "total_amount", "amount", "billed_amount", "net_amount", "grand_total", "claimed_total", "claimed_amount", "total_claimed", "claim_amount")
     return ok, ("PASS" if ok else "WARN"), ("Total amount found" if ok else "Total amount is missing — may delay processing")
 
 

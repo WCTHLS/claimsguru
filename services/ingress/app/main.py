@@ -2847,7 +2847,7 @@ def list_claims(
         raise HTTPException(status_code=401, detail="Authentication required to view claims.")
 
     try:
-        query = db.query(Claim)
+        query = db.query(Claim).filter(Claim.status != "IDENTITY_MISMATCH")
         is_privileged = auth_user.role.lower() in (
             "admin", "auditor", "reviewer", "staff", "superadmin", "claims_officer", "tpa", "organization", "org_admin"
         )
@@ -3206,6 +3206,8 @@ def _map_progress(current_step: str | None, status: str | None) -> tuple[str | N
     if current_step == "RETRYING":
         # Don't regress — keep above prior steps; monotonic guard below also protects.
         return "Retrying (transient)", 92
+    if current_step == "IDENTITY_MISMATCH":
+        return "Identity Mismatch (Documents belong to different patients)", 0
     if current_step == "FAILED" or status == "FAILED":
         return "Failed", 0
     if current_step == "FINALIZING":
@@ -3227,9 +3229,10 @@ def get_claim_status(claim_id: str, db: Session = Depends(get_db)):
     
     step_index = _get_step_index(state.current_step, state.status)
     percentage = (step_index / 5) * 100 if step_index > 0 else 0.0
+    status_str = "IDENTITY_MISMATCH" if state.current_step == "IDENTITY_MISMATCH" else state.status
     return {
         "current_step": state.current_step,
-        "status": state.status,
+        "status": status_str,
         "step_index": step_index,
         "percentage": percentage
     }
@@ -3256,22 +3259,27 @@ def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
         }
 
     step, percentage = _map_progress(state.current_step, state.status)
-    is_failed = (state.status == "FAILED") or (state.current_step == "FAILED")
-    is_complete = bool(percentage == 100 or is_failed)
+    is_failed = (state.status == "FAILED") or (state.current_step == "FAILED") or (state.current_step == "IDENTITY_MISMATCH")
+    is_complete = bool(percentage == 100 or (is_failed and state.current_step != "IDENTITY_MISMATCH"))
 
     error_message: str | None = None
     if is_failed:
-        # Surface the most recent job error message so the UI can show *why*
+        # Surface the claim notes or most recent job error message so the UI can show *why*
         # the upload stopped, instead of polling forever on 0%.
         try:
-            latest_parse = (
-                db.query(ParseJob)
-                .filter(ParseJob.claim_id == cid)
-                .order_by(ParseJob.created_at.desc())
-                .first()
-            )
-            if latest_parse and latest_parse.error_message:
-                error_message = latest_parse.error_message
+            claim_rec = db.query(Claim).filter(Claim.id == cid).first()
+            if claim_rec and claim_rec.notes:
+                error_message = claim_rec.notes
+            
+            if not error_message:
+                latest_parse = (
+                    db.query(ParseJob)
+                    .filter(ParseJob.claim_id == cid)
+                    .order_by(ParseJob.created_at.desc())
+                    .first()
+                )
+                if latest_parse and latest_parse.error_message:
+                    error_message = latest_parse.error_message
             if not error_message:
                 from libs.shared.models import OcrJob as _OcrJob
                 latest_ocr = (
@@ -3287,9 +3295,10 @@ def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
         if not error_message:
             error_message = "Pipeline failed. See server logs for details."
 
+    status_str = "IDENTITY_MISMATCH" if state.current_step == "IDENTITY_MISMATCH" else state.status
     # Mapped from database state directly, naturally monotonic in Celery chain
     return {
-        "status": state.status,
+        "status": status_str,
         "step": step,
         "percentage": percentage,
         "is_complete": is_complete,

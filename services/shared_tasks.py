@@ -6,6 +6,8 @@ from datetime import UTC, datetime
 from typing import Any
 import asyncio
 import hashlib
+import os
+import re
 from pathlib import Path
 import shutil
 from sqlalchemy import func
@@ -265,6 +267,33 @@ def parser_task(self, result: dict) -> dict[str, str]:
     from services.parser.app.main import _run_parse_job
     logging.getLogger("parser-debug").info(f"[Celery] parser_task called for claim_id={claim_id}")
     cid = uuid.UUID(claim_id)
+
+    # Fail-Fast Identity Gate: Verify all uploaded documents BEFORE creating ParseJob or making any LLM calls
+    passed, anchor_name, mismatched_doc, mismatched_name, mismatch_reason = _check_asynchronous_identity_gate(claim_id)
+    if not passed:
+        doc_name = mismatched_doc.file_name if mismatched_doc else "Unknown"
+        err_msg = mismatch_reason or (
+            f"Identity mismatch detected: Document '{doc_name}' has patient name '{mismatched_name}' "
+            f"which does not match anchor patient '{anchor_name}'. Uploaded documents have been removed. "
+            f"Please re-upload the entire correct set of documents."
+        )
+        logging.getLogger("parser-debug").warning(
+            f"[Celery] Claim {claim_id}: {err_msg} Setting status to IDENTITY_MISMATCH."
+        )
+        db = ParserSessionLocal()
+        try:
+            claim = db.query(Claim).filter(Claim.id == cid).first()
+            if claim:
+                claim.status = "IDENTITY_MISMATCH"
+                claim.notes = err_msg
+            db.commit()
+        finally:
+            db.close()
+            
+        _update_workflow_state(claim_id, "IDENTITY_MISMATCH", status="FAILED")
+        _purge_claim_documents(claim_id, reason=err_msg)
+        raise Ignore()
+
     db = ParserSessionLocal()
     job_id = None
     try:
@@ -310,33 +339,6 @@ def parser_task(self, result: dict) -> dict[str, str]:
                 db.close()
                 
             _update_workflow_state(claim_id, "DOCUMENTS_REQUESTED", status="FAILED")
-            raise Ignore()
-
-        # Check name mismatch
-        passed, anchor_name, mismatched_doc = _check_asynchronous_identity_gate(claim_id)
-        if not passed:
-            logging.getLogger("parser-debug").warning(
-                f"[Celery] Claim {claim_id} has identity name mismatch (anchor={anchor_name}). Deleting mismatched document and pausing Celery chain."
-            )
-            # Set claim status to MANUAL_REVIEW_REQUIRED and delete mismatched document
-            db = ParserSessionLocal()
-            try:
-                claim = db.query(Claim).filter(Claim.id == cid).first()
-                if claim:
-                    claim.status = "MANUAL_REVIEW_REQUIRED"
-                if mismatched_doc:
-                    if mismatched_doc.minio_path:
-                        from libs.shared.storage import MinioStorage
-                        try:
-                            MinioStorage.delete_file(mismatched_doc.minio_path)
-                        except Exception:
-                            logging.getLogger("parser-debug").warning("Failed to delete file from MinIO: %s", mismatched_doc.minio_path)
-                    db.query(Document).filter(Document.id == mismatched_doc.id).delete()
-                db.commit()
-            finally:
-                db.close()
-                
-            _update_workflow_state(claim_id, "MANUAL_REVIEW_REQUIRED", status="FAILED")
             raise Ignore()
 
         return {"claim_id": claim_id, "parse_job_id": str(job_id)}
@@ -1092,6 +1094,30 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
         return {"claim_id": claim_id, "status": "FAILED", "error": error_msg}
     _update_workflow_state(claim_id, "OCR_COMPLETED", status="RUNNING")
 
+    # Fail-Fast Identity Gate: Verify all uploaded documents BEFORE creating ParseJob or making any LLM calls
+    passed, anchor_name, mismatched_doc, mismatched_name, mismatch_reason = _check_asynchronous_identity_gate(claim_id)
+    if not passed:
+        doc_name = mismatched_doc.file_name if mismatched_doc else "Unknown"
+        err_msg = mismatch_reason or (
+            f"Identity mismatch detected: Document '{doc_name}' has patient name '{mismatched_name}' "
+            f"which does not match anchor patient '{anchor_name}'. Uploaded documents have been removed. "
+            f"Please re-upload the entire correct set of documents."
+        )
+        log.warning(f"[InlinePipeline] Claim {claim_id}: {err_msg} Setting status to IDENTITY_MISMATCH.")
+        db = ParserSessionLocal()
+        try:
+            claim = db.query(Claim).filter(Claim.id == cid).first()
+            if claim:
+                claim.status = "IDENTITY_MISMATCH"
+                claim.notes = err_msg
+            db.commit()
+        finally:
+            db.close()
+            
+        _update_workflow_state(claim_id, "IDENTITY_MISMATCH", status="FAILED")
+        _purge_claim_documents(claim_id, reason=err_msg)
+        return {"claim_id": claim_id, "status": "IDENTITY_MISMATCH", "error": err_msg}
+
     # ---------- Parser ----------
     db = ParserSessionLocal()
     parse_job_id = None
@@ -1131,31 +1157,6 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
             
         _update_workflow_state(claim_id, "DOCUMENTS_REQUESTED", status="FAILED")
         return {"claim_id": claim_id, "status": "DOCUMENTS_REQUESTED", "error": "PAUSED_FOR_DOCUMENTS"}
-
-    # Check name mismatch
-    passed, anchor_name, mismatched_doc = _check_asynchronous_identity_gate(claim_id)
-    if not passed:
-        log.warning(f"[InlinePipeline] Claim {claim_id} has identity name mismatch (anchor={anchor_name}). Deleting mismatched document and pausing pipeline.")
-        # Set claim status to MANUAL_REVIEW_REQUIRED and delete mismatched document
-        db = ParserSessionLocal()
-        try:
-            claim = db.query(Claim).filter(Claim.id == cid).first()
-            if claim:
-                claim.status = "MANUAL_REVIEW_REQUIRED"
-            if mismatched_doc:
-                if mismatched_doc.minio_path:
-                    from libs.shared.storage import MinioStorage
-                    try:
-                        MinioStorage.delete_file(mismatched_doc.minio_path)
-                    except Exception:
-                        log.warning("Failed to delete file from MinIO: %s", mismatched_doc.minio_path)
-                db.query(Document).filter(Document.id == mismatched_doc.id).delete()
-            db.commit()
-        finally:
-            db.close()
-            
-        _update_workflow_state(claim_id, "MANUAL_REVIEW_REQUIRED", status="FAILED")
-        return {"claim_id": claim_id, "status": "MANUAL_REVIEW_REQUIRED", "error": "PAUSED_FOR_IDENTITY_MISMATCH"}
 
     # ---------- Coding ----------
     _update_workflow_state(claim_id, "CODING_ANALYSIS", status="RUNNING")
@@ -1305,12 +1306,205 @@ def _check_inline_mandatory_document_coverage(claim_id: str) -> tuple[bool, list
     return True, []
 
 
-def _check_asynchronous_identity_gate(claim_id: str) -> tuple[bool, str | None, Any | None]:
+def _normalize_identity_name(name: str) -> str:
+    if not name:
+        return ""
+    text = str(name).strip().lower()
+    # Strip honorifics
+    text = re.sub(r"\b(?:mr\.?|mrs\.?|ms\.?|miss|dr\.?|smt\.?|master|baby\s+of)\b", "", text).strip()
+    # Strip trailing demographic labels
+    text = re.sub(r"\s+(?:blood\s*group|blood|occupation|aadhaar|pan|age|gender|sex|relation|dob|mobile|address).*$", "", text).strip()
+    # Strip special characters
+    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    tokens = [t for t in text.split() if len(t) >= 2 and t not in {"patient", "name", "insured", "applicant"}]
+    return " ".join(tokens)
+
+
+def _name_similarity(name1: str, name2: str) -> float:
+    norm1 = _normalize_identity_name(name1)
+    norm2 = _normalize_identity_name(name2)
+    if not norm1 or not norm2:
+        return 1.0  # Cannot conclude mismatch on empty name
+    if norm1 == norm2:
+        return 1.0
+    tokens1 = set(norm1.split())
+    tokens2 = set(norm2.split())
+    if not tokens1 or not tokens2:
+        return 1.0
+    # Jaccard token overlap
+    intersection = tokens1.intersection(tokens2)
+    union = tokens1.union(tokens2)
+    jaccard = len(intersection) / len(union) if union else 0.0
+    # If both are multi-token names and have zero token overlap, similarity is 0.0
+    if len(tokens1) >= 2 and len(tokens2) >= 2 and not intersection:
+        return 0.0
+    from difflib import SequenceMatcher
+    seq_ratio = SequenceMatcher(None, norm1, norm2).ratio()
+    return max(jaccard, seq_ratio)
+
+
+def _purge_claim_documents(claim_id: str, reason: str = "") -> None:
+    """Purge uploaded files and extracted records for a claim on critical identity failure."""
+    import uuid
+    import os
+    from services.parser.app.db import SessionLocal as ParserSessionLocal
+    from libs.shared.models import Document, OcrResult, OcrJob, ParseJob, ParsedField, DocValidation, ScanAnalysis, ClaimFieldFeedback
+    
+    try:
+        cid = uuid.UUID(str(claim_id))
+    except Exception:
+        return
+        
+    db = ParserSessionLocal()
+    try:
+        # Delete dependent child records
+        try:
+            db.query(DocValidation).filter(DocValidation.claim_id == cid).delete(synchronize_session=False)
+        except Exception:
+            pass
+        try:
+            db.query(ScanAnalysis).filter(ScanAnalysis.claim_id == cid).delete(synchronize_session=False)
+        except Exception:
+            pass
+        try:
+            db.query(ParsedField).filter(ParsedField.claim_id == cid).delete(synchronize_session=False)
+        except Exception:
+            pass
+        try:
+            db.query(ClaimFieldFeedback).filter(ClaimFieldFeedback.claim_id == cid).delete(synchronize_session=False)
+        except Exception:
+            pass
+
+        # Gather documents to remove physical files and ocr results
+        docs = db.query(Document).filter(Document.claim_id == cid).all()
+        for doc in docs:
+            storage_p = getattr(doc, "minio_path", None)
+            if storage_p and os.path.exists(storage_p):
+                try:
+                    os.remove(storage_p)
+                except Exception as e:
+                    logging.getLogger("parser-debug").warning(f"Could not remove file {storage_p}: {e}")
+            try:
+                db.query(OcrResult).filter(OcrResult.document_id == doc.id).delete(synchronize_session=False)
+            except Exception:
+                pass
+        
+        try:
+            db.query(OcrJob).filter(OcrJob.claim_id == cid).delete(synchronize_session=False)
+        except Exception:
+            pass
+        try:
+            db.query(ParseJob).filter(ParseJob.claim_id == cid).delete(synchronize_session=False)
+        except Exception:
+            pass
+        try:
+            db.query(Document).filter(Document.claim_id == cid).delete(synchronize_session=False)
+        except Exception:
+            pass
+
+        db.commit()
+        logging.getLogger("parser-debug").info(f"[Identity Gate] Purged uploaded files and records for claim {claim_id}. Reason: {reason}")
+    except Exception as exc:
+        logging.getLogger("parser-debug").error(f"Error purging claim {claim_id} documents: {exc}")
+        db.rollback()
+    finally:
+        db.close()
+
+
+def _check_asynchronous_identity_gate(claim_id: str) -> tuple[bool, str | None, Any | None, str | None, str | None]:
     """
-    Verify if the name on any uploaded ID proof document matches the patient name from the hospital documents.
+    Verify if the patient name and DOB across all uploaded documents match the consensus anchor patient.
+    Returns (passed, anchor_name, mismatched_document_record, mismatched_name, mismatch_reason).
     """
-    # DUMMY BYPASS: Always return True (satisfied) to disable name mismatch verification checks
-    return True, None, None
+    import uuid
+    import re
+    from services.parser.app.db import SessionLocal as ParserSessionLocal
+    from services.parser.app.robust_field_extractor import RobustFieldExtractor
+    from libs.shared.models import Document, OcrResult
+
+    try:
+        cid = uuid.UUID(str(claim_id))
+    except Exception:
+        return True, None, None, None, None
+
+    db = ParserSessionLocal()
+    try:
+        docs = db.query(Document).filter(Document.claim_id == cid).all()
+        if len(docs) <= 1:
+            return True, None, None, None, None
+
+        doc_identities: list[dict[str, Any]] = []
+        for d in docs:
+            ocr_rows = db.query(OcrResult).filter(OcrResult.document_id == d.id).order_by(OcrResult.page_number.asc()).all()
+            if not ocr_rows:
+                continue
+            text = "\n\n".join(r.text for r in ocr_rows if r.text)
+            if not text.strip():
+                continue
+            extracted_name = RobustFieldExtractor.extract_field("patient_name", text)
+            extracted_dob = RobustFieldExtractor.extract_field("dob", text)
+            
+            cleaned_name = _normalize_identity_name(extracted_name) if extracted_name else ""
+            if cleaned_name and len(cleaned_name) >= 3:
+                doc_identities.append({
+                    "doc": d,
+                    "raw_name": extracted_name,
+                    "clean_name": cleaned_name,
+                    "dob": extracted_dob,
+                })
+
+        if len(doc_identities) <= 1:
+            return True, None, None, None, None
+
+        # Determine anchor name by consensus (most frequent / longest clean name)
+        from collections import Counter
+        norm_counts = Counter(item["clean_name"] for item in doc_identities)
+        anchor_norm, count = norm_counts.most_common(1)[0]
+        # Find original anchor display name
+        anchor_item = next(item for item in doc_identities if item["clean_name"] == anchor_norm)
+        anchor_name = anchor_item["raw_name"]
+        anchor_dob = next((item["dob"] for item in doc_identities if item["clean_name"] == anchor_norm and item.get("dob")), None)
+
+        # Check each document for hard mismatch
+        for item in doc_identities:
+            doc = item["doc"]
+            raw_name = item["raw_name"]
+            sim = _name_similarity(raw_name, anchor_name)
+            if sim < 0.50:
+                reason = (
+                    f"Document '{doc.file_name}' contains identity '{raw_name}' which does not match "
+                    f"anchor patient '{anchor_name}' (similarity: {sim:.2f})."
+                )
+                logger = logging.getLogger("parser-debug")
+                logger.warning(f"[Identity Gate] Mismatch detected: {reason}")
+                return False, anchor_name, doc, raw_name, reason
+
+            # DOB cross-check if both anchor and document have an extracted DOB
+            doc_dob = item.get("dob")
+            if anchor_dob and doc_dob:
+                def _norm_dob(d_str: str) -> str:
+                    return re.sub(r"[^0-9]", "", str(d_str or ""))
+                n_anchor = _norm_dob(anchor_dob)
+                n_doc = _norm_dob(doc_dob)
+                # Compare full normalized DOB or year
+                if len(n_anchor) >= 4 and len(n_doc) >= 4 and n_anchor != n_doc:
+                    # If years differ (e.g. 2005 vs 1985)
+                    anchor_yr = n_anchor[-4:]
+                    doc_yr = n_doc[-4:]
+                    if anchor_yr != doc_yr:
+                        reason = (
+                            f"Document '{doc.file_name}' has date of birth '{doc_dob}' which contradicts "
+                            f"patient anchor DOB '{anchor_dob}'."
+                        )
+                        logging.getLogger("parser-debug").warning(f"[Identity Gate] DOB Mismatch: {reason}")
+                        return False, anchor_name, doc, raw_name, reason
+
+        return True, anchor_name, None, None, None
+    except Exception as e:
+        logging.getLogger("parser-debug").warning(f"[Identity Gate] Verification encountered error: {e}")
+        return True, None, None, None, None
+    finally:
+        db.close()
 
 
 # ================================================================== Notifications (Azure Communication Services)

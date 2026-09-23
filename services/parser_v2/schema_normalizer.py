@@ -42,6 +42,22 @@ CANONICAL_MAPPING = {
     "attendant_signature": "signature",
     "diagnosis": "diagnosis",
     "primary_diagnosis": "diagnosis",
+    "clinical_diagnosis": "diagnosis",
+    "final_diagnosis": "diagnosis",
+    "secondary_diagnosis": "secondary_diagnosis",
+    "secondary_dx": "secondary_diagnosis",
+    "comorbidity": "secondary_diagnosis",
+    "co_morbidity": "secondary_diagnosis",
+    "comorbidities": "secondary_diagnosis",
+    "co_morbidities": "secondary_diagnosis",
+    "icd": "icd_code",
+    "icd10": "icd_code",
+    "icd_10": "icd_code",
+    "icd_code": "icd_code",
+    "cpt": "cpt_code",
+    "cpt_code": "cpt_code",
+    "procedure": "procedure",
+    "primary_procedure": "procedure",
     "claimed": "claimed_total",
     "total_claimed": "claimed_total",
     "amount_claimed": "claimed_total",
@@ -66,8 +82,8 @@ def _clean_patient_name(val: str) -> str:
     text = re.sub(r"\s*[\(\[]\s*(?:female|male|[MF])\s*[\/\-|,:]?\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"\s*[\(\[]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"\s*[\(\[]\s*(?:age|sex|gender|dob|ipd|opd|uhid)\b.*?[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
-    # Strip trailing form labels / age / sex / gen markers (e.g. "Age / Gen", "Age / Sex", "Relation ...", "DOB ...", "IPD ...")
-    text = re.sub(r"\s+(?:Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing form labels / age / sex / gen markers (e.g. "Age / Gen", "Age / Sex", "Blood Group ...", "Occupation ...", "Relation ...", "DOB ...", "IPD ...")
+    text = re.sub(r"\s+(?:Blood\s*Group\b|Blood\b|Occupation\b|Aadhaar\b|PAN\b|Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
     # Strip trailing unparenthesized demographic tokens like "52/F", "31/M", "/F", "/M"
     text = re.sub(r"\s+(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]\s*(?:female|male|[MF])\b.*$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"\s+(?:female|male|[MF])\s*[\/\-|,:]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\b.*$", "", text, flags=re.IGNORECASE).strip()
@@ -81,7 +97,7 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
     normalized = []
     for field in fields:
         # Strip both colons and hyphens for robust mapping
-        key_norm = field.key.lower().strip().replace(":", "").replace("-", "").replace(" ", "_")
+        key_norm = field.key.lower().strip().replace(":", "").replace("-", "_").replace(" ", "_")
         canonical_key = CANONICAL_MAPPING.get(key_norm)
         
         # Explicit check: ignore signature keys for doctor_name/patient_name
@@ -97,9 +113,39 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
             if any(sig_term in val_lower for sig_term in ["signature", "sign", "seal", "stamp", "declaration", "attendant"]) or re.search(r"_{2,}", val_str):
                 continue
 
+        # Extract explicit ICD-10 / CPT codes before sanitizing diagnosis or comorbidity text
+        if canonical_key in {"diagnosis", "secondary_diagnosis"} and val_str:
+            # 1. Extract explicit ICD-10 codes
+            icd_matches = re.finditer(r"\b(?:ICD(?:-?10|-?9)?\s*[:\-]?\s*)?([A-TV-Z]\d{2}(?:\.\d{1,4})?)\b", val_str, re.IGNORECASE)
+            for m in icd_matches:
+                icd_candidate = m.group(1).upper()
+                if not any(f.get("canonical_field") == "icd_code" and f.get("value") == icd_candidate for f in normalized):
+                    normalized.append({
+                        "field": "icd_code",
+                        "canonical_field": "icd_code",
+                        "value": icd_candidate,
+                        "confidence": 0.99,
+                        "bbox": field.value_bbox,
+                        "page": field.page,
+                    })
+
+            # 2. Extract explicit CPT codes
+            cpt_matches = re.finditer(r"\bCPT\s*[:\-]?\s*(\d{5})\b", val_str, re.IGNORECASE)
+            for m in cpt_matches:
+                cpt_candidate = m.group(1)
+                if not any(f.get("canonical_field") == "cpt_code" and f.get("value") == cpt_candidate for f in normalized):
+                    normalized.append({
+                        "field": "cpt_code",
+                        "canonical_field": "cpt_code",
+                        "value": cpt_candidate,
+                        "confidence": 0.99,
+                        "bbox": field.value_bbox,
+                        "page": field.page,
+                    })
+
         # Clean diagnosis string (strip embedded/trailing ICD-10/CPT/Procedure codes & None Procedure prefixes)
-        if canonical_key == "diagnosis" and val_str:
-            cleaned_diag = re.sub(r"^(?:none|n/a|null)\s*(?:procedure\s*:?|diagnosis\s*:?)?\s*", "", val_str, flags=re.IGNORECASE).strip()
+        if canonical_key in {"diagnosis", "secondary_diagnosis"} and val_str:
+            cleaned_diag = re.sub(r"^(?:primary\s+diagnosis|clinical\s+diagnosis|final\s+diagnosis|provisional\s+diagnosis|chief\s+diagnosis|secondary\s+diagnosis|co-?morbidity|diagnosis|none|n/a|null)\s*[:\-=–—|]?\s*", "", val_str, flags=re.IGNORECASE).strip()
             cleaned_diag = re.sub(
                 r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s*:?.*|Secondary\s+Diagnosis.*|Co-?morbidity.*|Comorbidities.*|Chief\s+Complaint.*).*$",
                 "",
@@ -172,24 +218,9 @@ def _is_invalid_expense_row(description: str, amount: str = "") -> bool:
     if len(amt_clean) >= 9 or (len(amt_clean) == 6 and any(term in desc_lower for term in ["cheque", "chq", "pin"])):
         return True
 
-    # 6. Reject lines that contain bullet points and look like clinical medications log with dosage
-    if desc_lower.startswith(("inj.", "tab.", "cap.", "inj ", "tab ", "cap ", "(cid:")):
-        # If it has a non-trivial amount/price (e.g., has a decimal point or is > 100),
-        # it is likely a billing row rather than a clinical log row, so we preserve it.
-        is_probable_price = False
-        if amt_clean:
-            try:
-                if "." in str(amount) or float(amt_clean) > 100.0:
-                    is_probable_price = True
-            except ValueError:
-                pass
-                
-        if not is_probable_price:
-            if amt_clean in {"1", "2", "4", "5", "10", "20", "40", "50", "100", "250", "500", "650"}:
-                return True
-            # If description contains route/dosage keywords, reject
-            if any(term in desc_lower for term in [" po ", " iv ", " im ", " sc ", " bd", " tds", " od", " mg ", " ml ", " mcg "]):
-                return True
+    # 6. Reject lines that contain PDF bullet points without any valid amount (discharge summary narrative logs)
+    if desc_lower.startswith("(cid:") and not amt_clean:
+        return True
 
     # 7. Sensitive metadata keywords
     blacklist = {
@@ -564,13 +595,13 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
         if not (is_expense_like_kind or is_expense_like_header or has_many_numeric_cols):
             continue
 
-        amount_priority = ["payable", "np", "gross", "rate"]
+        amount_priority = ["gross", "payable", "rate"]
         qty_x0 = float(header_cells[header_map["qty"]].bbox[0]) if header_cells and "qty" in header_map else None
         category_x0 = float(header_cells[header_map["description"]].bbox[0]) if header_cells and "description" in header_map else None
         amount_header_x0 = {
             name: float(header_cells[idx].bbox[0])
             for name, idx in header_map.items()
-            if name in {"payable", "np", "gross", "rate"} and idx < len(header_cells)
+            if name in {"gross", "payable", "rate"} and idx < len(header_cells)
         }
         def _looks_numeric(text: str) -> bool:
             cleaned = text.replace("Rs.", "").replace("INR", "").replace("₹", "").replace(",", "").strip()

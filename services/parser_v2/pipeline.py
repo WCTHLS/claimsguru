@@ -38,8 +38,8 @@ def _clean_patient_name(val: str) -> str:
     text = re.sub(r"\s*[\(\[]\s*(?:female|male|[MF])\s*[\/\-|,:]?\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"\s*[\(\[]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"\s*[\(\[]\s*(?:age|sex|gender|dob|ipd|opd|uhid)\b.*?[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
-    # Strip trailing form labels / age / sex / gen markers (e.g. "Age / Gen", "Age / Sex", "Relation ...", "DOB ...", "IPD ...")
-    text = re.sub(r"\s+(?:Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing form labels / age / sex / gen markers (e.g. "Age / Gen", "Age / Sex", "Blood Group ...", "Occupation ...", "Relation ...", "DOB ...", "IPD ...")
+    text = re.sub(r"\s+(?:Blood\s*Group\b|Blood\b|Occupation\b|Aadhaar\b|PAN\b|Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
     # Strip trailing unparenthesized demographic tokens like "52/F", "31/M", "/F", "/M"
     text = re.sub(r"\s+(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]\s*(?:female|male|[MF])\b.*$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"\s+(?:female|male|[MF])\s*[\/\-|,:]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\b.*$", "", text, flags=re.IGNORECASE).strip()
@@ -48,11 +48,10 @@ def _clean_patient_name(val: str) -> str:
     return text
 
 
-def _extract_diagnosis_fields_from_tokens(token_dicts: list[dict[str, Any]]) -> dict[str, str]:
-    """Extract primary/secondary diagnosis strings from label-style OCR text.
+def _extract_diagnosis_fields_from_tokens(token_dicts: list[dict[str, Any]]) -> dict[str, Any]:
+    """Extract primary/secondary diagnosis strings and explicit codes from label-style OCR text.
 
-    This is a conservative fallback used when semantic/local extractors miss
-    secondary diagnosis fields in discharge/billing summaries.
+    Captures all primary diagnoses, comorbidities, and embedded ICD/CPT codes across pages.
     """
     text_parts: list[str] = []
     for token in token_dicts:
@@ -65,30 +64,52 @@ def _extract_diagnosis_fields_from_tokens(token_dicts: list[dict[str, Any]]) -> 
 
     stop_clause = (
         r"(?:length\s+of\s+stay|diagnosis\s+count|medications|total\s+bill|claim\s+amount|"
-        r"procedure\s*:|cpt\s*code|hospital\s+expense\s+breakdown|sr\.|co-?morbidity|comorbidities|"
+        r"procedure\s*:|cpt\s*code|hospital\s+expense\s+breakdown|sr\.|"
         r"chief\s+complaint|past\s+history|history|$)"
     )
-    out: dict[str, str] = {}
+    out: dict[str, Any] = {
+        "secondary_diagnoses": [],
+        "icd_codes": [],
+        "cpt_codes": [],
+    }
 
+    # 1. Primary Diagnosis
     primary_match = re.search(
-        rf"(?:primary\s+diagnosis|diagnosis)\s*[:\-]?\s*(.+?)\s*(?=(?:sec(?:ondary)?\.?\s*diagnoses?|secondary\s+diagnosis|{stop_clause}))",
+        rf"(?:primary\s+diagnosis|clinical\s+diagnosis|final\s+diagnosis|diagnosis)\s*[:\-]?\s*(.+?)\s*(?=(?:sec(?:ondary)?\.?\s*diagnoses?|secondary\s+diagnosis|co-?morbidity|comorbidities|{stop_clause}))",
         full_text,
         flags=re.IGNORECASE,
     )
     if primary_match:
         primary = primary_match.group(1).strip(" ,;:-")
+        primary = re.sub(r"^(?:primary\s+diagnosis|clinical\s+diagnosis|final\s+diagnosis|diagnosis)\s*[:\-=–—|]?\s*", "", primary, flags=re.IGNORECASE).strip(" ,;:-")
         if primary:
             out["diagnosis"] = primary
 
-    secondary_match = re.search(
-        rf"(?:sec(?:ondary)?\.?\s*diagnoses?|secondary\s+diagnosis(?:es)?)\s*[:\-]?\s*(.+?)\s*(?={stop_clause})",
+    # 2. Extract all Co-morbidities and Secondary Diagnoses
+    sec_matches = re.finditer(
+        rf"(?:sec(?:ondary)?\.?\s*diagnoses?|secondary\s+diagnosis(?:es)?|co-?morbidity|comorbidities)\s*[:\-]?\s*([^|\n]+?)(?=(?:sec(?:ondary)?\.?\s*diagnoses?|secondary\s+diagnosis|co-?morbidity|comorbidities|{stop_clause}))",
         full_text,
         flags=re.IGNORECASE,
     )
-    if secondary_match:
-        secondary = secondary_match.group(1).strip(" ,;:-")
-        if secondary:
-            out["secondary_diagnosis"] = secondary
+    for sm in sec_matches:
+        sec_val = sm.group(1).strip(" ,;:-")
+        sec_val_clean = re.sub(r"^(?:sec(?:ondary)?\.?\s*diagnoses?|secondary\s+diagnosis|co-?morbidity|comorbidities)\s*[:\-=–—|]?\s*", "", sec_val, flags=re.IGNORECASE).strip(" ,;:-")
+        if len(sec_val_clean) >= 3 and sec_val_clean not in out["secondary_diagnoses"]:
+            out["secondary_diagnoses"].append(sec_val_clean)
+
+    # 3. Extract all explicit ICD-10 and CPT codes from the text
+    for m in re.finditer(r"\b(?:ICD(?:-?10|-?9)?\s*[:\-]?\s*)?([A-TV-Z]\d{2}(?:\.\d{1,4})?)\b", full_text, re.IGNORECASE):
+        # Avoid pure English words that match letter + 2 digits if no ICD prefix
+        raw_match = m.group(0)
+        code_val = m.group(1).upper()
+        if "icd" in raw_match.lower() or (len(code_val) >= 3 and code_val[0].isalpha() and code_val[1:3].isdigit()):
+            if code_val not in out["icd_codes"]:
+                out["icd_codes"].append(code_val)
+
+    for m in re.finditer(r"\bCPT\s*[:\-]?\s*(\d{5})\b", full_text, re.IGNORECASE):
+        cpt_val = m.group(1)
+        if cpt_val not in out["cpt_codes"]:
+            out["cpt_codes"].append(cpt_val)
 
     return out
 
@@ -621,12 +642,35 @@ def parse_document(
                 logger.info(f"[ROBUST_EXTRACTION] Backfilled {field_name}: {field_value}")
 
     diagnosis_fields = _extract_diagnosis_fields_from_tokens(all_token_dicts)
-    if "diagnosis" not in existing_patient_fields and diagnosis_fields.get("diagnosis"):
-        _append_local_field("diagnosis", diagnosis_fields["diagnosis"], confidence=0.9)
-        logger.info("[DIAGNOSIS_FALLBACK] Backfilled diagnosis from labeled text")
-    if "secondary_diagnosis" not in existing_patient_fields and diagnosis_fields.get("secondary_diagnosis"):
-        _append_local_field("secondary_diagnosis", diagnosis_fields["secondary_diagnosis"], confidence=0.9)
-        logger.info("[DIAGNOSIS_FALLBACK] Backfilled secondary_diagnosis from labeled text")
+    clean_primary = diagnosis_fields.get("diagnosis")
+    if clean_primary:
+        # Strip trailing explicit ICD notation from description for cleaner display/entity extraction
+        clean_primary_text = re.sub(r"\s*\(?\b(?:icd(?:-?10|-?9)?|cpt)\b.*?\)?", "", clean_primary, flags=re.IGNORECASE).strip(" ,;:-")
+        existing_diag = next((f for f in doc.normalized_fields if f.get("canonical_field") in ("diagnosis", "primary_diagnosis")), None)
+        if existing_diag:
+            curr_val = str(existing_diag.get("value") or "").strip()
+            # If current value looks scrambled/noisy, override with the cleanly isolated primary diagnosis
+            if len(curr_val.split()) > 3 and any(sep in curr_val for sep in ["-", "—", ";"]) and clean_primary_text:
+                existing_diag["value"] = clean_primary_text
+                logger.info(f"[DIAGNOSIS_OVERRIDE] Replaced noisy diagnosis '{curr_val}' with '{clean_primary_text}'")
+        else:
+            _append_local_field("diagnosis", clean_primary_text or clean_primary, confidence=0.95)
+            logger.info(f"[DIAGNOSIS_FALLBACK] Backfilled diagnosis from labeled text: {clean_primary_text}")
+
+    for sec_diag in diagnosis_fields.get("secondary_diagnoses", []):
+        clean_sec = re.sub(r"\s*\(?\b(?:icd(?:-?10|-?9)?|cpt)\b.*?\)?", "", sec_diag, flags=re.IGNORECASE).strip(" ,;:-")
+        if clean_sec and not any(f.get("canonical_field") == "secondary_diagnosis" and str(f.get("value") or "").strip().lower() == clean_sec.lower() for f in doc.normalized_fields):
+            _append_local_field("secondary_diagnosis", clean_sec, confidence=0.90)
+            logger.info(f"[DIAGNOSIS_FALLBACK] Backfilled secondary_diagnosis from labeled text: {clean_sec}")
+
+    for icd in diagnosis_fields.get("icd_codes", []):
+        if not any(f.get("canonical_field") == "icd_code" and str(f.get("value") or "").upper() == icd.upper() for f in doc.normalized_fields):
+            _append_local_field("icd_code", icd, confidence=0.99)
+            logger.info(f"[DIAGNOSIS_FALLBACK] Backfilled explicit ICD-10 code: {icd}")
+    for cpt in diagnosis_fields.get("cpt_codes", []):
+        if not any(f.get("canonical_field") == "cpt_code" and str(f.get("value") or "").upper() == cpt.upper() for f in doc.normalized_fields):
+            _append_local_field("cpt_code", cpt, confidence=0.99)
+            logger.info(f"[DIAGNOSIS_FALLBACK] Backfilled explicit CPT code: {cpt}")
 
     # Detect obviously noisy semantic values (model concatenated headers or many labels)
     def _is_noisy_field(val: str, field_name: str = "") -> bool:
@@ -723,14 +767,47 @@ def parse_document(
                 _append_local_field(cf, cleaned, confidence=0.92)
                 logger.info(f"[HOSPITAL_CLEANUP] Stripped registration suffix: '{val}' → '{cleaned}'")
 
-    # Strip CPT/procedure/ICD-10 code blocks from diagnosis fields
+    # Extract and preserve explicit ICD/CPT codes and secondary diagnoses from diagnosis fields
     # e.g. "Gingival disease Secondary Diagnosis 2: ... ICD-10: K72.9 CPT: 47135 ..."
     for nf in list(doc.normalized_fields):
         cf = nf.get("canonical_field") or nf.get("field")
         if cf in {"diagnosis", "primary_diagnosis", "secondary_diagnosis"}:
             val = str(nf.get("value") or "").strip()
+
+            # 1. Extract explicit ICD-10 codes if present
+            icd_matches = re.finditer(r"\b(?:ICD(?:-?10|-?9)?\s*[:\-]?\s*)?([A-TV-Z]\d{2}(?:\.\d{1,4})?)\b", val, re.IGNORECASE)
+            for m in icd_matches:
+                icd_candidate = m.group(1).upper()
+                if not any(f.get("canonical_field") == "icd_code" and f.get("value") == icd_candidate for f in doc.normalized_fields):
+                    _append_local_field("icd_code", icd_candidate, confidence=0.99)
+                    logger.info(f"[DIAG_EXTRACTION] Extracted explicit ICD-10 code: '{icd_candidate}'")
+
+            # 2. Extract explicit CPT codes if present
+            cpt_matches = re.finditer(r"\bCPT\s*[:\-]?\s*(\d{5})\b", val, re.IGNORECASE)
+            for m in cpt_matches:
+                cpt_candidate = m.group(1)
+                if not any(f.get("canonical_field") == "cpt_code" and f.get("value") == cpt_candidate for f in doc.normalized_fields):
+                    _append_local_field("cpt_code", cpt_candidate, confidence=0.99)
+                    logger.info(f"[DIAG_EXTRACTION] Extracted explicit CPT code: '{cpt_candidate}'")
+
+            # 3. Extract Secondary Diagnosis / Comorbidities if present
+            sec_match = re.search(r"\b(?:Secondary\s+Diagnosis|Co-?morbidity|Comorbidities)\s*[:\-]?\s*([^\n|]+)", val, re.IGNORECASE)
+            if sec_match:
+                sec_val = sec_match.group(1).strip()
+                sec_val_clean = re.sub(r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s+\d+:).*$", "", sec_val, flags=re.IGNORECASE).strip()
+                if len(sec_val_clean) >= 3 and not any(f.get("canonical_field") == "secondary_diagnosis" and f.get("value") == sec_val_clean for f in doc.normalized_fields):
+                    _append_local_field("secondary_diagnosis", sec_val_clean, confidence=0.95)
+                    logger.info(f"[DIAG_EXTRACTION] Extracted secondary diagnosis: '{sec_val_clean}'")
+
             # Strip from first "Secondary Diagnosis" or "Co-morbidity" onward if embedded
             cleaned = re.sub(r"\s+(?:Secondary\s+Diagnosis|Co-?morbidity|Comorbidities|Chief\s+Complaint).*$", "", val, flags=re.IGNORECASE).strip()
+            # Strip leading prefixes like "Primary Diagnosis:", "Clinical Diagnosis:", etc.
+            cleaned = re.sub(
+                r"^(?:primary\s+diagnosis|clinical\s+diagnosis|final\s+diagnosis|provisional\s+diagnosis|chief\s+diagnosis|diagnosis|none|n/a|null)\s*(?:procedure\s*:?|diagnosis\s*:?)?[:\-=–—|]?\s*",
+                "",
+                cleaned,
+                flags=re.IGNORECASE,
+            ).strip()
             # Strip trailing or embedded ICD-10/ICD-9/CPT/Procedure code blocks
             cleaned = re.sub(
                 r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s+\d+:).*$",
@@ -1007,13 +1084,32 @@ def parse_document(
                 if any(term in desc for term in [" po ", " iv ", " im ", " sc ", " bd", " tds", " od", " mg ", " ml ", " mcg "]):
                     return False
 
-        if amount < 0:
+        # Exclude zero or negative amounts - clinical prescriptions and disclaimers are not billed expenses
+        if amount <= 0:
             return False
-        if amount == 0:
-            # Allow 0 amounts if the description has at least 3 alphabetic/alphanumeric characters
-            desc_cleaned = re.sub(r"[^a-zA-Z0-9]", "", desc)
-            if len(desc_cleaned) < 3:
-                return False
+
+        # Clean clinical prescription or lab billing prefixes instead of rejecting valid billed services
+        cleaned_prefix = re.sub(r"^(?:rx|lab|investigation|test|prescription|treatment advised)\s*[:\-–—]?\s*", "", desc, flags=re.IGNORECASE).strip()
+        if cleaned_prefix:
+            desc = cleaned_prefix
+            expense["description"] = cleaned_prefix
+        else:
+            return False
+
+        # Strict rejection of summary / total / deduction rows
+        summary_terms = (
+            "grand total", "net payable", "net amount payable", "amount claimed",
+            "gross hospital bill", "total billed amount", "total reimbursement claimed",
+            "paid in full", "total amount received", "balance payment", "advance payment"
+        )
+        if any(term in desc for term in summary_terms):
+            return False
+
+        # Disallow duration of stay / LOS lines being captured as expenses (e.g. "Stay Duration Days: 4")
+        if any(term in desc for term in ["duration days", "stay duration", "duration (days)", "length of stay", "los:"]):
+            return False
+        if "duration" in desc and any(term in desc for term in ["stay", "days", "admit", "admission", "discharge"]):
+            return False
 
         # Specific check for Admission / Discharge dates/timestamps in headers
         has_dates_headers = ("admission" in desc or "discharge" in desc)
@@ -1680,6 +1776,86 @@ def parse_document(
                 before_count - len(deduped_expenses),
             )
 
+    # Cross-document Master Bill vs Sub-Bill Reconciler
+    def _reconcile_master_and_sub_bills(rows: list[dict], claimed_total_str: str | None = None) -> list[dict]:
+        """Reconcile Master Hospital Bill with sub-bills (e.g. separate pharmacy cash receipts or lab receipts).
+        
+        When a comprehensive Master Bill exists whose line items sum to the hospital's billed total (within 1%),
+        we select the Master Bill line items and discard duplicate items from separate pharmacy/lab slips.
+        """
+        if len(rows) <= 1:
+            return rows
+
+        target_total = _parse_amount(claimed_total_str) if claimed_total_str else 0.0
+        
+        # 1. Group rows by page
+        page_items: dict[int, list[dict]] = {}
+        for r in rows:
+            p = r.get("page")
+            if p is not None:
+                try:
+                    page_items.setdefault(int(p), []).append(r)
+                except Exception:
+                    pass
+
+        # 2. Check if a single page's items sum to the target_total (or contains the master bill)
+        if target_total > 0 and page_items:
+            # Sort pages by sum descending so the comprehensive master bill is evaluated first
+            sorted_pages = sorted(page_items.items(), key=lambda item: sum(_parse_amount(x.get("amount")) for x in item[1]), reverse=True)
+            for p, p_rows in sorted_pages:
+                p_sum = sum(_parse_amount(x.get("amount")) for x in p_rows)
+                if abs(p_sum - target_total) <= max(2.0, 0.01 * target_total):
+                    logger.info("[RECONCILER] Page %d line items sum (%.2f) matches claimed total (%.2f). Using Page %d as Master Bill.", p, p_sum, target_total, p)
+                    return p_rows
+
+        # 3. Dedup identical or sub-bill pharmacy line items
+        drug_stems = [
+            "artesunate", "paracetamol", "primaquine", "dextrose", "pantoprazole",
+            "artemether", "lumefantrine", "ondansetron", "doxycycline", "rl 500", "ns 0.9",
+            "ceftriaxone", "meropenem", "piperacillin", "metronidazole", "ciprofloxacin",
+            "cisplatin", "cyclophosphamide", "filgrastim", "enoxaparin", "paclitaxel"
+        ]
+        
+        seen_stem_idx: dict[str, int] = {}
+        to_remove = set()
+        for idx, r in enumerate(rows):
+            # Clean trailing dashed footer artifacts
+            if r.get("description"):
+                r["description"] = re.sub(r"\s*[-_—=]{3,}.*$", "", str(r["description"])).strip()
+            desc = (r.get("description") or "").lower()
+            amt = _parse_amount(r.get("amount"))
+            if amt <= 0 or not desc:
+                to_remove.add(idx)
+                continue
+            for stem in drug_stems:
+                if stem in desc:
+                    if stem in seen_stem_idx:
+                        prev_idx = seen_stem_idx[stem]
+                        prev_desc = (rows[prev_idx].get("description") or "").lower()
+                        # Prefer row that does not contain messy receipt tokens like 'batch', 'expiry', 'drug inj. name'
+                        if "batch" in desc or "expiry" in desc or "drug inj. name" in desc or len(desc) < 18:
+                            to_remove.add(idx)
+                        elif "batch" in prev_desc or "expiry" in prev_desc or "drug inj. name" in prev_desc or len(prev_desc) < 18:
+                            to_remove.add(prev_idx)
+                            seen_stem_idx[stem] = idx
+                        else:
+                            to_remove.add(idx)
+                    else:
+                        seen_stem_idx[stem] = idx
+                    break
+
+        return [r for idx, r in enumerate(rows) if idx not in to_remove]
+
+    # Find claimed_total from fields
+    claimed_total_target = None
+    for nf in doc.normalized_fields:
+        f_name = (nf.get("canonical_field") or nf.get("field") or "").lower()
+        if f_name in {"claims.claimed_total", "claimed_total", "total_amount", "claims.total_amount", "total"}:
+            claimed_total_target = str(nf.get("value") or "")
+            if claimed_total_target:
+                break
+
+    deduped_expenses = _reconcile_master_and_sub_bills(deduped_expenses, claimed_total_target)
     doc.normalized_expenses = deduped_expenses
     # Expose normalized expenses in canonical claim for downstream consumers and UI
     try:

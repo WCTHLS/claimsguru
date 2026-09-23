@@ -40,4 +40,3 @@ ui/web/.vercel/
 *.tar.gz
 scratch/
 tmp/
-ui/

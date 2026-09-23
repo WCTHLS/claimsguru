@@ -71,6 +71,8 @@ export function useAuditorState() {
   const [duplicateClaimId, setDuplicateClaimId] = useState<string | null>(null);
   const [duplicateFiles, setDuplicateFiles] = useState<File[]>([]);
   const [isReprocessing, setIsReprocessing] = useState<boolean>(false);
+  const [showIdentityMismatchModal, setShowIdentityMismatchModal] = useState<boolean>(false);
+  const [identityMismatchMessage, setIdentityMismatchMessage] = useState<string>('');
 
   const syncUserSession = () => {
     try {
@@ -672,6 +674,22 @@ export function useAuditorState() {
           return;
         }
 
+        if (statusInfo.status === "IDENTITY_MISMATCH" || statusInfo.step?.includes("Identity Mismatch")) {
+          setAnalyzing(false);
+          setIsLiveSessionCompleted(false);
+          setProgress(0);
+          setActiveStage('staged');
+          const errorDetail = statusInfo.error || "Identity mismatch detected across documents. Uploaded set removed. Please re-upload the entire set.";
+          setStepDescription(errorDetail);
+          setIdentityMismatchMessage(errorDetail);
+          setShowIdentityMismatchModal(true);
+          dataArrived = true;
+          clearInterval(pollInterval);
+          if (activePollRef.current === pollInterval) activePollRef.current = null;
+          reloadRecentClaims();
+          return;
+        }
+
         if (statusInfo.is_complete || statusInfo.percentage >= 100 || statusInfo.status === "COMPLETED" || statusInfo.status === "VALIDATED") {
           try {
             const finalData = await fetchClaimPreview(idToQuery);
@@ -1140,6 +1158,9 @@ export function useAuditorState() {
     setDuplicateClaimId,
     handleReprocessAnyway,
     isReprocessing,
+    showIdentityMismatchModal,
+    setShowIdentityMismatchModal,
+    identityMismatchMessage,
     saveExpenses,
     saveDetails,
   };

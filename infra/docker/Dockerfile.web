@@ -45,7 +45,7 @@ RUN if [ -n "$NEXT_PUBLIC_API_BASE" ]; then export NEXT_PUBLIC_API_BASE="$NEXT_P
     if [ -n "$NEXT_PUBLIC_ENTRA_SUBDOMAIN" ]; then export NEXT_PUBLIC_ENTRA_SUBDOMAIN="$NEXT_PUBLIC_ENTRA_SUBDOMAIN"; fi && \
     if [ -n "$NEXT_PUBLIC_ENTRA_AUTHORITY" ]; then export NEXT_PUBLIC_ENTRA_AUTHORITY="$NEXT_PUBLIC_ENTRA_AUTHORITY"; fi && \
     if [ -n "$NEXT_PUBLIC_ENTRA_REDIRECT_URI" ]; then export NEXT_PUBLIC_ENTRA_REDIRECT_URI="$NEXT_PUBLIC_ENTRA_REDIRECT_URI"; fi && \
-    NODE_OPTIONS="--max-old-space-size=4096" NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production npm run build
+    NODE_OPTIONS="--max-old-space-size=1536" NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production npm run build
 
 # ------------------------------------------------------------------------------
 # Stage 3: Production Runner

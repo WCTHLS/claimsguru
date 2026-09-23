@@ -64,3 +64,5 @@ azure-servicebus>=7.14.0
 azure-ai-formrecognizer>=3.3.0
 PyJWT[crypto]>=2.8.0
 azure-communication-email>=1.1.0
+torch>=2.0.0
+sentence-transformers>=2.2.0

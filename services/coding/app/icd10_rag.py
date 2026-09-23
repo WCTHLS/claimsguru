@@ -124,13 +124,14 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 def _tokenize(text: str) -> list[str]:
     """Lowercase + alphanum tokenization for BM25 indexing/queries.
 
-    Only single-character tokens are excluded (noise from OCR).
+    Single-character alphabetic noise from OCR is excluded, but single-character
+    digits (e.g. Stage '3' in CKD 3, Grade '2') are preserved so subcodes match.
     Clinical tokens like "in", "with", "without" are intentionally
     kept so BM25 can match ICD descriptions such as
     "diabetes mellitus in pregnancy" or "fracture without displacement".
     The local S-PubMedBert reranker handles final disambiguation.
     """
-    return [t for t in _TOKEN_RE.findall((text or "").lower()) if len(t) > 1]
+    return [t for t in _TOKEN_RE.findall((text or "").lower()) if len(t) > 1 or t.isdigit()]
 
 
 # ── ICD-10-CM Chapter mapping ─────────────────────────────────────
@@ -572,16 +573,16 @@ def _extract_icd10_csv_entries(csv_path: str) -> list[dict[str, Any]]:
                 f"Description: {desc}",
             ]
             extra_metadata= {}
-            # Priority logic
+            # Priority logic: do NOT append code_excludes to text_parts so excluded conditions
+            # do not act as false positive semantic attractors in vector embeddings.
             if code_includes:
                 text_parts.append(f"Code covers: {code_includes}")
                 extra_metadata["code_includes"] = f"Code covers: {code_includes}"
 
-            elif code_excludes:
-                text_parts.append(f"Code does not cover: {code_excludes}")
+            if code_excludes:
                 extra_metadata["code_excludes"] = f"Code does not cover: {code_excludes}"
 
-            elif block_description:
+            if block_description:
                 text_parts.append(f"Code Block description: {block_description}")
                 extra_metadata["block_description"] = f"Code Block description: {block_description}"
 
@@ -1186,11 +1187,13 @@ def _prefer_parent_code_if_query_broad(
     candidate_map: dict[str, tuple[str, str, str, float]],
     code: str,
 ) -> str:
-    """Prefer the broader parent code (or .9 unspecified subcode) when the query does not mention child-specific wording."""
+    """Prefer the broader parent code (or .9 unspecified subcode) when the query is clearly broad and lacks specific clinical qualifiers."""
+    if not code:
+        return code
+
     if "." not in code:
-        # If candidate is a 3-character header and an unspecified .9 subcode exists, prefer .9 for claims
         unspecified_code = f"{code}.9"
-        if unspecified_code in candidate_map:
+        if unspecified_code in candidate_map and candidate_map[unspecified_code][3] >= 0.3:
             return unspecified_code
         return code
 
@@ -1200,14 +1203,18 @@ def _prefer_parent_code_if_query_broad(
     if not parent or not child:
         return code
 
+    # If the child code was directly chosen with strong confidence by the cross-encoder or neural model, preserve its clinical specificity
+    child_score = child[3] if len(child) > 3 else 0.0
+    if child_score >= 0.4:
+        return code
+
     query_tokens = set(_tokenize(query))
     child_tokens = set(_tokenize(child[1]))
     parent_tokens = set(_tokenize(parent[1]))
     shared_tokens = child_tokens & parent_tokens
-    structural_noise = {"and", "or", "of", "the", "with", "without", "other", "unspecified", "specified", "abnormal", "normal"}
+    structural_noise = {"and", "or", "of", "the", "with", "without", "other", "unspecified", "specified", "abnormal", "normal", "stage", "type"}
     specific_child_tokens = {tok for tok in child_tokens - shared_tokens if tok not in structural_noise}
     if specific_child_tokens and not (specific_child_tokens & query_tokens):
-        # Prefer the .9 unspecified code if available, otherwise parent
         unspecified_code = f"{parent_code}.9"
         if unspecified_code in candidate_map:
             return unspecified_code
@@ -1576,7 +1583,16 @@ def lookup_icd10_rag(code: str) -> tuple[str, str, str] | None:
     raw_clean = str(code).strip().upper()
     norm_key = re.sub(r"[^A-Z0-9]", "", raw_clean)
 
-    return _icd10_code_index.get(norm_key) or _icd10_code_index.get(raw_clean)
+    match = _icd10_code_index.get(norm_key) or _icd10_code_index.get(raw_clean)
+    if match:
+        return match
+
+    # Direct WHO legacy alias fallback for restructured blocks (e.g. Dengue A90 -> A97.9)
+    _ALIASES = {
+        "A90": ("A90", "Dengue fever [classical dengue]", "Infectious"),
+        "A91": ("A91", "Dengue haemorrhagic fever", "Infectious"),
+    }
+    return _ALIASES.get(norm_key) or _ALIASES.get(raw_clean)
 
 
 @functools.lru_cache(maxsize=_RAG_CACHE_SIZE)

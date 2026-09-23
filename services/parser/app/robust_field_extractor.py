@@ -15,21 +15,43 @@ class RobustFieldExtractor:
 
     # Comprehensive regex patterns for each field
     PATTERNS = {
+        "dob": [
+            # Format: "DOB: 05/03/2005" or "Date of Birth: 05-03-2005" or Hindi "जन्म तारीख" / "जन्म की तारीख"
+            r"(?im)\b(?:dob|date\s+of\s+birth|d\.o\.b\.|जन्म\s*तारीख|जन्म\s*की\s*तारीख)\s*[:\-=]?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
+            # Format: "DOB : 05/03/2005" with optional special characters
+            r"(?im)[^\n]*(?:DOB|Date\s+of\s+Birth|जन्म\s*तारीख|जन्म\s*की\s*तारीख)\s*[:\-=\/|]?\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
+            # Multi-line Date of Birth (e.g. "Date of Birth\n05/03/2005")
+            r"(?im)\b(?:dob|date\s+of\s+birth|d\.o\.b\.|जन्म\s*तारीख|जन्म\s*की\s*तारीख)\s*[:\-=\/|]?\s*\n\s*(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})",
+            # Year of birth
+            r"(?im)\b(?:year\s+of\s+birth|yob)\s*[:\-=]?\s*(\d{4})",
+        ],
+
         "patient_name": [
-            # Format: "Patient Name: John Doe"
-            r"(?im)^\s*(?:patient\s+name|name\s+of\s+patient|name\s+of\s+the\s+patient)\s*[:\-=|]?\s*([^\n|]+)\s*(?:\||$)",
-            # Format: "Name-\n John Doe" or "Patient Name:\n John Doe"
-            r"(?im)^\s*(?:patient\s+name|name\s+of\s+patient|name\s+of\s+the\s+patient|name|patient)\s*[:\-=|]?\s*\n\s*(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*|Miss)?\s*([^\n|]{3,100})",
-            # Format: "Patient Rajesh Patel" or "Mr. Robert Wilson"
-            r"(?im)\b(?:mr\.?|mrs\.?|ms\.?|miss)[ \t]+([A-Z][A-Za-z.'’\-]+(?:[ \t]+[A-Z][A-Za-z.'’\-]+){1,4})\b",
-            # Format: "patient Jennifer Davis aged 48 years"
-            r"(?im)\bpatient[ \t]+([A-Z][A-Za-z.'’\-]+(?:[ \t]+[A-Z][A-Za-z.'’\-]+){1,4})\b",
-            # Format: "Name of the patient: John Doe"
-            r"(?im)^\s*name\s*[:\-=|]?\s*(?!of\s+hospital)(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*)?([^\n|]+)\s*(?:\||$)",
-            # Format: "Name: John Doe" or "Name - John Doe" (line-based)
-            r"(?im)^\s*patient\s*[:\-=|]\s*(?!name\b)(?:Mr\.?\s+|Mrs\.?\s+|Ms\.?\s+)?([^\n|]+)\s*(?:\||$)",
-            # Format: "Patient - Mr. John Doe" or "Patient: John Doe"
-            r"(?im)^\s*member\s+name\s*[:\-=|]?\s*(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*)?([^\n|]+)\s*(?:\||$)",
+            # Priority 0: Explicit "Patient Name: Rohit Sharma" or "Name of Patient:"
+            r"(?im)\b(?:patient\s*name|name\s+of\s+(?:the\s+)?patient|patient)\s*[:\-=]?\s*(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*|Miss)?\s*([^\n|]+?)(?:\s+\b(?:uhid|ip\s*no|ipd|bill|date|blood\s*group|blood|occupation|aadhaar|pan|age|gender|sex|relation|dob|mobile|address|report)\b|\||$)",
+            # Priority 1: Multi-line explicit: "Patient Name:\n Rohit Sharma"
+            r"(?im)\b(?:patient\s*name|name\s+of\s+(?:the\s+)?patient)\s*[:\-=]?\s*\n\s*(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*|Miss)?\s*([^\n|]{3,100})",
+            # Priority 2: Aadhaar Card Format: "To\nKasula Swagath Reddy\nC/O:" or "Kasula Swagath Reddy\n...DOB: 05/03/2005"
+            r"(?im)^\s*To\s*\n\s*([A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,4})\s*\n\s*(?:[CSDW]\/O|H\.No|S\/O|D\/O|W\/O|C\/O|\d)",
+            r"(?im)^\s*([A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,4})\s*\n\s*[^\n]*(?:DOB|Date\s+of\s+Birth|Year\s+of\s+Birth|\bMALE\b|\bFEMALE\b)",
+            # Priority 3: PAN Card Format (matches Permanent Account Number Card / Income Tax Dept / Govt of India followed by PAN or Name)
+            r"(?im)\b(?:Permanent\s+Account\s+Number\s+Card|INCOME\s+TAX\s+DEPARTMENT|GOVT\.?\s+OF\s+INDIA)\b[\s\S]{1,300}?(?:नाम\s*/\s*Name|\?+\s*/\s*Name|\bName\b)\s*[:\-=]?\s*\n\s*([A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,4})",
+            r"(?im)\b(?:Permanent\s+Account\s+Number\s+Card|INCOME\s+TAX\s+DEPARTMENT)\b[\s\S]{1,200}?\b[A-Z]{5}[0-9]{4}[A-Z]\b[\s\S]{1,100}?\n\s*([A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,4})",
+            # Priority 3b: Voter ID / Passport / Driving Licence / Govt ID formats
+            r"(?im)\b(?:ELECTION\s+COMMISSION\s+OF\s+INDIA|ELECTOR(?:'S)?\s+NAME|PASSPORT|REPUBLIC\s+OF\s+INDIA|DRIVING\s+LICEN[CS]E)\b[\s\S]{1,200}?(?:Given\s+Names?|Elector(?:'s)?\s+Name|Holder(?:'s)?\s+Name|Name|नाम)\s*[:\-=]?\s*\n?\s*([A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,4})",
+            # Priority 3c: Multiline Name Header (e.g. "नाम / Name\nKasula Swagath Reddy" or "Name:\nKasula Swagath Reddy" ignoring father/mother/spouse/doctor/hospital)
+            r"(?im)^[^\n\w]*(?:(?:नाम\s*/\s*Name|\?+\s*/\s*Name|Given\s+Names?|Full\s+Name)\s*[:\-/=]?)\s*\n\s*(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*|Miss\s*)?([A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,4})",
+            r"(?im)(?<!Father's\s)(?<!Father\s)(?<!Mother's\s)(?<!Mother\s)(?<!Husband's\s)(?<!Husband\s)(?<!Spouse's\s)(?<!Spouse\s)(?<!Doctor's\s)(?<!Hospital\s)(?<!Bank\s)(?<!Insurer\s)^\s*Name\s*[:\-/=]?\s*\n\s*(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*|Miss\s*)?([A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,4})",
+            # Priority 4: "Name of the Insured Person Hospitalized" (specifically the hospitalized patient on mediclaim forms)
+            r"(?im)\bname\s+of\s+(?:the\s+)?(?:insured\s+person\s+hospitalized|hospitalized\s+person|patient\s+person|claimant)\s*[:\-=]?\s*(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*|Miss)?\s*([^\n|]+?)(?:\s+\b(?:uhid|ip\s*no|ipd|bill|date|blood\s*group|blood|occupation|aadhaar|pan|age|gender|sex|relation|dob|mobile|address|report)\b|\||$)",
+            # Priority 5: Title + Full Name e.g. "Mr. Rohit Sharma" (ensure not doctor)
+            r"(?im)(?<!dr\s)(?<!dr\.\s)\b(?:mr\.?|mrs\.?|ms\.?|miss)[ \t]+([A-Z][A-Za-z.'’\-]+(?:[ \t]+[A-Z][A-Za-z.'’\-]+){1,4})\b",
+            # Priority 6: "patient Jennifer Davis" (ensure not preceded by '&' or 'nursing' or 'care')
+            r"(?im)(?<![&/a-zA-Z])\bpatient[ \t]+([A-Z][A-Za-z.'’\-]+(?:[ \t]+[A-Z][A-Za-z.'’\-]+){1,3})\b",
+            # Priority 7: Generic "Name: John Doe" (STRICT: negative lookbehind for insured, proposer, policyholder, subscriber, doctor, hospital, item, medicine, batch)
+            r"(?im)(?<!item\s)(?<!product\s)(?<!medicine\s)(?<!drug\s)(?<!brand\s)(?<!trade\s)(?<!insured\s)(?<!proposer\s)(?<!policyholder\s)(?<!subscriber\s)(?<!employee\s)(?<!doctor\s)(?<!hospital\s)(?<!bank\s)(?<!account\s)\bname\s*[:\-=]\s*(?!of\s+hospital)(?!of\s+insurer)(?!of\s+insured\s+and)(?!of\s+primary)(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*|Miss)?\s*([^\n|]+?)(?:\s+\b(?:uhid|ip\s*no|ipd|bill|date|blood\s*group|blood|occupation|aadhaar|pan|age|gender|sex|relation|dob|mobile|address|report)\b|\||$)",
+            # Priority 8: Member Name
+            r"(?im)\bmember\s+name\s*[:\-=]?\s*(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*|Miss)?\s*([^\n|]+?)(?:\s+\b(?:uhid|ip\s*no|ipd|bill|date|blood\s*group|blood|occupation|aadhaar|pan|age|gender|sex|relation|dob|mobile|address|report)\b|\||$)",
         ],
         
         "age": [
@@ -107,7 +129,7 @@ class RobustFieldExtractor:
         
         "hospital_name": [
             # Standalone hospital name in header without prefix (allows optional trailing city info)
-            r"(?im)^[ \t]*([A-Za-z0-9][A-Za-z0-9 \t.,&'\-]{3,80}\b(?:Hospital|Hospitals|Medical\s+Center|Medical\s+Centre|Healthcare|Clinic|Sanatorium|Nursing\s+Home|Maternity\s+Home|Netaralay|Health\s+City))\b(?:,[ \t]*[A-Za-z0-9 \t.,\-]+)?[ \t]*$",
+            r"(?im)^[ \t]*([A-Za-z0-9][A-Za-z0-9 \t.,&'\-]{3,90}\b(?:Hospital|Hospitals|Medical\s+Center|Medical\s+Centre|Healthcare|Clinic|Sanatorium|Nursing\s+Home|Maternity\s+Home|Netaralay|Health\s+City|Emergency\s+Centre|Emergency\s+Center|Trauma\s*&\s*Emergency\s+Centre|Trauma\s*&\s*Emergency\s+Center|Trauma\s+Centre|Trauma\s+Center|Super\s+Speciality|Research\s+Centre|Research\s+Center|Corporation))\b(?:,[ \t]*[A-Za-z0-9 \t.,\-]+)?[ \t]*$",
             # Format: "Hospital Name: XYZ Medical Center" (line-based)
             r"(?im)^\s*(?:hospital\s+name|name\s+of\s+hospital)\s*[:\-=|]?\s*([^\n|]{5,150})\s*(?:\||$)",
             # Format: "Hospital - Apollo Healthcare" (strict: require Hospital keyword)
@@ -115,11 +137,11 @@ class RobustFieldExtractor:
             # Format: "DISCHARGE SUMMARY XYZ Hospital, Tel: ..." - capture before comma (same line)
             r"(?im)^\s*(?:discharge\s+summary|facility|from)[ \t]+([A-Z][^\n,|]{8,150}?)(?:,\s*tel\b|\s*tel\b|,|\||$)",
             # Format: first header line with claim ref, e.g. "Baystate Wing Hospital Corporation | Claim Ref: ..."
-            r"(?im)^\s*([A-Z][^\n|]{4,120}?\b(?:Hospital|Hospitals|Medical Center|Medical Centre|Healthcare|Clinic|Health\s+City|Corporation))\s*\|\s*(?:Claim Ref|Member|Policy)",
+            r"(?im)^\s*([A-Z][^\n|]{4,120}?\b(?:Hospital|Hospitals|Medical Center|Medical Centre|Healthcare|Clinic|Health\s+City|Emergency\s+Centre|Emergency\s+Center|Trauma\s*&\s*Emergency\s+Centre|Trauma\s*&\s*Emergency\s+Center|Trauma\s+Centre|Trauma\s+Center|Super\s+Speciality|Research\s+Centre|Corporation))\s*\|\s*(?:Claim Ref|Member|Policy)",
             # Format: "treating hospital: Cleveland Medical Center" or "Hospitalized at: ..." (allows 'was'/'is' separators)
-            r"(?im)(?:treating\s+)?hospital(?:\s+of\s+treatment)?\s*(?:[:\-=\.]|\bwas\b|\bis\b)?\s*([^\n\.]{4,120}?(?:Hospital|Hospitals|Medical Center|Medical Centre|Healthcare|Clinic|Health\s+City|Corporation))\b",
+            r"(?im)(?:treating\s+)?hospital(?:\s+of\s+treatment)?\s*(?:[:\-=\.]|\bwas\b|\bis\b)?\s*([^\n\.]{4,120}?(?:Hospital|Hospitals|Medical Center|Medical Centre|Healthcare|Clinic|Health\s+City|Emergency\s+Centre|Emergency\s+Center|Trauma\s*&\s*Emergency\s+Centre|Trauma\s*&\s*Emergency\s+Center|Trauma\s+Centre|Trauma\s+Center|Super\s+Speciality|Research\s+Centre|Corporation))\b",
             # Format: "Patient treated at XYZ Hospital" (require Hospital keyword at end)
-            r"(?im)\b(?:treated|admitted|hospitalized)\s+(?:at|in)\s+([A-Z][^\n\.]{4,120}(?:Hospital|Hospitals|Medical Center|Medical Centre|Clinic|Health\s+City|Corporation))\b",
+            r"(?im)\b(?:treated|admitted|hospitalized)\s+(?:at|in)\s+([A-Z][^\n\.]{4,120}(?:Hospital|Hospitals|Medical Center|Medical Centre|Clinic|Health\s+City|Emergency\s+Centre|Emergency\s+Center|Trauma\s*&\s*Emergency\s+Centre|Trauma\s*&\s*Emergency\s+Center|Trauma\s+Centre|Trauma\s+Center|Super\s+Speciality|Research\s+Centre|Corporation))\b",
         ],
         
         "diagnosis": [
@@ -143,12 +165,14 @@ class RobustFieldExtractor:
         ],
 
         "claimed_total": [
-            # Multi-line: total keyword then optional whitespace/newline then amount
-            r"(?im)(?:gross\s+hospital\s+bill|total\s+billed\s+amount|total\s+claimed\s+amount|claimed\s+total|total\s+claimed|bill\s+amount|total\s+amount|total\s+bill|net\s+bill|billed\s+amount|gross\s+total)\s*\n?\s*(?:rs\.?|inr|₹)?\s*[:\-=\/|]?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
-            # Simple line-start total
-            r"(?im)^\s*total\s*\n?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
-            # Total: Rs. XXXX on same line
-            r"(?im)(?:total|grand\s+total|net\s+amount)\s*[:\-]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
+            # Priority 0: Explicit Gross Bill / Total Claimed Amount / Master Hospital Total
+            r"(?im)\b(?:gross\s+(?:hospital\s+)?bill\s*(?:amount)?|total\s+billed\s+amount|total\s+claimed\s+amount|total\s+claimed|claimed\s+total|gross\s+amount|gross\s+total|bill\s+total|total\s+bill\s+amount)\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
+            # Priority 1: Net Claimed / Net Payable
+            r"(?im)\b(?:net\s+claimed\s+amount|net\s+claim\s+amount|net\s+amount\s+claimed|net\s+payable|net\s+amount)\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
+            # Priority 2: Grand Total / Bill Amount / Total Amount
+            r"(?im)\b(?:grand\s+total|total\s+amount|bill\s+amount)\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
+            # Priority 3: Generic Total
+            r"(?im)\btotal\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
         ],
     }
 
@@ -180,6 +204,10 @@ class RobustFieldExtractor:
 
     PATIENT_REJECT_TERMS = {
         "information",
+        "insured",
+        "proposer",
+        "policyholder",
+        "subscriber",
         "date",
         "age",
         "gender",
@@ -193,6 +221,101 @@ class RobustFieldExtractor:
         "admission",
         "ipd",
         "reg",
+        "care",
+        "charges",
+        "charge",
+        "nursing",
+        "patient care",
+        "bed",
+        "room",
+        "ward",
+        "icu",
+        "ot",
+        "surgery",
+        "bill",
+        "report",
+        "medicine",
+        "pharmacy",
+        "duration",
+        "department",
+        "stay duration",
+        "stay",
+        "consultant",
+        "patient",
+        "batch",
+        "expiry",
+        "qty",
+        "quantity",
+        "mrp",
+        "price",
+        "rate",
+        "amount",
+        "total",
+        "tax",
+        "gst",
+        "sgst",
+        "cgst",
+        "igst",
+        "item",
+        "items",
+        "particulars",
+        "description",
+        "serial",
+        "s.no",
+        "sr.no",
+        "sl.no",
+        "disc",
+        "discount",
+        "net",
+        "gross",
+        "unit",
+        "units",
+        "hsn",
+        "sac",
+        "tablets",
+        "capsules",
+        "injection",
+        "syrup",
+        "tablet",
+        "capsule",
+        "vial",
+        "ampoule",
+        "tab",
+        "cap",
+        "inj",
+        "rx",
+        "pack",
+        "packing",
+        "government",
+        "india",
+        "authority",
+        "identification",
+        "unique",
+        "income",
+        "tax",
+        "department",
+        "enrolment",
+        "signature",
+        "valid",
+        "aadhaar",
+        "reimbursement",
+        "batch",
+        "expiry",
+        "qty",
+        "quantity",
+        "mrp",
+        "rate",
+        "price",
+        "amount",
+        "dosage",
+        "frequency",
+        "account",
+        "bank",
+        "ifsc",
+        "cheque",
+        "cancelled",
+        "primary insured",
+        "proposer",
     }
 
     DOCTOR_REJECT_TERMS = {
@@ -266,6 +389,9 @@ class RobustFieldExtractor:
         value = re.sub(r"\b(?:mr|mrs|ms|miss)\.?[:\-]?\s*", "", value, flags=re.IGNORECASE)
         value = re.sub(r"\b(?:dr)\.?[:\-]?\s*", "", value, flags=re.IGNORECASE)
 
+        # Strip trailing headers like "Report", "Report Date", "Details", "Copy", "Summary"
+        value = re.sub(r"\s+\b(?:report\s+date|report|details|copy|summary|notes|card|certificate|form|sheet|sample\s+collection)\b.*$", "", value, flags=re.IGNORECASE).strip()
+
         cutoff_terms = {
             "hereby", "declare", "that", "the", "information", "furnished", "above",
             "is", "true", "and", "correct", "was", "admitted", "to", "on", "at",
@@ -273,7 +399,10 @@ class RobustFieldExtractor:
             "relation", "relative", "relationship", "doctor", "referring", "consultant",
             "treating", "referred", "hospital", "tpa", "insurance", "aged", "upon",
             "under", "for", "active", "admitting", "discharge", "discharged", "treatment",
-            "treated", "by", "yrs", "years", "female", "male"
+            "treated", "by", "yrs", "years", "female", "male",
+            "blood", "occupation", "aadhaar", "pan", "mobile", "phone", "address", "uhid",
+            "report", "details", "copy", "summary", "notes", "card", "certificate", "form", "sheet",
+            "sample", "collection"
         }
 
         parts = []
@@ -433,17 +562,17 @@ class RobustFieldExtractor:
         patterns = RobustFieldExtractor.PATTERNS[field_name]
         
         candidates = []
-        # Gather all matches across all patterns
-        for pattern in patterns:
+        # Gather all matches across all patterns with pattern index priority
+        for p_idx, pattern in enumerate(patterns):
             matches = re.finditer(pattern, full_text, re.IGNORECASE | re.MULTILINE)
             for match in matches:
                 value = match.group(1).strip() if match.lastindex and match.lastindex >= 1 else ""
                 if not value:
                     continue
-                candidates.append((match.start(), value))
+                candidates.append((p_idx, match.start(), value))
         
         valid_candidates = []
-        for start_pos, value in candidates:
+        for p_idx, start_pos, value in candidates:
             value = RobustFieldExtractor._clean_text(value)
             
             # Post-processing and validation
@@ -451,7 +580,7 @@ class RobustFieldExtractor:
                 try:
                     age = int(value)
                     if 0 <= age <= 120:
-                        valid_candidates.append((start_pos, f"{age} Years"))
+                        valid_candidates.append((p_idx, start_pos, f"{age} Years"))
                 except ValueError:
                     continue
             
@@ -467,12 +596,12 @@ class RobustFieldExtractor:
                         "birth", "infant", "newborn", "child", "son", "daughter", "neonate"
                     }
                     is_baby = any(term in context for term in maternity_terms)
-                    valid_candidates.append((start_pos, gender, is_baby))
+                    valid_candidates.append((p_idx, start_pos, gender, is_baby))
             
             elif field_name in {"admission_date", "discharge_date"}:
                 date_norm = RobustFieldExtractor._normalize_date(value)
                 if date_norm:
-                    valid_candidates.append((start_pos, date_norm))
+                    valid_candidates.append((p_idx, start_pos, date_norm))
             
             elif field_name in {"patient_name", "doctor_name"}:
                 value = RobustFieldExtractor._clean_person_name(value)
@@ -493,7 +622,7 @@ class RobustFieldExtractor:
                     if len(words[:max_words]) >= 2:
                         has_valid_word = any(len(w) >= 3 and re.search(r"[A-Za-z]", w) for w in words[:max_words])
                         if has_valid_word:
-                            valid_candidates.append((start_pos, truncated_value))
+                            valid_candidates.append((p_idx, start_pos, truncated_value))
             
             elif field_name == "hospital_name":
                 # Hospital names should be meaningful; strip unwanted trailing tokens
@@ -501,8 +630,9 @@ class RobustFieldExtractor:
                 if any(term in value_lower for term in RobustFieldExtractor.HOSPITAL_REJECT_TERMS):
                     continue
                 
-                # Remove unwanted trailing fragments like "& FINAL BILL", "| Claim Ref", etc.
-                value = re.sub(r"\s*[&|].*$", "", value).strip()
+                # Remove unwanted trailing fragments like "| Claim Ref", "| Member", Date of Admission, etc.
+                value = re.sub(r"\s*\|.*$", "", value).strip()
+                value = re.sub(r"\s+\b(?:Date\s+of|Date|Dt|Time|Ph|Tel|GSTIN|Bill\s*No|UHID|IP\s*No|IPD|Department)\b.*$", "", value, flags=re.IGNORECASE).strip()
                 
                 if len(value) >= 5:
                     trailing_tokens: list[str] = []
@@ -518,15 +648,16 @@ class RobustFieldExtractor:
 
                     if trailing_tokens:
                         candidate = " ".join(reversed(trailing_tokens)).strip()
+                        candidate = re.sub(r"\s+\b(?:Date\s+of|Date|Dt|Time|Ph|Tel|GSTIN|Bill\s*No|UHID|IP\s*No|IPD|Department)\b.*$", "", candidate, flags=re.IGNORECASE).strip()
                         candidate_lower = candidate.lower()
-                        if any(keyword in candidate_lower for keyword in {"hospital", "hospitals", "medical center", "medical centre", "health center", "health centre", "healthcare", "clinic", "corporation", "health", "netaralay", "nursing home", "maternity home", "sanatorium"}):
-                            valid_candidates.append((start_pos, candidate))
+                        if any(keyword in candidate_lower for keyword in {"hospital", "hospitals", "medical center", "medical centre", "health center", "health centre", "healthcare", "clinic", "corporation", "health", "netaralay", "nursing home", "maternity home", "sanatorium", "emergency centre", "emergency center", "trauma centre", "trauma center", "centre", "center"}):
+                            valid_candidates.append((p_idx, start_pos, candidate))
                             continue
-                    if value.replace(" ", "").replace("&", "").replace(".", "").isalpha() or "hospital" in value_lower or "center" in value_lower or "clinic" in value_lower or "health" in value_lower:
-                        valid_candidates.append((start_pos, value))
+                    if value.replace(" ", "").replace("&", "").replace(".", "").isalpha() or "hospital" in value_lower or "center" in value_lower or "centre" in value_lower or "clinic" in value_lower or "health" in value_lower or "trauma" in value_lower:
+                        valid_candidates.append((p_idx, start_pos, value))
             
             elif field_name == "diagnosis":
-                # Clean diagnosis: remove extra punctuation
+                # Clean diagnosis: remove extra punctuation and leading prefixes
                 value = re.sub(r"\s+", " ", value).strip()
                 value_lower = value.lower()
                 if any(term in value_lower for term in RobustFieldExtractor.DIAGNOSIS_REJECT_TERMS):
@@ -541,6 +672,8 @@ class RobustFieldExtractor:
                     maxsplit=1,
                     flags=re.IGNORECASE,
                 )[0].strip(" ,;:|.-")
+                # Strip leading prefixes like "Primary Diagnosis:", "Clinical Diagnosis:", "Diagnosis:"
+                value = re.sub(r"^(?:(?:primary|clinical|final|provisional|admitting|discharge)?\s*diagnosis|chief\s*complaint|indication)\s*[:\-=–—|]\s*", "", value, flags=re.IGNORECASE).strip()
                 # Strip embedded or trailing ICD-10 / ICD-9 / CPT codes and prefixes
                 value = re.sub(
                     r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+).*$",
@@ -559,7 +692,7 @@ class RobustFieldExtractor:
                 if re.fullmatch(r"[\d\W_]+", value):
                     continue
                 if len(value) >= 3:
-                    valid_candidates.append((start_pos, value))
+                    valid_candidates.append((p_idx, start_pos, value))
             
             elif field_name == "claimed_total":
                 # clean total amount (remove rs, spaces, commas, non-numeric except dot)
@@ -567,13 +700,13 @@ class RobustFieldExtractor:
                 if cleaned:
                     try:
                         float(cleaned)
-                        valid_candidates.append((start_pos, value))
+                        valid_candidates.append((p_idx, start_pos, value))
                     except ValueError:
                         continue
 
             else:
                 if len(value) >= 3:
-                    valid_candidates.append((start_pos, value))
+                    valid_candidates.append((p_idx, start_pos, value))
         
         if not valid_candidates:
             return None
@@ -581,30 +714,47 @@ class RobustFieldExtractor:
         # Return logic:
         if field_name == "gender":
             # Prefer non-baby gender candidates if available
-            non_baby_candidates = [c for c in valid_candidates if not c[2]]
+            non_baby_candidates = [c for c in valid_candidates if not c[3]]
             if non_baby_candidates:
-                non_baby_candidates.sort(key=lambda x: x[0])
-                return non_baby_candidates[0][1]
+                non_baby_candidates.sort(key=lambda x: x[1])
+                return non_baby_candidates[0][2]
             else:
-                valid_candidates.sort(key=lambda x: x[0])
-                return valid_candidates[0][1]
+                valid_candidates.sort(key=lambda x: x[1])
+                return valid_candidates[0][2]
+
+        if field_name == "patient_name":
+            # Sort by pattern priority first (p_idx ascending), then by position in document (start_pos ascending)
+            # This ensures explicit "Patient Name: ..." (Priority 0) always wins over generic "Name: ..." (Priority 5)
+            valid_candidates.sort(key=lambda x: (x[0], x[1]))
+            return valid_candidates[0][2]
 
         if field_name == "diagnosis":
             # For diagnosis, filter out vague generic values (like "management", "medical management")
             # if we have other more specific clinical descriptions.
             generic_terms = {"management", "medical management", "procedure", "care", "admitting", "discharge", "treated", "managed", "history"}
-            filtered = [val for _, val in valid_candidates if val.strip().lower() not in generic_terms]
+            filtered = [val for _, _, val in valid_candidates if val.strip().lower() not in generic_terms]
             if filtered:
                 # Sort by length descending to get the most specific description
                 filtered.sort(key=len, reverse=True)
                 return filtered[0]
             # Fallback if only generic terms matched
-            valid_candidates.sort(key=lambda x: len(x[1]), reverse=True)
-            return valid_candidates[0][1]
+            valid_candidates.sort(key=lambda x: len(x[2]), reverse=True)
+            return valid_candidates[0][2]
+
+        if field_name == "claimed_total":
+            def _clean_flt(val_str: str) -> float:
+                cleaned_str = re.sub(r"[^\d.]", "", val_str)
+                try:
+                    return float(cleaned_str)
+                except Exception:
+                    return 0.0
+            # Sort by pattern priority first (p_idx ascending), then by largest amount (descending)
+            valid_candidates.sort(key=lambda x: (x[0], -_clean_flt(x[2])))
+            return valid_candidates[0][2]
 
         # For all other fields, prefer the earliest match in the text (original behavior)
-        valid_candidates.sort(key=lambda x: x[0])
-        return valid_candidates[0][1]
+        valid_candidates.sort(key=lambda x: x[1])
+        return valid_candidates[0][2]
 
     @staticmethod
     def extract_all_fields(tokens: List[Dict[str, Any]]) -> Dict[str, Optional[str]]:

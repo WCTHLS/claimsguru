@@ -514,12 +514,89 @@ class OpenRouterBackend(SemanticBackend):
             return None
 
 
+class AzureOpenAISemanticBackend(SemanticBackend):
+    name = "azure-openai"
+
+    def __init__(self) -> None:
+        self.endpoint = (
+            os.getenv("AZURE_OPENAI_ENDPOINT", "")
+            or os.getenv("AZURE_OPENAI_BASE_URL", "")
+            or os.getenv("AZURE_OPENAI_URL", "")
+        ).strip()
+        self.api_key = (
+            os.getenv("AZURE_OPENAI_API_KEY", "")
+            or os.getenv("AZURE_OPENAI_KEY", "")
+        ).strip()
+        self.deployment = (
+            os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
+            or os.getenv("AZURE_OPENAI_MODEL", "gpt-4o")
+        ).strip()
+        self.api_version = (
+            os.getenv("AZURE_OPENAI_API_VERSION", "2024-11-20")
+        ).strip()
+        self.timeout_seconds = int(os.getenv("PARSER_LLM_TIMEOUT_SECONDS", "30"))
+
+    def available(self) -> bool:
+        return bool(self.endpoint and self.api_key)
+
+    def analyze(self, request: SemanticRequest) -> dict[str, Any] | None:
+        if not self.available():
+            return None
+
+        # Build completions URL
+        if "/chat/completions" in self.endpoint:
+            url = self.endpoint
+            if "api-version" not in url and "/openai/v1" not in self.endpoint:
+                sep = "&" if "?" in url else "?"
+                url = f"{url}{sep}api-version={self.api_version}"
+        elif self.endpoint.rstrip("/").endswith("/openai/v1") or "/v1" in self.endpoint:
+            url = f"{self.endpoint.rstrip('/')}/chat/completions"
+        else:
+            url = f"{self.endpoint.rstrip('/')}/openai/deployments/{self.deployment}/chat/completions?api-version={self.api_version}"
+
+        prompt = _build_semantic_prompt(request)
+        payload = {
+            "model": self.deployment,
+            "messages": [
+                {"role": "system", "content": "You are a professional medical insurance billing and clinical extraction AI. Extract structured JSON adhering strictly to the schema with zero markdown noise."},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 1500,
+            "temperature": 0.0,
+            "response_format": {"type": "json_object"}
+        }
+        headers = {
+            "api-key": self.api_key,
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            logger.info("Calling Azure OpenAI (%s) for semantic extraction of region %s...", self.deployment, request.region_id)
+            resp = httpx.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
+            resp.raise_for_status()
+            data = resp.json()
+            raw = None
+            if isinstance(data, dict) and "choices" in data and data["choices"]:
+                msg = data["choices"][0].get("message", {})
+                raw = msg.get("content") if isinstance(msg, dict) else msg
+            if not raw:
+                return None
+            return _parse_semantic_response(str(raw), request, self.name)
+        except Exception as exc:
+            logger.warning("Azure OpenAI semantic extraction failed: %s", exc)
+            return None
+
+
 class SemanticBackendRegistry:
     def __init__(self) -> None:
         backend_order = [part.strip().lower() for part in (settings.semantic_backend_order or "").split(",") if part.strip()]
         if not backend_order:
-            # OpenRouter is the primary backend; local vision models are optional fallbacks.
-            backend_order = ["openrouter", "qwen2-vl", "layoutlmv3", "florence-2", "donut"]
+            # Azure OpenAI is the primary enterprise backend if configured
+            if os.getenv("AZURE_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"):
+                backend_order = ["azure-openai", "openrouter", "qwen2-vl", "layoutlmv3", "florence-2", "donut"]
+            else:
+                backend_order = ["openrouter", "qwen2-vl", "layoutlmv3", "florence-2", "donut"]
 
         self.backends: list[SemanticBackend] = []
         for backend_name in backend_order:
@@ -528,6 +605,8 @@ class SemanticBackendRegistry:
                 self.backends.append(backend)
 
     def _create_backend(self, backend_name: str) -> SemanticBackend | None:
+        if backend_name in {"azure-openai", "azure_openai", "azure", "azure-openai-backend"}:
+            return AzureOpenAISemanticBackend()
         if backend_name == "qwen2-vl":
             model_name = settings.qwen2_vl_model or os.getenv("PARSER_QWEN2_VL_MODEL", "")
             return Qwen2VLBackend(model_name=model_name) if model_name else Qwen2VLBackend(model_name="")
@@ -709,21 +788,15 @@ If this IS an expense/billing table (any format), ALWAYS:
 6. Do NOT merge or deduplicate rows — the downstream system handles deduplication
 7. Do NOT include: summary rows, total rows, grand totals, headers, metadata, or insurance information
 8. Preserve exact amounts - do NOT modify, truncate, or divide amounts
-9. Return amounts as numeric values without currency symbols
-10. If a row has multiple numeric columns (e.g., Qty, Rate, Gross, NP/Non-Payable, Payable), ALWAYS select the value from the absolute final column (Payable/Net Pay/Amount) as the amount, never the earlier Gross or NP/Non-Payable columns. If there is only one numeric column, select that as the amount.
+10. If a row has multiple numeric columns (e.g., Qty, Rate, Gross, NP/Non-Payable, Payable), select the value from the Gross / Total / Amount column (the full charged amount billed by the hospital before deductions) as the amount so that the itemized sum matches the hospital's Gross Billed Total. If only Net/Payable/Amount is present, select that amount.
+11. ALWAYS include all individual billed hospital service rows (such as "Hospital Administration & Admission Charges", "Admission Fees", "Registration Charges", "Diet / Nutrition Charges", "Nursing Charges", "Biomedical Waste Charges") using their Gross Amount even if the hospital marked them as Non-Payable (NP) or Payable is 0.00.
 
-CRITICAL EXCLUSION - NEVER extract these as expense rows, even if they have a numeric amount:
-- "Gross Hospital Bill" / "Gross Bill" / "Gross Amount" — this is the document-level billing total, NOT a charge
-- "Less: Deductible / Excess" / "Deductible" — this is an insurance deduction calculation, NOT a medical service
-- "Less: Non-Payable (NP) Items" / "Non-Payable Deductions" — this is an insurance deduction, NOT a medical service
-- "Non-Payable Items", "NP Items" — insurance adjustment rows, NOT medical services
-- "Final Amount Admissible" / "Amount Admissible" / "Admissible Amount" — insurance settlement figure, NOT a charge
-- "Net Payable" / "Net Amount Payable" — final settlement total, NOT a charge
-- "Patient Share" / "Co-Pay" / "Co Pay" — patient responsibility portion, NOT a new charge
-- "Balance Amount" / "Balance Payable" — residual amount, NOT a charge
-- "Ward: General Ward LOS: N" — this is patient stay metadata (length of stay), NOT a charge
-- "Managed in General Ward for N days" — stay description metadata, NOT a charge
-- Any row whose description starts with "Less:" — all "Less:" rows are deduction calculations.
+CRITICAL EXCLUSION - NEVER extract these summary/deduction rows as expense items:
+- Summary grand totals: "Gross Hospital Bill" / "Gross Bill" / "Gross Amount" / "Total Billed Amount" / "Grand Total" / "Total Amount Received" — these are document-level totals, NOT individual charges
+- Deduction summary lines: "Less: Deductible / Excess" / "Less: Non-Payable (NP) Items" / "Less: Non Payable Deductions" — these are summary subtractions, NOT billed services
+- Settlement totals: "Final Amount Admissible" / "Amount Admissible" / "Admissible Amount" / "Net Payable" / "Net Amount Payable" / "Patient Share" / "Co-Pay" / "Balance Amount"
+- Non-billing metadata lines: "Ward: General Ward LOS: N", "Managed in General Ward for N days", "Admission Date: ...", "Discharge Date: ..."
+- Any row whose description starts with "Less:" or "Deduction:".
 
 Extraction Guidance:
 - ALWAYS extract age and gender if visible, even if region seems to be "lab_results"

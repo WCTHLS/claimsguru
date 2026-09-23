@@ -275,7 +275,7 @@ def _pick_best_field_value(field_name: str, values: list[tuple[str, str]]) -> st
     if field_name in {"diagnosis", "primary_diagnosis"}:
         cleaned_diags = []
         for v, _mv in clean:
-            c_val = re.sub(r"^(?:none|n/a|null)\s*(?:procedure\s*:?|diagnosis\s*:?)?\s*", "", v, flags=re.IGNORECASE).strip()
+            c_val = re.sub(r"^(?:primary\s+diagnosis|clinical\s+diagnosis|final\s+diagnosis|provisional\s+diagnosis|chief\s+diagnosis|diagnosis|none|n/a|null)\s*(?:procedure\s*:?|diagnosis\s*:?)?[:\-=–—|]?\s*", "", v, flags=re.IGNORECASE).strip()
             c_val = re.sub(
                 r"\s*(?:\(?\[?\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]+\)?\]?|\bICD(?:-?10|-?9)?\b[:\s\-]*[A-Z0-9\.]*|\bCPT\b[:\s\-]*\d+|Procedure\s*:?.*|Secondary\s+Diagnosis.*).*$",
                 "",
