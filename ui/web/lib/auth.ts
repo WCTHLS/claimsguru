@@ -744,6 +744,8 @@ export async function completeAuthCallback() {
         requested_role: hintedRole || 'patient',
         account_role: session.accountRole || (hintedRole === 'tpa' ? 'admin' : 'submitter'),
         client_id: savedClientId,
+        is_new_registration: typeof window !== 'undefined' && sessionStorage.getItem(AUTH_ACTION_KEY) === 'register',
+        recreate_existing: typeof window !== 'undefined' && sessionStorage.getItem(AUTH_ACTION_KEY) === 'register',
       }),
     });
 

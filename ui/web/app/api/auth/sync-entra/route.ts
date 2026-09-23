@@ -17,6 +17,8 @@ interface SyncEntraBody {
   gender?: string;
   policy?: string;
   sum_insured?: string | number;
+  is_new_registration?: boolean;
+  recreate_existing?: boolean;
 }
 
 export async function POST(request: NextRequest) {
@@ -42,6 +44,8 @@ export async function POST(request: NextRequest) {
       gender: body.gender,
       policy: body.policy,
       sum_insured: body.sum_insured,
+      is_new_registration: body.is_new_registration,
+      recreate_existing: body.recreate_existing,
     };
 
     const urlsToTry: string[] = [];

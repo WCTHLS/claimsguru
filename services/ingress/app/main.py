@@ -1080,7 +1080,7 @@ def _ensure_users_password_hash_column() -> None:
 
 
 def _assign_user_role(db: Session, user_id: Any, role_id: Any) -> None:
-    """Safely assign a role to a user in user_roles table with composite key (user_id, role_id)."""
+    """Safely assign a role to a user in user_roles table with primary key id."""
     try:
         u_val = str(user_id)
         r_val = str(role_id)
@@ -1089,11 +1089,18 @@ def _assign_user_role(db: Session, user_id: Any, role_id: Any) -> None:
             {"u": u_val, "r": r_val}
         ).first()
         if not existing:
-            db.execute(
-                text("INSERT INTO user_roles (user_id, role_id) VALUES (:u, :r)"),
-                {"u": u_val, "r": r_val}
-            )
-            db.commit()
+            new_id = uuid.uuid4()
+            try:
+                db.execute(
+                    text("INSERT INTO user_roles (id, user_id, role_id, created_at) VALUES (:id, :u, :r, CURRENT_TIMESTAMP)"),
+                    {"id": new_id, "u": u_val, "r": r_val}
+                )
+            except Exception:
+                db.execute(
+                    text("INSERT INTO user_roles (user_id, role_id) VALUES (:u, :r)"),
+                    {"u": u_val, "r": r_val}
+                )
+            db.flush()
     except Exception as e:
         logger.warning(f"Could not assign user role {role_id} to user {user_id}: {e}")
 
@@ -1113,6 +1120,7 @@ class RegisterUserIn(BaseModel):
     policy: str | None = None
     sum_insured: Any | None = None
     provider: str | None = "local"
+    recreate_existing: bool | None = True
 
 
 class LoginUserIn(BaseModel):
@@ -1191,21 +1199,33 @@ def register_local_user(payload: RegisterUserIn):
             password_hash = supplied_hash or (hash_password(payload.password) if payload.password else None)
 
             if user_row:
-                prov = (user_row.get("external_provider") or "").lower()
-                if prov == "entra":
-                    raise HTTPException(
-                        status_code=409,
-                        detail="This email address is already registered on the ClaimsGuru Web Portal (Microsoft Entra). Please use a different email address for the Mobile App or sign in via the Web Portal.",
-                    )
-                raise HTTPException(
-                    status_code=409,
-                    detail="An account with this email address already exists. Please sign in with your password.",
-                )
+                old_user_id = user_row["id"]
+                logger.info(f"Recreating account for {email}: deleting existing record {old_user_id} before registration")
+                try:
+                    db.execute(text("DELETE FROM patient_profiles WHERE user_id = :uid"), {"uid": old_user_id})
+                    db.execute(text("DELETE FROM staff_profiles WHERE user_id = :uid"), {"uid": old_user_id})
+                    db.execute(text("DELETE FROM user_roles WHERE user_id = :uid"), {"uid": old_user_id})
+                    c_rows = db.execute(
+                        text("SELECT id FROM claims WHERE patient_id = :pid OR patient_id = :pemail"),
+                        {"pid": str(old_user_id), "pemail": email}
+                    ).mappings().all()
+                    for cr in c_rows:
+                        try:
+                            _delete_claim_internal(db, cr["id"])
+                        except Exception:
+                            pass
+                    db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": old_user_id})
+                    db.commit()
+                except Exception as del_err:
+                    logger.warning(f"Error purging old record for {email} during registration: {del_err}")
+
+            prov_input = str(payload.provider or "").strip().lower()
+            effective_provider = 'entra' if ('entra' in prov_input or prov_input == 'entra') else 'local_mobile'
 
             new_user = User(
                 email=email,
                 phone=phone_val,
-                external_provider='local_mobile',
+                external_provider=effective_provider,
                 external_subject_id=email,
                 status='ACTIVE',
                 email_verified=True,
@@ -1786,6 +1806,8 @@ class SyncEntraUserIn(BaseModel):
     gender: str | None = None
     policy: str | None = None
     sum_insured: float | str | None = None
+    is_new_registration: bool | None = False
+    recreate_existing: bool | None = False
 
     @field_validator("email", mode="before")
     @classmethod
@@ -1934,6 +1956,28 @@ def sync_entra_user(payload: SyncEntraUserIn):
                     text("SELECT id, email, phone, status FROM users WHERE lower(email) = lower(:email) OR (external_provider = 'entra' AND external_subject_id = :subject_id)"),
                     {"email": email, "subject_id": subject_id or ""},
                 ).mappings().first()
+
+                if user_row and (payload.is_new_registration or payload.recreate_existing):
+                    old_uid = user_row["id"]
+                    logger.info(f"Recreating user in sync-entra-user for {email}: purging existing record {old_uid}")
+                    try:
+                        db.execute(text("DELETE FROM patient_profiles WHERE user_id = :uid"), {"uid": old_uid})
+                        db.execute(text("DELETE FROM staff_profiles WHERE user_id = :uid"), {"uid": old_uid})
+                        db.execute(text("DELETE FROM user_roles WHERE user_id = :uid"), {"uid": old_uid})
+                        c_rows = db.execute(
+                            text("SELECT id FROM claims WHERE patient_id = :pid OR patient_id = :pemail"),
+                            {"pid": str(old_uid), "pemail": email}
+                        ).mappings().all()
+                        for cr in c_rows:
+                            try:
+                                _delete_claim_internal(db, cr["id"])
+                            except Exception:
+                                pass
+                        db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": old_uid})
+                        db.commit()
+                    except Exception as del_err:
+                        logger.warning(f"Error purging old record for {email} in sync-entra-user: {del_err}")
+                    user_row = None
 
                 if is_org_login:
                     # ----------------------------------------------------
@@ -2171,12 +2215,23 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         # If incoming payload provides onboarding info, update the profile immediately
                         if payload.policy or payload.dob or payload.gender or payload.sum_insured or payload.first_name:
                             sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else None
+                            dob_val = None
+                            if payload.dob and str(payload.dob).strip() != "":
+                                dob_str = str(payload.dob).strip()
+                                for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%d%m%Y", "%d %b %Y", "%d %B %Y"):
+                                    try:
+                                        dob_val = datetime.strptime(dob_str, fmt).date()
+                                        break
+                                    except (ValueError, TypeError):
+                                        continue
+
                             if profile_row:
                                 db.execute(
                                     text("""
                                         UPDATE patient_profiles
                                         SET first_name = COALESCE(:first_name, first_name),
                                             last_name = COALESCE(:last_name, last_name),
+                                            dob = COALESCE(:dob, dob),
                                             gender = COALESCE(:gender, gender),
                                             policy_number = COALESCE(:policy_number, policy_number),
                                             sum_insured = COALESCE(:sum_insured, sum_insured),
@@ -2188,6 +2243,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
                                         "user_id": user_id,
                                         "first_name": payload.first_name or None,
                                         "last_name": payload.last_name or None,
+                                        "dob": dob_val,
                                         "gender": payload.gender or None,
                                         "policy_number": payload.policy or None,
                                         "sum_insured": sum_val,
@@ -2196,14 +2252,15 @@ def sync_entra_user(payload: SyncEntraUserIn):
                             else:
                                 db.execute(
                                     text("""
-                                        INSERT INTO patient_profiles (id, user_id, first_name, last_name, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
-                                        VALUES (:id, :user_id, :first_name, :last_name, :gender, :policy_number, :sum_insured, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                        INSERT INTO patient_profiles (id, user_id, first_name, last_name, dob, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
+                                        VALUES (:id, :user_id, :first_name, :last_name, :dob, :gender, :policy_number, :sum_insured, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                                     """),
                                     {
                                         "id": uuid.uuid4(),
                                         "user_id": user_id,
                                         "first_name": first_name,
                                         "last_name": last_name or "",
+                                        "dob": dob_val,
                                         "gender": payload.gender or None,
                                         "policy_number": payload.policy or "POL-DEFAULT",
                                         "sum_insured": sum_val or 500000.0,
@@ -2289,18 +2346,28 @@ def sync_entra_user(payload: SyncEntraUserIn):
 
                         sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else None
                         has_policy = bool(payload.policy)
+                        dob_val = None
+                        if payload.dob and str(payload.dob).strip() != "":
+                            dob_str = str(payload.dob).strip()
+                            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y", "%d%m%Y", "%d %b %Y", "%d %B %Y"):
+                                try:
+                                    dob_val = datetime.strptime(dob_str, fmt).date()
+                                    break
+                                except (ValueError, TypeError):
+                                    continue
 
                         # Create initial patient profile
                         db.execute(
                             text("""
-                                INSERT INTO patient_profiles (id, user_id, first_name, last_name, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
-                                VALUES (:id, :user_id, :first_name, :last_name, :gender, :policy_number, :sum_insured, :coverage_verified, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                INSERT INTO patient_profiles (id, user_id, first_name, last_name, dob, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
+                                VALUES (:id, :user_id, :first_name, :last_name, :dob, :gender, :policy_number, :sum_insured, :coverage_verified, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
                             """),
                             {
                                 "id": uuid.uuid4(),
                                 "user_id": new_user_id,
                                 "first_name": first_name,
                                 "last_name": last_name or "",
+                                "dob": dob_val,
                                 "gender": payload.gender or None,
                                 "policy_number": payload.policy or None,
                                 "sum_insured": sum_val,
