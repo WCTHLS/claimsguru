@@ -134,129 +134,64 @@ AI-powered medical insurance claim processing platform. Upload claim documents, 
 
 ---
 
-## Quick Start
+---
 
-### Prerequisites
+## Quick Start & Local Container Setup
 
-- Python 3.11+
-- Docker & Docker Compose v2
-- Node.js 20+ (for UIs)
-- PostgreSQL 16
-- (Optional) Ollama with Llama 3.2 for local LLM
-- (Optional) Tesseract OCR for local OCR
-- **WeasyPrint native libraries** (required for the **modern IRDAI Claim Form** renderer)
-
-  > ⚠️ These are **system C libraries**, NOT pip packages. `pip install pango cairo …` will fail with *"No matching distribution found for cairo"* — that is expected. Use the OS package manager.
-
-  | OS | One-liner |
-  |---|---|
-  | **macOS** (Homebrew) | `brew install pango cairo gdk-pixbuf libffi` |
-  | **Ubuntu / Debian** | `sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 libffi-dev shared-mime-info` |
-  | **Fedora / RHEL** | `sudo dnf install -y pango cairo gdk-pixbuf2 libffi` |
-  | **Windows** | Install GTK3 runtime — see [Windows setup](#windows-weasyprint-setup) below. |
-
-  After installing, restart the gateway and verify with `GET /submission/health` — the response includes `irda_renderer.modern_available: true` when WeasyPrint can load. If false, the modern endpoint silently falls back to the legacy `fpdf2` renderer (look for the `X-IRDA-Renderer: legacy` response header).
-
-#### Windows WeasyPrint setup
-
-WeasyPrint on Windows needs the GTK3 runtime DLLs (Pango / Cairo / GDK-Pixbuf). Pick **one** of the options below.
-
-**Option A — MSYS2 (recommended, kept up to date)**
+### 1. Checkout Branch & Configure Environment
 
 ```powershell
-# 1. Install MSYS2 from https://www.msys2.org/  (default install path C:\msys64)
-# 2. Open the MSYS2 UCRT64 shell and run:
-pacman -S --noconfirm mingw-w64-ucrt-x86_64-pango mingw-w64-ucrt-x86_64-cairo `
-                     mingw-w64-ucrt-x86_64-gdk-pixbuf2 mingw-w64-ucrt-x86_64-libffi
-# 3. Add C:\msys64\ucrt64\bin to your USER PATH (System Properties → Env Vars)
-# 4. Open a NEW PowerShell window so PATH is reloaded, then:
-.\.venv\Scripts\activate
-python -c "import weasyprint; print(weasyprint.__version__)"
+# 1. Checkout the branch
+git checkout feat/llm-integration-identity-check
+
+# 2. Setup your .env file
+Copy-Item .env.example .env
+# Edit .env and ensure Azure OpenAI / Document Intelligence keys are populated
 ```
 
-**Option B — GTK3 standalone runtime (one-click installer)**
+---
+
+### 2. Build & Run Containers From Scratch (Recommended)
+
+To ensure the latest dependencies, WeasyPrint libraries, ML engines, and UI packages are cleanly built without cache conflicts:
 
 ```powershell
-# 1. Download the latest gtk3-runtime-*.exe from
-#    https://github.com/tschoonj/GTK-for-Windows-Runtime-Environment-Installer/releases
-# 2. Run the installer and CHECK "Set up PATH environment variable to include GTK+"
-# 3. Open a NEW PowerShell window, then:
-.\.venv\Scripts\activate
-python -c "import weasyprint; print(weasyprint.__version__)"
+# Rebuild all core & frontend container images from scratch and launch the stack:
+.\run_local_containers.ps1 -Rebuild
 ```
 
-**Verify**
+#### What this script does automatically:
+1. Starts local **SQL Server** (`mssql-db:1433`) and **Redis** (`redis:6379`)
+2. Auto-provisions and migrates the database schema
+3. Builds the `claimsguru-core:test` and `claimsguru-frontend:test` Docker images
+4. Launches the **API Gateway** (`port 8000`), **OCR Celery Worker**, **Default/Parser Celery Worker**, and **Web Frontend** (`port 3000`)
+
+---
+
+### 3. Accessing the Platform
+
+| Service | URL | Description |
+|---|---|---|
+| **Web Dashboard** | [http://localhost:3000](http://localhost:3000) | Full claims auditor UI, document upload & reimbursement brain |
+| **API Gateway** | [http://localhost:8000/docs](http://localhost:8000/docs) | Interactive Swagger UI for all 11 microservices |
+| **Database** | `localhost:1433` | SQL Server (`sa` / `YourStrong!Password`, DB: `claimgpt`) |
+| **Redis** | `localhost:6379` | Celery broker & task backend |
+
+---
+
+### 4. Stopping Containers
 
 ```powershell
-curl http://localhost:8000/submission/health
-# Look for:  "irda_renderer": { "modern_available": true, ... }
+.\run_local_containers.ps1 -Stop
 ```
 
-If `modern_available` is `false`, WeasyPrint cannot find the GTK DLLs — re-check that the GTK `bin` directory is on `PATH` for the *same* shell that launches the gateway (`echo $env:PATH | Select-String gtk`).
+---
 
-**Quick diagnostic**
-
-A bundled PowerShell helper auto-detects whether the GTK runtime is on `PATH` and prints the exact next step:
+### 5. Running Tests
 
 ```powershell
-.\infra\scripts\setup_weasyprint_windows.ps1
-```
-
-### 1. Clone & configure
-
-```bash
-git clone https://github.com/dev-azhar/ClaimGPT.git
-cd ClaimGPT
-cp .env.example .env
-# Edit .env — set DATABASE_URL, LLM keys, etc.
-```
-
-### 2. Start infrastructure
-
-```bash
-make dev          # Postgres 16, Redis 7, MinIO
-```
-
-Install Python dependencies once per virtualenv before starting the gateway:
-
-```bash
-source .venv/bin/activate
-pip install -r requirements.txt
-make hooks       # one-time: enable the pre-push dependency verifier
-```
-
-After every `git pull`, keep your venv aligned with the lockfile:
-
-```bash
-make sync        # install/upgrade venv to match requirements.txt
-make verify-deps # read-only drift check (also runs on git push)
-```
-
-### 3. Run the unified API gateway
-
-```bash
-make gateway      # uses .venv and python -m uvicorn
-```
-
-### 4. Run the Web UI
-
-```bash
-npm --prefix ui/web install
-npm --prefix ui/web run dev    # http://localhost:3000
-```
-
-### 5. Run the full stack via Docker
-
-```bash
-make up           # builds & starts all 10 services + infra
-make health       # verify every service is healthy
-```
-
-### 6. Run tests
-
-```bash
-make test         # pytest with coverage
-make lint         # ruff + mypy
+# Run all coding, RAG, and diagnosis extraction tests inside the worker container:
+docker exec claimsguru-worker-default pytest /app/tests/coding/
 ```
 
 ---

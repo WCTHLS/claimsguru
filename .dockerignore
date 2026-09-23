@@ -38,3 +38,5 @@ ui/web/.vercel/
 *.sql
 *.zip
 *.tar.gz
+scratch/
+tmp/

@@ -23,7 +23,7 @@ import {
 import { useRouter } from 'next/navigation';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { getStoredAuthSession, clearAuthSession } from '@/lib/auth';
-import { getApiBaseUrl } from '@/lib/api-client';
+import { getIngressApiUrl } from '@/lib/api-client';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';
 import { formatDob } from '@/lib/claimgpt-data';
 
@@ -76,6 +76,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       const session = getStoredAuthSession();
       const currentEmail = userEmail || session?.user?.email || '';
       const emailKey = currentEmail.toLowerCase();
+
       const rawDob =
         localStorage.getItem(`claimgpt_user_dob_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_dob_${currentEmail}`) ||
@@ -107,10 +108,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           : '₹5,000,000',
       });
 
-      // Cross-device fallback: If policy is not in local storage on this device, fetch live from SQL Server
-      if (!policy && currentEmail) {
-        const base = getApiBaseUrl().replace(/\/+$/, '');
-        fetch(`${base}/auth/profile/${encodeURIComponent(currentEmail)}`)
+      // Always fetch live profile from backend database to ensure 100% sync across devices and Incognito
+      if (currentEmail) {
+        const ingressBase = getIngressApiUrl().replace(/\/+$/, '');
+        fetch(`${ingressBase}/auth/profile/${encodeURIComponent(currentEmail)}`)
           .then(res => (res.ok ? res.json() : null))
           .then(data => {
             if (data && data.success) {
@@ -143,6 +144,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 sumInsured: data.sum_insured
                   ? `₹${Number(data.sum_insured).toLocaleString('en-IN')}`
                   : prev.sumInsured,
+                insurer: data.organization || prev.insurer,
               }));
             }
           })

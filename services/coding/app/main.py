@@ -353,7 +353,7 @@ def _build_result(db: Session, cid: uuid.UUID, status: str) -> CodingResultOut:
             float(c.confidence or 0.0),
         ),
         reverse=True,
-    )[:3]
+    )
 
     return CodingResultOut(
         claim_id=cid,

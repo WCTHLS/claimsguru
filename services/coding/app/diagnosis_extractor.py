@@ -206,14 +206,28 @@ def contains_medical_abbreviation(text: str) -> bool:
 def needs_extraction(text: str) -> bool:
     """Should the catalog search run on the raw text or on extracted keywords?
 
-    True for long narratives where direct similarity search is unreliable.
+    True for:
+    1. Long narratives (> LONG_NARRATIVE_THRESHOLD) where direct similarity search is diluted.
+    2. Strings containing complex clinical abbreviations / shorthand (e.g. CAD, AWMI, LSCS, FTND, T2DM, CKD, DHF).
+    3. Multi-diagnosis compound phrases separated by slashes, commas, hyphens, or conjunctions.
+    4. Administrative care phrases requiring stripping (e.g. medical management, conservative management, evaluation).
     """
     if not text:
         return False
     
-    # Only run LLM extraction for long narratives where direct similarity search gets diluted.
-    # Short texts (even with abbreviations like COPD/LSCS) are searched directly via PubMedBERT RAG.
-    return len(text) > LONG_NARRATIVE_THRESHOLD
+    cleaned = text.strip()
+    if len(cleaned) > LONG_NARRATIVE_THRESHOLD:
+        return True
+
+    # Check for medical abbreviations requiring expansion
+    if contains_medical_abbreviation(cleaned):
+        return True
+
+    # Check for multi-diagnosis compound indicators or administrative care phrases
+    if re.search(r"\b(?:with|and|w/|s/p|c/o|h/o|management|conservative|evaluation|admission|obs|exacerbation|delivery|episiotomy)\b", cleaned, re.IGNORECASE) or "/" in cleaned or ";" in cleaned or "-" in cleaned:
+        return True
+
+    return False
 
 
 def extract_diagnosis_keywords(text: str, max_terms: int = MAX_KEYWORDS) -> list[str]:
@@ -342,49 +356,39 @@ def _extract_cached(text: str, max_terms: int, _key: str) -> tuple[str, ...]:
 
 
 _LLM_SYSTEM = (
-    """You are a medical coder extracting diagnoses from hospital admission notes for ICD-10 coding.
+    """You are an expert medical coder determining precise clinical diagnoses for ICD-10 coding.
 
     Rules:
-    1. Output ONE diagnosis per line, lowercase, no bullets, no numbering.
-    2. Put the PRIMARY/PRINCIPAL diagnosis FIRST (the main reason for admission).
-    3. Use ICD-10 medical coding terminology — the same words used in ICD-10 descriptions.
-
-    Examples of correct phrasing:
-    - "FTND"                       →  "full term normal delivery"
-    - "LSCS"                       →  "delivery by caesarean section"
-    - "heart attack"               →  "acute myocardial infarction"
-    - "sugar"                      →  "type 2 diabetes mellitus"
-    - "BP"                         →  "essential hypertension"
-    - "water infection"            →  "urinary tract infection"
-
-    4. Expand abbreviations and acronyms.
-    5. Skip vital signs, lab values, history, exam findings, medications, procedures, and patient demographics.
-    6. Output AT MOST 5 lines.
-    7. If no diagnosis is found, output exactly:
+    1. Output EXACTLY ONE clinical diagnosis per line, in lowercase, with NO numbers, bullets, or dashes.
+    2. Put the PRIMARY / PRINCIPAL diagnosis on Line 1 (the primary condition treated or main reason for admission).
+    3. If secondary diagnoses, comorbidities, or complications are present, list each on a separate subsequent line.
+    4. When a generic phrase (e.g., 'infectious disease', 'viral illness', 'acute respiratory infection', 'post-op care') is given alongside clinical context (medications, ICU consumables, investigations, procedures), synthesize the specific clinical diagnosis supported by the treatments and clinical findings (e.g., Remdesivir / Tocilizumab / COVID ICU items -> 'coronavirus disease 2019' or 'covid-19'; Artesunate -> 'severe malaria'; Trastuzumab -> 'breast cancer').
+    5. Use standard medical coding terms and expand abbreviations and clinical shorthand to formal WHO ICD-10 clinical diagnosis descriptions (e.g., 'T2DM' -> 'type 2 diabetes mellitus', 'FTND' -> 'single spontaneous delivery', 'LSCS' -> 'delivery by caesarean section', 'HTN' -> 'essential hypertension', 'COPD' -> 'chronic obstructive pulmonary disease', 'CKD' -> 'chronic kidney disease', 'AWMI' / 'STEMI' -> 'acute myocardial infarction', 'Dengue with warning signs' -> 'dengue fever').
+    6. Strip administrative and care modality noise (e.g., '- medical management', '- conservative management', 'under evaluation for', 's/p', 'c/o', 'h/o').
+    7. Output AT MOST 5 lines.
+    8. If absolutely no diagnosis or clinical indication can be determined, output:
     NONE
-    8. Do not explain, do not repeat the input, do not add extra text.
-    9. Prefer specific ICD-10-compatible disease terminology over vague clinical wording.
-    10. Convert shorthand clinical expressions into canonical diagnoses where appropriate.
-    11. Ignore symptoms if a confirmed diagnosis is present for the same condition.
-
-    Output format example:
-    acute myocardial infarction
-    essential hypertension
-    type 2 diabetes mellitus"""
+    9. Output NOTHING else. No explanations, no introductory or concluding text."""
 )
 
 
 def _try_llm_extract(text: str, max_terms: int) -> list[str]:
-    """Call OpenRouter first, fall back to Ollama if unavailable; return [] on any failure."""
-    # Use OpenRouter only for diagnosis extraction in the coding service.
-    # Do not fall back to Ollama; return empty list on failure.
+    """Call Azure OpenAI first, then fall back to OpenRouter if configured; return [] on any failure."""
+    # 1. Primary Azure OpenAI Service
+    try:
+        azure_result = _try_azure_openai_extract(text, max_terms)
+        if azure_result:
+            return azure_result
+    except Exception:
+        logger.debug("Azure OpenAI extraction raised an exception", exc_info=True)
+
+    # 2. Secondary OpenRouter Fallback
     try:
         result = _try_openrouter_extract(text, max_terms)
         if result:
             return result
-        logger.debug("OpenRouter returned no extraction results; skipping Ollama fallback")
     except Exception:
-        logger.debug("OpenRouter extraction raised an exception; skipping Ollama fallback", exc_info=True)
+        logger.debug("OpenRouter extraction raised an exception", exc_info=True)
     return []
 
 
@@ -453,6 +457,88 @@ def _merge_candidate_terms(items: list[str], max_terms: int) -> Iterable[str]:
             return
 
 
+def _try_azure_openai_extract(text: str, max_terms: int) -> list[str]:
+    """Call Azure OpenAI Service chat/completions API for diagnosis keyword extraction."""
+    try:
+        import httpx
+    except Exception:
+        return []
+
+    endpoint = (
+        os.environ.get("AZURE_OPENAI_ENDPOINT", "")
+        or os.environ.get("AZURE_OPENAI_BASE_URL", "")
+        or os.environ.get("AZURE_OPENAI_URL", "")
+    ).strip()
+    api_key = (
+        os.environ.get("AZURE_OPENAI_API_KEY", "")
+        or os.environ.get("AZURE_OPENAI_KEY", "")
+    ).strip()
+    deployment = (
+        os.environ.get("AZURE_OPENAI_DEPLOYMENT", "")
+        or os.environ.get("AZURE_OPENAI_MODEL", "gpt-4o-mini")
+    ).strip()
+    api_version = (
+        os.environ.get("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
+    ).strip()
+
+    if not endpoint or not api_key:
+        logger.debug("Azure OpenAI not configured (missing endpoint or api_key)")
+        return []
+
+    # Build Azure OpenAI completions endpoint URL
+    if "/chat/completions" in endpoint:
+        url = endpoint
+        if "api-version" not in url and "/openai/v1" not in endpoint:
+            sep = "&" if "?" in url else "?"
+            url = f"{url}{sep}api-version={api_version}"
+    elif endpoint.rstrip("/").endswith("/openai/v1") or "/v1" in endpoint:
+        url = f"{endpoint.rstrip('/')}/chat/completions"
+    else:
+        url = f"{endpoint.rstrip('/')}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
+
+    system = _LLM_SYSTEM.format(n=max_terms)
+    user = f"Extract diagnoses from this clinical note:\n\n{text[:1500]}"
+
+    payload = {
+        "model": deployment,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user},
+        ],
+        "max_tokens": 128,
+        "temperature": 0.0,
+    }
+    headers = {
+        "api-key": api_key,
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    timeout = int(os.environ.get("CODING_DIAGNOSIS_LLM_TIMEOUT", "30"))
+
+    try:
+        logger.info("Attempting diagnosis extraction via Azure OpenAI deployment '%s'", deployment)
+        response = httpx.post(url, json=payload, headers=headers, timeout=timeout)
+        response.raise_for_status()
+        data = response.json()
+        raw = None
+        if isinstance(data, dict) and data.get("choices"):
+            choice = data["choices"][0]
+            message = choice.get("message", {})
+            raw = message.get("content") if isinstance(message, dict) else message
+
+        if raw:
+            parsed = _parse_llm_lines(str(raw), max_terms)
+            logger.info("[AZURE OPENAI PROMPT] Input text:\n%s", user)
+            logger.info("[AZURE OPENAI RAW RESPONSE]\n%s", raw)
+            logger.info("[AZURE OPENAI PARSED DIAGNOSES] %s", parsed)
+            return parsed
+        logger.warning("Azure OpenAI returned empty content")
+        return []
+    except Exception as exc:
+        logger.warning("Azure OpenAI diagnosis extraction failed: %s", exc)
+        return []
+
+
 def _try_openrouter_extract(text: str, max_terms: int) -> list[str]:
     """Call OpenRouter chat/completions API for diagnosis keyword extraction."""
     try:
@@ -476,7 +562,7 @@ def _try_openrouter_extract(text: str, max_terms: int) -> list[str]:
         return []
 
     system = _LLM_SYSTEM.format(n=max_terms)
-    user = f"Extract diagnoses from this admission note:\n\n{text[:4000]}"
+    user = f"Extract diagnoses from this clinical note:\n\n{text[:1500]}"
 
     payload = {
         "model": model,
@@ -484,8 +570,8 @@ def _try_openrouter_extract(text: str, max_terms: int) -> list[str]:
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-        "max_tokens": 256,
-        "temperature": 0.1,  # low temperature for consistent medical coding
+        "max_tokens": 128,
+        "temperature": 0.0,  # deterministic 0.0 temperature
     }
 
     # ── Write debug file BEFORE the API call so a record exists even on failure ──

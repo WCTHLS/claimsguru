@@ -18,21 +18,54 @@ class Candidate:
     doc_type: str | None = None
 
 
-def _is_obvious_label(val: str) -> bool:
+def _is_obvious_label(val: str, field_name: str | None = None) -> bool:
     if not val:
         return True
     s = str(val).strip()
     if not s:
         return True
+    # If field is an explicit medical code or matches code syntax, it is NOT an obvious label
+    if field_name in {"icd_code", "cpt_code"}:
+        return False
+    if re.match(r"^[A-TV-Z]\d{2}(?:\.\d{1,4})?$", s, re.IGNORECASE):
+        return False
+    if re.match(r"^\d{4,5}$", s):
+        return False
     # common labels
-    labels = {"age", "sex", "address", "patient", "name", "dob", "date"}
+    labels = {"age", "sex", "address", "patient", "name", "dob", "date", "diagnosis", "procedure", "hospital"}
     low = s.lower()
     if low in labels:
         return True
-    # all-caps short tokens like "AGE", "SEX"
-    if s.isupper() and len(s.split()) <= 2:
+    # all-caps short tokens like "AGE", "SEX" (only if purely alphabetic words)
+    if s.isupper() and len(s.split()) <= 2 and not any(ch.isdigit() for ch in s):
         return True
     return False
+
+
+def _clean_patient_name(val: str) -> str:
+    if not val:
+        return ""
+    text = str(val).strip()
+    # Strip leading DOB/dates (e.g. 11/04/1989)
+    text = re.sub(r"^\s*\d{1,2}[-\/\.]\d{1,2}[-\/\.]\d{2,4}\s*", "", text).strip()
+    # Strip leading age/gender prefix (e.g. "35 Yrs / Female", "35/F", "45 Y / M", "Female / 35 Yrs")
+    text = re.sub(r"^\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\/\-|,:]?\s*(?:female|male|[MF])\b[\/\-|,:]?\s*", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"^\s*(?:female|male|[MF])\b\s*[\/\-|,:]?\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?[\/\-|,:]?\s*", "", text, flags=re.IGNORECASE).strip()
+    # Strip leading honorifics
+    text = re.sub(r"^\s*(?:mr\.?|mrs\.?|ms\.?|miss|dr\.?|baby\s+of|master)\s+", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing parenthesized demographics e.g. (31/F), (52/F), (/F), (31/M), (F), (M), (31 Yrs), (Age: 31)
+    text = re.sub(r"\s*[\(\[]\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]?\s*(?:female|male|[MF])\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*(?:female|male|[MF])\s*[\/\-|,:]?\s*(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s*[\(\[]\s*(?:age|sex|gender|dob|ipd|opd|uhid)\b.*?[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing form labels / age / sex / gen markers (e.g. "Age / Gen", "Age / Sex", "Relation ...", "DOB ...", "IPD ...")
+    text = re.sub(r"\s+(?:Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing unparenthesized demographic tokens like "52/F", "31/M", "/F", "/M"
+    text = re.sub(r"\s+(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]\s*(?:female|male|[MF])\b.*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s+(?:female|male|[MF])\s*[\/\-|,:]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\b.*$", "", text, flags=re.IGNORECASE).strip()
+    # Strip trailing punctuation
+    text = re.sub(r"[\s:\-–—,|/()\[\]]+$", "", text).strip()
+    return text
 
 
 def _validate_patient_name(val: str) -> bool:
@@ -58,6 +91,15 @@ def _validate_patient_name(val: str) -> bool:
     return True
 
 
+MULTI_VALUE_FIELDS: frozenset[str] = frozenset({
+    "icd_code",
+    "cpt_code",
+    "secondary_diagnosis",
+    "medication",
+    "procedure",
+})
+
+
 def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """Resolve candidates into chosen fields with provenance.
 
@@ -67,12 +109,57 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
     """
     grouped: Dict[str, List[Candidate]] = {}
     for c in candidates:
-        grouped.setdefault(c.field_name, []).append(c)
+        fname = c.field_name
+        if fname == "patient.name":
+            fname = "patient_name"
+        elif fname == "hospitalization.hospital_name":
+            fname = "hospital_name"
+        elif fname == "hospitalization.doctor_name":
+            fname = "doctor_name"
+        elif fname == "diagnosis.primary":
+            fname = "diagnosis"
+        elif fname == "diagnosis.secondary":
+            fname = "secondary_diagnosis"
+        elif fname == "claims.claimed_total":
+            fname = "claimed_total"
+        c.field_name = fname
+        grouped.setdefault(fname, []).append(c)
 
     resolved: List[Dict[str, Any]] = []
     provenance: Dict[str, Any] = {}
 
     for field, group in grouped.items():
+        # Handle multi-value fields (e.g., icd_code, cpt_code, secondary_diagnosis)
+        # where multiple distinct values across pages/sections are legitimate
+        if field in MULTI_VALUE_FIELDS or field.startswith("expense_table_row_"):
+            seen_norm_vals: set[str] = set()
+            # Sub-group candidates by normalized value to deduplicate identical occurrences
+            sub_grouped: Dict[str, List[Candidate]] = {}
+            for cand in group:
+                raw_val = str(cand.field_value or "").strip()
+                if not raw_val or _is_obvious_label(raw_val, field_name=field):
+                    continue
+                norm_key = raw_val.upper() if field in {"icd_code", "cpt_code"} else raw_val.lower()
+                sub_grouped.setdefault(norm_key, []).append(cand)
+
+            for norm_key, sub_cands in sub_grouped.items():
+                best_cand = max(sub_cands, key=lambda x: (x.confidence, len(str(x.field_value or ""))))
+                if norm_key in seen_norm_vals:
+                    continue
+                seen_norm_vals.add(norm_key)
+                resolved.append({
+                    "field_name": best_cand.field_name,
+                    "field_value": best_cand.field_value,
+                    "confidence": best_cand.confidence,
+                    "extractor": best_cand.extractor_name,
+                    "bounding_box": best_cand.bounding_box,
+                    "source_page": best_cand.source_page,
+                    "model_version": best_cand.model_version,
+                    "document_id": best_cand.document_id,
+                    "doc_type": best_cand.doc_type,
+                })
+            continue
+
         # Sort by confidence desc, then extractor preference (already baked into confidence)
         group_sorted = sorted(group, key=lambda x: (x.confidence), reverse=True)
 
@@ -83,12 +170,15 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
             # Field-specific validators
             reason = None
             accept = True
-            if field == "patient_name":
+            if field in {"patient_name", "patient.name"}:
+                cleaned_val = _clean_patient_name(cand.field_value or "")
+                if cleaned_val:
+                    cand.field_value = cleaned_val
                 if not _validate_patient_name(cand.field_value or ""):
                     accept = False
                     reason = "failed_patient_name_validation"
             else:
-                if _is_obvious_label(cand.field_value or ""):
+                if _is_obvious_label(cand.field_value or "", field_name=field):
                     accept = False
                     reason = "obvious_label"
 

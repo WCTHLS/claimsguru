@@ -71,6 +71,8 @@ export function useAuditorState() {
   const [duplicateClaimId, setDuplicateClaimId] = useState<string | null>(null);
   const [duplicateFiles, setDuplicateFiles] = useState<File[]>([]);
   const [isReprocessing, setIsReprocessing] = useState<boolean>(false);
+  const [showIdentityMismatchModal, setShowIdentityMismatchModal] = useState<boolean>(false);
+  const [identityMismatchMessage, setIdentityMismatchMessage] = useState<string>('');
 
   const syncUserSession = () => {
     try {
@@ -235,14 +237,17 @@ export function useAuditorState() {
     try {
       let patientId: string | undefined = undefined;
       const session = getStoredAuthSession();
-      if (session?.user?.name && session.user.name !== 'User') {
-        patientId = session.user.name;
-      } else {
-        const savedName = localStorage.getItem('claimgpt_user_name');
-        if (savedName && savedName !== 'User') patientId = savedName;
+      if (session?.user?.id) {
+        patientId = session.user.id;
+      } else if (session?.user?.email) {
+        patientId = session.user.email;
+      } else if (userEmail) {
+        patientId = userEmail;
+      } else if (session?.user?.sub && session.user.sub !== 'User') {
+        patientId = session.user.sub;
       }
       const claims = await fetchRecentClaims(patientId);
-      if (claims && claims.length > 0) {
+      if (claims) {
         setRecentClaims(claims);
       }
     } catch (err) {
@@ -278,14 +283,15 @@ export function useAuditorState() {
       try {
         let patientId: string | undefined = undefined;
         const session = getStoredAuthSession();
-        if (session?.user?.name) {
-          patientId = session.user.name;
-        } else {
-          const savedName = localStorage.getItem('claimgpt_user_name');
-          if (savedName) patientId = savedName;
+        if (session?.user?.id) {
+          patientId = session.user.id;
+        } else if (session?.user?.email) {
+          patientId = session.user.email;
+        } else if (session?.user?.sub && session.user.sub !== 'User') {
+          patientId = session.user.sub;
         }
         const claims = await fetchRecentClaims(patientId);
-        setRecentClaims(claims);
+        setRecentClaims(claims || []);
 
         // Check if a specific claim was requested via URL query string
         let targetId: string | null = null;
@@ -515,11 +521,11 @@ export function useAuditorState() {
     : realPreview?.parsed_fields?.diagnosis || realPreview?.parsed_fields?.primary_diagnosis;
 
   const hasClaim = Boolean(claimId || realPreview);
-  const patientName = extractedPatient || (analyzing ? "Processing..." : (hasClaim ? "Patient Record" : ""));
-  const hospitalName = extractedHospital || (analyzing ? "Processing..." : (hasClaim ? "City Care Hospital" : ""));
-  const admissionDate = extractedAdmission || (analyzing ? "Processing..." : (hasClaim ? "10/06/2026" : ""));
-  const dischargeDate = extractedDischarge || (analyzing ? "Processing..." : (hasClaim ? "14/06/2026" : ""));
-  const diagnosis = extractedDiagnosis || (analyzing ? "Processing..." : (hasClaim ? "Hospital Reimbursement Audit" : ""));
+  const patientName = extractedPatient || (analyzing ? "Processing..." : "");
+  const hospitalName = extractedHospital || (analyzing ? "Processing..." : "");
+  const admissionDate = extractedAdmission || (analyzing ? "Processing..." : "");
+  const dischargeDate = extractedDischarge || (analyzing ? "Processing..." : "");
+  const diagnosis = extractedDiagnosis || (analyzing ? "Processing..." : "");
 
   /* Select file(s) without immediately analyzing — appends new files to pending list */
   /* Select file(s) without immediately analyzing — appends new files to pending list */
@@ -580,6 +586,7 @@ export function useAuditorState() {
     setIsUploadOpen(true);
     setActiveDocumentId(null);
     activeClaimIdRef.current = null;
+    reloadRecentClaims();
   };
 
   /* Direct upload & instant analysis */
@@ -667,6 +674,22 @@ export function useAuditorState() {
           return;
         }
 
+        if (statusInfo.status === "IDENTITY_MISMATCH" || statusInfo.step?.includes("Identity Mismatch")) {
+          setAnalyzing(false);
+          setIsLiveSessionCompleted(false);
+          setProgress(0);
+          setActiveStage('staged');
+          const errorDetail = (statusInfo as any).error || "Identity mismatch detected across documents. Uploaded set removed. Please re-upload the entire set.";
+          setStepDescription(errorDetail);
+          setIdentityMismatchMessage(errorDetail);
+          setShowIdentityMismatchModal(true);
+          dataArrived = true;
+          clearInterval(pollInterval);
+          if (activePollRef.current === pollInterval) activePollRef.current = null;
+          reloadRecentClaims();
+          return;
+        }
+
         if (statusInfo.is_complete || statusInfo.percentage >= 100 || statusInfo.status === "COMPLETED" || statusInfo.status === "VALIDATED") {
           try {
             const finalData = await fetchClaimPreview(idToQuery);
@@ -729,7 +752,7 @@ export function useAuditorState() {
   };
 
   /* Begin Claim Analysis action button */
-  const startClaimAnalysis = async (overrideFiles?: File | File[], appendToActive = false) => {
+  const startClaimAnalysis = async (overrideFiles?: File | File[], appendToActive = false, explicitClaimId?: string) => {
     let targetFiles: File[] = [];
     if (overrideFiles) {
       targetFiles = Array.isArray(overrideFiles) ? overrideFiles : [overrideFiles];
@@ -738,6 +761,8 @@ export function useAuditorState() {
     }
 
     if (targetFiles.length === 0 && files.length === 0) return;
+
+    const effectiveTargetClaimId = (appendToActive && (explicitClaimId || claimId)) ? (explicitClaimId || claimId) : null;
 
     if (!appendToActive) {
       setRealPreview(null);
@@ -750,7 +775,7 @@ export function useAuditorState() {
     setUploading(true);
     setShowReportModal(false);
     setIsLiveSessionCompleted(false);
-    setIsUploadOpen(true); // Keep open during analysis to show circular progress
+    setIsUploadOpen(true); // Keep open during analysis to show progress
     setActiveStage('ocr');
     setProgress(20);
     setStepDescription("OCR (extracting text) · 20%");
@@ -759,9 +784,17 @@ export function useAuditorState() {
 
     let activeClaimId: string | null = null;
     try {
-      const res = await uploadClaimDocument(targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), userName, (appendToActive && claimId) ? claimId : undefined);
+      const session = getStoredAuthSession();
+      const effectivePatientId = session?.user?.id || session?.user?.sub || session?.user?.oid || session?.user?.email || userEmail;
+      const res = await uploadClaimDocument(
+        targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), 
+        userName, 
+        effectiveTargetClaimId ? effectiveTargetClaimId : undefined,
+        false,
+        effectivePatientId
+      );
       if (res.claim_id) {
-        if (res.is_duplicate || res.status === "COMPLETED" || res.task_id === null) {
+        if (res.is_duplicate && !appendToActive) {
           setDuplicateClaimId(res.claim_id);
           setDuplicateFiles(targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile).filter(Boolean));
           setAnalyzing(false);
@@ -779,26 +812,49 @@ export function useAuditorState() {
         activeClaimIdRef.current = res.claim_id;
         setClaimId(res.claim_id);
 
-        // Optimistically add the new processing claim to recentClaims at the top
-        setRecentClaims((prev) => {
-          if (prev.some((c) => c.id === res.claim_id)) return prev;
-          return [
-            {
-              id: res.claim_id,
-              patient_name: "Processing...",
-              status: "UPLOADED",
-              created_at: new Date().toISOString(),
-              total_amount: "",
-              documents: targetFiles.map((f, i) => ({ id: `doc-${i}`, file_name: f.name })),
-              progress: {
-                percentage: 20,
-                step: "OCR (extracting text) - 20%",
-                is_complete: false,
-              },
-            } as any,
-            ...prev,
-          ];
-        });
+        if (appendToActive && effectiveTargetClaimId) {
+          // In-place update of existing claim record
+          setRecentClaims((prev) =>
+            prev.map((c) => {
+              if (c.id === effectiveTargetClaimId) {
+                const existingDocs = c.documents || [];
+                const newDocEntries = targetFiles.map((f, i) => ({ id: `doc-${existingDocs.length + i}`, file_name: f.name }));
+                return {
+                  ...c,
+                  status: "UPLOADED",
+                  documents: [...existingDocs, ...newDocEntries],
+                  progress: {
+                    percentage: 20,
+                    step: "OCR (extracting text) · 20%",
+                    is_complete: false,
+                  },
+                };
+              }
+              return c;
+            })
+          );
+        } else {
+          // Optimistically add the new processing claim to recentClaims at the top
+          setRecentClaims((prev) => {
+            if (prev.some((c) => c.id === res.claim_id)) return prev;
+            return [
+              {
+                id: res.claim_id,
+                patient_name: "Processing...",
+                status: "UPLOADED",
+                created_at: new Date().toISOString(),
+                total_amount: "",
+                documents: targetFiles.map((f, i) => ({ id: `doc-${i}`, file_name: f.name })),
+                progress: {
+                  percentage: 20,
+                  step: "OCR (extracting text) · 20%",
+                  is_complete: false,
+                },
+              } as any,
+              ...prev,
+            ];
+          });
+        }
 
         // Try immediate prefetch for this claim ID
         const initialPreview = await fetchClaimPreview(res.claim_id);
@@ -846,7 +902,9 @@ export function useAuditorState() {
 
     let activeClaimId: string | null = null;
     try {
-      const res = await uploadClaimDocument(filesToUpload, userName, undefined, true);
+      const session = getStoredAuthSession();
+      const effectivePatientId = session?.user?.id || session?.user?.sub || session?.user?.oid || session?.user?.email || userEmail;
+      const res = await uploadClaimDocument(filesToUpload, userName, undefined, true, effectivePatientId);
       if (res.claim_id) {
         activeClaimId = res.claim_id;
         activeClaimIdRef.current = res.claim_id;
@@ -1100,6 +1158,9 @@ export function useAuditorState() {
     setDuplicateClaimId,
     handleReprocessAnyway,
     isReprocessing,
+    showIdentityMismatchModal,
+    setShowIdentityMismatchModal,
+    identityMismatchMessage,
     saveExpenses,
     saveDetails,
   };

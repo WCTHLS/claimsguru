@@ -1,109 +1,114 @@
-# ClaimGPT Setup Guide (Docker Stack)
+# ClaimsGuru Setup Guide (Docker Container Stack)
 
-Follow these steps to run the ClaimGPT application. This guide ensures all code updates are built from scratch in Docker, database migrations are applied before the main services boot, and the stack runs cleanly.
+Follow these steps to pull, cleanly build from scratch, and run the complete ClaimsGuru platform on your local machine.
 
 ---
 
 > [!IMPORTANT]
-> **Branching Policy**: Please do **NOT** make any code modifications or commits directly on the `feature/azure-migration` branch. After pulling this branch, create a duplicate/local feature branch to do your work.
-> 
-> Run the following command to create and switch to your feature branch:
-> ```bash
-> git checkout -b <your-feature-branch-name>
+> **Branch**: Ensure you are on the feature branch containing the latest LLM integration, medical coding enhancements, and identity check features:
+> ```powershell
+> git fetch origin
+> git checkout feat/llm-integration-identity-check
 > ```
 
 ---
 
 ## 1. Environment Configuration
-Place the shared `.env` file in the project root. You **MUST** copy the configured `.env` file into the `infra/docker/` directory so Docker Compose can successfully read and interpolate the environment variables during build and runtime:
 
-```powershell
-Copy-Item -Path ".env" -Destination "infra/docker/.env"
-```
-
-### Host Environment setup (For running migrations locally):
-Create a virtual environment if you don't have one, and install the local Python database dependencies (`pymssql`, `pyodbc`):
-```powershell
-python -m venv .venv
-.venv\Scripts\pip install -r requirements-gateway.txt
-```
-
----
-
-## 2. Clean and Stop Previous Builds
-Stop all running containers and clean up existing Docker resources to prevent conflicts:
-```powershell
-docker compose -f infra/docker/docker-compose.yml down
-```
+1. Place your `.env` file in the project root (or copy `.env.example`):
+   ```powershell
+   Copy-Item -Path ".env.example" -Destination ".env"
+   ```
+2. Open `.env` and verify the required Azure OpenAI & AI service keys:
+   ```env
+   AZURE_OPENAI_ENDPOINT="https://cg-preprod-openai.openai.azure.com/openai/v1"
+   AZURE_OPENAI_API_KEY="<your-azure-openai-key>"
+   AZURE_OPENAI_DEPLOYMENT="gpt-4o"
+   AZURE_OPENAI_API_VERSION="2024-11-20"
+   OCR_USE_AZURE_OCR="True"
+   AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT="<your-docintel-endpoint>"
+   AZURE_DOCUMENT_INTELLIGENCE_KEY="<your-docintel-key>"
+   ```
 
 ---
 
-## 3. Build Containers from Scratch
-Build all backend and worker Docker images from scratch to compile the pulled code changes:
+## 2. One-Command Build & Run from Scratch (Recommended)
+
+To cleanly remove old container caches, build fresh container images, initialize the database, and launch all services in one step:
+
 ```powershell
-docker compose -f infra/docker/docker-compose.yml build --no-cache
+.\run_local_containers.ps1 -Rebuild
 ```
+
+### What this script performs automatically:
+1. **Starts Infrastructure**: Launches SQL Server 2022 (`mssql-db:1433`) and Redis (`redis:6379`).
+2. **Initializes Database**: Creates the `claimgpt` database and auto-provisions tables/roles via `init_db.py`.
+3. **Builds Container Images**: Compiles `claimsguru-core:test` (FastAPI backend + Celery workers) and `claimsguru-frontend:test` (Next.js 15 UI).
+4. **Launches Microservice Stack**:
+   * `claimsguru-api-test` (API Gateway on **Port 8000**)
+   * `claimsguru-worker-ocr` (Celery OCR Worker)
+   * `claimsguru-worker-default` (Celery Default/Parser/Coding Worker)
+   * `claimsguru-web-test` (Next.js Dashboard on **Port 3000**)
 
 ---
 
-## 4. Start the Database Container
-Start the MS SQL Server container and wait for it to report healthy:
+## 3. Manual Step-by-Step Setup (Alternative)
+
+If you prefer building and running containers manually:
+
+### Step A: Stop existing containers
 ```powershell
-docker compose -f infra/docker/docker-compose.yml up -d mssql-db
+docker compose -p claimgpt-feature -f infra/docker/docker-compose.yml down
+docker rm -f claimsguru-api-test claimsguru-worker-ocr claimsguru-worker-default claimsguru-web-test 2>$null
 ```
 
----
-
-## 5. Initialize the Database and Seed Roles
-Microsoft SQL Server starts up blank. You must create the `claimgpt` database and insert the core system roles inside the container before running migrations (note: container name may vary between `docker-mssql-db-1` or `claimgpt-feature-mssql-db-1` based on your docker engine version):
+### Step B: Build images from scratch without cache
 ```powershell
-# Create the database
-docker exec claimgpt-feature-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -Q "CREATE DATABASE claimgpt;" -C
-
-# Seed system roles
-docker exec claimgpt-feature-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -d claimgpt -Q "INSERT INTO roles (id, name, description) VALUES (NEWID(), 'admin', 'Admin role'), (NEWID(), 'reviewer', 'Reviewer role'), (NEWID(), 'submitter', 'Submitter role'), (NEWID(), 'viewer', 'Viewer role'), (NEWID(), 'tpa_adjuster', 'TPA Adjuster role');" -C
+docker build --no-cache -t claimsguru-core:test -f infra/docker/Dockerfile.core .
+docker build --no-cache -t claimsguru-frontend:test -f infra/docker/Dockerfile.web .
 ```
 
----
-
-## 6. Run Database Migrations
-Apply the database migrations from your host terminal (Alembic will automatically use the `pymssql` configuration from your `.env` file to create the tables):
+### Step C: Run the automated launch script
 ```powershell
-.venv\Scripts\alembic upgrade head
-```
-
----
-
-## 7. Start the Rest of the Stack
-Now that the database tables are created, start all other backend services, Celery workers, and infrastructure in the background:
-```powershell
-docker compose -f infra/docker/docker-compose.yml up -d
+.\run_local_containers.ps1
 ```
 
 ---
 
-## 8. Start the Frontend
-The frontend runs locally using Node.js:
+## 4. Platform Access URLs
+
+| Component | URL | Description |
+|---|---|---|
+| **Web Dashboard** | [http://localhost:3000](http://localhost:3000) | Full claims auditor UI, document upload & reimbursement brain |
+| **API Documentation** | [http://localhost:8000/docs](http://localhost:8000/docs) | Interactive Swagger UI for all 11 microservices |
+| **SQL Server** | `localhost:1433` | Host: `localhost`, User: `sa`, Password: `YourStrong!Password`, DB: `claimgpt` |
+| **Redis** | `localhost:6379` | Celery broker & task results |
+
+---
+
+## 5. Stopping the Stack
+
 ```powershell
-cd ui/web
-npm install
-npm run dev
+.\run_local_containers.ps1 -Stop
 ```
 
 ---
 
-## 9. LangGraph & Chat Service Checkpointer
-*   **Database compatibility**: LangGraph's default `AsyncPostgresSaver` throws warnings and shuts down when pointing to an MS SQL Database.
-*   **Automatic Fallback**: The gateway lifespan has been updated to check the database dialect at startup. If running on MS SQL, it automatically falls back to LangGraph's `MemorySaver` (in-memory) checkpointer, keeping the chat interface fully functional with zero database dependency warnings.
+## 6. Running Automated Tests
+
+Run the full coding, RAG retrieval, and LLM diagnosis keyword extraction test suite:
+
+```powershell
+docker exec claimsguru-worker-default pytest /app/tests/coding/
+```
 
 ---
 
-## 10. Access and Monitoring URLs
+## 7. Key Features in this Branch
 
-- **Frontend UI**: [http://localhost:3000](http://localhost:3000)
-- **API Documentation**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Flower (Celery Worker Monitor)**: [http://localhost:5555/flower/](http://localhost:5555/flower/)
-- **Active Storage Location**: 
-  - If Azure variables are configured: **Azure Portal Blob Container** (`claimgpt`).
-  - If Azure variables are empty: **MinIO Storage Console** [http://localhost:9001](http://localhost:9001) (User: `claimgpt` / Pass: `claimgpt123`).
+* **LLM Clinical Context Correlation**: Generic diagnoses (e.g. `"Infectious disease - medical management"`) correlate with clinical evidence (prescribed medications like Remdesivir/Tocilizumab/Baricitinib, ICU consumables, oxygen support) to extract specific ICD-10 codes (`B97.2` / `U07.1` / `U07.2` Coronavirus) without false HIV/unrelated fallbacks.
+* **Category Deduplication & Ranking**: Filters out redundant ICD-10 fuzzy variants when explicit codes exist on documents, prioritizing 100% authoritative matches.
+* **Total Amount IRDAI Validation**: Supports `claimed_total`, `claimed_amount`, and `total_amount` to prevent false missing amount warnings.
+* **Modern TPA PDF Dossier**: High-resolution executive audit report generated via WeasyPrint with accurate gross/net calculations and itemized expense tables.
+
 

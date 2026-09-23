@@ -326,7 +326,12 @@ def _is_expense_like_table_payload(table: TableRegion) -> bool:
     if len(rows) < 2:
         return False
 
-    def _looks_numeric(text: str) -> bool:
+    table_text = " ".join(str(cell.text or "") for row in rows for cell in row.cells).lower()
+    # If table contains bank details or cheque terms, skip
+    if any(b_kw in table_text for b_kw in ["ifsc", "account number", "account no", "branch name", "micr code", "cancelled cheque"]):
+        return False
+
+    def _looks_monetary(text: str) -> bool:
         s = str(text or "").strip().lower()
         if not s:
             return False
@@ -334,53 +339,30 @@ def _is_expense_like_table_payload(table: TableRegion) -> bool:
         s = s.replace(",", "").replace(" ", "")
         if s.startswith("(") and s.endswith(")"):
             s = "-" + s[1:-1]
-        return bool(re.fullmatch(r"-?\d+(?:\.\d+)?", s))
+        # Match standard monetary amounts like 1200.00, 342.00, 42269.03 or pure numbers > 0
+        return bool(re.fullmatch(r"-?\d+\.\d{2}", s)) or (bool(re.fullmatch(r"-?\d+", s)) and len(s) >= 2)
 
-    # Robust header search across first 15 rows
-    has_expense_header = False
-    for candidate_row in rows[:15]:
+    # Billing header keywords
+    has_billing_header = False
+    billing_header_kws = ["gross", "payable", "rate", "mrp", "amount", "charges", "particulars", "qty", "item description", "unit price"]
+    for candidate_row in rows[:5]:
         candidate_text = " ".join((cell.text or "") for cell in candidate_row.cells).lower()
-        if any(kw in candidate_text for kw in ["description", "particular", "item", "qty", "rate", "gross", "payable", "amount", "np", "charges"]):
-            has_expense_header = True
+        if sum(1 for kw in billing_header_kws if kw in candidate_text) >= 2:
+            has_billing_header = True
             break
 
-    # Robust check if it contains any clear expense rows as a backup
-    has_clear_expense_row = False
-    expense_row_keywords = [
-        "room", "nursing", "ward", "bed", "charges", "charge", "patient care", "room charges", "rent", "care charges",
-        "fee", "fees", "cost", "implant", "consumables", "medicine", "pharmacy", "drug", "injection", "tab", "capsule",
-        "lab", "test", "investigation", "phaco", "surgery", "operation", "visco", "viscoelastic", "admin", "miscellaneous",
-        "misc", "total", "subtotal", "payable", "tax", "service", "accommodation", "consultation", "visit", "icu", "ot",
-        "ecg", "xray", "x-ray", "ultrasound", "usg", "blood", "dilatation", "oxygen", "glove", "syringe", "medical",
-        "disposable", "package", "procedure"
-    ]
-    for row in rows:
-        cells = [c for c in row.cells if str(c.text or "").strip()]
-        if not cells:
-            continue
-        cell_texts = [str(c.text or "").strip().lower() for c in cells]
-        joined = " ".join(cell_texts)
-        if any(k in joined for k in expense_row_keywords):
-            if any(_looks_numeric(ct) for ct in cell_texts):
-                has_clear_expense_row = True
-                break
-
+    # Count rows with genuine monetary amounts
+    monetary_row_count = 0
     data_rows = rows[1:] if len(rows) > 1 else rows
-    if not data_rows:
-        return False
-
-    amount_like_rows = 0
     for row in data_rows:
         cells = [c for c in row.cells if str(c.text or "").strip()]
-        if not cells:
-            continue
-        tail = cells[-3:] if len(cells) >= 3 else cells
-        numeric_tail = sum(1 for cell in tail if _looks_numeric(cell.text))
-        if numeric_tail >= 2:
-            amount_like_rows += 1
+        if any(_looks_monetary(c.text) for c in cells):
+            monetary_row_count += 1
 
-    tail_ratio = amount_like_rows / max(1, len(data_rows))
-    return (has_expense_header and tail_ratio >= 0.4) or has_clear_expense_row
+    monetary_ratio = monetary_row_count / max(1, len(data_rows))
+    has_currency_marker = "₹" in table_text or "rs." in table_text or "inr" in table_text or "gross" in table_text or "payable" in table_text
+
+    return (has_billing_header and monetary_ratio >= 0.3) or (has_currency_marker and monetary_row_count >= 2)
 
 
 def _is_vertical_layout_table(table: TableRegion) -> bool:
@@ -641,10 +623,18 @@ def _is_lab_results_table(table: TableRegion) -> bool:
     if not rows:
         return False
     table_text = " ".join(str(cell.text or "") for row in rows for cell in row.cells).lower()
-    lab_indicators = ["reference range", "ref range", "ref. range", "reference interval", "biological reference", "normal range", "observed value", "flag"]
+    lab_indicators = [
+        "reference range", "ref range", "ref. range", "reference interval", "biological reference", 
+        "normal range", "observed value", "flag", "subtest", "specimen", "nabl accredited", "nabl ref",
+        "laboratory investigation report", "results are for clinical correlation", "verified by: dr"
+    ]
     if any(indicator in table_text for indicator in lab_indicators):
         return True
-    # 'units' alone is too generic (matches itemised bill columns); require clinical context
+    # If table mentions multiple lab test names and units/results without billing keywords
+    lab_tests = ["haemoglobin", "platelets", "wbc count", "bilirubin", "sgot", "sgpt", "creatinine", "blood sugar", "pt/inr", "hbsag", "electrolytes"]
+    lab_test_matches = sum(1 for test in lab_tests if test in table_text)
+    if lab_test_matches >= 2 and not any(term in table_text for term in ["gross (rs", "payable (rs", "rate", "bill no", "mrp"]):
+        return True
     if "units" in table_text and any(term in table_text for term in ["reference", "normal", "ref.", "biological", "observed", "patient value"]):
         return True
     return False
@@ -952,17 +942,21 @@ def extract_semantics(
                 confidence=table.confidence,
                 model_name=table.model_name,
             )
-        tables_to_analyze.append((region, table))
+        # Only send actual billing/expense tables to the LLM backend (minimum 2 rows)
+        if table and len(getattr(table, "rows", [])) >= 2:
+            is_lab_or_vitals = _is_lab_results_table(table) or _is_vitals_table(table)
+            is_relevant_billing = (
+                table.table_kind in SEMANTIC_EXPENSE_TABLE_KINDS
+                or is_expense_like
+            ) and not is_lab_or_vitals and not _is_patient_form_table(table)
+            if is_relevant_billing:
+                tables_to_analyze.append((region, table))
 
     # Run region analyses in parallel using ThreadPoolExecutor
+    # Strictly limit tasks to actual tables to minimize LLM calls and API cost
     tasks_to_analyze = []
     for region, table in tables_to_analyze:
         tasks_to_analyze.append((region, table))
-
-    for region in doc.regions:
-        if region.region_type in {"table", "expense_table"}:
-            continue
-        tasks_to_analyze.append((region, None))
 
     if tasks_to_analyze:
         # Honour OPENROUTER_CONCURRENT setting: serialize calls when False (default)

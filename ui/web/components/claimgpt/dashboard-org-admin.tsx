@@ -371,7 +371,10 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
   const fetchClaims = useCallback(async () => {
     setLoading(true);
     const token = session?.accessToken;
-    const headers: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
+    const headers: Record<string, string> = {
+      "X-User-Role": session?.role || "admin",
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    };
 
     try {
       let rawClaims: Claim[] = [];
@@ -399,12 +402,6 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
           rawClaims = data.claims || data.results || (Array.isArray(data) ? data : []);
           rawTotal = data.total || rawClaims.length;
         }
-      }
-
-      if (rawClaims.length === 0 && !search.trim() && page === 0) {
-        // Fall back to offline mock demonstration data if backend is empty
-        rawClaims = MOCK_CLAIMS as any;
-        rawTotal = MOCK_CLAIMS.length;
       }
 
       if (statusFilter !== 'ALL') {
@@ -436,12 +433,12 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
       setClaims(enriched);
       setTotal(rawTotal);
     } catch {
-      setClaims(MOCK_CLAIMS);
-      setTotal(MOCK_CLAIMS.length);
+      setClaims([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [session?.accessToken, page, search, statusFilter, refreshKey]);
+  }, [session?.accessToken, session?.role, page, search, statusFilter, refreshKey]);
 
   useEffect(() => {
     fetchClaims();

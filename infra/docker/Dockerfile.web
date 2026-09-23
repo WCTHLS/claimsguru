@@ -1,13 +1,12 @@
 # ==============================================================================
-# ClaimsGuru Frontend (Next.js 14) Production Dockerfile
+# ClaimsGuru Frontend (Next.js) Production Dockerfile
 # Multi-stage build with build-time environment variable injection
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
 # Stage 1: Dependencies Cache
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
+FROM node:20-slim AS deps
 WORKDIR /app
 
 COPY ui/web/package.json ui/web/package-lock.json ./
@@ -16,7 +15,7 @@ RUN npm ci
 # ------------------------------------------------------------------------------
 # Stage 2: Next.js Production Builder
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
 
 COPY --from=deps /app/node_modules ./node_modules
@@ -46,20 +45,20 @@ RUN if [ -n "$NEXT_PUBLIC_API_BASE" ]; then export NEXT_PUBLIC_API_BASE="$NEXT_P
     if [ -n "$NEXT_PUBLIC_ENTRA_SUBDOMAIN" ]; then export NEXT_PUBLIC_ENTRA_SUBDOMAIN="$NEXT_PUBLIC_ENTRA_SUBDOMAIN"; fi && \
     if [ -n "$NEXT_PUBLIC_ENTRA_AUTHORITY" ]; then export NEXT_PUBLIC_ENTRA_AUTHORITY="$NEXT_PUBLIC_ENTRA_AUTHORITY"; fi && \
     if [ -n "$NEXT_PUBLIC_ENTRA_REDIRECT_URI" ]; then export NEXT_PUBLIC_ENTRA_REDIRECT_URI="$NEXT_PUBLIC_ENTRA_REDIRECT_URI"; fi && \
-    NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production npm run build
+    NODE_OPTIONS="--max-old-space-size=1536" NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production npm run build
 
 # ------------------------------------------------------------------------------
 # Stage 3: Production Runner
 # ------------------------------------------------------------------------------
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000
 
-RUN addgroup --system --gid 1001 nodejs && \
-    adduser --system --uid 1001 nextjs
+RUN groupadd --system --gid 1001 nodejs && \
+    useradd --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next ./.next

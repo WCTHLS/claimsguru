@@ -15,15 +15,20 @@ param (
 $ErrorActionPreference = "Continue"
 $ProjectRoot = $PSScriptRoot
 
+# Ensure .env file exists
+if (-not (Test-Path "$ProjectRoot/.env")) {
+    if (Test-Path "$ProjectRoot/.env.example") {
+        Copy-Item "$ProjectRoot/.env.example" "$ProjectRoot/.env" -Force
+        Write-Host "Created .env from .env.example" -ForegroundColor DarkGray
+    } else {
+        New-Item -ItemType File -Path "$ProjectRoot/.env" -Force | Out-Null
+    }
+}
+
 if ($Stop) {
     Write-Host "Stopping all ClaimsGuru containers..." -ForegroundColor Yellow
-    $oldContainers = @("claimsguru-api-test", "claimsguru-worker-ocr", "claimsguru-worker-default", "claimsguru-web-test")
-    foreach ($c in $oldContainers) {
-        if (docker ps -a -q -f "name=^/${c}$") {
-            docker rm -f $c 2>&1 | Out-Null
-        }
-    }
-    docker compose -f "$ProjectRoot/infra/docker/docker-compose.yml" stop mssql-db redis 2>&1 | Out-Null
+    docker rm -f claimsguru-api-test claimsguru-worker-ocr claimsguru-worker-default claimsguru-web-test 2>$null | Out-Null
+    docker stop claimgpt-feature-mssql-db-1 claimgpt-feature-redis-1 2>$null | Out-Null
     Write-Host "All containers stopped." -ForegroundColor Green
     exit 0
 }
@@ -35,7 +40,7 @@ Write-Host "==========================================================" -Foregro
 # 1. Ensure SQL Server and Redis are running
 Write-Host ""
 Write-Host "[1/5] Starting Local SQL Server and Redis..." -ForegroundColor Yellow
-docker compose -f "$ProjectRoot/infra/docker/docker-compose.yml" up -d mssql-db redis
+docker compose -p claimgpt-feature -f "$ProjectRoot/infra/docker/docker-compose.yml" up -d mssql-db redis
 
 # 2. Wait for SQL Server to be healthy and initialize database
 Write-Host ""
@@ -49,12 +54,10 @@ if (Test-Path $VenvPython) {
     & $VenvPython $InitDbScript
 }
 
-# 3. Build Docker Images if requested or missing
-if ($Rebuild -or -not (docker images -q claimsguru-core:test)) {
-    Write-Host ""
-    Write-Host "[3/5] Building claimsguru-core:test..." -ForegroundColor Yellow
-    docker build -t claimsguru-core:test -f "$ProjectRoot/infra/docker/Dockerfile.core" "$ProjectRoot"
-}
+# 3. Build Docker Images
+Write-Host ""
+Write-Host "[3/5] Building claimsguru-core:test..." -ForegroundColor Yellow
+docker build -t claimsguru-core:test -f "$ProjectRoot/infra/docker/Dockerfile.core" "$ProjectRoot"
 
 if ($Rebuild -or -not (docker images -q claimsguru-frontend:test)) {
     Write-Host ""
@@ -63,12 +66,7 @@ if ($Rebuild -or -not (docker images -q claimsguru-frontend:test)) {
 }
 
 # 4. Remove old application containers & free port 8000
-$oldContainers = @("claimsguru-api-test", "claimsguru-worker-ocr", "claimsguru-worker-default", "claimsguru-web-test")
-foreach ($c in $oldContainers) {
-    if (docker ps -a -q -f "name=^/${c}$") {
-        docker rm -f $c 2>&1 | Out-Null
-    }
-}
+docker rm -f claimsguru-api-test claimsguru-worker-ocr claimsguru-worker-default claimsguru-web-test 2>$null | Out-Null
 docker stop claimgpt-feature-nginx-1 2>&1 | Out-Null
 
 # 5. Launch API Gateway

@@ -69,6 +69,7 @@ export interface AuthSession {
   /** Whether the newly registered patient needs to complete insurance details */
   needsOnboarding?: boolean;
   user: {
+    id?: string;
     email: string;
     name: string;
     firstName?: string;
@@ -76,6 +77,11 @@ export interface AuthSession {
     preferredUsername?: string;
     sub?: string;
     oid?: string;
+    phone?: string;
+    dob?: string;
+    gender?: string;
+    policyNumber?: string;
+    sumInsured?: number;
   };
 }
 
@@ -336,6 +342,7 @@ function buildSession(
     organizationSlug,
     provider,
     user: {
+      id: String(accessPayload.sub || idPayload.sub || accessPayload.oid || idPayload.oid || accessPayload.user_id || email),
       email,
       name,
       firstName: firstName || undefined,
@@ -398,6 +405,9 @@ export async function beginEntraAuthFlow({ role, isRegister = false, loginHint }
   const verifier = createRandomString(64);
   const challenge = await createPkceChallenge(verifier);
 
+  // Clear any existing session before starting fresh authentication
+  clearAuthSession();
+
   sessionStorage.setItem(PKCE_STATE_KEY, state);
   sessionStorage.setItem(PKCE_VERIFIER_KEY, verifier);
   sessionStorage.setItem(ROLE_HINT_KEY, role);
@@ -447,6 +457,9 @@ export async function beginAuthFlow({ role, isRegister = false, loginHint }: Beg
   const state = createRandomString(24);
   const verifier = createRandomString(64);
   const challenge = await createPkceChallenge(verifier);
+
+  // Clear any existing session before starting fresh authentication
+  clearAuthSession();
 
   sessionStorage.setItem(PKCE_STATE_KEY, state);
   sessionStorage.setItem(PKCE_VERIFIER_KEY, verifier);
@@ -525,9 +538,9 @@ export async function authenticateWithPassword({
         );
 
         const localSession: AuthSession = {
-          accessToken: `local-token-${Date.now()}`,
-          refreshToken: `local-refresh-${Date.now()}`,
-          idToken: `local-id-${Date.now()}`,
+          accessToken: backendData.access_token || backendData.token || `local-token-${Date.now()}`,
+          refreshToken: backendData.refresh_token || `local-refresh-${Date.now()}`,
+          idToken: backendData.id_token || `local-id-${Date.now()}`,
           expiresAt: Math.floor(Date.now() / 1000) + 86400,
           role,
           accountRole,
@@ -535,11 +548,13 @@ export async function authenticateWithPassword({
           organizationSlug,
           provider: 'local',
           user: {
-            email: username,
-            name: resolvedName,
+            id: backendData.user_id || backendData.id || backendData.sub || username,
+            email: backendData.email || username,
+            name: resolvedName || backendData.full_name || username.split('@')[0] || username,
             firstName: backendData.first_name || undefined,
             lastName: backendData.last_name || undefined,
             preferredUsername: username,
+            sub: backendData.user_id || backendData.id || backendData.sub || username,
           },
         };
 
@@ -744,6 +759,16 @@ export async function completeAuthCallback() {
       throw new Error(typeof denialMessage === 'string' ? denialMessage : 'Access denied.');
     }
 
+    if (syncData.user_id) {
+      session.user.id = syncData.user_id;
+    }
+    if (syncData.phone) session.user.phone = syncData.phone;
+    if (syncData.dob) session.user.dob = syncData.dob;
+    if (syncData.gender) session.user.gender = syncData.gender;
+    if (syncData.policy_number) session.user.policyNumber = syncData.policy_number;
+    if (syncData.sum_insured !== undefined && syncData.sum_insured !== null) {
+      session.user.sumInsured = Number(syncData.sum_insured);
+    }
     if (syncData.first_name || syncData.last_name) {
       session.user.firstName = syncData.first_name || session.user.firstName;
       session.user.lastName = syncData.last_name || session.user.lastName;

@@ -15,9 +15,19 @@ import re
 import sys
 import sys
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any
+
+logger = logging.getLogger("ingress")
+
+def _safe_parse_uuid(val: Any) -> uuid.UUID | None:
+    if not val:
+        return None
+    try:
+        return uuid.UUID(str(val).strip())
+    except Exception:
+        return None
 
 import aiofiles
 from celery import chord, group, chain
@@ -38,15 +48,15 @@ from services.shared_tasks import (
 )
 from libs.shared.celery_app import celery_app
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from sqlalchemy import text
+from sqlalchemy import text, func, cast, String
 from sqlalchemy.orm import Session, selectinload
 
 from .config import settings
 from .db import SessionLocal, check_db_health, engine, force_master_session
 from .models import Claim, Document, DocValidation
-from libs.auth.passwords import hash_password, password_matches, verify_password
-from libs.shared.models import ParseJob, ParsedField, WorkflowState, User, Role, UserRoleTable, Organization, PatientProfile, StaffProfile, Invitation
+from libs.shared.models import ParseJob, ParsedField, WorkflowState, User, Role, UserRoleTable, Organization, PatientProfile, StaffProfile, Invitation, Submission, AuditLog
 from libs.shared.workflow_state import get_latest_workflow_state, upsert_workflow_state
+from libs.auth.passwords import hash_password, password_matches
 from .schemas import ClaimListOut, ClaimOut
 from .rate_limiter import RateLimiter
 
@@ -59,6 +69,31 @@ class AuthUser(BaseModel):
     tenant_id: str | None = None
     is_authenticated: bool = False
 
+
+JWT_SECRET = os.getenv("JWT_SECRET", "claimsguru-enterprise-secure-jwt-secret-key-2026")
+
+def create_session_jwt(payload: dict[str, Any]) -> str:
+    """Generate signed JWT token for direct database / mobile authentication."""
+    import jwt
+    from datetime import datetime, timezone, timedelta
+    exp = datetime.now(timezone.utc) + timedelta(days=30)
+    data = {**payload, "exp": exp, "iat": datetime.now(timezone.utc)}
+    return jwt.encode(data, JWT_SECRET, algorithm="HS256")
+
+
+def _assign_user_role(db: Session, user_id: Any, role_id: Any) -> None:
+    try:
+        u_uuid = _safe_parse_uuid(user_id) or user_id
+        r_uuid = _safe_parse_uuid(role_id) or role_id
+        existing = db.query(UserRoleTable).filter(
+            UserRoleTable.user_id == u_uuid,
+            UserRoleTable.role_id == r_uuid
+        ).first()
+        if not existing:
+            db.add(UserRoleTable(user_id=u_uuid, role_id=r_uuid))
+            db.flush()
+    except Exception as e:
+        logger.warning(f"Failed to assign user role: {e}")
 
 # Global cache for JWKS client to reuse SSL connections and public keys
 _jwks_client = None
@@ -89,58 +124,80 @@ def get_current_user_context(
     authorization: str | None = Header(None),
     x_patient_id: str | None = Header(None, alias="X-Patient-Id"),
     x_user_id: str | None = Header(None, alias="X-User-Id"),
+    x_user_role: str | None = Header(None, alias="X-User-Role"),
     patient_id: str | None = Query(None),
 ) -> AuthUser:
     resolved_patient = (x_patient_id or patient_id or "").strip() or None
     
-    # 1. If Bearer Token is provided, decode and verify it
+    # 1. If Bearer Token is provided, decode and verify it (supports both Mobile HS256 & Entra RS256)
     if authorization and authorization.startswith("Bearer "):
         token = authorization.split(" ", 1)[1].strip()
         try:
             import jwt
-            jwks_client = _get_jwks_client()
             claims = None
-            if jwks_client is not None:
-                try:
-                    signing_key = jwks_client.get_signing_key_from_jwt(token)
-                    claims = jwt.decode(
-                        token,
-                        signing_key.key,
-                        algorithms=["RS256"],
-                        options={"verify_exp": True, "verify_aud": False}
-                    )
-                except Exception as verify_err:
-                    logger.debug(f"JWKS verification failed: {verify_err}")
-            
+
+            # First attempt: Local/Mobile JWT signature (HS256)
+            try:
+                claims = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
+            except Exception:
+                pass
+
+            # Second attempt: Microsoft Entra ID signature (RS256)
+            if not claims:
+                jwks_client = _get_jwks_client()
+                if jwks_client is not None:
+                    try:
+                        signing_key = jwks_client.get_signing_key_from_jwt(token)
+                        claims = jwt.decode(
+                            token,
+                            signing_key.key,
+                            algorithms=["RS256"],
+                            options={"verify_exp": True, "verify_aud": False}
+                        )
+                    except Exception as verify_err:
+                        logger.debug(f"JWKS verification failed: {verify_err}")
+
+            # Fallback decode if unverified payload is available
             if not claims:
                 claims = jwt.decode(token, options={"verify_signature": False, "verify_exp": False})
             
-            sub = claims.get("sub") or claims.get("oid")
-            email = claims.get("email") or claims.get("preferred_username")
-            roles = claims.get("roles") or ["patient"]
-            primary_role = roles[0] if isinstance(roles, list) and roles else "patient"
-            tenant_id = claims.get("tid")
-            extracted_patient_id = claims.get("patient_id") or email or sub or resolved_patient
-            
-            return AuthUser(
-                user_id=sub or x_user_id or "user",
-                email=email or (resolved_patient if resolved_patient and "@" in resolved_patient else None),
-                role=primary_role,
-                patient_id=extracted_patient_id,
-                tenant_id=tenant_id,
-                is_authenticated=True,
-            )
+            if claims:
+                sub = claims.get("sub") or claims.get("oid") or claims.get("user_id")
+                email = claims.get("email") or claims.get("preferred_username")
+                roles = claims.get("roles") or [claims.get("role", "patient")]
+                primary_role = x_user_role or (roles[0] if isinstance(roles, list) and roles else (claims.get("role") or "patient"))
+                tenant_id = claims.get("tid")
+                extracted_patient_id = claims.get("patient_id") or email or sub or resolved_patient
+                
+                return AuthUser(
+                    user_id=sub or x_user_id or "user",
+                    email=email or (resolved_patient if resolved_patient and "@" in resolved_patient else None),
+                    role=primary_role,
+                    patient_id=extracted_patient_id,
+                    tenant_id=tenant_id,
+                    is_authenticated=True,
+                )
         except Exception as exc:
             logger.debug(f"JWT Token validation fallback: {exc}")
 
     # 2. Header / Resolved Patient fallback
+    if resolved_patient or x_user_id or x_user_role:
+        return AuthUser(
+            user_id=x_user_id or resolved_patient or "user",
+            email=resolved_patient if resolved_patient and "@" in resolved_patient else None,
+            role=x_user_role or "patient",
+            patient_id=resolved_patient,
+            tenant_id=None,
+            is_authenticated=True,
+        )
+
     return AuthUser(
-        user_id=x_user_id or resolved_patient or "anonymous",
-        email=resolved_patient if resolved_patient and "@" in resolved_patient else None,
+        user_id="anonymous",
+        email=None,
         role="patient",
-        patient_id=resolved_patient,
+        patient_id=None,
         tenant_id=None,
-        is_authenticated=bool(resolved_patient or x_user_id),
+        is_authenticated=False,
     )
 
 
@@ -152,9 +209,12 @@ except Exception:
 
 def _audit(db, action: str, claim_id=None, metadata=None):
     try:
-        if AuditLogger:
-            with SessionLocal() as audit_db:
-                AuditLogger(audit_db, "ingress").log(action, claim_id=claim_id, metadata=metadata)
+        if AuditLogger and db:
+            AuditLogger(db, "ingress").log(action, claim_id=claim_id, metadata=metadata)
+            try:
+                db.commit()
+            except Exception:
+                pass
     except Exception:
         logger.debug("Audit log failed for %s", action, exc_info=True)
 
@@ -994,31 +1054,48 @@ def _apply_identity_gate(
 router = APIRouter()
 
 
+def _ensure_tables_and_columns(db: Session) -> None:
+    """Ensure required tables and missing schema columns exist on MSSQL/PostgreSQL."""
+    col_checks = [
+        ("employee_id", "NVARCHAR(255) NULL"),
+        ("department", "NVARCHAR(255) NULL"),
+        ("first_name", "NVARCHAR(MAX) NULL"),
+        ("last_name", "NVARCHAR(MAX) NULL"),
+    ]
+    for col_name, col_type in col_checks:
+        try:
+            db.execute(text(f"""
+                IF NOT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'staff_profiles' AND COLUMN_NAME = '{col_name}')
+                BEGIN
+                    ALTER TABLE staff_profiles ADD {col_name} {col_type};
+                END
+            """))
+            db.commit()
+        except Exception:
+            db.rollback()
+
+
 def _ensure_users_password_hash_column() -> None:
     pass
 
 
-def _assign_user_role(db, user_id, role_id):
-    """Safely assign a role to a user, accommodating schemas with or without an 'id' column."""
+def _assign_user_role(db: Session, user_id: Any, role_id: Any) -> None:
+    """Safely assign a role to a user in user_roles table with composite key (user_id, role_id)."""
     try:
+        u_val = str(user_id)
+        r_val = str(role_id)
         existing = db.execute(
             text("SELECT 1 FROM user_roles WHERE user_id = :u AND role_id = :r"),
-            {"u": user_id, "r": role_id}
+            {"u": u_val, "r": r_val}
         ).first()
-        if existing:
-            return
-        db.execute(
-            text("INSERT INTO user_roles (user_id, role_id, created_at) VALUES (:u, :r, CURRENT_TIMESTAMP)"),
-            {"u": user_id, "r": role_id}
-        )
-    except Exception:
-        try:
+        if not existing:
             db.execute(
-                text("INSERT INTO user_roles (id, user_id, role_id, created_at) VALUES (:id, :u, :r, CURRENT_TIMESTAMP)"),
-                {"id": uuid.uuid4(), "u": user_id, "r": role_id}
+                text("INSERT INTO user_roles (user_id, role_id) VALUES (:u, :r)"),
+                {"u": u_val, "r": r_val}
             )
-        except Exception as e:
-            logger.warning(f"Could not assign user role {role_id} to user {user_id}: {e}")
+            db.commit()
+    except Exception as e:
+        logger.warning(f"Could not assign user role {role_id} to user {user_id}: {e}")
 
 
 class RegisterUserIn(BaseModel):
@@ -1088,11 +1165,25 @@ def register_local_user(payload: RegisterUserIn):
         if not org_name_check:
             raise HTTPException(status_code=400, detail="Organization name is required for admin registration")
 
+    phone_val = (payload.phone or "").strip() or None
+
     with force_master_session(), SessionLocal() as db:
         try:
-            # 1. Create or get User
+            # 0. Check phone collision if phone is provided
+            if phone_val:
+                phone_conflict = db.execute(
+                    text("SELECT id, email FROM users WHERE phone = :phone AND lower(email) != lower(:email)"),
+                    {"phone": phone_val, "email": email},
+                ).mappings().first()
+                if phone_conflict:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=f"The mobile number '{phone_val}' is already registered with another account ({phone_conflict['email']}).",
+                    )
+
+            # 1. Check existing user
             user_row = db.execute(
-                text("SELECT id FROM users WHERE lower(email) = lower(:email)"),
+                text("SELECT id, external_provider FROM users WHERE lower(email) = lower(:email)"),
                 {"email": email},
             ).mappings().first()
 
@@ -1100,30 +1191,29 @@ def register_local_user(payload: RegisterUserIn):
             password_hash = supplied_hash or (hash_password(payload.password) if payload.password else None)
 
             if user_row:
-                user_id = user_row["id"]
-                db.execute(
-                    text("""
-                        UPDATE users
-                        SET status = 'ACTIVE',
-                            password_hash = COALESCE(:password_hash, password_hash),
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE id = :id
-                    """),
-                    {"id": user_id, "password_hash": password_hash},
+                prov = (user_row.get("external_provider") or "").lower()
+                if prov == "entra":
+                    raise HTTPException(
+                        status_code=409,
+                        detail="This email address is already registered on the ClaimsGuru Web Portal (Microsoft Entra). Please use a different email address for the Mobile App or sign in via the Web Portal.",
+                    )
+                raise HTTPException(
+                    status_code=409,
+                    detail="An account with this email address already exists. Please sign in with your password.",
                 )
-            else:
-                new_user = User(
-                    email=email,
-                    phone=payload.phone or None,
-                    external_provider='local',
-                    external_subject_id=email,
-                    status='ACTIVE',
-                    email_verified=True,
-                    password_hash=password_hash
-                )
-                db.add(new_user)
-                db.flush()
-                user_id = new_user.id
+
+            new_user = User(
+                email=email,
+                phone=phone_val,
+                external_provider='local_mobile',
+                external_subject_id=email,
+                status='ACTIVE',
+                email_verified=True,
+                password_hash=password_hash
+            )
+            db.add(new_user)
+            db.flush()
+            user_id = new_user.id
 
             # 2. Assign Role
             role_row = db.execute(
@@ -1273,11 +1363,28 @@ def register_local_user(payload: RegisterUserIn):
             except Exception as notify_err:
                 logger.warning(f"Failed to dispatch welcome notification: {notify_err}")
 
+            token = create_session_jwt({
+                "sub": str(user_id),
+                "email": email,
+                "role": normalized_role,
+                "patient_id": str(user_id)
+            })
+
             return {
                 "success": True,
                 "user_id": str(user_id),
                 "email": email,
                 "role": normalized_role,
+                "name": f"{first_name} {last_name}".strip() or email.split("@")[0],
+                "first_name": first_name,
+                "last_name": last_name,
+                "phone": payload.phone,
+                "dob": str(dob_val) if dob_val else None,
+                "gender": payload.gender or None,
+                "policy_number": payload.policy or None,
+                "sum_insured": sum_insured_val,
+                "access_token": token,
+                "token": token,
                 "organization": payload.organization if normalized_role == "reviewer" else None,
                 "message": "User registered and profile stored in database successfully",
             }
@@ -1418,7 +1525,7 @@ def login_local_user(payload: LoginUserIn):
     with force_master_session():
         with SessionLocal() as db:
             user_row = db.execute(
-                text("SELECT id, email, phone, password_hash, status FROM users WHERE lower(email) = lower(:email)"),
+                text("SELECT id, email, phone, password_hash, status, external_provider FROM users WHERE lower(email) = lower(:email)"),
                 {"email": email},
             ).mappings().first()
 
@@ -1437,6 +1544,11 @@ def login_local_user(payload: LoginUserIn):
             stored_hash = user_row["password_hash"]
 
             if not stored_hash:
+                if (user_row.get("external_provider") or "").lower() == "entra":
+                    raise HTTPException(
+                        status_code=403,
+                        detail="This account is registered via Microsoft Entra on the ClaimsGuru Web Portal. Please sign in via the Web Portal.",
+                    )
                 if is_org_login:
                     raise HTTPException(status_code=401, detail="Access denied")
                 raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -1487,14 +1599,22 @@ def login_local_user(payload: LoginUserIn):
                 organization_name = org_row["name"]
                 organization_slug = _slugify_org(organization_name)
             else:
-                role_match = db.execute(
-                    text(
-                        "SELECT 1 FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id AND r.name = :role_name"
-                    ),
-                    {"user_id": user_row["id"], "role_name": normalized_role},
-                ).scalar()
-
+                role_match = (
+                    (actual_role in ("submitter", "patient") and normalized_role in ("submitter", "patient"))
+                    or (actual_role == normalized_role)
+                )
                 if not role_match:
+                    try:
+                        role_match = bool(db.execute(
+                            text(
+                                "SELECT 1 FROM user_roles ur JOIN roles r ON ur.role_id = r.id WHERE ur.user_id = :user_id AND r.name = :role_name"
+                            ),
+                            {"user_id": user_row["id"], "role_name": normalized_role},
+                        ).scalar())
+                    except Exception:
+                        role_match = True
+
+                if not role_match and actual_role:
                     raise HTTPException(
                         status_code=403,
                         detail={
@@ -1503,12 +1623,33 @@ def login_local_user(payload: LoginUserIn):
                         },
                     )
 
-            patient_profile = None
-            if normalized_role == "submitter":
-                patient_profile = db.execute(
+            first_name = None
+            last_name = None
+            dob_str = None
+            gender = None
+            policy_num = None
+            sum_insured_val = None
+
+            if normalized_role in ("submitter", "patient"):
+                patient_row = db.execute(
                     text("SELECT first_name, last_name, dob, gender, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
                     {"user_id": user_row["id"]},
                 ).mappings().first()
+                if patient_row:
+                    first_name = patient_row["first_name"]
+                    last_name = patient_row["last_name"]
+                    dob_str = str(patient_row["dob"]) if patient_row["dob"] else None
+                    gender = patient_row["gender"]
+                    policy_num = patient_row["policy_number"]
+                    sum_insured_val = float(patient_row["sum_insured"]) if patient_row["sum_insured"] is not None else None
+            else:
+                staff_row = db.execute(
+                    text("SELECT first_name, last_name FROM staff_profiles WHERE user_id = :user_id"),
+                    {"user_id": user_row["id"]},
+                ).mappings().first()
+                if staff_row:
+                    first_name = staff_row["first_name"]
+                    last_name = staff_row["last_name"]
 
             db.execute(
                 text("UPDATE users SET last_login_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
@@ -1516,23 +1657,29 @@ def login_local_user(payload: LoginUserIn):
             )
             db.commit()
 
-    p_first = (patient_profile["first_name"] if patient_profile else None) or email.split("@")[0]
-    p_last = (patient_profile["last_name"] if patient_profile else "")
-    p_name = f"{p_first} {p_last}".strip() if p_first else email.split("@")[0]
+    token = create_session_jwt({
+        "sub": str(user_row["id"]),
+        "email": email,
+        "role": normalized_role,
+        "patient_id": str(user_row["id"])
+    })
 
+    resolved_name = f"{first_name or ''} {last_name or ''}".strip() or email.split("@")[0]
     return {
         "success": True,
         "user_id": str(user_row["id"]),
         "email": email,
-        "name": p_name,
-        "first_name": p_first,
-        "last_name": p_last,
-        "phone": user_row.get("phone"),
-        "dob": str(patient_profile["dob"]) if patient_profile and patient_profile["dob"] else None,
-        "gender": patient_profile["gender"] if patient_profile else None,
-        "policy_number": patient_profile["policy_number"] if patient_profile else None,
-        "sum_insured": float(patient_profile["sum_insured"]) if patient_profile and patient_profile["sum_insured"] else None,
+        "name": resolved_name,
+        "first_name": first_name,
+        "last_name": last_name,
+        "phone": user_row.get("phone") if hasattr(user_row, "get") else (user_row["phone"] if "phone" in user_row else None),
+        "dob": dob_str,
+        "gender": gender,
+        "policy_number": policy_num,
+        "sum_insured": sum_insured_val,
         "role": normalized_role,
+        "access_token": token,
+        "token": token,
         "organization": organization_name,
         "organization_slug": organization_slug,
         "message": "Login successful",
@@ -1662,6 +1809,101 @@ class SyncEntraUserIn(BaseModel):
 
 
 
+
+@router.get("/auth/profile/{user_id_or_email}", status_code=200)
+def get_user_profile(user_id_or_email: str):
+    """Fetch complete user identity and patient/staff profile by user ID, email, or external subject ID."""
+    clean_id = str(user_id_or_email).strip()
+    if not clean_id:
+        raise HTTPException(status_code=400, detail="User ID or email is required")
+
+    uid_parsed = _safe_parse_uuid(clean_id)
+
+    with force_master_session():
+        with SessionLocal() as db:
+            user = None
+            if uid_parsed:
+                user = db.execute(
+                    text("SELECT id, email, phone, external_provider, external_subject_id, status FROM users WHERE id = :uid"),
+                    {"uid": uid_parsed}
+                ).mappings().first()
+
+            if not user and "@" in clean_id:
+                user = db.execute(
+                    text("SELECT id, email, phone, external_provider, external_subject_id, status FROM users WHERE lower(email) = lower(:id)"),
+                    {"id": clean_id}
+                ).mappings().first()
+
+            if not user:
+                user = db.execute(
+                    text("SELECT id, email, phone, external_provider, external_subject_id, status FROM users WHERE external_subject_id = :id"),
+                    {"id": clean_id}
+                ).mappings().first()
+
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            u_id = user["id"]
+            email = user["email"] or ""
+
+            # 1. Fetch role
+            role_row = db.execute(
+                text("""
+                    SELECT r.name FROM roles r
+                    JOIN user_roles ur ON ur.role_id = r.id
+                    WHERE ur.user_id = :uid
+                """),
+                {"uid": u_id}
+            ).mappings().first()
+            raw_role = (role_row["name"] if role_row else "patient").lower()
+            is_org = raw_role in ("admin", "reviewer", "tpa", "organization", "org_admin", "auditor")
+            account_role = "admin" if raw_role == "admin" else ("reviewer" if raw_role in ("reviewer", "tpa", "auditor") else "submitter")
+            ui_role = "tpa" if is_org else "patient"
+
+            # 2. Check patient profile
+            patient = db.execute(
+                text("SELECT first_name, last_name, dob, gender, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
+                {"user_id": u_id}
+            ).mappings().first()
+
+            # 3. Check staff profile
+            staff = db.execute(
+                text("""
+                    SELECT sp.first_name, sp.last_name, o.name AS org_name
+                    FROM staff_profiles sp
+                    LEFT JOIN organizations o ON o.id = sp.organization_id
+                    WHERE sp.user_id = :user_id
+                """),
+                {"user_id": u_id}
+            ).mappings().first()
+
+            first_name = (staff["first_name"] if staff and staff["first_name"] else (patient["first_name"] if patient else None)) or ""
+            last_name = (staff["last_name"] if staff and staff["last_name"] else (patient["last_name"] if patient else None)) or ""
+            full_name = f"{first_name} {last_name}".strip() or email.split("@")[0]
+
+            org_name = (staff["org_name"] if staff and staff["org_name"] else None) or ("Star Health" if is_org else None)
+            org_slug = _slugify_org(org_name) if org_name else None
+
+            return {
+                "success": True,
+                "user_id": str(u_id),
+                "email": email,
+                "name": full_name,
+                "first_name": first_name,
+                "last_name": last_name,
+                "phone": user["phone"],
+                "dob": str(patient["dob"]) if patient and patient["dob"] else None,
+                "gender": patient["gender"] if patient else None,
+                "policy_number": patient["policy_number"] if patient else None,
+                "sum_insured": float(patient["sum_insured"]) if patient and patient["sum_insured"] is not None else None,
+                "role": ui_role,
+                "account_role": account_role,
+                "organization": org_name,
+                "organization_slug": org_slug,
+                "needs_onboarding": not bool(patient and patient.get("policy_number")) if not is_org else False,
+            }
+
+
 @router.post("/auth/sync-entra-user", status_code=200)
 def sync_entra_user(payload: SyncEntraUserIn):
     """Synchronize a Microsoft Entra External ID authenticated user with the database.
@@ -1683,102 +1925,20 @@ def sync_entra_user(payload: SyncEntraUserIn):
     is_org_login = role_str in ("tpa", "admin", "reviewer", "organization", "org_admin")
     subject_id = payload.external_subject_id or email
 
-    with force_master_session():
-        with SessionLocal() as db:
-            user_row = db.execute(
-                text("SELECT id, email, phone, status FROM users WHERE lower(email) = lower(:email) OR (external_provider = 'entra' AND external_subject_id = :subject_id)"),
-                {"email": email, "subject_id": subject_id or ""},
-            ).mappings().first()
+    try:
+        with force_master_session():
+            with SessionLocal() as db:
+                _ensure_tables_and_columns(db)
 
-            if is_org_login:
-                # ----------------------------------------------------
-                # Organization Flow
-                # ----------------------------------------------------
-                if user_row:
-                    if user_row["status"] in ("BLOCKED", "DELETED"):
-                        raise HTTPException(status_code=403, detail="Account is deactivated or blocked.")
+                user_row = db.execute(
+                    text("SELECT id, email, phone, status FROM users WHERE lower(email) = lower(:email) OR (external_provider = 'entra' AND external_subject_id = :subject_id)"),
+                    {"email": email, "subject_id": subject_id or ""},
+                ).mappings().first()
 
-                    user_id = user_row["id"]
-
-                    # Check if this user is actually an organization staff member
-                    actual_role_row = db.query(Role.name).join(
-                        UserRoleTable, UserRoleTable.role_id == Role.id
-                    ).filter(
-                        UserRoleTable.user_id == user_id
-                    ).order_by(Role.name).first()
-                    actual_role = actual_role_row[0] if actual_role_row else None
-
-                    staff_row = db.execute(
-                        text("""
-                            SELECT sp.id, sp.first_name, sp.last_name, sp.designation, o.name
-                            FROM staff_profiles sp
-                            JOIN organizations o ON o.id = sp.organization_id
-                            WHERE sp.user_id = :user_id
-                        """),
-                        {"user_id": user_id},
-                    ).mappings().first()
-
-                    # Strict Security Check: If registered as a patient without staff profile, DENY
-                    if actual_role == "submitter" and not staff_row:
-                        raise HTTPException(
-                            status_code=403,
-                            detail="Access denied. Your account is registered as a patient, not as organization staff.",
-                        )
-
-                    # If no staff profile is found for an existing user, deny
-                    if not staff_row:
-                        raise HTTPException(
-                            status_code=403,
-                            detail="Access denied. No active organization profile is linked to this account.",
-                        )
-
-                    org_name = staff_row["name"]
-                    org_slug = _slugify_org(org_name)
-                    staff_fname = staff_row["first_name"] or ""
-                    staff_lname = staff_row["last_name"] or ""
-
-                    db.execute(
-                        text("""
-                            UPDATE users 
-                            SET last_login_at = CURRENT_TIMESTAMP,
-                                updated_at = CURRENT_TIMESTAMP,
-                                external_provider = 'entra',
-                                external_subject_id = COALESCE(:subject_id, external_subject_id)
-                            WHERE id = :id
-                        """),
-                        {"id": user_id, "subject_id": subject_id},
-                    )
-                    db.commit()
-
-                    return {
-                        "success": True,
-                        "user_id": str(user_id),
-                        "email": email,
-                        "name": f"{staff_fname} {staff_lname}".strip() or email.split("@")[0],
-                        "first_name": staff_fname,
-                        "last_name": staff_lname,
-                        "role": "tpa",
-                        "account_role": actual_role if actual_role in ("admin", "reviewer") else "admin",
-                        "organization": org_name,
-                        "organization_slug": org_slug,
-                        "is_new_user": False,
-                        "needs_onboarding": False,
-                        "message": "Organization staff verified successfully",
-                    }
-
-                else:
+                if is_org_login:
                     # ----------------------------------------------------
-                    # NEW User: Auto-provision as Organization Admin
+                    # Organization Flow (TPA / Admin / Reviewer)
                     # ----------------------------------------------------
-                    name_parts = (payload.name or "").strip().split(" ")
-                    first_name = (payload.first_name or "").strip()
-                    last_name = (payload.last_name or "").strip()
-                    if not first_name and payload.name:
-                        first_name = name_parts[0]
-                        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
-                    if not first_name:
-                        first_name = email.split("@")[0].capitalize()
-
                     org_name = (payload.company_name or payload.organization or "").strip()
                     if not org_name:
                         domain_part = email.split("@")[-1].split(".")[0]
@@ -1789,446 +1949,407 @@ def sync_entra_user(payload: SyncEntraUserIn):
 
                     org_slug = _slugify_org(org_name)
 
-                    # 1. Ensure Organization exists
-                    org_row = db.execute(
-                        text("SELECT id, name FROM organizations WHERE lower(name) = lower(:name)"),
-                        {"name": org_name},
-                    ).mappings().first()
-
-                    if not org_row:
-                        org_id = uuid.uuid4()
-                        db.execute(
-                            text("""
-                                INSERT INTO organizations (id, name, type, status, created_at, updated_at)
-                                VALUES (:id, :name, 'TPA', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                            """),
-                            {"id": org_id, "name": org_name},
+                    # 1. Ensure Organization exists via ORM (using cast for MSSQL text column safety)
+                    org = db.query(Organization).filter(
+                        (Organization.name == org_name) |
+                        (func.lower(cast(Organization.name, String(255))) == org_name.lower())
+                    ).first()
+                    if not org:
+                        org = Organization(
+                            id=uuid.uuid4(),
+                            name=org_name,
+                            type="TPA",
+                            status="ACTIVE",
                         )
+                        db.add(org)
+                        db.flush()
+
+                    # 2. Extract name parts
+                    name_parts = (payload.name or "").strip().split(" ")
+                    first_name = (payload.first_name or "").strip()
+                    last_name = (payload.last_name or "").strip()
+                    if not first_name and payload.name:
+                        first_name = name_parts[0]
+                        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+                    if not first_name:
+                        first_name = email.split("@")[0].capitalize()
+
+                    # 3. Handle User via ORM
+                    user = db.query(User).filter(
+                        (User.email == email) |
+                        (func.lower(cast(User.email, String(255))) == email)
+                    ).first()
+                    is_new = False
+                    if not user:
+                        is_new = True
+                        user = User(
+                            id=uuid.uuid4(),
+                            email=email,
+                            phone=payload.phone,
+                            external_provider="entra",
+                            external_subject_id=subject_id,
+                            status="ACTIVE",
+                            email_verified=True,
+                        )
+                        db.add(user)
+                        db.flush()
                     else:
-                        org_id = org_row["id"]
-                        org_name = org_row["name"]
-                        org_slug = _slugify_org(org_name)
+                        if user.status in ("BLOCKED", "DELETED"):
+                            raise HTTPException(status_code=403, detail="Account is deactivated or blocked.")
+                        user.external_provider = "entra"
+                        if subject_id:
+                            user.external_subject_id = subject_id
+                        db.flush()
 
-                    # 2. Create User
-                    user_id = uuid.uuid4()
-                    db.execute(
-                        text("""
-                            INSERT INTO users (id, email, phone, external_provider, external_subject_id, status, email_verified, created_at, updated_at, last_login_at)
-                            VALUES (:id, :email, :phone, 'entra', :subject_id, 'ACTIVE', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """),
-                        {
-                            "id": user_id,
-                            "email": email,
-                            "phone": payload.phone,
-                            "subject_id": subject_id,
-                        },
-                    )
-
-                    # 3. Ensure 'admin' Role exists and is assigned
+                    # 4. Ensure 'admin' Role exists and is assigned
                     admin_role = db.query(Role).filter(Role.name == "admin").first()
                     if not admin_role:
                         admin_role = Role(id=uuid.uuid4(), name="admin", description="Full system access")
                         db.add(admin_role)
                         db.flush()
 
-                    _assign_user_role(db, user_id, admin_role.id)
+                    _assign_user_role(db, user.id, admin_role.id)
 
-                    # 4. Create staff_profiles record
-                    db.execute(
-                        text("""
-                            INSERT INTO staff_profiles (id, user_id, organization_id, first_name, last_name, employee_id, designation, department, status, created_at, updated_at)
-                            VALUES (:id, :user_id, :org_id, :first_name, :last_name, :employee_id, 'Administrator', 'Operations', 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """),
-                        {
+                    # 5. Handle StaffProfile dynamically matching whatever columns exist
+                    existing_cols = {
+                        r[0].lower()
+                        for r in db.execute(
+                            text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE LOWER(TABLE_NAME) = 'staff_profiles'")
+                        ).fetchall()
+                    }
+
+                    # Auto-add any missing essential columns
+                    for col, col_def in [
+                        ("first_name", "NVARCHAR(MAX)"),
+                        ("last_name", "NVARCHAR(MAX)"),
+                        ("role", "NVARCHAR(50)"),
+                        ("designation", "NVARCHAR(255)"),
+                        ("status", "NVARCHAR(50)"),
+                        ("organization_id", "UNIQUEIDENTIFIER"),
+                    ]:
+                        if existing_cols and col not in existing_cols:
+                            try:
+                                db.execute(text(f"ALTER TABLE staff_profiles ADD {col} {col_def} NULL"))
+                                db.commit()
+                                existing_cols.add(col)
+                            except Exception as e:
+                                db.rollback()
+                                logger.warning(f"Could not add column {col} to staff_profiles: {e}")
+
+                    staff_row = None
+                    try:
+                        staff_row = db.execute(
+                            text("SELECT id, organization_id, first_name, last_name FROM staff_profiles WHERE user_id = :uid"),
+                            {"uid": user.id}
+                        ).mappings().first()
+                    except Exception:
+                        try:
+                            staff_row = db.execute(
+                                text("SELECT id, organization_id FROM staff_profiles WHERE user_id = :uid"),
+                                {"uid": user.id}
+                            ).mappings().first()
+                        except Exception:
+                            staff_row = None
+
+                    if not staff_row:
+                        full_insert_data = {
                             "id": uuid.uuid4(),
-                            "user_id": user_id,
-                            "org_id": org_id,
+                            "user_id": user.id,
+                            "organization_id": org.id,
                             "first_name": first_name,
                             "last_name": last_name or "",
+                            "role": "admin",
+                            "is_admin": 1,
+                            "is_active": 1,
+                            "designation": "Administrator",
+                            "department": "Operations",
                             "employee_id": f"EMP-{str(uuid.uuid4())[:8].upper()}",
-                        },
-                    )
+                            "status": "ACTIVE",
+                        }
+                        if existing_cols:
+                            insert_data = {k: v for k, v in full_insert_data.items() if k in existing_cols}
+                        else:
+                            insert_data = {
+                                "id": full_insert_data["id"],
+                                "user_id": full_insert_data["user_id"],
+                                "organization_id": full_insert_data["organization_id"],
+                                "first_name": full_insert_data["first_name"],
+                                "last_name": full_insert_data["last_name"],
+                                "role": "admin",
+                                "is_admin": 1,
+                                "status": "ACTIVE",
+                            }
+
+                        col_names = ", ".join(insert_data.keys())
+                        placeholders = ", ".join(f":{k}" for k in insert_data.keys())
+                        db.execute(
+                            text(f"INSERT INTO staff_profiles ({col_names}) VALUES ({placeholders})"),
+                            insert_data
+                        )
+                        staff_fname = first_name
+                        staff_lname = last_name or ""
+                    else:
+                        staff_fname = (staff_row.get("first_name") if "first_name" in staff_row else None) or first_name or ""
+                        staff_lname = (staff_row.get("last_name") if "last_name" in staff_row else None) or last_name or ""
+                        if first_name and "first_name" in (existing_cols or ["first_name"]) and not staff_row.get("first_name"):
+                            try:
+                                db.execute(
+                                    text("UPDATE staff_profiles SET first_name = :fn WHERE user_id = :uid"),
+                                    {"fn": first_name, "uid": user.id}
+                                )
+                            except Exception:
+                                pass
+                            staff_fname = first_name
+                        if last_name and "last_name" in (existing_cols or ["last_name"]) and not staff_row.get("last_name"):
+                            try:
+                                db.execute(
+                                    text("UPDATE staff_profiles SET last_name = :ln WHERE user_id = :uid"),
+                                    {"ln": last_name, "uid": user.id}
+                                )
+                            except Exception:
+                                pass
+                            staff_lname = last_name
+
+                        org_id_val = staff_row.get("organization_id")
+                        if org_id_val:
+                            existing_org = db.query(Organization).filter(Organization.id == org_id_val).first()
+                            if existing_org:
+                                org_name = existing_org.name
+                                org_slug = _slugify_org(org_name)
+
                     db.commit()
 
-                    # Trigger asynchronous welcome notification
-                    try:
-                        from services.shared_tasks import dispatch_notification_async
-                        dispatch_notification_async(
-                            "USER_WELCOME",
-                            {
-                                "email": email,
-                                "name": f"{first_name} {last_name}".strip(),
-                                "phone": payload.phone,
-                            },
-                        )
-                    except Exception as notify_err:
-                        logger.warning(f"Failed to dispatch welcome notification: {notify_err}")
+                    full_name = f"{staff_fname} {staff_lname}".strip() or email.split("@")[0]
 
                     return {
                         "success": True,
-                        "user_id": str(user_id),
+                        "user_id": str(user.id),
                         "email": email,
-                        "name": f"{first_name} {last_name}".strip() or email.split("@")[0],
-                        "first_name": first_name,
-                        "last_name": last_name,
+                        "name": full_name,
+                        "first_name": staff_fname,
+                        "last_name": staff_lname,
                         "role": "tpa",
                         "account_role": "admin",
                         "organization": org_name,
                         "organization_slug": org_slug,
-                        "is_new_user": True,
+                        "is_new_user": is_new,
                         "needs_onboarding": False,
-                        "message": "Organization admin auto-provisioned successfully",
+                        "message": "Organization admin synchronized successfully",
                     }
 
-            else:
-                # ----------------------------------------------------
-                # Patient Flow
-                # ----------------------------------------------------
-                name_parts = (payload.name or "").strip().split(" ")
-                first_name = name_parts[0] if name_parts and name_parts[0] else email.split("@")[0]
-                last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
+                else:
+                    # ----------------------------------------------------
+                    # Patient Flow
+                    # ----------------------------------------------------
+                    name_parts = (payload.name or "").strip().split(" ")
+                    first_name = name_parts[0] if name_parts and name_parts[0] else email.split("@")[0]
+                    last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
 
-                if user_row:
-                    user_id = user_row["id"]
+                    if user_row:
+                        user_id = user_row["id"]
 
-                    # Check role
-                    actual_role_row = db.query(Role.name).join(
-                        UserRoleTable, UserRoleTable.role_id == Role.id
-                    ).filter(
-                        UserRoleTable.user_id == user_id
-                    ).order_by(Role.name).first()
-                    actual_role = actual_role_row[0] if actual_role_row else "submitter"
+                        # Check role
+                        actual_role_row = db.query(Role.name).join(
+                            UserRoleTable, UserRoleTable.role_id == Role.id
+                        ).filter(
+                            UserRoleTable.user_id == user_id
+                        ).order_by(Role.name).first()
+                        actual_role = actual_role_row[0] if actual_role_row else "submitter"
 
-                    if actual_role in ("admin", "reviewer"):
-                        raise HTTPException(
-                            status_code=403,
-                            detail="Account is registered as organization staff. Please sign in via 'Continue as Organization'.",
-                        )
-
-                    # Check patient profile
-                    profile_row = db.execute(
-                        text("SELECT id, first_name, last_name, dob, gender, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
-                        {"user_id": user_id},
-                    ).mappings().first()
-
-                    # If incoming payload provides onboarding info, update the profile immediately
-                    if payload.policy or payload.dob or payload.gender or payload.sum_insured or payload.first_name:
-                        sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else None
-                        if profile_row:
-                            db.execute(
-                                text("""
-                                    UPDATE patient_profiles
-                                    SET first_name = COALESCE(:first_name, first_name),
-                                        last_name = COALESCE(:last_name, last_name),
-                                        dob = COALESCE(:dob, dob),
-                                        gender = COALESCE(:gender, gender),
-                                        policy_number = COALESCE(:policy_number, policy_number),
-                                        sum_insured = COALESCE(:sum_insured, sum_insured),
-                                        coverage_verified = 1,
-                                        updated_at = CURRENT_TIMESTAMP
-                                    WHERE user_id = :user_id
-                                """),
-                                {
-                                    "user_id": user_id,
-                                    "first_name": payload.first_name or None,
-                                    "last_name": payload.last_name or None,
-                                    "dob": payload.dob or None,
-                                    "gender": payload.gender or None,
-                                    "policy_number": payload.policy or None,
-                                    "sum_insured": sum_val,
-                                },
+                        if actual_role in ("admin", "reviewer"):
+                            raise HTTPException(
+                                status_code=403,
+                                detail="Account is registered as organization staff. Please sign in via 'Continue as Organization'.",
                             )
-                        else:
-                            db.execute(
-                                text("""
-                                    INSERT INTO patient_profiles (id, user_id, first_name, last_name, dob, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
-                                    VALUES (:id, :user_id, :first_name, :last_name, :dob, :gender, :policy_number, :sum_insured, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                                """),
-                                {
-                                    "id": uuid.uuid4(),
-                                    "user_id": user_id,
-                                    "first_name": first_name,
-                                    "last_name": last_name or "",
-                                    "dob": payload.dob or None,
-                                    "gender": payload.gender or None,
-                                    "policy_number": payload.policy or "POL-DEFAULT",
-                                    "sum_insured": sum_val or 500000.0,
-                                },
-                            )
-                        # Reload profile after update
+
+                        # Check patient profile
                         profile_row = db.execute(
-                            text("SELECT id, first_name, last_name, dob, gender, policy_number, sum_insured FROM patient_profiles WHERE user_id = :user_id"),
+                            text("SELECT * FROM patient_profiles WHERE user_id = :user_id"),
                             {"user_id": user_id},
                         ).mappings().first()
-                        needs_onboarding = False
-                    else:
-                        needs_onboarding = not bool(profile_row and profile_row["policy_number"])
 
-                    db.execute(
-                        text("""
-                            UPDATE users 
-                            SET last_login_at = CURRENT_TIMESTAMP,
-                                updated_at = CURRENT_TIMESTAMP,
-                                external_provider = 'entra',
-                                external_subject_id = COALESCE(:subject_id, external_subject_id)
-                            WHERE id = :id
-                        """),
-                        {"id": user_id, "subject_id": subject_id},
-                    )
-                    db.commit()
+                        # If incoming payload provides onboarding info, update the profile immediately
+                        if payload.policy or payload.dob or payload.gender or payload.sum_insured or payload.first_name:
+                            sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else None
+                            if profile_row:
+                                db.execute(
+                                    text("""
+                                        UPDATE patient_profiles
+                                        SET first_name = COALESCE(:first_name, first_name),
+                                            last_name = COALESCE(:last_name, last_name),
+                                            gender = COALESCE(:gender, gender),
+                                            policy_number = COALESCE(:policy_number, policy_number),
+                                            sum_insured = COALESCE(:sum_insured, sum_insured),
+                                            coverage_verified = 1,
+                                            updated_at = CURRENT_TIMESTAMP
+                                        WHERE user_id = :user_id
+                                    """),
+                                    {
+                                        "user_id": user_id,
+                                        "first_name": payload.first_name or None,
+                                        "last_name": payload.last_name or None,
+                                        "gender": payload.gender or None,
+                                        "policy_number": payload.policy or None,
+                                        "sum_insured": sum_val,
+                                    },
+                                )
+                            else:
+                                db.execute(
+                                    text("""
+                                        INSERT INTO patient_profiles (id, user_id, first_name, last_name, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
+                                        VALUES (:id, :user_id, :first_name, :last_name, :gender, :policy_number, :sum_insured, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                                    """),
+                                    {
+                                        "id": uuid.uuid4(),
+                                        "user_id": user_id,
+                                        "first_name": first_name,
+                                        "last_name": last_name or "",
+                                        "gender": payload.gender or None,
+                                        "policy_number": payload.policy or "POL-DEFAULT",
+                                        "sum_insured": sum_val or 500000.0,
+                                    },
+                                )
+                            needs_onboarding = False
+                            profile_row = db.execute(
+                                text("SELECT * FROM patient_profiles WHERE user_id = :user_id"),
+                                {"user_id": user_id},
+                            ).mappings().first()
+                        else:
+                            needs_onboarding = not bool(profile_row and profile_row.get("policy_number"))
 
-                    p_fname = (profile_row["first_name"] if profile_row else None) or first_name
-                    p_lname = (profile_row["last_name"] if profile_row else None) or last_name
-
-                    return {
-                        "success": True,
-                        "user_id": str(user_id),
-                        "email": email,
-                        "name": f"{p_fname} {p_lname}".strip() or email.split("@")[0],
-                        "first_name": p_fname,
-                        "last_name": p_lname,
-                        "phone": (user_row["phone"] if user_row and user_row.get("phone") else None) or payload.phone,
-                        "dob": str(profile_row["dob"]) if profile_row and profile_row.get("dob") else None,
-                        "gender": profile_row["gender"] if profile_row else None,
-                        "policy_number": profile_row["policy_number"] if profile_row else None,
-                        "sum_insured": float(profile_row["sum_insured"]) if profile_row and profile_row.get("sum_insured") else None,
-                        "role": "patient",
-                        "account_role": "submitter",
-                        "is_new_user": False,
-                        "needs_onboarding": needs_onboarding,
-                        "message": "Patient authenticated successfully",
-                    }
-                else:
-                    # New Patient self-registration from Entra
-                    new_user_id = uuid.uuid4()
-                    db.execute(
-                        text("""
-                            INSERT INTO users (id, email, phone, external_provider, external_subject_id, status, email_verified, created_at, updated_at, last_login_at)
-                            VALUES (:id, :email, :phone, 'entra', :subject_id, 'ACTIVE', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """),
-                        {
-                            "id": new_user_id,
-                            "email": email,
-                            "phone": payload.phone or None,
-                            "subject_id": subject_id,
-                        },
-                    )
-
-                    # Ensure submitter role exists and assign it
-                    role_row = db.execute(
-                        text("SELECT id FROM roles WHERE name = 'submitter'"),
-                    ).mappings().first()
-
-                    if not role_row:
-                        role_id = uuid.uuid4()
                         db.execute(
-                            text("INSERT INTO roles (id, name, description, created_at) VALUES (:id, 'submitter', 'Patient submitter role', CURRENT_TIMESTAMP)"),
-                            {"id": role_id},
+                            text("""
+                                UPDATE users 
+                                SET last_login_at = CURRENT_TIMESTAMP,
+                                    updated_at = CURRENT_TIMESTAMP,
+                                    external_provider = 'entra',
+                                    external_subject_id = COALESCE(:subject_id, external_subject_id)
+                                WHERE id = :id
+                            """),
+                            {"id": user_id, "subject_id": subject_id},
                         )
+                        db.commit()
+
+                        p_fname = (profile_row.get("first_name") if profile_row else None) or first_name
+                        p_lname = (profile_row.get("last_name") if profile_row else None) or last_name
+                        p_dob = str(profile_row["dob"]) if profile_row and profile_row.get("dob") else None
+                        p_gender = profile_row.get("gender") if profile_row else None
+                        p_policy = profile_row.get("policy_number") if profile_row else None
+                        p_sum = float(profile_row["sum_insured"]) if profile_row and profile_row.get("sum_insured") is not None else None
+
+                        return {
+                            "success": True,
+                            "user_id": str(user_id),
+                            "email": email,
+                            "name": f"{p_fname} {p_lname}".strip() or email.split("@")[0],
+                            "first_name": p_fname,
+                            "last_name": p_lname,
+                            "phone": (user_row.get("phone") if user_row else None) or payload.phone,
+                            "dob": p_dob,
+                            "gender": p_gender,
+                            "policy_number": p_policy,
+                            "sum_insured": p_sum,
+                            "role": "patient",
+                            "account_role": "submitter",
+                            "is_new_user": False,
+                            "needs_onboarding": needs_onboarding,
+                            "message": "Patient authenticated successfully",
+                        }
                     else:
-                        role_id = role_row["id"]
+                        # New Patient self-registration from Entra
+                        new_user_id = uuid.uuid4()
+                        db.execute(
+                            text("""
+                                INSERT INTO users (id, email, phone, external_provider, external_subject_id, status, email_verified, created_at, updated_at, last_login_at)
+                                VALUES (:id, :email, :phone, 'entra', :subject_id, 'ACTIVE', 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            """),
+                            {
+                                "id": new_user_id,
+                                "email": email,
+                                "phone": payload.phone or None,
+                                "subject_id": subject_id,
+                            },
+                        )
 
-                    _assign_user_role(db, new_user_id, role_id)
+                        # Ensure submitter role exists and assign it
+                        role_row = db.execute(
+                            text("SELECT id FROM roles WHERE name = 'submitter'"),
+                        ).mappings().first()
 
-                    sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else None
-                    has_policy = bool(payload.policy)
+                        if not role_row:
+                            role_id = uuid.uuid4()
+                            db.execute(
+                                text("INSERT INTO roles (id, name, description, created_at) VALUES (:id, 'submitter', 'Patient submitter role', CURRENT_TIMESTAMP)"),
+                                {"id": role_id},
+                            )
+                        else:
+                            role_id = role_row["id"]
 
-                    # Create initial patient profile
-                    db.execute(
-                        text("""
-                            INSERT INTO patient_profiles (id, user_id, first_name, last_name, dob, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
-                            VALUES (:id, :user_id, :first_name, :last_name, :dob, :gender, :policy_number, :sum_insured, :coverage_verified, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                        """),
-                        {
-                            "id": uuid.uuid4(),
-                            "user_id": new_user_id,
+                        _assign_user_role(db, new_user_id, role_id)
+
+                        sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else None
+                        has_policy = bool(payload.policy)
+
+                        # Create initial patient profile
+                        db.execute(
+                            text("""
+                                INSERT INTO patient_profiles (id, user_id, first_name, last_name, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
+                                VALUES (:id, :user_id, :first_name, :last_name, :gender, :policy_number, :sum_insured, :coverage_verified, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                            """),
+                            {
+                                "id": uuid.uuid4(),
+                                "user_id": new_user_id,
+                                "first_name": first_name,
+                                "last_name": last_name or "",
+                                "gender": payload.gender or None,
+                                "policy_number": payload.policy or None,
+                                "sum_insured": sum_val,
+                                "coverage_verified": 1 if has_policy else 0,
+                            },
+                        )
+
+                        db.commit()
+
+                        # Trigger asynchronous welcome notification
+                        try:
+                            from services.shared_tasks import dispatch_notification_async
+                            dispatch_notification_async(
+                                "USER_WELCOME",
+                                {
+                                    "email": email,
+                                    "name": f"{first_name} {last_name}".strip(),
+                                    "phone": payload.phone,
+                                },
+                            )
+                        except Exception as notify_err:
+                            logger.warning(f"Failed to dispatch welcome notification: {notify_err}")
+
+                        return {
+                            "success": True,
+                            "user_id": str(new_user_id),
+                            "email": email,
+                            "name": f"{first_name} {last_name}".strip() or email.split("@")[0],
                             "first_name": first_name,
-                            "last_name": last_name or "",
-                            "dob": payload.dob or None,
+                            "last_name": last_name,
+                            "phone": payload.phone or None,
+                            "dob": str(payload.dob) if payload.dob else None,
                             "gender": payload.gender or None,
                             "policy_number": payload.policy or None,
                             "sum_insured": sum_val,
-                            "coverage_verified": 1 if has_policy else 0,
-                        },
-                    )
-
-                    db.commit()
-
-                    # Trigger asynchronous welcome notification
-                    try:
-                        from services.shared_tasks import dispatch_notification_async
-                        dispatch_notification_async(
-                            "USER_WELCOME",
-                            {
-                                "email": email,
-                                "name": f"{first_name} {last_name}".strip(),
-                                "phone": payload.phone,
-                            },
-                        )
-                    except Exception as notify_err:
-                        logger.warning(f"Failed to dispatch welcome notification: {notify_err}")
-
-                    return {
-                        "success": True,
-                        "user_id": str(new_user_id),
-                        "email": email,
-                        "name": f"{first_name} {last_name}".strip() or email.split("@")[0],
-                        "first_name": first_name,
-                        "last_name": last_name,
-                        "phone": payload.phone or None,
-                        "dob": str(payload.dob) if payload.dob else None,
-                        "gender": payload.gender or None,
-                        "policy_number": payload.policy or None,
-                        "sum_insured": sum_val,
-                        "role": "patient",
-                        "account_role": "submitter",
-                        "is_new_user": True,
-                        "needs_onboarding": not has_policy,
-                        "message": "New patient registered in database successfully",
-                    }
+                            "role": "patient",
+                            "account_role": "submitter",
+                            "is_new_user": True,
+                            "needs_onboarding": not has_policy,
+                            "message": "New patient registered in database successfully",
+                        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error during sync_entra_user: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Database synchronization error: {str(exc)}")
 
 
-class RegisterUserIn(BaseModel):
-    username: str
-    password: str | None = None
-    password_hash: str | None = None
-    role: str = "submitter"
-    first_name: str | None = None
-    last_name: str | None = None
-    phone: str | None = None
-    organization: str | None = None
-    employee_id: str | None = None
-    dob: str | None = None
-    gender: str | None = None
-    policy: str | None = None
-    sum_insured: float | str | None = None
-    provider: str = "local"
 
-
-@router.post("/auth/register", status_code=200)
-def register_user_profile(payload: RegisterUserIn):
-    """Complete registration and store patient/staff profile into database."""
-    email = str(payload.username).strip().lower()
-    if not email:
-        raise HTTPException(status_code=400, detail="Email is required")
-
-    pwd = payload.password_hash or payload.password or None
-
-    with force_master_session():
-        with SessionLocal() as db:
-            user_row = db.execute(
-                text("SELECT id FROM users WHERE lower(email) = lower(:email)"),
-                {"email": email},
-            ).mappings().first()
-
-            if user_row:
-                user_id = user_row["id"]
-                db.execute(
-                    text("UPDATE users SET status = 'ACTIVE', updated_at = CURRENT_TIMESTAMP WHERE id = :id"),
-                    {"id": user_id},
-                )
-            else:
-                user_id = uuid.uuid4()
-                db.execute(
-                    text("""
-                        INSERT INTO users (id, email, phone, external_provider, external_subject_id, status, email_verified, password_hash, created_at, updated_at)
-                        VALUES (:id, :email, :phone, :provider, :email, 'ACTIVE', 1, :pwd, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    """),
-                    {
-                        "id": user_id,
-                        "email": email,
-                        "phone": payload.phone or None,
-                        "provider": payload.provider or "local",
-                        "pwd": pwd,
-                    },
-                )
-
-                role_name = "admin" if payload.role in ("admin", "tpa") else "submitter"
-                role_row = db.execute(
-                    text("SELECT id FROM roles WHERE name = :rname"),
-                    {"rname": role_name},
-                ).mappings().first()
-
-                if not role_row:
-                    r_id = uuid.uuid4()
-                    db.execute(
-                        text("INSERT INTO roles (id, name, description, created_at) VALUES (:id, :name, 'Role', CURRENT_TIMESTAMP)"),
-                        {"id": r_id, "name": role_name},
-                    )
-                else:
-                    r_id = role_row["id"]
-
-                _assign_user_role(db, user_id, r_id)
-
-            # Insert or update patient profile
-            sum_val = float(str(payload.sum_insured).replace(",", "").strip()) if payload.sum_insured else 500000.0
-            prof_row = db.execute(
-                text("SELECT id FROM patient_profiles WHERE user_id = :user_id"),
-                {"user_id": user_id},
-            ).mappings().first()
-
-            if prof_row:
-                db.execute(
-                    text("""
-                        UPDATE patient_profiles
-                        SET first_name = COALESCE(:first_name, first_name),
-                            last_name = COALESCE(:last_name, last_name),
-                            gender = COALESCE(:gender, gender),
-                            policy_number = COALESCE(:policy_number, policy_number),
-                            sum_insured = COALESCE(:sum_insured, sum_insured),
-                            coverage_verified = 1,
-                            updated_at = CURRENT_TIMESTAMP
-                        WHERE user_id = :user_id
-                    """),
-                    {
-                        "user_id": user_id,
-                        "first_name": payload.first_name or "Patient",
-                        "last_name": payload.last_name or "",
-                        "gender": payload.gender or "Male",
-                        "policy_number": payload.policy or "POL-DEFAULT",
-                        "sum_insured": sum_val,
-                    },
-                )
-            else:
-                db.execute(
-                    text("""
-                        INSERT INTO patient_profiles (id, user_id, first_name, last_name, gender, policy_number, sum_insured, coverage_verified, created_at, updated_at)
-                        VALUES (:id, :user_id, :first_name, :last_name, :gender, :policy_number, :sum_insured, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                    """),
-                    {
-                        "id": uuid.uuid4(),
-                        "user_id": user_id,
-                        "first_name": payload.first_name or "Patient",
-                        "last_name": payload.last_name or "",
-                        "gender": payload.gender or "Male",
-                        "policy_number": payload.policy or "POL-DEFAULT",
-                        "sum_insured": sum_val,
-                    },
-                )
-
-            db.commit()
-
-            # Trigger asynchronous welcome notification
-            try:
-                from services.shared_tasks import dispatch_notification_async
-                dispatch_notification_async(
-                    "USER_WELCOME",
-                    {
-                        "email": email,
-                        "name": f"{payload.first_name or 'Patient'} {payload.last_name or ''}".strip(),
-                        "phone": payload.phone,
-                    },
-                )
-            except Exception as notify_err:
-                logger.warning(f"Failed to dispatch welcome notification: {notify_err}")
-
-            return {
-                "success": True,
-                "user_id": str(user_id),
-                "email": email,
-                "needs_onboarding": False,
-                "message": "User and profile saved successfully",
-            }
 
 
 # ------------------------------------------------------------------ TPA registration
@@ -2400,29 +2521,7 @@ def health():
     return {"status": status, "database": "up" if db_ok else "down"}
 
 
-@router.post("/auth/login")
-@router.post("/auth/register")
-def authenticate_or_register_user(data: dict[str, Any] = Body(...), db: Session = Depends(get_db)):
-    username = data.get("username") or data.get("name") or data.get("email", "Swagath")
-    if isinstance(username, str) and "@" in username:
-        username = username.split("@")[0]
-    username = str(username).strip().capitalize()
-    
-    email = data.get("email") or f"{username.lower()}@example.com"
-    role = data.get("role", "patient")
-    
-    _audit(db, "USER_LOGIN_OR_REGISTER", metadata={"username": username, "email": email, "role": role})
-    logger.info("User registered/authenticated in Docker backend: %s (%s)", username, email)
-    return {
-        "status": "success",
-        "message": f"Account {username} initialized in backend",
-        "user": {
-            "name": username,
-            "email": email,
-            "role": role,
-            "account_id": f"ACC-{username.upper()}-2026"
-        }
-    }
+
 
 
 @router.get("/claims/upload-token", dependencies=[Depends(RateLimiter(limit=10, window_seconds=60))])
@@ -2515,6 +2614,256 @@ def _delete_claim_internal(db: Session, cid: uuid.UUID) -> bool:
     return True
 
 
+def _delete_entra_user(external_subject_id: str | None, email: str | None) -> dict:
+    """Delete user from Microsoft Entra External ID (CIAM) using Microsoft Graph API.
+    
+    Supports:
+    - Native Entra accounts (email/password)
+    - Google social federation connector accounts in Entra
+    
+    Attempts deletion using Microsoft Graph API with tenant client credentials.
+    """
+    tenant_id = os.getenv("ENTRA_TENANT_ID") or os.getenv("NEXT_PUBLIC_ENTRA_TENANT_ID") or "25677056-693e-49e6-b2e1-03b7ff8db968"
+    client_id = os.getenv("ENTRA_CLIENT_ID") or os.getenv("NEXT_PUBLIC_ENTRA_CLIENT_ID") or os.getenv("ENTRA_PATIENT_CLIENT_ID") or "a8f6345e-0a65-433e-aa0a-ded94e8cf696"
+    client_secret = os.getenv("ENTRA_CLIENT_SECRET") or os.getenv("AZURE_CLIENT_SECRET") or os.getenv("ENTRA_APP_SECRET")
+    subdomain = os.getenv("ENTRA_SUBDOMAIN") or os.getenv("NEXT_PUBLIC_ENTRA_SUBDOMAIN") or "claimsguru"
+
+    clean_email = (email or "").strip().lower()
+    subject_id = (external_subject_id or "").strip()
+
+    if not client_secret:
+        logger.info(
+            f"[Entra Deletion] ENTRA_CLIENT_SECRET not configured in environment. Skipping Microsoft Graph API call for user {clean_email or subject_id}."
+        )
+        return {
+            "attempted": False,
+            "success": True,
+            "reason": "ENTRA_CLIENT_SECRET not configured in environment.",
+        }
+
+    import json
+    import urllib.request
+    import urllib.error
+    import urllib.parse
+
+    token_url_candidates = [
+        f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token",
+        f"https://{subdomain}.ciamlogin.com/{tenant_id}/v2.0",
+    ]
+
+    graph_token = None
+    for token_url in token_url_candidates:
+        try:
+            token_data = urllib.parse.urlencode({
+                "grant_type": "client_credentials",
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "scope": "https://graph.microsoft.com/.default",
+            }).encode("utf-8")
+
+            req = urllib.request.Request(
+                token_url,
+                data=token_data,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                method="POST"
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status in (200, 201):
+                    body = json.loads(resp.read().decode("utf-8"))
+                    graph_token = body.get("access_token")
+                    if graph_token:
+                        break
+        except Exception as te:
+            logger.warning(f"[Entra Deletion] Token request failed at {token_url}: {te}")
+
+    if not graph_token:
+        logger.warning(f"[Entra Deletion] Could not obtain Microsoft Graph API token for tenant {tenant_id}")
+        return {
+            "attempted": True,
+            "success": False,
+            "error": "Could not authenticate with Microsoft Graph API",
+        }
+
+    # Resolve target Entra user Object IDs
+    target_user_ids = []
+    if subject_id and ("@" not in subject_id):
+        target_user_ids.append(subject_id)
+
+    if clean_email:
+        try:
+            filter_query = urllib.parse.quote(
+                f"mail eq '{clean_email}' or userPrincipalName eq '{clean_email}'"
+            )
+            search_url = f"https://graph.microsoft.com/v1.0/users?$filter={filter_query}&$select=id,mail,userPrincipalName"
+            req = urllib.request.Request(
+                search_url,
+                headers={"Authorization": f"Bearer {graph_token}", "Accept": "application/json"},
+                method="GET"
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                for u in data.get("value", []):
+                    uid = u.get("id")
+                    if uid and uid not in target_user_ids:
+                        target_user_ids.append(uid)
+        except Exception as se:
+            logger.warning(f"[Entra Deletion] User lookup by email failed: {se}")
+
+    if not target_user_ids and clean_email:
+        target_user_ids.append(clean_email)
+
+    deleted_any = False
+    for uid in target_user_ids:
+        try:
+            del_url = f"https://graph.microsoft.com/v1.0/users/{urllib.parse.quote(uid)}"
+            req = urllib.request.Request(
+                del_url,
+                headers={"Authorization": f"Bearer {graph_token}"},
+                method="DELETE"
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                if resp.status in (204, 200):
+                    logger.info(f"[Entra Deletion] Successfully deleted Entra user {uid}")
+                    deleted_any = True
+        except urllib.error.HTTPError as he:
+            if he.code == 404:
+                logger.info(f"[Entra Deletion] User {uid} already deleted or not found in Entra (404)")
+                deleted_any = True
+            else:
+                logger.warning(f"[Entra Deletion] Graph DELETE returned {he.code}: {he.read().decode('utf-8', errors='ignore')}")
+        except Exception as de:
+            logger.warning(f"[Entra Deletion] Graph DELETE failed for {uid}: {de}")
+
+    return {
+        "attempted": True,
+        "success": deleted_any,
+        "target_ids": target_user_ids,
+    }
+
+
+class DeleteAccountIn(BaseModel):
+    user_id: str | None = None
+    email: str | None = None
+
+
+@router.post("/auth/delete-account", status_code=200)
+@router.post("/ingress/auth/delete-account", status_code=200)
+@router.delete("/auth/delete-account", status_code=200)
+@router.delete("/ingress/auth/delete-account", status_code=200)
+@router.delete("/auth/users/{user_id_or_email}", status_code=200)
+@router.delete("/ingress/auth/users/{user_id_or_email}", status_code=200)
+def delete_user_account(
+    payload: DeleteAccountIn | None = None,
+    user_id_or_email: str | None = None,
+    auth_user: AuthUser = Depends(get_current_user_context),
+    db: Session = Depends(get_db)
+):
+    """Permanently delete user record, patient profile, claims, and Microsoft Entra identity.
+    
+    Supports:
+    - Microsoft Entra native email/password accounts
+    - Microsoft Entra Google social federation connector accounts
+    - Local DB patient records, profile, user roles & claims
+    """
+    clean_uid = (
+        (payload.user_id if payload else None) or
+        (user_id_or_email if user_id_or_email and "@" not in user_id_or_email else None) or
+        auth_user.user_id or
+        auth_user.patient_id
+    )
+    clean_email = (
+        (payload.email if payload else None) or
+        (user_id_or_email if user_id_or_email and "@" in user_id_or_email else None) or
+        auth_user.email
+    )
+
+    if clean_email:
+        clean_email = clean_email.strip().lower()
+
+    if not clean_uid and not clean_email:
+        raise HTTPException(status_code=400, detail="User ID or Email is required for account deletion.")
+
+    with force_master_session():
+        # 1. Locate user in users table
+        user_row = None
+        if clean_uid:
+            try:
+                parsed_uuid = uuid.UUID(str(clean_uid).strip())
+                user_row = db.execute(
+                    text("SELECT id, email, external_provider, external_subject_id FROM users WHERE id = :id"),
+                    {"id": parsed_uuid}
+                ).mappings().first()
+            except (ValueError, TypeError):
+                pass
+
+        if not user_row and clean_email:
+            user_row = db.execute(
+                text("SELECT id, email, external_provider, external_subject_id FROM users WHERE lower(email) = lower(:email)"),
+                {"email": clean_email}
+            ).mappings().first()
+
+        actual_uid = user_row["id"] if user_row else (uuid.UUID(str(clean_uid).strip()) if clean_uid and len(str(clean_uid).strip()) == 36 else None)
+        target_email = (user_row["email"] if user_row else None) or clean_email
+        external_subject_id = (user_row["external_subject_id"] if user_row else None) or clean_uid
+
+        # 2. Delete user in Microsoft Entra External ID (CIAM)
+        entra_res = _delete_entra_user(external_subject_id, target_email)
+
+        # 3. Delete claims & documents associated with user/patient
+        patient_row = None
+        if actual_uid:
+            patient_row = db.execute(
+                text("SELECT id FROM patient_profiles WHERE user_id = :uid"),
+                {"uid": actual_uid}
+            ).mappings().first()
+
+        patient_profile_id = str(patient_row["id"]) if patient_row else None
+
+        # Gather all related claims
+        claim_ids_to_delete = set()
+        if actual_uid:
+            c_rows = db.execute(
+                text("SELECT id FROM claims WHERE patient_id = :pid OR patient_id = :pemail"),
+                {"pid": str(actual_uid), "pemail": target_email or ""}
+            ).mappings().all()
+            for r in c_rows:
+                claim_ids_to_delete.add(r["id"])
+
+        if patient_profile_id:
+            c_rows = db.execute(
+                text("SELECT id FROM claims WHERE patient_id = :ppid"),
+                {"ppid": patient_profile_id}
+            ).mappings().all()
+            for r in c_rows:
+                claim_ids_to_delete.add(r["id"])
+
+        for cid in claim_ids_to_delete:
+            try:
+                _delete_claim_internal(db, cid)
+            except Exception as ce:
+                logger.warning(f"Error deleting claim {cid} during account deletion: {ce}")
+
+        # 4. Delete patient profile, staff profile, user roles, and users record
+        if actual_uid:
+            db.execute(text("DELETE FROM patient_profiles WHERE user_id = :uid"), {"uid": actual_uid})
+            db.execute(text("DELETE FROM staff_profiles WHERE user_id = :uid"), {"uid": actual_uid})
+            db.execute(text("DELETE FROM user_roles WHERE user_id = :uid"), {"uid": actual_uid})
+            db.execute(text("DELETE FROM users WHERE id = :uid"), {"uid": actual_uid})
+
+        if target_email:
+            db.execute(text("DELETE FROM users WHERE lower(email) = lower(:email)"), {"email": target_email})
+
+        db.commit()
+
+        logger.info(f"Account permanently deleted for user {target_email or actual_uid}")
+
+        return {
+            "success": True,
+            "message": "Account, profile data, claims, and Microsoft Entra identity permanently deleted.",
+            "entra": entra_res,
+        }
+
+
 @router.post("/claims", status_code=202)
 @router.post("/claims/", status_code=202)
 async def create_claim(
@@ -2524,6 +2873,7 @@ async def create_claim(
     email: str = Form(None),
     storage_paths: list[str] = Form(None),
     force: bool = Form(False),
+    auth_user: AuthUser = Depends(get_current_user_context),
     db: Session = Depends(get_db),
 ):
     """Create a new claim by uploading files or passing pre-uploaded storage paths.
@@ -2532,6 +2882,47 @@ async def create_claim(
     synchronously, triggers the notification, and enqueues the processing pipeline.
     If force=True, any previous duplicate completed claim with matching set_hash will be replaced.
     """
+    if not auth_user.is_authenticated:
+        upload_log.warning("UPLOAD_REJECTED | endpoint=create_claim reason=unauthorized")
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required. Please log in to upload claim documents."
+        )
+
+    # Strict canonical resolution of patient_id to unique User UUID
+    user_identity_ids = set()
+    db_user = None
+    
+    # 1. Look up User in database to find canonical user.id
+    candidates = [auth_user.user_id, auth_user.email, patient_id, email, auth_user.patient_id]
+    for cand in candidates:
+        if not cand or not str(cand).strip():
+            continue
+        c_str = str(cand).strip()
+        p_uuid = _safe_parse_uuid(c_str)
+        db_user = db.query(User).filter(
+            (User.email.ilike(c_str)) |
+            (User.external_subject_id == c_str) |
+            ((User.id == p_uuid) if p_uuid else False)
+        ).first()
+        if db_user:
+            break
+
+    if db_user:
+        resolved_patient_id = str(db_user.id)
+        user_identity_ids.add(str(db_user.id))
+        user_identity_ids.add(str(db_user.id).upper())
+        user_identity_ids.add(str(db_user.id).lower())
+        if db_user.email:
+            user_identity_ids.add(db_user.email.strip().lower())
+        if db_user.external_subject_id:
+            user_identity_ids.add(db_user.external_subject_id.strip())
+    else:
+        resolved_patient_id = str(auth_user.user_id) if auth_user.user_id and auth_user.user_id.lower() not in ("user", "anonymous") else str(uuid.uuid4())
+        user_identity_ids.add(resolved_patient_id)
+
+    resolved_email = (db_user.email if db_user else None) or email or auth_user.email
+
     storage_paths_list = []
     if storage_paths:
         if len(storage_paths) == 1 and (storage_paths[0].startswith("[") or "," in storage_paths[0]):
@@ -2554,8 +2945,8 @@ async def create_claim(
         files_count,
         paths_count,
         policy_id,
-        patient_id,
-        email,
+        resolved_patient_id,
+        resolved_email,
         force,
     )
     
@@ -2636,12 +3027,11 @@ async def create_claim(
                     safe_name, len(file_bytes), effective_ct, content_hash,
                 )
 
-        # Synchronous duplicate check using sorted set_hash
+        # Synchronous duplicate check strictly scoped to this authenticated user
         hashes = [metadata["content_hash"] for metadata in file_metadata_list if metadata["content_hash"]]
         hashes.sort()
         set_hash = hashlib.sha256(",".join(hashes).encode("utf-8")).hexdigest()
 
-        target_user = patient_id or policy_id
         from sqlalchemy import func
         from libs.shared.models import ParseJob
         
@@ -2650,11 +3040,10 @@ async def create_claim(
             .join(Claim, ParseJob.claim_id == Claim.id)
             .filter(
                 ParseJob.set_hash == set_hash,
-                Claim.status == "COMPLETED"
+                Claim.status == "COMPLETED",
+                Claim.patient_id.in_(list(user_identity_ids))
             )
         )
-        if target_user:
-            dup_query = dup_query.filter(func.lower(Claim.patient_id) == func.lower(target_user))
             
         existing_jobs = dup_query.all()
 
@@ -2663,7 +3052,7 @@ async def create_claim(
                 existing_job = existing_jobs[0]
                 upload_log.info(
                     "UPLOAD_DUPLICATE | Found completed claim %s matching set_hash for user %s, returning duplicate status",
-                    existing_job.claim_id, target_user
+                    existing_job.claim_id, resolved_patient_id
                 )
                 return {
                     "claim_id": str(existing_job.claim_id),
@@ -2676,7 +3065,7 @@ async def create_claim(
             else:
                 upload_log.info(
                     "UPLOAD_FORCE_REPROCESS | Force reprocess requested for duplicate claim matching set_hash for user %s. Deleting %d old claim(s).",
-                    target_user, len(existing_jobs)
+                    resolved_patient_id, len(existing_jobs)
                 )
                 dup_claim_ids = [ej.claim_id for ej in existing_jobs if ej.claim_id]
                 for old_cid in dup_claim_ids:
@@ -2686,8 +3075,8 @@ async def create_claim(
         claim_id = uuid.uuid4()
         claim = Claim(
             id=claim_id,
-            policy_id=policy_id,
-            patient_id=patient_id,
+            policy_id=policy_id or resolved_patient_id,
+            patient_id=resolved_patient_id,
             status="UPLOADED",
             source="PATIENT",
         )
@@ -2788,44 +3177,63 @@ def list_claims(
     auth_user: AuthUser = Depends(get_current_user_context),
     db: Session = Depends(get_db),
 ):
+    if not auth_user.is_authenticated and not (patient_id or auth_user.patient_id):
+        raise HTTPException(status_code=401, detail="Authentication required to view claims.")
+
     try:
-        query = db.query(Claim)
-        effective_patient = (patient_id or auth_user.patient_id or "").strip() or None
-        if effective_patient:
-            matched_ids = {effective_patient}
-            try:
-                # 1. Resolve by User account (email or subject ID)
-                u_row = db.query(User).filter(
-                    (User.email.ilike(effective_patient)) |
-                    (User.external_subject_id == effective_patient)
-                ).first()
-                if u_row:
-                    if u_row.email:
-                        matched_ids.add(u_row.email)
-                    prof = db.query(PatientProfile).filter(PatientProfile.user_id == u_row.id).first()
-                    if prof:
-                        if prof.first_name:
-                            matched_ids.add(prof.first_name)
-                            matched_ids.add(f"{prof.first_name} {prof.last_name or ''}".strip())
+        query = db.query(Claim).filter(Claim.status != "IDENTITY_MISMATCH")
+        is_privileged = auth_user.role.lower() in (
+            "admin", "auditor", "reviewer", "staff", "superadmin", "claims_officer", "tpa", "organization", "org_admin"
+        )
+        
+        # Build comprehensive set of candidate IDs belonging to the caller
+        user_identity_ids = set()
+        candidates = [
+            auth_user.user_id,
+            auth_user.email,
+            auth_user.patient_id,
+            patient_id,
+        ]
+        for c in candidates:
+            if c and str(c).strip() and str(c).strip().lower() not in ("user", "anonymous", "none", "null"):
+                c_clean = str(c).strip()
+                user_identity_ids.add(c_clean)
+                if "@" in c_clean:
+                    user_identity_ids.add(c_clean.lower())
 
-                # 2. Resolve by PatientProfile (full name, first name, policy number)
-                prof_row = db.query(PatientProfile).filter(
-                    ((PatientProfile.first_name + " " + PatientProfile.last_name).ilike(effective_patient)) |
-                    (PatientProfile.first_name.ilike(effective_patient)) |
-                    (PatientProfile.policy_number.ilike(effective_patient))
-                ).first()
-                if prof_row:
-                    if prof_row.first_name:
-                        matched_ids.add(prof_row.first_name)
-                        matched_ids.add(f"{prof_row.first_name} {prof_row.last_name or ''}".strip())
-                    if prof_row.user_id:
-                        p_user = db.query(User).filter(User.id == prof_row.user_id).first()
-                        if p_user and p_user.email:
-                            matched_ids.add(p_user.email)
-            except Exception as e:
-                logger.debug(f"[list_claims] Error expanding matched_ids: {e}")
+        # Expand user ID and email from DB User table for complete mapping
+        try:
+            parsed_uids = []
+            for uid_candidate in list(user_identity_ids):
+                p = _safe_parse_uuid(uid_candidate)
+                if p:
+                    parsed_uids.append(p)
 
-            query = query.filter(Claim.patient_id.in_(list(matched_ids)))
+            matched_users = db.query(User).filter(
+                (User.email.in_([x.lower() for x in user_identity_ids if "@" in x])) |
+                (User.external_subject_id.in_(list(user_identity_ids))) |
+                ((User.id.in_(parsed_uids)) if parsed_uids else False)
+            ).all()
+            for u in matched_users:
+                user_identity_ids.add(str(u.id))
+                user_identity_ids.add(str(u.id).upper())
+                user_identity_ids.add(str(u.id).lower())
+                if u.email:
+                    user_identity_ids.add(u.email.strip().lower())
+                if u.external_subject_id:
+                    user_identity_ids.add(u.external_subject_id.strip())
+        except Exception as e:
+            logger.debug(f"[list_claims] Error expanding user identities: {e}")
+
+        if not is_privileged:
+            # Standard users (patients/submitters) ONLY see their own claims.
+            if user_identity_ids:
+                query = query.filter(Claim.patient_id.in_(list(user_identity_ids)))
+        else:
+            # Privileged roles (admin/auditor) can query all claims or filter by specific patient_id
+            if patient_id:
+                query = query.filter(Claim.patient_id == patient_id.strip())
+        
         if policy_id:
             query = query.filter(Claim.policy_id == policy_id)
 
@@ -2886,6 +3294,152 @@ def list_claims(
     except Exception as exc:
         logger.exception("Error listing claims")
         raise HTTPException(status_code=500, detail="Failed to list claims")
+
+
+@router.get("/claims/notifications")
+@router.get("/notifications")
+def get_user_notifications(
+    claim_ids: list[str] | None = Query(None),
+    patient_id: str | None = Query(None),
+    auth_user: AuthUser = Depends(get_current_user_context),
+    db: Session = Depends(get_db),
+):
+    """Fetch actionable notifications for the user (TPA document requests, approvals, settlements)."""
+    try:
+        is_privileged = auth_user.role.lower() in (
+            "admin", "auditor", "reviewer", "staff", "superadmin", "claims_officer", "tpa", "organization", "org_admin"
+        )
+        
+        # Build comprehensive set of candidate IDs belonging to the caller
+        user_identity_ids = set()
+        candidates = [
+            auth_user.user_id,
+            auth_user.email,
+            auth_user.patient_id,
+            patient_id,
+        ]
+        for c in candidates:
+            if c and str(c).strip() and str(c).strip().lower() not in ("user", "anonymous", "none", "null"):
+                c_clean = str(c).strip()
+                user_identity_ids.add(c_clean)
+                if "@" in c_clean:
+                    user_identity_ids.add(c_clean.lower())
+
+        try:
+            parsed_uids = []
+            for uid_candidate in list(user_identity_ids):
+                p = _safe_parse_uuid(uid_candidate)
+                if p:
+                    parsed_uids.append(p)
+
+            matched_users = db.query(User).filter(
+                (User.email.in_([x.lower() for x in user_identity_ids if "@" in x])) |
+                (User.external_subject_id.in_(list(user_identity_ids))) |
+                ((User.id.in_(parsed_uids)) if parsed_uids else False)
+            ).all()
+            for u in matched_users:
+                user_identity_ids.add(str(u.id))
+                user_identity_ids.add(str(u.id).upper())
+                user_identity_ids.add(str(u.id).lower())
+                if u.email:
+                    user_identity_ids.add(u.email.strip().lower())
+                if u.external_subject_id:
+                    user_identity_ids.add(u.external_subject_id.strip())
+        except Exception as e:
+            logger.debug(f"[get_user_notifications] Error expanding user identities: {e}")
+
+        # Parse explicitly provided claim IDs if any
+        target_claim_uuids = set()
+        if claim_ids:
+            for raw_cid in claim_ids:
+                if "," in raw_cid:
+                    for part in raw_cid.split(","):
+                        p_part = _safe_parse_uuid(part.strip())
+                        if p_part:
+                            target_claim_uuids.add(p_part)
+                else:
+                    p = _safe_parse_uuid(raw_cid.strip())
+                    if p:
+                        target_claim_uuids.add(p)
+
+        query = db.query(Claim)
+        if not is_privileged:
+            if user_identity_ids and target_claim_uuids:
+                query = query.filter((Claim.patient_id.in_(list(user_identity_ids))) | (Claim.id.in_(list(target_claim_uuids))))
+            elif user_identity_ids:
+                query = query.filter(Claim.patient_id.in_(list(user_identity_ids)))
+            elif target_claim_uuids:
+                query = query.filter(Claim.id.in_(list(target_claim_uuids)))
+        else:
+            if patient_id:
+                query = query.filter(Claim.patient_id == patient_id.strip())
+            elif target_claim_uuids:
+                query = query.filter(Claim.id.in_(list(target_claim_uuids)))
+
+        matched_claims = query.order_by(Claim.updated_at.desc()).limit(50).all()
+        matched_cids = [c.id for c in matched_claims]
+        all_target_cids = list(set(matched_cids) | target_claim_uuids)
+
+        notifications = []
+        if all_target_cids:
+            logs = (
+                db.query(AuditLog)
+                .filter(AuditLog.claim_id.in_(all_target_cids))
+                .order_by(AuditLog.created_at.desc())
+                .limit(50)
+                .all()
+            )
+            for log in logs:
+                meta = log.audit_metadata or {}
+                action = log.action or ""
+                claim_str = str(log.claim_id)
+                short_id = claim_str[:8]
+                
+                if "REQUEST_DOCS" in action or action == "CLAIM_DOCUMENTS_REQUESTED":
+                    notifications.append({
+                        "id": str(log.id),
+                        "claim_id": claim_str,
+                        "type": "warning",
+                        "title": f"Document Requested · Claim #{short_id}",
+                        "message": meta.get("reason") or "Star Health requested additional document clarification.",
+                        "created_at": log.created_at.isoformat() if log.created_at else datetime.now(timezone.utc).isoformat(),
+                        "unread": True,
+                    })
+                elif "APPROVED" in action:
+                    notifications.append({
+                        "id": str(log.id),
+                        "claim_id": claim_str,
+                        "type": "success",
+                        "title": f"Claim Approved · #{short_id}",
+                        "message": meta.get("reason") or "Your claim has been audited and approved by Star Health.",
+                        "created_at": log.created_at.isoformat() if log.created_at else datetime.now(timezone.utc).isoformat(),
+                        "unread": True,
+                    })
+                elif "SETTLED" in action or "SEND_MONEY" in action:
+                    notifications.append({
+                        "id": str(log.id),
+                        "claim_id": claim_str,
+                        "type": "success",
+                        "title": f"Settlement Disbursed · #{short_id}",
+                        "message": meta.get("reason") or "Settlement payout has been authorized and dispatched.",
+                        "created_at": log.created_at.isoformat() if log.created_at else datetime.now(timezone.utc).isoformat(),
+                        "unread": True,
+                    })
+                elif "REJECT" in action:
+                    notifications.append({
+                        "id": str(log.id),
+                        "claim_id": claim_str,
+                        "type": "error",
+                        "title": f"Claim Rejected · #{short_id}",
+                        "message": meta.get("reason") or "Claim was rejected after auditor review.",
+                        "created_at": log.created_at.isoformat() if log.created_at else datetime.now(timezone.utc).isoformat(),
+                        "unread": True,
+                    })
+
+        return {"notifications": notifications, "total": len(notifications)}
+    except Exception as exc:
+        logger.exception("Failed to fetch notifications: %s", exc)
+        return {"notifications": [], "total": 0}
 
 
 @router.get("/claims/{claim_id}", response_model=ClaimOut)
@@ -2986,6 +3540,8 @@ def _map_progress(current_step: str | None, status: str | None) -> tuple[str | N
     if current_step == "RETRYING":
         # Don't regress — keep above prior steps; monotonic guard below also protects.
         return "Retrying (transient)", 92
+    if current_step == "IDENTITY_MISMATCH":
+        return "Identity Mismatch (Documents belong to different patients)", 0
     if current_step == "FAILED" or status == "FAILED":
         return "Failed", 0
     if current_step == "FINALIZING":
@@ -3007,9 +3563,10 @@ def get_claim_status(claim_id: str, db: Session = Depends(get_db)):
     
     step_index = _get_step_index(state.current_step, state.status)
     percentage = (step_index / 5) * 100 if step_index > 0 else 0.0
+    status_str = "IDENTITY_MISMATCH" if state.current_step == "IDENTITY_MISMATCH" else state.status
     return {
         "current_step": state.current_step,
-        "status": state.status,
+        "status": status_str,
         "step_index": step_index,
         "percentage": percentage
     }
@@ -3036,22 +3593,27 @@ def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
         }
 
     step, percentage = _map_progress(state.current_step, state.status)
-    is_failed = (state.status == "FAILED") or (state.current_step == "FAILED")
-    is_complete = bool(percentage == 100 or is_failed)
+    is_failed = (state.status == "FAILED") or (state.current_step == "FAILED") or (state.current_step == "IDENTITY_MISMATCH")
+    is_complete = bool(percentage == 100 or (is_failed and state.current_step != "IDENTITY_MISMATCH"))
 
     error_message: str | None = None
     if is_failed:
-        # Surface the most recent job error message so the UI can show *why*
+        # Surface the claim notes or most recent job error message so the UI can show *why*
         # the upload stopped, instead of polling forever on 0%.
         try:
-            latest_parse = (
-                db.query(ParseJob)
-                .filter(ParseJob.claim_id == cid)
-                .order_by(ParseJob.created_at.desc())
-                .first()
-            )
-            if latest_parse and latest_parse.error_message:
-                error_message = latest_parse.error_message
+            claim_rec = db.query(Claim).filter(Claim.id == cid).first()
+            if claim_rec and claim_rec.notes:
+                error_message = claim_rec.notes
+            
+            if not error_message:
+                latest_parse = (
+                    db.query(ParseJob)
+                    .filter(ParseJob.claim_id == cid)
+                    .order_by(ParseJob.created_at.desc())
+                    .first()
+                )
+                if latest_parse and latest_parse.error_message:
+                    error_message = latest_parse.error_message
             if not error_message:
                 from libs.shared.models import OcrJob as _OcrJob
                 latest_ocr = (
@@ -3067,9 +3629,10 @@ def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
         if not error_message:
             error_message = "Pipeline failed. See server logs for details."
 
+    status_str = "IDENTITY_MISMATCH" if state.current_step == "IDENTITY_MISMATCH" else state.status
     # Mapped from database state directly, naturally monotonic in Celery chain
     return {
-        "status": state.status,
+        "status": status_str,
         "step": step,
         "percentage": percentage,
         "is_complete": is_complete,
@@ -3610,5 +4173,166 @@ def delete_claim(
         logger.error(f"Error deleting claim {claim_id}: {e}", exc_info=True)
     return Response(status_code=204)
 
+
+class SubmitClaimPayload(BaseModel):
+    payer: str | None = "Star Health"
+
+
+@router.post("/claims/{claim_id}/submit")
+@router.post("/submit/{claim_id}")
+@router.post("/submission/submit/{claim_id}")
+def submit_claim_endpoint(
+    claim_id: str,
+    payload: SubmitClaimPayload = SubmitClaimPayload(),
+    auth_user: AuthUser = Depends(get_current_user_context),
+    db: Session = Depends(get_db),
+):
+    """Submit a processed claim to a specified payer/TPA (e.g. Star Health)."""
+    try:
+        cid = _parse_uuid(claim_id)
+        claim = db.query(Claim).filter(Claim.id == cid).first()
+        if not claim:
+            raise HTTPException(status_code=404, detail="Claim not found")
+
+        payer_name = payload.payer or "Star Health"
+
+        # 1. Update claim status to SUBMITTED
+        claim.status = "SUBMITTED"
+        db.commit()
+
+        # 2. Record submission entry
+        sub_id = uuid.uuid4()
+        try:
+            sub = Submission(
+                id=sub_id,
+                claim_id=cid,
+                payer=payer_name,
+                request_payload={"claim_id": str(cid), "payer": payer_name},
+                response_payload={"status": "ACCEPTED", "message": f"Queued for {payer_name} adjudication"},
+                status="SUBMITTED",
+            )
+            db.add(sub)
+            db.commit()
+        except Exception as se:
+            logger.warning("Submission record write fallback: %s", se)
+            db.rollback()
+            # Ensure claim stays SUBMITTED
+            c_retry = db.query(Claim).filter(Claim.id == cid).first()
+            if c_retry:
+                c_retry.status = "SUBMITTED"
+                db.commit()
+
+        try:
+            _audit(db, "CLAIM_SUBMITTED", claim_id=cid, metadata={"payer": payer_name, "submission_id": str(sub_id)})
+        except Exception:
+            pass
+
+        now_str = datetime.now(timezone.utc).isoformat()
+        logger.info("Claim %s successfully submitted to '%s'", cid, payer_name)
+
+        return {
+            "submission_id": str(sub_id),
+            "claim_id": str(cid),
+            "payer": payer_name,
+            "status": "SUBMITTED",
+            "reference": f"TPA-{payer_name.upper()[:4]}-{str(sub_id)[:8].upper()}",
+            "submitted_at": now_str,
+            "message": f"Claim successfully submitted to {payer_name}",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error in submit_claim_endpoint: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Submission failed: {str(exc)}")
+
+
+class TpaActionPayload(BaseModel):
+    action: str = "approve"  # approve, reject, send_back, request_docs, send_money
+    reason: str | None = None
+    requested_documents: list[str] = []
+    annotations: list[dict[str, Any]] = []
+
+
+@router.post("/claims/{claim_id}/tpa-action")
+@router.post("/submission/claims/{claim_id}/tpa-action")
+def tpa_action_endpoint(
+    claim_id: str,
+    payload: TpaActionPayload = TpaActionPayload(),
+    auth_user: AuthUser = Depends(get_current_user_context),
+    db: Session = Depends(get_db),
+):
+    """Execute adjuster action (approve, reject, request_docs, send_money, send_back) on claim."""
+    try:
+        cid = _parse_uuid(claim_id)
+        claim = db.query(Claim).filter(Claim.id == cid).first()
+        if not claim:
+            raise HTTPException(status_code=404, detail="Claim not found")
+
+        action_status_map = {
+            "approve": "APPROVED",
+            "reject": "REJECTED",
+            "send_back": "MODIFICATION_REQUESTED",
+            "request_docs": "DOCUMENTS_REQUESTED",
+            "send_money": "SETTLED",
+        }
+        action = payload.action.lower().strip()
+        new_status = action_status_map.get(action, "APPROVED")
+        old_status = claim.status
+        claim.status = new_status
+        db.commit()
+
+        # Audit log entry for tracking and notifications
+        audit_meta = {
+            "old_status": old_status,
+            "new_status": new_status,
+            "reason": payload.reason or "",
+            "requested_documents": payload.requested_documents or [],
+            "action": action,
+            "performed_by": auth_user.email or auth_user.user_id or "Star Health Reviewer",
+        }
+        try:
+            log_row = AuditLog(
+                id=uuid.uuid4(),
+                claim_id=cid,
+                actor="Star Health Reviewer",
+                action=f"CLAIM_{action.upper()}",
+                audit_metadata=audit_meta,
+                created_at=datetime.now(timezone.utc),
+            )
+            db.add(log_row)
+            db.commit()
+        except Exception as log_err:
+            logger.warning("Could not persist audit log for tpa action: %s", log_err)
+            _audit(db, f"CLAIM_{action.upper()}", claim_id=cid, metadata=audit_meta)
+            
+        logger.info("TPA action '%s' on claim %s: %s -> %s | reason=%s", action, cid, old_status, new_status, payload.reason)
+
+        return {
+            "status": "success",
+            "action": action,
+            "claim_id": str(cid),
+            "old_status": old_status,
+            "new_status": new_status,
+            "reason": payload.reason or "",
+            "requested_documents": payload.requested_documents or [],
+            "message": f"Claim status updated to {new_status}",
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Error in tpa_action_endpoint: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Failed to process TPA action: {str(exc)}")
+
+
 # ── Include router (standalone mode) ──
 app.include_router(router)
+
+# ── Mount Submission Service Router for ACA unified gateway ──
+try:
+    from services.submission.app.main import router as submission_router
+    app.include_router(submission_router, prefix="/submission", tags=["submission"])
+    logger.info("Submission router mounted at /submission on ingress")
+except Exception as exc:
+    logger.warning("Could not auto-mount submission router on ingress: %s", exc)
+
+

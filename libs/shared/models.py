@@ -192,7 +192,9 @@ class ClaimFieldFeedback(Base):
     )
     field_name = Column(Text, nullable=False)
     original_value = Column(Text, nullable=True)
+    predicted_value = Column(Text, nullable=True)
     corrected_value = Column(Text, nullable=True)
+    action = Column(Text, nullable=True, default="edited")
     user_sub = Column(Text, nullable=True)
     user_email = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -450,16 +452,10 @@ class StaffProfile(Base):
     organization_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
     first_name = Column(Text, nullable=False)
     last_name = Column(Text, nullable=False)
-    employee_id = Column(String(255), nullable=True)
     designation = Column(Text, nullable=True)
-    department = Column(Text, nullable=True)
     status = Column(Text, nullable=False, default="ACTIVE")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
-
-    __table_args__ = (
-        UniqueConstraint("organization_id", "employee_id", name="uq_staff_org_employee"),
-    )
 
 
 class Role(Base):
@@ -476,7 +472,6 @@ class UserRoleTable(Base):
 
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     role_id = Column(UUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
 

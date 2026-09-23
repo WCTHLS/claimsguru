@@ -35,7 +35,7 @@ echo " [OK] Connected to Subscription: '$SUB_NAME' (ID: $SUB_ID)"
 
 # 2. Register Required Azure Resource Providers
 echo -e "\n[Step 2/7] Ensuring Azure Resource Providers are Registered..."
-PROVIDERS=("Microsoft.App" "Microsoft.ContainerService" "Microsoft.ContainerRegistry" "Microsoft.KeyVault" "Microsoft.ServiceBus" "Microsoft.OperationalInsights" "Microsoft.Sql" "Microsoft.Storage" "Microsoft.CognitiveServices")
+PROVIDERS=("Microsoft.App" "Microsoft.ContainerService" "Microsoft.ContainerRegistry" "Microsoft.KeyVault" "Microsoft.ServiceBus" "Microsoft.OperationalInsights" "Microsoft.Sql" "Microsoft.Storage" "Microsoft.CognitiveServices" "Microsoft.Communication")
 for p in "${PROVIDERS[@]}"; do
     az provider register --namespace "$p" --output none 2>/dev/null || true
 done

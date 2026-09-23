@@ -22,11 +22,14 @@ import {
   Download,
   ZoomIn,
   ZoomOut,
-  Maximize2
+  Maximize2,
+  Send,
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { formatINR } from '@/lib/claimgpt-data';
 import { cn } from '@/lib/utils';
+import { SUBMISSION_API } from '@/lib/api-client';
+import { useToast } from '@/hooks/use-toast';
 
 interface ExpenseItem {
   id: string;
@@ -35,7 +38,10 @@ interface ExpenseItem {
 }
 
 export function ClaimReportModal({ s }: { s: AuditorState }) {
+  const { toast } = useToast();
   const [loadingPdf, setLoadingPdf] = useState<'tpa' | 'irdai' | null>(null);
+  const [isSubmittingToPayer, setIsSubmittingToPayer] = useState(false);
+  const [isSubmittedToPayer, setIsSubmittedToPayer] = useState(false);
   const [inlinePdf, setInlinePdf] = useState<{
     url: string;
     title: string;
@@ -245,6 +251,42 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       })
     );
     setIsExpensesDirty(true);
+  };
+
+  const handleSubmitClaimToPayer = async () => {
+    if (!s.claimId || isSubmittingToPayer) return;
+    setIsSubmittingToPayer(true);
+    try {
+      const res = await fetch(`${SUBMISSION_API}/submit/${s.claimId}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ payer: 'Star Health' }),
+      });
+      if (res.ok) {
+        setIsSubmittedToPayer(true);
+        toast({
+          title: "Claim Submitted Successfully",
+          description: "Your claim has been dispatched to Star Health TPA for review and settlement.",
+        });
+        s.reloadRecentClaims();
+      } else {
+        toast({
+          title: "Submission Error",
+          description: "Could not submit claim. Please try again.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Network Error",
+        description: "Unable to connect to submission service.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmittingToPayer(false);
+    }
   };
 
   return (
@@ -761,13 +803,31 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             ) : null}
           </div>
 
-          <button
-            type="button"
-            onClick={s.closeReportModal}
-            className="flex-none rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 min-h-[44px] px-4 text-xs font-semibold text-white transition-all cursor-pointer"
-          >
-            Close Report
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleSubmitClaimToPayer}
+              disabled={isSubmittingToPayer || isSubmittedToPayer}
+              className="flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 min-h-[44px] px-4 text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer"
+            >
+              {isSubmittingToPayer ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isSubmittedToPayer ? (
+                <CheckCircle2 className="h-4 w-4 text-white" />
+              ) : (
+                <Send className="h-4 w-4" />
+              )}
+              {isSubmittedToPayer ? "Submitted to Star Health" : "Submit Claim to Star Health"}
+            </button>
+
+            <button
+              type="button"
+              onClick={s.closeReportModal}
+              className="flex-none rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 min-h-[44px] px-4 text-xs font-semibold text-white transition-all cursor-pointer"
+            >
+              Close Report
+            </button>
+          </div>
         </div>
 
       </div>

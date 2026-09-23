@@ -101,6 +101,10 @@ class AzureCommunicationEmailDriver(BaseEmailDriver):
         ).strip('"' + "'")
 
     def is_configured(self) -> bool:
+        enable_notifications = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() not in ("0", "false", "no", "off")
+        enable_email = os.getenv("ENABLE_EMAIL_NOTIFICATIONS", os.getenv("ENABLE_EMAIL", "true")).lower() not in ("0", "false", "no", "off")
+        if not (enable_notifications and enable_email):
+            return False
         return bool(self.connection_string and "endpoint=" in self.connection_string.lower())
 
     def send_email(
@@ -157,7 +161,11 @@ class AzureCommunicationEmailDriver(BaseEmailDriver):
                     message["attachments"] = formatted_attachments
 
             poller = client.begin_send(message)
-            logger.info(f"[Azure Email] Email queued for {to_email} with {len(attachments or [])} attachments. Poller: {poller}")
+            try:
+                res = poller.result()
+                logger.info(f"[Azure Email] Email delivered successfully to {to_email}. MessageId: {res.get('id') if isinstance(res, dict) else getattr(res, 'id', res)}")
+            except Exception as wait_err:
+                logger.warning(f"[Azure Email] Email transmission initiated for {to_email} (waiting poller returned: {wait_err})")
             return True
         except ImportError:
             logger.warning("[Azure Email] azure-communication-email SDK not installed. Falling back to Mock.")
@@ -185,6 +193,10 @@ class AzureCommunicationMessagesDriver(BaseWhatsAppDriver):
         ).strip('"' + "'")
 
     def is_configured(self) -> bool:
+        enable_notifications = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() not in ("0", "false", "no", "off")
+        enable_whatsapp = os.getenv("ENABLE_WHATSAPP_NOTIFICATIONS", os.getenv("ENABLE_WHATSAPP", "true")).lower() not in ("0", "false", "no", "off")
+        if not (enable_notifications and enable_whatsapp):
+            return False
         return bool(self.connection_string and "endpoint=" in self.connection_string.lower())
 
     def send_whatsapp_message(

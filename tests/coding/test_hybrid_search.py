@@ -25,7 +25,7 @@ from services.coding.app import icd10_rag  # noqa: E402
 class TestTokenize:
     def test_basic(self):
         assert icd10_rag._tokenize("Type 2 diabetes mellitus") == [
-            "type", "diabetes", "mellitus",
+            "type", "2", "diabetes", "mellitus",
         ]
 
     def test_lowercases_and_strips_punct(self):
@@ -44,9 +44,8 @@ class TestTokenize:
         assert "e11" in toks
         assert "type" in toks
         assert "diabetes" in toks
-        # Single characters are filtered out as noise.
-        assert "9" not in toks
-        assert "2" not in toks
+        assert "9" in toks
+        assert "2" in toks
 
 
 
