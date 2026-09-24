@@ -787,9 +787,12 @@ If this IS an expense/billing table (any format), ALWAYS:
 5. For itemized tables: Extract each line item as-is
 6. Do NOT merge or deduplicate rows — the downstream system handles deduplication
 7. Do NOT include: summary rows, total rows, grand totals, headers, metadata, or insurance information
-8. Preserve exact amounts - do NOT modify, truncate, or divide amounts
-10. If a row has multiple numeric columns (e.g., Qty, Rate, Gross, NP/Non-Payable, Payable), select the value from the Gross / Total / Amount column (the full charged amount billed by the hospital before deductions) as the amount so that the itemized sum matches the hospital's Gross Billed Total. If only Net/Payable/Amount is present, select that amount.
-11. ALWAYS include all individual billed hospital service rows (such as "Hospital Administration & Admission Charges", "Admission Fees", "Registration Charges", "Diet / Nutrition Charges", "Nursing Charges", "Biomedical Waste Charges") using their Gross Amount even if the hospital marked them as Non-Payable (NP) or Payable is 0.00.
+8. Preserve exact amounts - do NOT modify, truncate, or divide amounts.
+9. COLUMN PRIORITY (CRITICAL FOR EXPENSES): When a table has multiple numeric amount columns (such as Rate, Gross, NP / Non-Payable, and Net Payable / Payable / Amount Payable):
+    - ALWAYS extract the **Net Payable / Payable / Amount Payable** column value for the `amount` field (this is the actual reimbursable amount payable).
+    - If no Net Payable column is present, extract the Gross / Total / Amount column value.
+    - NEVER extract the Gross column value when a Net Payable / Payable column exists in the table. This ensures the itemized line items sum up directly to the hospital's Net Claimed Billed Total.
+10. If an individual service row has a Net Payable of 0.00 or is marked fully Non-Payable (e.g. registration fees, administrative charges), extract its amount as 0.00 or do not inflate it to gross amount.
 
 CRITICAL EXCLUSION - NEVER extract these summary/deduction rows as expense items:
 - Summary grand totals: "Gross Hospital Bill" / "Gross Bill" / "Gross Amount" / "Total Billed Amount" / "Grand Total" / "Total Amount Received" — these are document-level totals, NOT individual charges
