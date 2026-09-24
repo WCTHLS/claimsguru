@@ -64,6 +64,11 @@ def reprocess_claim_full(claim_id, name):
     return res.id
 
 if __name__ == "__main__":
-    # Reprocess the target claims
-    reprocess_claim_full("e2c8d27f-e0d4-4a94-a4d8-793dfcb96e7c", "Image upload claim")
-    reprocess_claim_full("b6f25393-1847-4145-8e06-397a92d130da", "PDF upload claim")
+    if len(sys.argv) > 1:
+        target_id = sys.argv[1]
+        target_name = sys.argv[2] if len(sys.argv) > 2 else "CLI Target Claim"
+        reprocess_claim_full(target_id, target_name)
+    else:
+        # Reprocess the target claims
+        reprocess_claim_full("e2c8d27f-e0d4-4a94-a4d8-793dfcb96e7c", "Image upload claim")
+        reprocess_claim_full("b6f25393-1847-4145-8e06-397a92d130da", "PDF upload claim")
