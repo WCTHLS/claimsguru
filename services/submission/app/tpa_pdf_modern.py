@@ -198,7 +198,22 @@ def generate_tpa_pdf_modern(claim_data: dict[str, Any]) -> bytes:
         except Exception:
             billed_num = expense_total
 
-        variance_num = abs(billed_num - expense_total) if expense_total > 0 and billed_num > 0 else 0.0
+        gross_raw = claim_data.get("gross_total") or fields.get("gross_total") or fields.get("total_amount") or (billed_num if billed_num > 0 else expense_total)
+        try:
+            gross_num = float(str(gross_raw).replace(",", "").replace("₹", "").strip())
+        except Exception:
+            gross_num = billed_num
+
+        net_payable_num = billed_num if billed_num > 0 else expense_total
+        deductions_raw = claim_data.get("deductions") or fields.get("deductions") or 0.0
+        try:
+            deductions_num = float(str(deductions_raw).replace(",", "").replace("₹", "").strip())
+            if deductions_num <= 0 and gross_num > net_payable_num:
+                deductions_num = gross_num - net_payable_num
+        except Exception:
+            deductions_num = max(0.0, gross_num - net_payable_num) if gross_num > net_payable_num else 0.0
+
+        variance_num = abs(net_payable_num - expense_total) if expense_total > 0 and net_payable_num > 0 else 0.0
         
         # Risk Prediction
         predictions = claim_data.get("predictions", []) or []
@@ -268,6 +283,9 @@ def generate_tpa_pdf_modern(claim_data: dict[str, Any]) -> bytes:
             "cpt_codes": cpt_codes,
             "expenses": expenses,
             "expense_total_formatted": _money(expense_total),
+            "gross_billed_formatted": _money(gross_num),
+            "deductions_formatted": _money(deductions_num),
+            "net_payable_formatted": _money(net_payable_num),
             "variance_amount": variance_num,
             "variance_formatted": _money(variance_num),
             "predictions": predictions,

@@ -518,14 +518,16 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                     header_map.setdefault("qty", idx)
                 if any(re.search(r"\b" + re.escape(term), text) for term in ["rate", "unit price", "price"]):
                     header_map.setdefault("rate", idx)
-                if any(re.search(r"\b" + re.escape(term), text) for term in ["gross", "total"]):
+                if re.search(r"\bnp\b", text) or any(re.search(r"\b" + re.escape(term), text) for term in ["non-payable", "non payable", "deduction", "discount", "disallowed", "disallow"]):
+                    header_map.setdefault("deduction", idx)
+                elif any(re.search(r"\b" + re.escape(term), text) for term in ["net payable", "payable", "amount payable", "amt payable", "net pay", "netpay"]):
+                    header_map.setdefault("payable", idx)
+                elif any(re.search(r"\b" + re.escape(term), text) for term in ["gross", "gross amount", "gross total"]):
                     header_map.setdefault("gross", idx)
-                if any(re.search(r"\b" + re.escape(term), text) for term in ["net payable", "payable", "amount payable", "amt payable", "net pay", "netpay"]):
+                elif "amount" in text and "gross" not in text:
                     header_map.setdefault("payable", idx)
-                elif re.search(r"\bnp\b", text) or any(re.search(r"\b" + re.escape(term), text) for term in ["non-payable", "non payable"]):
-                    header_map.setdefault("np", idx)
-                elif "amount" in text:
-                    header_map.setdefault("payable", idx)
+                elif "total" in text and "payable" not in text:
+                    header_map.setdefault("gross", idx)
 
         is_expense_like_header = bool(header_map and "description" in header_map and ("payable" in header_map or "gross" in header_map or "rate" in header_map))
         
@@ -595,13 +597,13 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
         if not (is_expense_like_kind or is_expense_like_header or has_many_numeric_cols):
             continue
 
-        amount_priority = ["gross", "payable", "rate"]
+        amount_priority = ["payable", "gross", "rate"]
         qty_x0 = float(header_cells[header_map["qty"]].bbox[0]) if header_cells and "qty" in header_map else None
         category_x0 = float(header_cells[header_map["description"]].bbox[0]) if header_cells and "description" in header_map else None
         amount_header_x0 = {
             name: float(header_cells[idx].bbox[0])
             for name, idx in header_map.items()
-            if name in {"gross", "payable", "rate"} and idx < len(header_cells)
+            if name in {"gross", "payable", "rate", "deduction"} and idx < len(header_cells)
         }
         def _looks_numeric(text: str) -> bool:
             cleaned = text.replace("Rs.", "").replace("INR", "").replace("₹", "").replace(",", "").strip()
@@ -751,6 +753,44 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
 
             if amount_idx is not None:
                 amount = cells[amount_idx].text
+                payable_val_str = amount
+                gross_val_str = amount
+                deduction_val_str = "0.0"
+
+                # Extract gross column value if mapped
+                if "gross" in header_map:
+                    gross_c_x0 = amount_header_x0.get("gross")
+                    if gross_c_x0 is not None:
+                        best_g_idx = None
+                        min_g_dist = float("inf")
+                        for idx_c in range(len(cells)):
+                            c_text = str(cells[idx_c].text or "").strip()
+                            if not _looks_numeric(c_text):
+                                continue
+                            dist_g = abs(float(cells[idx_c].bbox[0]) - gross_c_x0)
+                            if dist_g < min_g_dist and dist_g < 150.0:
+                                min_g_dist = dist_g
+                                best_g_idx = idx_c
+                        if best_g_idx is not None:
+                            gross_val_str = str(cells[best_g_idx].text or "").strip()
+
+                # Extract deduction column value if mapped
+                if "deduction" in header_map:
+                    ded_c_x0 = amount_header_x0.get("deduction")
+                    if ded_c_x0 is not None:
+                        best_d_idx = None
+                        min_d_dist = float("inf")
+                        for idx_c in range(len(cells)):
+                            c_text = str(cells[idx_c].text or "").strip()
+                            if not _looks_numeric(c_text):
+                                continue
+                            dist_d = abs(float(cells[idx_c].bbox[0]) - ded_c_x0)
+                            if dist_d < min_d_dist and dist_d < 150.0:
+                                min_d_dist = dist_d
+                                best_d_idx = idx_c
+                        if best_d_idx is not None:
+                            deduction_val_str = str(cells[best_d_idx].text or "").strip()
+
                 description = ""
                 is_azure_table = str(getattr(table, "region_id", "") or "").startswith("azure_table_")
                 
@@ -818,7 +858,9 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                 all_expenses.append({
                     "field_name": description,
                     "description": description,
-                    "payable_amount": amount,
+                    "payable_amount": payable_val_str or amount,
+                    "gross_amount": gross_val_str or amount,
+                    "deduction": deduction_val_str or "0.0",
                     "amount": amount,
                     "category": category,
                     "page": (
