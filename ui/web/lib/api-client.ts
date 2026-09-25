@@ -64,6 +64,9 @@ export interface RealClaimPreview {
   expenses: Array<{ category: string; description?: string; amount: number }>;
   expense_total?: number;
   billed_total?: number;
+  gross_total?: number;
+  net_payable?: number;
+  deductions?: number;
   predictions: Array<{ rejection_score: number; top_reasons: Array<{ reason: string; weight: number }> }>;
   validations: Array<{ rule_name: string; severity: string; message: string; passed: boolean }>;
   ocr_excerpt?: string;

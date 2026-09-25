@@ -1415,10 +1415,19 @@ def parse_document(
         is_desc_similar = (desc_sim >= MERGE_DESCRIPTION_SIMILARITY) or is_contained
         
         # Safeguard 1: If both have non-zero amounts AND the difference is greater than tolerance,
-        # they represent different charge values and must NOT be merged under any circumstances.
+        # check if one amount matches the other's gross_amount (e.g. semantic picked gross while heuristic picked payable).
         a_amt = _parse_amount(a.get("amount"))
         b_amt = _parse_amount(b.get("amount"))
-        if a_amt > 0.0 and b_amt > 0.0:
+        a_gross = _parse_amount(a.get("gross_amount")) if a.get("gross_amount") is not None else a_amt
+        b_gross = _parse_amount(b.get("gross_amount")) if b.get("gross_amount") is not None else b_amt
+
+        is_gross_match = (
+            (abs(a_amt - b_gross) <= MERGE_AMOUNT_TOLERANCE and b_gross > 0)
+            or (abs(b_amt - a_gross) <= MERGE_AMOUNT_TOLERANCE and a_gross > 0)
+            or (abs(a_gross - b_gross) <= MERGE_AMOUNT_TOLERANCE and a_gross > 0)
+        )
+
+        if a_amt > 0.0 and b_amt > 0.0 and not is_gross_match:
             if abs(a_amt - b_amt) > MERGE_AMOUNT_TOLERANCE:
                 return False
 
@@ -1433,7 +1442,7 @@ def parse_document(
         if is_desc_similar:
             return True
 
-        amt_close = abs(a_amt - b_amt) <= MERGE_AMOUNT_TOLERANCE
+        amt_close = abs(a_amt - b_amt) <= MERGE_AMOUNT_TOLERANCE or is_gross_match
         return is_desc_similar and amt_close
 
     def _row_quality_rank(row: dict) -> int:
@@ -1810,10 +1819,11 @@ def parse_document(
 
         # 3. Dedup identical or sub-bill pharmacy line items
         drug_stems = [
-            "artesunate", "paracetamol", "primaquine", "dextrose", "pantoprazole",
+            "tramadol", "tranexamic", "artesunate", "paracetamol", "primaquine", "dextrose", "pantoprazole",
             "artemether", "lumefantrine", "ondansetron", "doxycycline", "rl 500", "ns 0.9",
             "ceftriaxone", "meropenem", "piperacillin", "metronidazole", "ciprofloxacin",
-            "cisplatin", "cyclophosphamide", "filgrastim", "enoxaparin", "paclitaxel"
+            "cisplatin", "cyclophosphamide", "filgrastim", "enoxaparin", "paclitaxel",
+            "amiodarone", "metoprolol", "heparin", "aspirin", "digoxin", "adenosine"
         ]
         
         seen_stem_idx: dict[str, int] = {}

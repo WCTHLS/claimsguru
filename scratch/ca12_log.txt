@@ -1,0 +1,173 @@
+2026/09/15 11:47:19 Downloading source code...
+
+2026/09/15 11:47:20 Finished downloading source code
+
+2026/09/15 11:47:21 Using acb_vol_e8c142fc-9585-47d7-9003-59d734ac87dc as the home volume
+2026/09/15 11:47:21 Setting up Docker configuration...
+2026/09/15 11:47:21 Successfully set up Docker configuration
+2026/09/15 11:47:21 Logging in to registry: acrclaimsgurupreprod.azurecr.io
+2026/09/15 11:47:22 Successfully logged into acrclaimsgurupreprod.azurecr.io
+2026/09/15 11:47:22 Executing step ID: build. Timeout(sec): 28800, Working directory: '', Network: ''
+2026/09/15 11:47:22 Scanning for dependencies...
+2026/09/15 11:47:23 Successfully scanned dependencies
+2026/09/15 11:47:23 Launching container with name: build
+
+Sending build context to Docker daemon  77.82MB
+
+
+Step 1/32 : FROM node:20-alpine AS deps
+20-alpine: Pulling from library/node
+6a0ac1617861: Pulling fs layer
+4feea04c1543: Pulling fs layer
+b2cbbfe903b0: Pulling fs layer
+fff4e2c1b189: Pulling fs layer
+fff4e2c1b189: Waiting
+6a0ac1617861: Verifying Checksum
+6a0ac1617861: Download complete
+b2cbbfe903b0: Verifying Checksum
+b2cbbfe903b0: Download complete
+fff4e2c1b189: Verifying Checksum
+fff4e2c1b189: Download complete
+6a0ac1617861: Pull complete
+4feea04c1543: Verifying Checksum
+4feea04c1543: Download complete
+4feea04c1543: Pull complete
+
+b2cbbfe903b0: Pull complete
+fff4e2c1b189: Pull complete
+Digest: sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+Status: Downloaded newer image for node:20-alpine
+ ---> 11cedc39e663
+Step 2/32 : RUN apk add --no-cache libc6-compat
+ ---> Running in 50f511b57b84
+(1/3) Installing musl-obstack (1.2.3-r2)
+(2/3) Installing libucontext (1.3.3-r0)
+(3/3) Installing gcompat (1.1.0-r4)
+OK: 11.0 MiB in 21 packages
+Removing intermediate container 50f511b57b84
+ ---> 9a2a0594dd44
+Step 3/32 : WORKDIR /app
+ ---> Running in 9462670c8775
+Removing intermediate container 9462670c8775
+ ---> 514b39a49070
+Step 4/32 : COPY ui/web/package.json ui/web/package-lock.json ./
+
+ ---> cfe7e0e91d86
+Step 5/32 : RUN npm ci
+ ---> Running in b0c62cadc78a
+npm warn deprecated rimraf@3.0.2: Rimraf versions prior to v4 are no longer supported
+
+npm warn deprecated inflight@1.0.6: This module is not supported, and leaks memory. Do not use it. Check out lru-cache if you want a good and tested way to coalesce async requests by a key value, which is much more comprehensive and powerful.
+npm warn deprecated glob@7.1.7: Glob versions prior to v9 are no longer supported
+npm warn deprecated @humanwhocodes/object-schema@2.0.3: Use @eslint/object-schema instead
+
+npm warn deprecated @humanwhocodes/config-array@0.11.14: Use @eslint/config-array instead
+npm warn deprecated eslint@8.49.0: This version is no longer supported. Please see https://eslint.org/version-support for other options.
+
+
+
+
+added 531 packages, and audited 532 packages in 48s
+
+
+147 packages are looking for funding
+  run `npm fund` for details
+
+20 vulnerabilities (1 low, 4 moderate, 14 high, 1 critical)
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm notice
+npm notice New major version of npm available! 10.8.2 -> 12.0.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.0.2
+npm notice To update run: npm install -g npm@12.0.2
+npm notice
+Removing intermediate container b0c62cadc78a
+ ---> ca8405d37063
+Step 6/32 : FROM node:20-alpine AS builder
+
+20-alpine: Pulling from library/node
+Digest: sha256:fb4cd12c85ee03686f6af5362a0b0d56d50c58a04632e6c0fb8363f609372293
+Status: Image is up to date for node:20-alpine
+ ---> 11cedc39e663
+Step 7/32 : WORKDIR /app
+ ---> Running in 0342799948cf
+Removing intermediate container 0342799948cf
+ ---> 87a0c8690d29
+Step 8/32 : COPY --from=deps /app/node_modules ./node_modules
+
+
+ ---> 18276954e43c
+Step 9/32 : COPY ui/web ./
+
+ ---> 9e1ab9bcf8de
+Step 10/32 : COPY ui/web/.env* ./
+ ---> 59aa3ad20e7c
+Step 11/32 : ARG NEXT_PUBLIC_API_BASE
+
+ ---> Running in af2fe47e8c1e
+Removing intermediate container af2fe47e8c1e
+ ---> 619f907ff12e
+Step 12/32 : ARG NEXT_PUBLIC_APP_NAME
+ ---> Running in 7b950a67b0e1
+Removing intermediate container 7b950a67b0e1
+ ---> 15d865213b5a
+Step 13/32 : ARG NEXT_PUBLIC_ENABLE_ENTRA_ID
+ ---> Running in bbe793773ee0
+
+Removing intermediate container bbe793773ee0
+ ---> 76ee0e712808
+Step 14/32 : ARG NEXT_PUBLIC_AUTH_PROVIDER
+ ---> Running in 149be52b20af
+Removing intermediate container 149be52b20af
+ ---> 4e38a507b22c
+Step 15/32 : ARG NEXT_PUBLIC_ENTRA_PATIENT_CLIENT_ID
+ ---> Running in 89ff5afa3c5f
+Removing intermediate container 89ff5afa3c5f
+ ---> fb88cc80e9dd
+Step 16/32 : ARG NEXT_PUBLIC_ORG_ENTRA_CLIENT_ID
+
+ ---> Running in 37783dadc522
+Removing intermediate container 37783dadc522
+ ---> 6985e61e82e5
+Step 17/32 : ARG NEXT_PUBLIC_ENTRA_TENANT_ID
+ ---> Running in fef117e36eef
+Removing intermediate container fef117e36eef
+ ---> c281c12422fb
+Step 18/32 : ARG NEXT_PUBLIC_ENTRA_SUBDOMAIN
+ ---> Running in 1e3cb8a06430
+Removing intermediate container 1e3cb8a06430
+ ---> 5785fd4668b8
+Step 19/32 : ARG NEXT_PUBLIC_ENTRA_AUTHORITY
+
+ ---> Running in bc2bc6e17900
+Removing intermediate container bc2bc6e17900
+ ---> af7d433da0e4
+Step 20/32 : ARG NEXT_PUBLIC_ENTRA_REDIRECT_URI
+ ---> Running in b4cd5bc94474
+Removing intermediate container b4cd5bc94474
+ ---> e544bf3a51a3
+Step 21/32 : RUN if [ -n "$NEXT_PUBLIC_API_BASE" ]; then export NEXT_PUBLIC_API_BASE="$NEXT_PUBLIC_API_BASE"; fi &&     if [ -n "$NEXT_PUBLIC_APP_NAME" ]; then export NEXT_PUBLIC_APP_NAME="$NEXT_PUBLIC_APP_NAME"; fi &&     if [ -n "$NEXT_PUBLIC_ENABLE_ENTRA_ID" ]; then export NEXT_PUBLIC_ENABLE_ENTRA_ID="$NEXT_PUBLIC_ENABLE_ENTRA_ID"; fi &&     if [ -n "$NEXT_PUBLIC_AUTH_PROVIDER" ]; then export NEXT_PUBLIC_AUTH_PROVIDER="$NEXT_PUBLIC_AUTH_PROVIDER"; fi &&     if [ -n "$NEXT_PUBLIC_ENTRA_PATIENT_CLIENT_ID" ]; then export NEXT_PUBLIC_ENTRA_PATIENT_CLIENT_ID="$NEXT_PUBLIC_ENTRA_PATIENT_CLIENT_ID"; fi &&     if [ -n "$NEXT_PUBLIC_ORG_ENTRA_CLIENT_ID" ]; then export NEXT_PUBLIC_ORG_ENTRA_CLIENT_ID="$NEXT_PUBLIC_ORG_ENTRA_CLIENT_ID"; fi &&     if [ -n "$NEXT_PUBLIC_ENTRA_TENANT_ID" ]; then export NEXT_PUBLIC_ENTRA_TENANT_ID="$NEXT_PUBLIC_ENTRA_TENANT_ID"; fi &&     if [ -n "$NEXT_PUBLIC_ENTRA_SUBDOMAIN" ]; then export NEXT_PUBLIC_ENTRA_SUBDOMAIN="$NEXT_PUBLIC_ENTRA_SUBDOMAIN"; fi &&     if [ -n "$NEXT_PUBLIC_ENTRA_AUTHORITY" ]; then export NEXT_PUBLIC_ENTRA_AUTHORITY="$NEXT_PUBLIC_ENTRA_AUTHORITY"; fi &&     if [ -n "$NEXT_PUBLIC_ENTRA_REDIRECT_URI" ]; then export NEXT_PUBLIC_ENTRA_REDIRECT_URI="$NEXT_PUBLIC_ENTRA_REDIRECT_URI"; fi &&     NEXT_TELEMETRY_DISABLED=1 NODE_ENV=production npm run build
+
+ ---> Running in cba1c155e192
+
+> claimgpt-designs@0.1.0 build
+> next build
+
+   Creating an optimized production build...
+Warning: For production Image Optimization with Next.js, the optional 'sharp' package is strongly recommended. Run 'npm i sharp', and Next.js will use it automatically for Image Optimization.
+Read more: https://nextjs.org/docs/messages/sharp-missing-in-production
+
+Browserslist: caniuse-lite is outdated. Please run:
+  npx update-browserslist-db@latest
+  Why you should do it regularly: https://github.com/browserslist/update-db#readme
+
+Browserslist: caniuse-lite is outdated. Please run:
+  npx browserslist@latest --update-db
+  Why you should do it regularly: https://github.com/browserslist/browserslist#browsers-data-updating
+

@@ -870,12 +870,16 @@
 
     <div class="finance-callout">
       <div class="item">
-        <div class="k">Itemised Total</div>
-        <div class="v">₹ {{ expense_total_formatted or summary.billed_total or "0" }}</div>
+        <div class="k">Gross Billed Total</div>
+        <div class="v">₹ {{ gross_billed_formatted or summary.billed_total or "0" }}</div>
       </div>
       <div class="item">
-        <div class="k">Billed Amount Claimed</div>
-        <div class="v highlight">₹ {{ summary.billed_total or summary.total_amount or "0" }}</div>
+        <div class="k">Non-Payable / Deductions</div>
+        <div class="v" style="color: #ef4444;">₹ {{ deductions_formatted or "0.00" }}</div>
+      </div>
+      <div class="item">
+        <div class="k">Net Admissible Amount</div>
+        <div class="v highlight">₹ {{ net_payable_formatted or expense_total_formatted or summary.billed_total or "0" }}</div>
       </div>
       <div class="item">
         <div class="k">Audit Variance</div>
@@ -883,7 +887,7 @@
           {% if variance_amount and variance_amount > 0 %}
             <span class="badge warn">₹ {{ variance_formatted }} Variance</span>
           {% else %}
-            <span class="badge ok">✓ Exact Match (Zero Variance)</span>
+            <span class="badge ok">✓ Zero Variance</span>
           {% endif %}
         </div>
       </div>

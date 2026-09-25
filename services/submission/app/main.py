@@ -353,11 +353,31 @@ def _extract_net_payable(text: str) -> float | None:
     patterns = [
         re.compile(r"net\s*admissible\s*(?:amount|total)?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
         re.compile(r"admissible\s*amount\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"net\s*payable\s*(?:amount|total)?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"amount\s*payable\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"net\s*(?:amount\s*)?payable\s*(?:by\s*(?:patient|insurer))?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"amount\s*payable\s*(?:by\s*(?:patient|insurer))?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
         re.compile(r"net\s*(?:total|amount)\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
         re.compile(r"payable\s*(?:total|amount)\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
         re.compile(r"total\s*payable\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+    ]
+    for pat in patterns:
+        matches = [m.group(1) for m in pat.finditer(text)]
+        for raw in reversed(matches):
+            try:
+                value = float(raw.replace(",", ""))
+            except ValueError:
+                continue
+            if value > 0:
+                return value
+    return None
+
+
+def _extract_deductions(text: str) -> float | None:
+    if not text:
+        return None
+    patterns = [
+        re.compile(r"(?:less:?\s*)?non[-\s]*payable\s*(?:items|amount|charges|total)?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"(?:less:?\s*)?deductions?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"(?:less:?\s*)?discounts?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
     ]
     for pat in patterns:
         matches = [m.group(1) for m in pat.finditer(text)]
@@ -379,6 +399,10 @@ def _extract_gross_total(text: str) -> float | None:
         re.compile(r"gross\s*bill\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
         re.compile(r"(?:total\s*)?gross\s*(?:total\s*)?amount\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
         re.compile(r"gross\s*total\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"grand\s*total\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"bill\s*total\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"total\s*charges\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"total\s*bill\s*(?:amount)?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
         re.compile(r"total\s*amount\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
         re.compile(r"bill\s*summary[\s\S]{0,350}?gross\s*total\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
     ]
@@ -696,6 +720,8 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
     gross_total_found = False
     net_payable_claimed = 0.0
     net_payable_found = False
+    deductions_claimed = 0.0
+    deductions_found = False
     radiology_doc_ids: set[str] = set()
     hospital_bill_subtotals: dict[str, float] = {}
     for d in docs:
@@ -711,7 +737,7 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         if not hospital_bill_subtotals:
             hospital_bill_subtotals = _extract_hospital_bill_subtotals(dtext)
         
-        # Scan for net payable and gross
+        # Scan for net payable, gross, and deductions
         net_pay = _extract_net_payable(dtext)
         if net_pay is not None:
             net_payable_claimed = net_pay
@@ -722,23 +748,44 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
             gross_total_claimed = gross
             gross_total_found = True
 
+        ded = _extract_deductions(dtext)
+        if ded is not None:
+            deductions_claimed = ded
+            deductions_found = True
+
+    if deductions_found and gross_total_found and not (net_payable_found and net_payable_claimed > 0):
+        net_payable_claimed = round(max(0.0, gross_total_claimed - deductions_claimed), 2)
+        net_payable_found = True
+    elif gross_total_found and net_payable_found and not deductions_found:
+        deductions_claimed = round(max(0.0, gross_total_claimed - net_payable_claimed), 2)
+        deductions_found = True
+
     # We no longer override with bill-summary anchored expense categories.
     # The `expense-table-v4` engine is now highly accurate and granular, 
     # capturing all necessary sub-categories directly.
 
-    # Prioritize Net Payable Total from document, fallback to Gross Total
-    billed_total = net_payable_claimed if net_payable_found else (gross_total_claimed if gross_total_found else 0.0)
+    # Prioritize Net Payable Total from document if > 0, fallback to Gross Total, then Expense Total
+    if net_payable_found and net_payable_claimed > 0:
+        billed_total = net_payable_claimed
+    elif gross_total_found and gross_total_claimed > 0:
+        billed_total = gross_total_claimed
+    else:
+        billed_total = 0.0
     
     if billed_total <= 0:
-        for fb_key in ["net_payable", "net_amount", "billed_amount", "total_amount", "claimed_total"]:
+        for fb_key in ["net_payable", "net_amount", "billed_amount", "total_amount", "claimed_total", "grand_total", "gross_total"]:
             billed_total_str = parsed.get(fb_key, "")
             if billed_total_str:
                 try:
-                    billed_total = _safe_float(billed_total_str)
-                    if billed_total > 0:
+                    cand_amt = _safe_float(billed_total_str)
+                    if cand_amt > 0:
+                        billed_total = cand_amt
                         break
                 except (ValueError, AttributeError):
-                    billed_total = 0.0
+                    pass
+
+    if billed_total <= 0 and expense_total > 0:
+        billed_total = expense_total
 
     reconciliation_warnings: list[str] = []
     if billed_total > 0 and expense_total > 0:
@@ -794,7 +841,11 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         "expenses": expenses,
         "expense_total": round(expense_total, 2),
         "billed_total": round(billed_total, 2),
+        "gross_total": round(gross_total_claimed, 2) if (gross_total_found and gross_total_claimed > 0) else round(billed_total, 2),
+        "net_payable": round(net_payable_claimed, 2) if (net_payable_found and net_payable_claimed > 0) else round(billed_total, 2),
+        "deductions": round(max(0.0, (gross_total_claimed - net_payable_claimed)), 2) if (gross_total_found and net_payable_found and gross_total_claimed > net_payable_claimed and net_payable_claimed > 0) else 0.0,
         "gross_total_found": gross_total_found,
+        "net_payable_found": net_payable_found,
         "has_radiology_source": bool(radiology_doc_ids),
         "reconciliation_warnings": reconciliation_warnings,
         "predictions": predictions,

@@ -3389,12 +3389,27 @@ def list_claims(
                 c.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
                 c.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
 
-        claim_items = [
-            {
+        # Batch-fetch workflow states to ensure live status accuracy (e.g. FINISHED -> COMPLETED)
+        wf_states = {}
+        if claims:
+            wf_rows = db.query(WorkflowState).filter(WorkflowState.claim_id.in_(claim_ids)).all()
+            for w in wf_rows:
+                wf_states[w.claim_id] = w
+
+        claim_items = []
+        for c in claims:
+            effective_status = c.status
+            w_state = wf_states.get(c.id)
+            if w_state and (w_state.current_step in ("FINISHED", "COMPLETED") or w_state.status in ("FINISHED", "COMPLETED")):
+                effective_status = "COMPLETED"
+            elif c.status == "PARSED" and not (w_state and w_state.status == "RUNNING"):
+                effective_status = "COMPLETED"
+
+            claim_items.append({
                 "id": c.id,
                 "policy_id": c.policy_id,
                 "patient_id": c.patient_id,
-                "status": c.status,
+                "status": effective_status,
                 "source": c.source,
                 "created_at": c.created_at,
                 "updated_at": c.updated_at,
@@ -3404,9 +3419,7 @@ def list_claims(
                 "hospital_name": getattr(c, "hospital_name", None),
                 "doctor_name": getattr(c, "doctor_name", None),
                 "diagnosis": getattr(c, "diagnosis", None),
-            }
-            for c in claims
-        ]
+            })
 
         return ClaimListOut(claims=claim_items, total=total)
     except Exception as exc:

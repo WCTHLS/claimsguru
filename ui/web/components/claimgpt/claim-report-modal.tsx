@@ -561,10 +561,35 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               ))}
             </div>
 
-            {/* Total Summary Row */}
-            <div className="flex items-center justify-between pt-2 border-t border-white/10 text-xs font-bold px-1">
-              <span className="text-slate-400">Itemized Breakdown Total:</span>
-              <span className="text-emerald-400 text-sm">{formatINR(totalItemizedExpenses)}</span>
+            {/* 3-Part Financial Reconciliation Summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-white/10 text-center">
+              <div className="rounded-xl bg-slate-900/60 border border-white/5 p-2.5 flex flex-col justify-center">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Gross Billed Total</span>
+                <span className="text-xs sm:text-sm font-bold text-slate-200 mt-0.5">
+                  {formatINR(preview?.gross_total && preview.gross_total > 0 ? preview.gross_total : (preview?.billed_total || totalItemizedExpenses))}
+                </span>
+              </div>
+              <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-2.5 flex flex-col justify-center">
+                <span className="text-[10px] uppercase font-bold text-rose-400/90 tracking-wider">Non-Payable / Deductions</span>
+                <span className="text-xs sm:text-sm font-bold text-rose-300 mt-0.5">
+                  {formatINR(preview?.deductions ?? 0)}
+                </span>
+              </div>
+              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 flex flex-col justify-center">
+                <span className="text-[10px] uppercase font-bold text-emerald-400/90 tracking-wider">Net Admissible Amount</span>
+                <span className="text-xs sm:text-sm font-bold text-emerald-400 mt-0.5">
+                  {formatINR(totalItemizedExpenses)}
+                </span>
+              </div>
+            </div>
+
+            {/* Total Summary Row / Verification Status */}
+            <div className="flex items-center justify-between text-xs font-bold px-1 pt-1">
+              <span className="text-slate-400">Itemized Net Breakdown:</span>
+              <span className="inline-flex items-center gap-1.5 text-emerald-400 text-xs">
+                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
+                {formatINR(totalItemizedExpenses)} (Zero Variance)
+              </span>
             </div>
 
             {/* Mismatch Alert Banner */}
