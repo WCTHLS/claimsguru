@@ -2687,25 +2687,51 @@ def _delete_entra_user(external_subject_id: str | None, email: str | None) -> di
     Supports:
     - Native Entra accounts (email/password)
     - Google social federation connector accounts in Entra
+    - Customer local accounts provisioned via scripts or self-service
     
     Attempts deletion using Microsoft Graph API with tenant client credentials.
     """
-    tenant_id = os.getenv("ENTRA_TENANT_ID") or os.getenv("NEXT_PUBLIC_ENTRA_TENANT_ID") or "25677056-693e-49e6-b2e1-03b7ff8db968"
-    client_id = os.getenv("ENTRA_CLIENT_ID") or os.getenv("NEXT_PUBLIC_ENTRA_CLIENT_ID") or os.getenv("ENTRA_PATIENT_CLIENT_ID") or "a8f6345e-0a65-433e-aa0a-ded94e8cf696"
-    client_secret = os.getenv("ENTRA_CLIENT_SECRET") or os.getenv("AZURE_CLIENT_SECRET") or os.getenv("ENTRA_APP_SECRET")
-    subdomain = os.getenv("ENTRA_SUBDOMAIN") or os.getenv("NEXT_PUBLIC_ENTRA_SUBDOMAIN") or "claimsguru"
+    tenant_id = (
+        os.getenv("ENTRA_TENANT_ID")
+        or os.getenv("EXPO_PUBLIC_ENTRA_TENANT_ID")
+        or os.getenv("NEXT_PUBLIC_ENTRA_TENANT_ID")
+        or "25677056-693e-49e6-b2e1-03b7ff8db968"
+    )
+    client_id = (
+        os.getenv("ENTRA_PROVISIONING_CLIENT_ID")
+        or os.getenv("PROVISIONING_ENTRA_CLIENT_ID")
+        or os.getenv("PROVISIONIG_ENTRA_CLIENT_ID")
+        or os.getenv("ENTRA_CLIENT_ID")
+        or os.getenv("NEXT_PUBLIC_ENTRA_CLIENT_ID")
+        or os.getenv("ENTRA_PATIENT_CLIENT_ID")
+        or "a8f6345e-0a65-433e-aa0a-ded94e8cf696"
+    )
+    client_secret = (
+        os.getenv("ENTRA_PROVISIONING_CLIENT_SECRET")
+        or os.getenv("PROVISIONING_ENTRA_CLIENT_SECRET")
+        or os.getenv("PROVISIONIG_ENTRA_CLIENT_SECRET")
+        or os.getenv("ENTRA_CLIENT_SECRET")
+        or os.getenv("AZURE_CLIENT_SECRET")
+        or os.getenv("ENTRA_APP_SECRET")
+    )
+    subdomain = (
+        os.getenv("ENTRA_SUBDOMAIN")
+        or os.getenv("EXPO_PUBLIC_ENTRA_SUBDOMAIN")
+        or os.getenv("NEXT_PUBLIC_ENTRA_SUBDOMAIN")
+        or "claimsguru"
+    )
 
     clean_email = (email or "").strip().lower()
     subject_id = (external_subject_id or "").strip()
 
     if not client_secret:
         logger.info(
-            f"[Entra Deletion] ENTRA_CLIENT_SECRET not configured in environment. Skipping Microsoft Graph API call for user {clean_email or subject_id}."
+            f"[Entra Deletion] ENTRA_CLIENT_SECRET / PROVISIONIG_ENTRA_CLIENT_SECRET not configured in environment. Skipping Microsoft Graph API call for user {clean_email or subject_id}."
         )
         return {
             "attempted": False,
             "success": True,
-            "reason": "ENTRA_CLIENT_SECRET not configured in environment.",
+            "reason": "Entra client secret not configured in environment.",
         }
 
     import json
@@ -2756,6 +2782,7 @@ def _delete_entra_user(external_subject_id: str | None, email: str | None) -> di
     if subject_id and ("@" not in subject_id):
         target_user_ids.append(subject_id)
 
+    # 1. Search by email filter (v1.0)
     if clean_email:
         try:
             filter_query = urllib.parse.quote(
@@ -2774,7 +2801,32 @@ def _delete_entra_user(external_subject_id: str | None, email: str | None) -> di
                     if uid and uid not in target_user_ids:
                         target_user_ids.append(uid)
         except Exception as se:
-            logger.warning(f"[Entra Deletion] User lookup by email failed: {se}")
+            logger.warning(f"[Entra Deletion] User lookup by email filter failed: {se}")
+
+    # 2. Search users and match identities (beta / customer local accounts)
+    if clean_email and not target_user_ids:
+        try:
+            search_url = "https://graph.microsoft.com/beta/users?$select=id,mail,userPrincipalName,identities&$top=999"
+            req = urllib.request.Request(
+                search_url,
+                headers={"Authorization": f"Bearer {graph_token}", "Accept": "application/json"},
+                method="GET"
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                for u in data.get("value", []):
+                    uid = u.get("id")
+                    # Check direct mail / upn
+                    if str(u.get("mail", "")).lower() == clean_email or str(u.get("userPrincipalName", "")).lower() == clean_email:
+                        if uid and uid not in target_user_ids:
+                            target_user_ids.append(uid)
+                    # Check identities array for emailAddress signInType
+                    for ident in u.get("identities", []) or []:
+                        if str(ident.get("issuerAssignedId", "")).lower() == clean_email:
+                            if uid and uid not in target_user_ids:
+                                target_user_ids.append(uid)
+        except Exception as be:
+            logger.warning(f"[Entra Deletion] Beta user identities lookup failed: {be}")
 
     if not target_user_ids and clean_email:
         target_user_ids.append(clean_email)

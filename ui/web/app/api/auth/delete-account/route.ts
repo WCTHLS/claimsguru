@@ -38,6 +38,8 @@ async function handleDeleteAccount(request: NextRequest) {
       }
     }
 
+    urlsToTry.push('https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io/auth/delete-account');
+    urlsToTry.push('https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io/ingress/auth/delete-account');
     urlsToTry.push('http://cg-preprod-cin-ingress:8000/ingress/auth/delete-account');
     urlsToTry.push('http://cg-preprod-cin-ingress:8000/auth/delete-account');
     urlsToTry.push('http://claimsguru-stage-ingress:8000/ingress/auth/delete-account');

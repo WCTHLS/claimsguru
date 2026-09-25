@@ -284,7 +284,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       <div className={`relative w-full max-w-[360px] sm:max-w-none sm:absolute sm:top-16 sm:right-6 z-[101] sm:w-[380px] max-h-[82vh] sm:max-h-[85vh] flex flex-col rounded-3xl border backdrop-blur-2xl overflow-hidden animate-scale-in sm:animate-slide-down ${themeStyles.cardBg}`}>
         
         {/* Top Header Pill Bar */}
-        <div className={`flex items-center justify-between px-4 pt-3.5 pb-2 ${themeStyles.headerBg}`}>
+        <div className={`flex items-center justify-between px-4 pt-3.5 pb-2 flex-none ${themeStyles.headerBg}`}>
           <div className={`flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-semibold backdrop-blur-md ${themeStyles.headerPill}`}>
             <User className="h-3.5 w-3.5" />
             <span>{isTpa ? (session?.accountRole === 'admin' ? 'Org Admin Profile' : 'TPA Reviewer Profile') : 'Patient Profile'}</span>
@@ -301,7 +301,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         {/* Scrollable Content Body */}
-        <div className="px-4 py-3 space-y-3 overflow-y-auto flex-1 scrollbar-thin">
+        <div className="px-4 py-3 space-y-3 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
           
           {/* Main User Banner */}
           <div className="flex items-start gap-3.5 pt-0.5">
@@ -475,7 +475,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         {/* Modal Bottom Actions: Switch Account & Sign Out */}
-        <div className={`p-3 border-t flex items-center gap-2 ${themeStyles.headerBg}`}>
+        <div className={`p-3 border-t flex items-center gap-2 flex-none ${themeStyles.headerBg}`}>
           <button
             type="button"
             onClick={handleSwitchAccount}
@@ -496,7 +496,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         </div>
 
         {/* Danger Zone: Delete Account */}
-        <div className="px-3 py-2 border-t border-rose-500/20 bg-rose-500/5 flex items-center justify-between">
+        <div className="px-3 py-2 border-t border-rose-500/20 bg-rose-500/5 flex items-center justify-between flex-none">
           <div className="flex items-center gap-1.5 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
             <ShieldAlert className="h-3.5 w-3.5 flex-none text-rose-500" />
             <span>Danger Zone</span>
@@ -517,34 +517,39 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
         {/* Delete Account Confirmation Dialog Overlay */}
         {showDeleteConfirm && (
-          <div className="absolute inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex flex-col justify-center items-center p-5 text-center animate-fade-in">
-            <div className="h-12 w-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 text-rose-500 flex items-center justify-center mb-3 shadow-lg shadow-rose-500/20">
-              <AlertTriangle className="h-6 w-6" />
+          <div 
+            className="absolute inset-0 z-50 backdrop-blur-md flex flex-col justify-center items-center p-5 text-center animate-fade-in rounded-3xl"
+            style={{ backgroundColor: 'rgba(255, 255, 255, 0.98)' }}
+          >
+            <div className="h-12 w-12 rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 flex items-center justify-center mb-3 shadow-xs">
+              <AlertTriangle className="h-6 w-6 text-rose-600" />
             </div>
 
-            <h3 className="text-base font-bold text-white mb-1">
+            <h3 className="text-base font-bold text-slate-900 mb-1.5 tracking-tight">
               Permanently Delete Account?
             </h3>
 
-            <p className="text-xs text-slate-300 max-w-xs mb-3 leading-relaxed">
-              This action <span className="text-rose-400 font-semibold">cannot be undone</span>. All your personal data, claims, records, and Microsoft Entra login identity will be permanently deleted from ClaimsGuru and Azure.
+            <p className="text-xs text-slate-600 max-w-xs mb-3.5 leading-relaxed font-normal">
+              This action <span className="text-rose-600 font-semibold underline decoration-rose-300 underline-offset-2">cannot be undone</span>. All your personal data, claims, and records will be permanently deleted from ClaimsGuru.
             </p>
 
-            <div className="w-full max-w-xs rounded-xl bg-rose-950/40 border border-rose-500/30 p-2.5 mb-3 text-left text-[11px] text-rose-200 space-y-1">
-              <div className="flex items-center gap-1.5 font-semibold text-rose-300">
-                <Trash2 className="h-3.5 w-3.5 text-rose-400 flex-none" />
+            <div 
+              className="w-full max-w-xs rounded-xl border border-rose-200 bg-rose-50/70 p-2.5 mb-4 text-left text-[11px] space-y-1 shadow-2xs"
+            >
+              <div className="flex items-center gap-1.5 font-semibold text-rose-700">
+                <Trash2 className="h-3.5 w-3.5 text-rose-600 flex-none" />
                 <span>Account to be erased:</span>
               </div>
-              <p className="font-mono text-white truncate pl-5 text-[11px]">{userEmail || userName}</p>
+              <p className="font-mono text-slate-900 truncate pl-5 text-[11px] font-semibold">{userEmail || userName}</p>
             </div>
 
             {deleteError && (
-              <div className="w-full max-w-xs rounded-xl bg-red-900/60 border border-red-500 p-2 mb-3 text-xs text-red-200">
+              <div className="w-full max-w-xs rounded-xl bg-rose-100 border border-rose-300 p-2.5 mb-3 text-xs text-rose-800 text-left">
                 {deleteError}
               </div>
             )}
 
-            <div className="flex items-center gap-2 w-full max-w-xs">
+            <div className="flex items-center gap-2.5 w-full max-w-xs">
               <button
                 type="button"
                 disabled={isDeleting}
@@ -552,7 +557,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   setShowDeleteConfirm(false);
                   setDeleteError(null);
                 }}
-                className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all cursor-pointer disabled:opacity-50"
+                className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 border border-slate-300 transition-all cursor-pointer disabled:opacity-50 shadow-2xs"
               >
                 Cancel
               </button>
@@ -561,7 +566,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                 type="button"
                 disabled={isDeleting}
                 onClick={handleDeleteAccount}
-                className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-600/30 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-md shadow-rose-600/25 transition-all cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
               >
                 {isDeleting ? (
                   <>
