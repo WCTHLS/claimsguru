@@ -1120,7 +1120,7 @@ class RegisterUserIn(BaseModel):
     policy: str | None = None
     sum_insured: Any | None = None
     provider: str | None = "local"
-    recreate_existing: bool | None = True
+    recreate_existing: bool | None = False
 
 
 class LoginUserIn(BaseModel):
@@ -1199,6 +1199,8 @@ def register_local_user(payload: RegisterUserIn):
             password_hash = supplied_hash or (hash_password(payload.password) if payload.password else None)
 
             if user_row:
+                if not payload.recreate_existing:
+                    raise HTTPException(status_code=409, detail="User already exist with this mail , please login")
                 old_user_id = user_row["id"]
                 logger.info(f"Recreating account for {email}: deleting existing record {old_user_id} before registration")
                 try:
@@ -1552,7 +1554,7 @@ def login_local_user(payload: LoginUserIn):
             if not user_row:
                 if is_org_login:
                     raise HTTPException(status_code=401, detail="Access denied")
-                raise HTTPException(status_code=401, detail="Username not found")
+                raise HTTPException(status_code=401, detail="User not found , Please create a new account ")
 
             if user_row["status"] in ("BLOCKED", "DELETED"):
                 if is_org_login:
@@ -1567,7 +1569,7 @@ def login_local_user(payload: LoginUserIn):
                 if (user_row.get("external_provider") or "").lower() == "entra":
                     raise HTTPException(
                         status_code=403,
-                        detail="This account is registered via Microsoft Entra on the ClaimsGuru Web Portal. Please sign in via the Web Portal.",
+                        detail="Please sign in with your email and password.",
                     )
                 if is_org_login:
                     raise HTTPException(status_code=401, detail="Access denied")
@@ -1637,10 +1639,7 @@ def login_local_user(payload: LoginUserIn):
                 if not role_match and actual_role:
                     raise HTTPException(
                         status_code=403,
-                        detail={
-                            "message": f"User is not registered as a {role_str}",
-                            "actual_role": actual_role or normalized_role,
-                        },
+                        detail="user not registered as a paient please continue on claimsguru org web portal",
                     )
 
             first_name = None
@@ -2203,7 +2202,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         if actual_role in ("admin", "reviewer"):
                             raise HTTPException(
                                 status_code=403,
-                                detail="Account is registered as organization staff. Please sign in via 'Continue as Organization'.",
+                                detail="user not registered as a paient please continue on claimsguru org web portal",
                             )
 
                         # Check patient profile
