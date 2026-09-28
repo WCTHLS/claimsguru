@@ -334,16 +334,22 @@ def _infer_document_type(file_name: str, text: str) -> str:
         return "HOSPITAL_BILL"
     if "hospitalization details" in sample and ("date of admission" in sample or "admission date" in sample):
         return "HOSPITAL_BILL"
-    if any(k in sample for k in ("itemized inpatient hospital bill", "gross total", "bill summary", "hospital bill", "net admissible")):
+    if any(k in sample for k in (
+        "hospital expense breakdown", "expense breakdown", "itemized inpatient hospital bill",
+        "gross total", "bill summary", "hospital bill", "net admissible", "claim amount requested",
+        "total amount", "amount exceeding policy", "sum insured"
+    )):
         return "HOSPITAL_BILL"
-    if any(k in sample for k in ("radiology", "x-ray", "xray", "ct scan", "mri", "ultrasound", "usg", "sonography", "imaging report")):
-        return "RADIOLOGY_REPORT"
     if "discharge summary" in sample:
         return "DISCHARGE_SUMMARY"
     if "pharmacy invoice" in sample:
         return "PHARMACY_INVOICE"
+    if any(k in sample for k in ("radiology", "x-ray", "xray", "ct scan", "mri", "ultrasound", "usg", "sonography", "imaging report")):
+        if not any(bk in sample for bk in ("hospital expense breakdown", "bill total", "total amount", "amount exceeding policy", "sum insured")):
+            return "RADIOLOGY_REPORT"
     if "laboratory" in sample or "investigation report" in sample or "lab charges" in sample:
-        return "LAB_REPORT"
+        if not any(bk in sample for bk in ("hospital expense breakdown", "bill total", "total amount", "amount exceeding policy", "sum insured")):
+            return "LAB_REPORT"
     return "UNKNOWN"
 
 
@@ -351,13 +357,15 @@ def _extract_net_payable(text: str) -> float | None:
     if not text:
         return None
     patterns = [
-        re.compile(r"net\s*admissible\s*(?:amount|total)?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"admissible\s*amount\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"net\s*(?:amount\s*)?payable\s*(?:by\s*(?:patient|insurer))?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"amount\s*payable\s*(?:by\s*(?:patient|insurer))?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"net\s*(?:total|amount)\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"payable\s*(?:total|amount)\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"total\s*payable\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"claim\s*amount\s*requested\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"net\s*admissible\s*(?:amount|total)?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"admissible\s*amount\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"net\s*(?:amount\s*)?payable\s*(?:by\s*(?:patient|insurer))?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"amount\s*payable\s*(?:by\s*(?:patient|insurer))?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"net\s*(?:total|amount)\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"payable\s*(?:total|amount)\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"total\s*payable\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"claim\s*amount\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
     ]
     for pat in patterns:
         matches = [m.group(1) for m in pat.finditer(text)]
@@ -375,9 +383,10 @@ def _extract_deductions(text: str) -> float | None:
     if not text:
         return None
     patterns = [
-        re.compile(r"(?:less:?\s*)?non[-\s]*payable\s*(?:items|amount|charges|total)?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"(?:less:?\s*)?deductions?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"(?:less:?\s*)?discounts?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"amount\s*exceeding\s*policy\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"(?:less:?\s*)?non[-\s]*payable\s*(?:items|amount|charges|total)?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"(?:less:?\s*)?deductions?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"(?:less:?\s*)?discounts?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
     ]
     for pat in patterns:
         matches = [m.group(1) for m in pat.finditer(text)]
@@ -395,16 +404,16 @@ def _extract_gross_total(text: str) -> float | None:
     if not text:
         return None
     patterns = [
-        re.compile(r"gross\s*hospital\s*bill\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"gross\s*bill\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"(?:total\s*)?gross\s*(?:total\s*)?amount\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"gross\s*total\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"grand\s*total\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"bill\s*total\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"total\s*charges\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"total\s*bill\s*(?:amount)?\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"total\s*amount\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"bill\s*summary[\s\S]{0,350}?gross\s*total\s*[:|\-]?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"gross\s*hospital\s*bill\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"gross\s*bill\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"(?:total\s*)?gross\s*(?:total\s*)?amount\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"gross\s*total\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"grand\s*total\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"bill\s*total\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"total\s*charges\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"total\s*bill\s*(?:amount)?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"total\s*amount\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"bill\s*summary[\s\S]{0,350}?gross\s*total\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
     ]
     for pat in patterns:
         matches = [m.group(1) for m in pat.finditer(text)]

@@ -3396,6 +3396,35 @@ def list_claims(
             for w in wf_rows:
                 wf_states[w.claim_id] = w
 
+        # Batch-fetch latest actionable AuditLog records for document requests / status
+        action_map = {}
+        if claims:
+            try:
+                from libs.shared.models import AuditLog
+                audit_records = (
+                    db.query(AuditLog)
+                    .filter(
+                        AuditLog.claim_id.in_(claim_ids),
+                        AuditLog.action.in_([
+                            "CLAIM_REQUEST_DOCS",
+                            "CLAIM_DOCUMENTS_REQUESTED",
+                            "CLAIM_MODIFICATION_REQUESTED",
+                            "CLAIM_SEND_BACK",
+                            "CLAIM_REJECT",
+                            "CLAIM_REJECTED",
+                            "CLAIM_APPROVED",
+                            "CLAIM_SETTLED",
+                            "CLAIM_SUBMITTED"
+                        ])
+                    )
+                    .order_by(AuditLog.created_at.asc())
+                    .all()
+                )
+                for a in audit_records:
+                    action_map[a.claim_id] = a
+            except Exception as _audit_err:
+                logger.debug(f"[list_claims] Could not fetch audit logs: {_audit_err}")
+
         claim_items = []
         for c in claims:
             effective_status = c.status
@@ -3404,6 +3433,33 @@ def list_claims(
                 effective_status = "COMPLETED"
             elif c.status == "PARSED" and not (w_state and w_state.status == "RUNNING"):
                 effective_status = "COMPLETED"
+
+            has_action_request = False
+            tpa_message = None
+            tpa_requested_docs = []
+
+            audit = action_map.get(c.id)
+            if audit:
+                if audit.action in ("CLAIM_REQUEST_DOCS", "CLAIM_DOCUMENTS_REQUESTED", "CLAIM_SEND_BACK"):
+                    effective_status = "DOCUMENTS_REQUESTED"
+                    has_action_request = True
+                    if audit.audit_metadata:
+                        tpa_message = audit.audit_metadata.get("reason")
+                        tpa_requested_docs = audit.audit_metadata.get("requested_documents") or []
+                elif audit.action == "CLAIM_MODIFICATION_REQUESTED":
+                    effective_status = "MODIFICATION_REQUESTED"
+                    has_action_request = True
+                    if audit.audit_metadata:
+                        tpa_message = audit.audit_metadata.get("reason")
+                        tpa_requested_docs = audit.audit_metadata.get("requested_documents") or []
+                elif audit.action in ("CLAIM_REJECT", "CLAIM_REJECTED"):
+                    effective_status = "REJECTED"
+                elif audit.action == "CLAIM_APPROVED":
+                    effective_status = "APPROVED"
+                elif audit.action == "CLAIM_SETTLED":
+                    effective_status = "SETTLED"
+                elif audit.action == "CLAIM_SUBMITTED":
+                    effective_status = "SUBMITTED"
 
             claim_items.append({
                 "id": c.id,
@@ -3419,6 +3475,9 @@ def list_claims(
                 "hospital_name": getattr(c, "hospital_name", None),
                 "doctor_name": getattr(c, "doctor_name", None),
                 "diagnosis": getattr(c, "diagnosis", None),
+                "has_action_request": has_action_request,
+                "tpa_message": tpa_message,
+                "tpa_requested_docs": tpa_requested_docs,
             })
 
         return ClaimListOut(claims=claim_items, total=total)

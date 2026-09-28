@@ -473,7 +473,7 @@ export function DashboardClinical() {
                             <div className="space-y-1.5 pt-1">
                               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                                 <span className="truncate font-mono">ID: {claim.id.slice(0, 8)}...</span>
-                                {((isSelected && s.isDocumentsRequested) || (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED") ? (
+                                {(((isSelected && s.isDocumentsRequested) || (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED" || Boolean((claim as any).has_action_request) || Boolean((claim as any).tpa_requested_docs?.length))) ? (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300 animate-pulse">
                                     ⚠️ Action: Docs Requested
                                   </span>
@@ -504,7 +504,7 @@ export function DashboardClinical() {
                                 )}
                               </div>
 
-                              {((isSelected && s.isDocumentsRequested) || (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED") && (
+                              {(((isSelected && s.isDocumentsRequested) || (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED" || Boolean((claim as any).has_action_request) || Boolean((claim as any).tpa_requested_docs?.length))) && (
                                 <div className="rounded-lg border border-amber-200 bg-amber-50/90 p-2 text-[10px] text-amber-900 space-y-1">
                                   <p className="font-semibold flex items-center gap-1">
                                     <AlertTriangle className="h-3 w-3 text-amber-600 flex-none" />
@@ -542,6 +542,52 @@ export function DashboardClinical() {
 
             {/* Right Main Content Area */}
             <div className="space-y-6 lg:col-span-3">
+
+              {/* Prominent Action Required Banner if ANY claim has requested documents */}
+              {(() => {
+                const actionClaims = s.recentClaims.filter(c => 
+                  (c.status || '').toUpperCase() === 'DOCUMENTS_REQUESTED' ||
+                  Boolean((c as any).has_action_request) ||
+                  Boolean((c as any).tpa_requested_docs?.length)
+                );
+                if (actionClaims.length === 0) return null;
+                const topAction = actionClaims[0];
+                return (
+                  <StaggerItem index={1}>
+                    <div className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-50/80 to-white p-4 sm:p-5 shadow-elevation-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-amber-100 text-amber-700 border border-amber-300">
+                            <AlertTriangle className="h-5 w-5 animate-pulse" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h3 className="text-sm sm:text-base font-bold text-amber-950">
+                                Action Required: Missing Document Request
+                              </h3>
+                              <span className="rounded-full bg-amber-200/80 border border-amber-300 px-2.5 py-0.5 text-[10px] font-bold text-amber-900">
+                                {actionClaims.length} Claim{actionClaims.length > 1 ? 's' : ''} Pending Action
+                              </span>
+                            </div>
+                            <p className="text-xs text-amber-900/90 mt-1 font-medium">
+                              <strong>{topAction.patient_name || 'Claim'}</strong>: {topAction.tpa_message || 'The insurance reviewer requested additional supporting documents before this claim can be approved.'}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 self-end sm:self-center flex-none">
+                          <Button
+                            size="sm"
+                            onClick={() => s.selectClaim(topAction.id)}
+                            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-sm cursor-pointer"
+                          >
+                            Open Claim &amp; Upload Proofs →
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </StaggerItem>
+                );
+              })()}
 
               {/* Upload Dropdown Panel (Always open & prominent when no claims are present) */}
               <StaggerItem index={2}>

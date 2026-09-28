@@ -167,6 +167,11 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
             if any(kw in val_lower for kw in hospital_keywords) and "ms." not in val_lower and "mr." not in val_lower:
                 canonical_key = "hospital_name"
 
+        # Ensure historical previous claims are not mapped to current claim's claimed_total
+        if canonical_key == "claimed_total":
+            if any(term in key_norm for term in ["previous", "prior", "past", "history", "risk"]):
+                canonical_key = "previous_claims_amount"
+
         if canonical_key and canonical_key != "signature" and val_str:
             normalized.append({
                 "field": key_norm,

@@ -29,6 +29,9 @@ class ClaimOut(BaseModel):
     hospital_name: str | None = None
     doctor_name: str | None = None
     diagnosis: str | None = None
+    has_action_request: bool = False
+    tpa_message: str | None = None
+    tpa_requested_docs: list[str] = []
 
     model_config = {"from_attributes": True}
 
