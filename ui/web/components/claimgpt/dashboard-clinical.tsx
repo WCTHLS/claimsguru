@@ -12,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   Clock,
+  Copy,
   FileText,
   Folder,
   Image as ImageIcon,
@@ -62,6 +63,16 @@ export function DashboardClinical() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const appendFileInputRef = useRef<HTMLInputElement>(null);
   const targetAppendClaimRef = useRef<string | null>(null);
+  const [copiedClaimId, setCopiedClaimId] = useState<string | null>(null);
+
+  const handleCopyClaimId = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!id) return;
+    navigator.clipboard.writeText(id).then(() => {
+      setCopiedClaimId(id);
+      setTimeout(() => setCopiedClaimId(null), 2000);
+    }).catch(() => {});
+  };
 
   const handleAppendRequestedDocClick = (targetClaimId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -359,6 +370,12 @@ export function DashboardClinical() {
                         ? (s.stepDescription || `${claim.status === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"} - ${currentProgress}%`)
                         : (claim.progress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : `Parsing (LLM agent reading document) - ${currentProgress}%`));
                       const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
+                      const hasDocsRequested = (
+                        (isSelected && s.isDocumentsRequested) ||
+                        (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED" ||
+                        Boolean((claim as any).has_action_request) ||
+                        Boolean((claim as any).tpa_requested_docs?.length)
+                      );
 
                       return (
                         <div
@@ -371,12 +388,22 @@ export function DashboardClinical() {
                               : "border-slate-200 bg-white/80 hover:bg-white shadow-2xs"
                           )}
                         >
-                          {/* Top Row: Short ID, SLA, Delete X */}
+                          {/* Top Row: Short ID & 1-Click Copy, Status Badge, Delete X */}
                           <div className="flex items-center justify-between gap-1 text-[10px]">
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <span className="rounded bg-blue-50 text-blue-700 font-mono font-bold px-1.5 py-0.5 text-[9px] border border-blue-200">
-                                #{shortId || "CLM001"}
-                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => handleCopyClaimId(claim.id, e)}
+                                className="inline-flex items-center gap-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-mono font-bold px-1.5 py-0.5 text-[9px] border border-blue-200 transition-colors cursor-pointer"
+                                title={`Full Claim ID: ${claim.id}\n(Click to copy)`}
+                              >
+                                <span>#{shortId || "CLM001"}</span>
+                                {copiedClaimId === claim.id ? (
+                                  <Check className="h-2.5 w-2.5 text-emerald-600 flex-none" />
+                                ) : (
+                                  <Copy className="h-2.5 w-2.5 opacity-50 hover:opacity-100 flex-none" />
+                                )}
+                              </button>
                             </div>
                             <div className="flex items-center gap-1.5 flex-none">
                               {isClaimProcessing ? (
@@ -384,27 +411,27 @@ export function DashboardClinical() {
                                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
                                   {claim.status === "UPLOADED" ? "OCR" : "Parsing"}
                                 </span>
-                              ) : claim.status === "DOCUMENTS_REQUESTED" ? (
+                              ) : hasDocsRequested ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 text-[9px] border border-amber-300 animate-pulse">
                                   ⚠️ Docs Req
                                 </span>
-                              ) : claim.status === "MODIFICATION_REQUESTED" ? (
+                              ) : (claim.status || "").toUpperCase() === "MODIFICATION_REQUESTED" ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 text-[9px] border border-amber-300">
                                   ⚠️ Info Req
                                 </span>
-                              ) : claim.status === "APPROVED" ? (
+                              ) : (claim.status || "").toUpperCase() === "APPROVED" ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 text-[9px] border border-teal-300">
                                   ✓ Approved
                                 </span>
-                              ) : claim.status === "SETTLED" ? (
+                              ) : (claim.status || "").toUpperCase() === "SETTLED" ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 text-[9px] border border-emerald-300">
                                   💎 Settled
                                 </span>
-                              ) : claim.status === "REJECTED" ? (
+                              ) : (claim.status || "").toUpperCase() === "REJECTED" ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 font-bold px-1.5 py-0.5 text-[9px] border border-rose-300">
                                   ✕ Rejected
                                 </span>
-                              ) : claim.status === "SUBMITTED" ? (
+                              ) : (claim.status || "").toUpperCase() === "SUBMITTED" ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 text-[9px] border border-sky-300">
                                   📤 Submitted
                                 </span>
@@ -484,7 +511,7 @@ export function DashboardClinical() {
                           )}
 
                           {/* Live Processing Bar */}
-                          {isClaimProcessing ? (
+                          {isClaimProcessing && (
                             <div className="space-y-1.5 pt-1">
                               <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
                                 <div
@@ -496,56 +523,22 @@ export function DashboardClinical() {
                                 {currentStep}
                               </p>
                             </div>
-                          ) : (
-                            <div className="space-y-1.5 pt-1">
-                              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                                <span className="truncate font-mono">ID: {claim.id.slice(0, 8)}...</span>
-                                {(((isSelected && s.isDocumentsRequested) || (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED" || Boolean((claim as any).has_action_request) || Boolean((claim as any).tpa_requested_docs?.length))) ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300 animate-pulse">
-                                    ⚠️ Action: Docs Requested
-                                  </span>
-                                ) : (claim.status || "").toUpperCase() === "MODIFICATION_REQUESTED" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300">
-                                    ⚠️ Info Requested
-                                  </span>
-                                ) : (claim.status || "").toUpperCase() === "APPROVED" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 text-teal-800 font-bold px-2 py-0.5 text-[9px] border border-teal-300">
-                                    ✓ Approved by Insurer
-                                  </span>
-                                ) : (claim.status || "").toUpperCase() === "SETTLED" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 text-[9px] border border-emerald-300">
-                                    💎 Settled &amp; Paid
-                                  </span>
-                                ) : (claim.status || "").toUpperCase() === "REJECTED" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 font-bold px-2 py-0.5 text-[9px] border border-rose-300">
-                                    ✕ Rejected
-                                  </span>
-                                ) : (claim.status || "").toUpperCase() === "SUBMITTED" ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-bold px-2 py-0.5 text-[9px] border border-sky-300">
-                                    📤 Submitted to Star Health
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 text-[9px] border border-emerald-200">
-                                    ✓ Audit Ready
-                                  </span>
-                                )}
-                              </div>
+                          )}
 
-                              {(((isSelected && s.isDocumentsRequested) || (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED" || Boolean((claim as any).has_action_request) || Boolean((claim as any).tpa_requested_docs?.length))) && (
-                                <div className="rounded-lg border border-amber-200 bg-amber-50/90 p-2 text-[10px] text-amber-900 space-y-1">
-                                  <p className="font-semibold flex items-center gap-1">
-                                    <AlertTriangle className="h-3 w-3 text-amber-600 flex-none" />
-                                    <span>Insurer requested missing documents</span>
-                                  </p>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => handleAppendRequestedDocClick(claim.id, e)}
-                                    className="w-full text-center rounded bg-amber-600 hover:bg-amber-700 text-white font-bold py-1.5 px-2 text-[10px] shadow-xs cursor-pointer transition-colors"
-                                  >
-                                    + Upload Requested Document
-                                  </button>
-                                </div>
-                              )}
+                          {/* Documents Requested Action Box */}
+                          {hasDocsRequested && (
+                            <div className="rounded-lg border border-amber-200 bg-amber-50/90 p-2 text-[10px] text-amber-900 space-y-1">
+                              <p className="font-semibold flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3 text-amber-600 flex-none" />
+                                <span>Insurer requested missing documents</span>
+                              </p>
+                              <button
+                                type="button"
+                                onClick={(e) => handleAppendRequestedDocClick(claim.id, e)}
+                                className="w-full text-center rounded bg-amber-600 hover:bg-amber-700 text-white font-bold py-1.5 px-2 text-[10px] shadow-xs cursor-pointer transition-colors"
+                              >
+                                + Upload Requested Document
+                              </button>
                             </div>
                           )}
                         </div>
