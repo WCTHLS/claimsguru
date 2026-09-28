@@ -17,14 +17,19 @@ export default function AppPage() {
       return;
     }
 
-    // The patient workspace is exclusively for submitters. Keycloak sessions
-    // created before accountRole was added are identified by their patient role.
-    const isSubmitter = session.accountRole === 'submitter'
-      || (!session.accountRole && session.role === 'patient');
+    // The patient workspace is for submitters / patients.
+    const isSubmitter =
+      session.accountRole === 'submitter' ||
+      session.accountRole === 'patient' ||
+      session.role === 'patient' ||
+      (!session.accountRole && session.role !== 'tpa');
 
     if (!isSubmitter) {
-      router.replace(getAuthRedirectPath(session));
-      return;
+      const targetPath = getAuthRedirectPath(session);
+      if (targetPath && targetPath !== '/app') {
+        router.replace(targetPath);
+        return;
+      }
     }
 
     setIsAuthorized(true);

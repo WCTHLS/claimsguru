@@ -473,27 +473,27 @@ export function DashboardClinical() {
                             <div className="space-y-1.5 pt-1">
                               <div className="flex items-center justify-between text-[10px] text-muted-foreground">
                                 <span className="truncate font-mono">ID: {claim.id.slice(0, 8)}...</span>
-                                {claim.status === "DOCUMENTS_REQUESTED" ? (
+                                {((isSelected && s.isDocumentsRequested) || (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED") ? (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300 animate-pulse">
                                     ⚠️ Action: Docs Requested
                                   </span>
-                                ) : claim.status === "MODIFICATION_REQUESTED" ? (
+                                ) : (claim.status || "").toUpperCase() === "MODIFICATION_REQUESTED" ? (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300">
                                     ⚠️ Info Requested
                                   </span>
-                                ) : claim.status === "APPROVED" ? (
+                                ) : (claim.status || "").toUpperCase() === "APPROVED" ? (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 text-teal-800 font-bold px-2 py-0.5 text-[9px] border border-teal-300">
                                     ✓ Approved by Insurer
                                   </span>
-                                ) : claim.status === "SETTLED" ? (
+                                ) : (claim.status || "").toUpperCase() === "SETTLED" ? (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 text-[9px] border border-emerald-300">
                                     💎 Settled &amp; Paid
                                   </span>
-                                ) : claim.status === "REJECTED" ? (
+                                ) : (claim.status || "").toUpperCase() === "REJECTED" ? (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 font-bold px-2 py-0.5 text-[9px] border border-rose-300">
                                     ✕ Rejected
                                   </span>
-                                ) : claim.status === "SUBMITTED" ? (
+                                ) : (claim.status || "").toUpperCase() === "SUBMITTED" ? (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-bold px-2 py-0.5 text-[9px] border border-sky-300">
                                     📤 Submitted to Star Health
                                   </span>
@@ -504,7 +504,7 @@ export function DashboardClinical() {
                                 )}
                               </div>
 
-                              {claim.status === "DOCUMENTS_REQUESTED" && (
+                              {((isSelected && s.isDocumentsRequested) || (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED") && (
                                 <div className="rounded-lg border border-amber-200 bg-amber-50/90 p-2 text-[10px] text-amber-900 space-y-1">
                                   <p className="font-semibold flex items-center gap-1">
                                     <AlertTriangle className="h-3 w-3 text-amber-600 flex-none" />
@@ -1106,16 +1106,36 @@ export function DashboardClinical() {
                         <div className="mt-4 p-4 rounded-xl border border-amber-200 bg-amber-50/50 text-amber-900 animate-fade-in text-left">
                           <div className="flex items-start gap-2.5">
                             <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                            <div className="space-y-1 w-full">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800">Mandatory Document Missing</h4>
-                              <p className="text-xs text-amber-700">
-                                We detected incomplete information in your claim upload. Please upload the following items to resume analysis:
-                              </p>
-                              <ul className="list-disc list-inside pl-1.5 text-xs font-medium space-y-0.5 mt-1 text-amber-900">
-                                {s.missingGroups.map((grp: string) => (
-                                  <li key={grp}>{grp}</li>
-                                ))}
-                              </ul>
+                            <div className="space-y-2 w-full">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800">
+                                {s.tpaMessage ? "Insurer Document Request" : "Mandatory Document Missing"}
+                              </h4>
+                              {s.tpaMessage ? (
+                                <div className="p-3 rounded-lg bg-amber-100/90 border border-amber-300 text-xs text-amber-950">
+                                  <span className="text-[10px] uppercase font-bold text-amber-800 block mb-0.5">
+                                    Message from Star Health Claims Reviewer:
+                                  </span>
+                                  <p className="font-semibold text-sm text-amber-900">
+                                    &ldquo;{s.tpaMessage}&rdquo;
+                                  </p>
+                                </div>
+                              ) : (
+                                <p className="text-xs text-amber-700">
+                                  We detected incomplete information in your claim upload. Please upload the following items to resume analysis:
+                                </p>
+                              )}
+                              {s.missingGroups.length > 0 && (
+                                <div>
+                                  <span className="text-[10px] uppercase font-bold text-amber-700 block mb-1">
+                                    {s.tpaMessage ? "Requested Items / Missing Categories:" : "Missing Items:"}
+                                  </span>
+                                  <ul className="list-disc list-inside pl-1.5 text-xs font-medium space-y-0.5 text-amber-900">
+                                    {s.missingGroups.map((grp: string) => (
+                                      <li key={grp}>{grp}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
                               <div className="mt-3 flex items-center gap-3">
                                 <label className="teal-gradient inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm cursor-pointer hover:opacity-90">
                                   <input
@@ -1128,7 +1148,7 @@ export function DashboardClinical() {
                                       }
                                     }}
                                   />
-                                  <Upload className="h-3.5 w-3.5" /> Upload Missing Documents
+                                  <Upload className="h-3.5 w-3.5" /> Upload Requested Documents
                                 </label>
                               </div>
                             </div>

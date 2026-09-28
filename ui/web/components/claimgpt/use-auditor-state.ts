@@ -188,16 +188,24 @@ export function useAuditorState() {
 
   const [isDocumentsRequested, setIsDocumentsRequested] = useState(false);
   const [missingGroups, setMissingGroups] = useState<string[]>([]);
+  const [tpaMessage, setTpaMessage] = useState<string | null>(null);
+  const [tpaRequestedDocs, setTpaRequestedDocs] = useState<string[]>([]);
 
   const checkStatus = (preview: RealClaimPreview | null) => {
     if (!preview) {
       setIsDocumentsRequested(false);
       setMissingGroups([]);
+      setTpaMessage(null);
+      setTpaRequestedDocs([]);
       return;
     }
 
-    if ((preview.status || "").toUpperCase() === "DOCUMENTS_REQUESTED") {
+    const st = (preview.status || "").toUpperCase();
+    if (st === "DOCUMENTS_REQUESTED" || st === "MODIFICATION_REQUESTED") {
       setIsDocumentsRequested(true);
+      setTpaMessage(preview.tpa_message || null);
+      setTpaRequestedDocs(preview.tpa_requested_docs || []);
+
       const docs = preview.documents || [];
       const kyc_types = ["aadhaar_card", "pan_card", "identity_proof"];
       const clinical_types = ["discharge_summary", "lab_report"];
@@ -208,12 +216,18 @@ export function useAuditorState() {
       const hasFinancial = docs.some(d => financial_types.includes((d.doc_type || "").toLowerCase()));
 
       const missing = [];
-      if (!hasClinical && !hasFinancial) missing.push("Hospital Documents (Discharge Summary / Hospital Bill)");
-      if (!hasKyc) missing.push("Identity / KYC Proof (Aadhaar / PAN / Passport)");
+      if (preview.tpa_requested_docs && preview.tpa_requested_docs.length > 0) {
+        missing.push(...preview.tpa_requested_docs);
+      } else {
+        if (!hasClinical && !hasFinancial) missing.push("Hospital Documents (Discharge Summary / Hospital Bill)");
+        if (!hasKyc) missing.push("Identity / KYC Proof (Aadhaar / PAN / Passport)");
+      }
       setMissingGroups(missing);
     } else {
       setIsDocumentsRequested(false);
       setMissingGroups([]);
+      setTpaMessage(null);
+      setTpaRequestedDocs([]);
     }
   };
 
@@ -978,7 +992,7 @@ export function useAuditorState() {
       amount: exp.amount || 0,
       box: { x: 8, y: 30 + idx * 10, w: 84, h: 7 },
     }))
-    : (analyzing || (progress < 100 && !realPreview?.expenses?.length) ? [] : LINE_ITEMS);
+    : [];
 
   const total = lineItems.reduce((sum, i) => sum + i.amount, 0);
   const stageIndex = PIPELINE.findIndex((s) => s.key === activeStage);
@@ -1141,6 +1155,8 @@ export function useAuditorState() {
     reloadRecentClaims,
     isDocumentsRequested,
     missingGroups,
+    tpaMessage,
+    tpaRequestedDocs,
     previewVersion,
     userName,
     setUserName,

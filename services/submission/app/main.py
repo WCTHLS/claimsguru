@@ -533,8 +533,8 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
             for r in rows:
                 if r.text:
                     did = str(r.document_id)
-                    doc_ocr_map[did] = (doc_ocr_map.get(did, "") + " " + r.text).strip()
-            ocr_text = " ".join(r.text for r in rows if r.text)[:2000]
+                    doc_ocr_map[did] = (doc_ocr_map.get(did, "") + "\n" + r.text).strip()
+            ocr_text = "\n".join(r.text for r in rows if r.text)[:3000]
         except Exception as exc:
             logger.warning(f"Could not load OcrResult for claim {claim.id}: {exc}")
     # Fallback: read PDF directly
@@ -760,6 +760,22 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         deductions_claimed = round(max(0.0, gross_total_claimed - net_payable_claimed), 2)
         deductions_found = True
 
+    # Run automated Cross-Document Expense Reconciliation when not explicitly overridden by UI
+    if not has_ui_expense_rows and expenses:
+        try:
+            from .expense_reconciler import reconcile_claim_expenses
+            expenses = reconcile_claim_expenses(
+                raw_expenses=expenses,
+                docs=docs,
+                doc_ocr_map=doc_ocr_map,
+                gross_total=gross_total_claimed,
+                net_payable=net_payable_claimed,
+                deductions=deductions_claimed,
+            )
+            expense_total = sum(e["amount"] for e in expenses)
+        except Exception as _reconcile_err:
+            logger.warning("[EXPENSE_RECONCILER] Error during expense reconciliation: %s", _reconcile_err, exc_info=True)
+
     # We no longer override with bill-summary anchored expense categories.
     # The `expense-table-v4` engine is now highly accurate and granular, 
     # capturing all necessary sub-categories directly.
@@ -823,9 +839,31 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
             "file_name": (s.scan_metadata or {}).get("file_name", ""),
         })
 
+    # Check latest TPA action or request note
+    tpa_message = None
+    tpa_requested_docs = []
+    try:
+        from libs.shared.models import AuditLog
+        latest_audit = (
+            db.query(AuditLog)
+            .filter(
+                AuditLog.claim_id == claim.id,
+                AuditLog.action.in_(["CLAIM_REQUEST_DOCS", "CLAIM_DOCUMENTS_REQUESTED", "CLAIM_MODIFICATION_REQUESTED", "CLAIM_SEND_BACK", "CLAIM_REJECT", "CLAIM_REJECTED"])
+            )
+            .order_by(AuditLog.created_at.desc())
+            .first()
+        )
+        if latest_audit and latest_audit.audit_metadata:
+            tpa_message = latest_audit.audit_metadata.get("reason")
+            tpa_requested_docs = latest_audit.audit_metadata.get("requested_documents") or []
+    except Exception as _audit_err:
+        logger.debug("Could not fetch audit log for tpa message: %s", _audit_err)
+
     return {
         "claim_id": str(claim.id),
         "status": claim.status,
+        "tpa_message": tpa_message,
+        "tpa_requested_docs": tpa_requested_docs,
         "policy_id": claim.policy_id,
         "patient_id": claim.patient_id,
         "parsed_fields": parsed,

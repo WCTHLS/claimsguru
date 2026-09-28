@@ -57,6 +57,8 @@ export interface ClaimDocumentPreview {
 export interface RealClaimPreview {
   claim_id: string;
   status: string;
+  tpa_message?: string | null;
+  tpa_requested_docs?: string[];
   documents?: ClaimDocumentPreview[];
   parsed_fields: Record<string, string>;
   icd_codes: Array<{ code: string; description: string; confidence: number; estimated_cost?: number }>;

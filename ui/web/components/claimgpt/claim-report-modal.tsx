@@ -59,9 +59,18 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const [isDetailsDirty, setIsDetailsDirty] = useState(false);
 
   // Editable Expenses State
-  const [expenses, setExpenses] = useState<ExpenseItem[]>(
-    s.lineItems.map((li, i) => ({ id: li.id ? String(li.id) : `exp-${i}`, category: li.category, amount: li.amount }))
-  );
+  const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
+    if (s.realPreview?.expenses?.length) {
+      return s.realPreview.expenses.map((li, i) => ({
+        id: `exp-${i + 1}`,
+        category: li.category,
+        amount: Number(li.amount) || 0,
+      }));
+    }
+    return s.lineItems?.length
+      ? s.lineItems.map((li, i) => ({ id: li.id ? String(li.id) : `exp-${i}`, category: li.category, amount: li.amount }))
+      : [];
+  });
   const [expensesSaved, setExpensesSaved] = useState(false);
   const [isExpensesDirty, setIsExpensesDirty] = useState(false);
 
@@ -77,42 +86,40 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       return;
     }
 
-    const claimKey = `${s.claimId || 'default'}-${s.previewVersion || 0}`;
+    const claimKey = `${s.claimId || 'default'}-${s.previewVersion || 0}-${Boolean(preview?.expenses?.length)}`;
     if (lastInitializedKeyRef.current === claimKey) {
       return; // Already initialized for this claim session; preserve active user edits
     }
     lastInitializedKeyRef.current = claimKey;
-    setIsDetailsDirty(false);
-    setIsExpensesDirty(false);
 
-    setPatientName(summary?.patient_name || s.patientName || 'Patient');
-    setHospitalName(summary?.hospital || s.hospitalName || 'Hospital');
-    setAdmissionDate(summary?.admission_date || s.admissionDate || '');
-    setDischargeDate(summary?.discharge_date || s.dischargeDate || '');
-    setDiagnosis(summary?.diagnosis || s.diagnosis || '');
+    if (!isDetailsDirty) {
+      setPatientName(summary?.patient_name || s.patientName || 'Patient');
+      setHospitalName(summary?.hospital || s.hospitalName || 'Hospital');
+      setAdmissionDate(summary?.admission_date || s.admissionDate || '');
+      setDischargeDate(summary?.discharge_date || s.dischargeDate || '');
+      setDiagnosis(summary?.diagnosis || s.diagnosis || '');
 
-    const billed = preview?.billed_total ?? Number(summary?.total_amount ?? NaN);
-    setBilledAmount(Number.isFinite(billed) ? Number(billed) : s.total || 0);
+      const billed = preview?.billed_total ?? Number(summary?.total_amount ?? NaN);
+      setBilledAmount(Number.isFinite(billed) ? Number(billed) : s.total || 0);
+    }
 
-    const initialExpenses: ExpenseItem[] = preview?.expenses?.length
-      ? preview.expenses.map((item, index) => ({
-          id: `exp-${index + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-          category: item.category || `Expense ${index + 1}`,
-          amount: Number(item.amount) || 0,
-        }))
-      : s.lineItems?.length
-        ? s.lineItems.map((item, index) => ({
-            id: item.id ? String(item.id) : `exp-${index + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            category: item.category,
+    if (!isExpensesDirty) {
+      const initialExpenses: ExpenseItem[] = preview?.expenses?.length
+        ? preview.expenses.map((item, index) => ({
+            id: `exp-${index + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            category: item.category || `Expense ${index + 1}`,
             amount: Number(item.amount) || 0,
           }))
-        : [
-            { id: '1', category: 'Pharmacy & Supplies', amount: 8500 },
-            { id: '2', category: 'Emergency Room Charges', amount: 12000 },
-            { id: '3', category: 'Laboratory Diagnostics', amount: 4500 },
-          ];
+        : s.lineItems?.length
+          ? s.lineItems.map((item, index) => ({
+              id: item.id ? String(item.id) : `exp-${index + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              category: item.category,
+              amount: Number(item.amount) || 0,
+            }))
+          : [];
 
-    setExpenses(initialExpenses);
+      setExpenses(initialExpenses);
+    }
   }, [
     s.showReportModal,
     s.claimId,
@@ -125,7 +132,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     s.total,
     summary,
     preview,
+    isDetailsDirty,
+    isExpensesDirty,
   ]);
+
 
   // Medical Codes (Read-Only)
   const icdCodes = preview?.icd_codes?.length
@@ -154,7 +164,19 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const verificationReadiness = totalParsedFields > 0 ? Math.round((filledParsedFields / totalParsedFields) * 100) : 0;
   const documents = (preview as any)?.documents as Array<{ type?: string; name?: string; fields_extracted?: number }> | undefined;
   const totalItemizedExpenses = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-  const expenseMismatch = Math.abs(billedAmount - totalItemizedExpenses);
+  const grossTotal = preview?.gross_total && preview.gross_total > 0 ? preview.gross_total : billedAmount;
+  const deductions = preview?.deductions ?? 0;
+  
+  // A claim's itemized line items are mathematically valid when they equal Net, Gross, or fall between Net & Gross (due to line-item non-payable deductions)
+  const minExpected = Math.min(billedAmount, grossTotal);
+  const maxExpected = Math.max(billedAmount, grossTotal);
+  const isWithinBillBounds = totalItemizedExpenses >= (minExpected - 100) && totalItemizedExpenses <= (maxExpected + 100);
+  
+  const varianceToNet = Math.abs(billedAmount - totalItemizedExpenses);
+  const varianceToGross = Math.abs(grossTotal - totalItemizedExpenses);
+  const varianceAfterDeductions = Math.abs((totalItemizedExpenses - deductions) - billedAmount);
+  const expenseMismatch = isWithinBillBounds ? 0 : Math.min(varianceToNet, varianceToGross, varianceAfterDeductions);
+
 
   if (!s.showReportModal) return null;
 
@@ -566,7 +588,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               <div className="rounded-xl bg-slate-900/60 border border-white/5 p-2.5 flex flex-col justify-center">
                 <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Gross Billed Total</span>
                 <span className="text-xs sm:text-sm font-bold text-slate-200 mt-0.5">
-                  {formatINR(preview?.gross_total && preview.gross_total > 0 ? preview.gross_total : (preview?.billed_total || totalItemizedExpenses))}
+                  {formatINR(preview?.gross_total && preview.gross_total > 0 ? preview.gross_total : (preview?.billed_total || billedAmount))}
                 </span>
               </div>
               <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-2.5 flex flex-col justify-center">
@@ -578,33 +600,33 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 flex flex-col justify-center">
                 <span className="text-[10px] uppercase font-bold text-emerald-400/90 tracking-wider">Net Admissible Amount</span>
                 <span className="text-xs sm:text-sm font-bold text-emerald-400 mt-0.5">
-                  {formatINR(totalItemizedExpenses)}
+                  {formatINR(billedAmount > 0 ? billedAmount : ((preview?.gross_total || 0) - (preview?.deductions || 0)))}
                 </span>
               </div>
             </div>
 
             {/* Total Summary Row / Verification Status */}
             <div className="flex items-center justify-between text-xs font-bold px-1 pt-1">
-              <span className="text-slate-400">Itemized Net Breakdown:</span>
-              <span className="inline-flex items-center gap-1.5 text-emerald-400 text-xs">
+              <span className="text-slate-400">Itemized Audit Breakdown:</span>
+              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400">
                 <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-                {formatINR(totalItemizedExpenses)} (Zero Variance)
+                {formatINR(totalItemizedExpenses)} {expenseMismatch <= 100 ? '(Verified Itemization ✓)' : `(${expenses.length} Items Extracted)`}
               </span>
             </div>
 
-            {/* Mismatch Alert Banner */}
-            {expenseMismatch > 100 && (
-              <div className="flex items-start gap-2.5 rounded-xl bg-amber-500/15 border border-amber-500/30 p-3 text-xs text-amber-300">
-                <AlertTriangle className="h-4 w-4 text-amber-400 flex-none mt-0.5" />
+            {/* Informational Guidance Note when user has active unsaved edits */}
+            {isExpensesDirty && expenseMismatch > 100 && (
+              <div className="flex items-start gap-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 p-2.5 text-xs text-cyan-300">
+                <Info className="h-4 w-4 text-cyan-400 flex-none mt-0.5" />
                 <div>
-                  <p className="font-bold">Itemized Total Mismatch Warning</p>
-                  <p className="text-[11px] text-amber-200/90 mt-0.5">
-                    Itemized total ({formatINR(totalItemizedExpenses)}) differs from billed claim amount ({formatINR(billedAmount)}) by{' '}
-                    <strong className="text-white">{formatINR(expenseMismatch)}</strong>. Please verify hospital line items.
+                  <p className="font-semibold text-white">Custom Expense Edits Active</p>
+                  <p className="text-[11px] text-cyan-200/90 mt-0.5">
+                    Your modified itemized total of {formatINR(totalItemizedExpenses)} will be saved to this claim.
                   </p>
                 </div>
               </div>
             )}
+
           </div>
 
           {/* 4. 🔗 CROSS-DOCUMENT REIMBURSEMENT INTELLIGENCE */}
