@@ -870,6 +870,7 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
 
     return {
         "claim_id": str(claim.id),
+        "created_at": claim.created_at.isoformat() if getattr(claim, "created_at", None) else None,
         "status": claim.status,
         "tpa_message": tpa_message,
         "tpa_requested_docs": tpa_requested_docs,

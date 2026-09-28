@@ -56,6 +56,7 @@ export interface ClaimDocumentPreview {
 
 export interface RealClaimPreview {
   claim_id: string;
+  created_at?: string;
   status: string;
   tpa_message?: string | null;
   tpa_requested_docs?: string[];
@@ -402,7 +403,7 @@ export async function fetchLatestClaimId(patientId?: string): Promise<string | n
 /**
  * Fetch list of recent claims safely
  */
-export async function fetchRecentClaims(patientId?: string): Promise<RecentClaimSummary[]> {
+export async function fetchRecentClaims(patientId?: string): Promise<RecentClaimSummary[] | null> {
   try {
     const params = new URLSearchParams({ limit: "50", t: Date.now().toString() });
     let effectivePatientId = patientId;
@@ -415,7 +416,8 @@ export async function fetchRecentClaims(patientId?: string): Promise<RecentClaim
     }
     const url = `${INGRESS_API}/claims?${params.toString()}`;
     const res = await safeFetch(url, { cache: "no-store", headers: getAuthHeaders() }, 8000);
-    if (!res || !res.ok) return [];
+    if (!res) return null; // Network/timeout failure — return null so callers don't wipe state
+    if (!res.ok) return null;
     const data = await res.json();
     const claims = data.claims || data.results || (Array.isArray(data) ? data : []);
 
@@ -435,7 +437,7 @@ export async function fetchRecentClaims(patientId?: string): Promise<RecentClaim
       };
     });
   } catch {
-    return [];
+    return null;
   }
 }
 

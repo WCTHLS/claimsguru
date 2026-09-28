@@ -53,7 +53,7 @@ import {
   StaggerItem,
 } from '@/components/claimgpt/effects';
 import { cn } from '@/lib/utils';
-import { formatClaimTime, formatClaimAge } from '@/lib/claimgpt-data';
+import { formatClaimTime, formatClaimAge, formatClaimExactDateTime } from '@/lib/claimgpt-data';
 
 export function DashboardClinical() {
   const s = useAuditorState();
@@ -371,20 +371,48 @@ export function DashboardClinical() {
                               : "border-slate-200 bg-white/80 hover:bg-white shadow-2xs"
                           )}
                         >
-                          {/* Top Row: Short ID, Date, SLA, Delete X */}
+                          {/* Top Row: Short ID, SLA, Delete X */}
                           <div className="flex items-center justify-between gap-1 text-[10px]">
                             <div className="flex items-center gap-1.5 min-w-0">
                               <span className="rounded bg-blue-50 text-blue-700 font-mono font-bold px-1.5 py-0.5 text-[9px] border border-blue-200">
                                 #{shortId || "CLM001"}
                               </span>
-                              <span className="text-[10px] text-slate-400 whitespace-nowrap">
-                                {formatClaimTime(claim.created_at)}
-                              </span>
                             </div>
-                            <div className="flex items-center gap-1 flex-none">
-                              <span className="rounded-full bg-emerald-100 text-emerald-800 px-1.5 py-0.2 text-[9px] font-bold">
-                                {formatClaimAge(claim.created_at)}
-                              </span>
+                            <div className="flex items-center gap-1.5 flex-none">
+                              {isClaimProcessing ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 font-bold px-1.5 py-0.5 text-[9px]">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
+                                  {claim.status === "UPLOADED" ? "OCR" : "Parsing"}
+                                </span>
+                              ) : claim.status === "DOCUMENTS_REQUESTED" ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 text-[9px] border border-amber-300 animate-pulse">
+                                  ⚠️ Docs Req
+                                </span>
+                              ) : claim.status === "MODIFICATION_REQUESTED" ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 text-[9px] border border-amber-300">
+                                  ⚠️ Info Req
+                                </span>
+                              ) : claim.status === "APPROVED" ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 text-[9px] border border-teal-300">
+                                  ✓ Approved
+                                </span>
+                              ) : claim.status === "SETTLED" ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 text-[9px] border border-emerald-300">
+                                  💎 Settled
+                                </span>
+                              ) : claim.status === "REJECTED" ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 font-bold px-1.5 py-0.5 text-[9px] border border-rose-300">
+                                  ✕ Rejected
+                                </span>
+                              ) : claim.status === "SUBMITTED" ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 text-[9px] border border-sky-300">
+                                  📤 Submitted
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold px-1.5 py-0.5 text-[9px] border border-emerald-200">
+                                  ✓ Audit Ready
+                                </span>
+                              )}
                               <span
                                 role="button"
                                 tabIndex={0}
@@ -406,10 +434,15 @@ export function DashboardClinical() {
                             </div>
                           </div>
 
-                          {/* Person / Policy Info */}
-                          <div className="flex items-center gap-2 text-[10px] text-slate-500 font-medium">
+                          {/* Person / Policy Info & Age */}
+                          <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500 font-medium">
                             <span className="truncate">👤 {claim.patient_name || "mattanivas"}</span>
-                            <span className="truncate">🆔 {claim.id.slice(0, 10)}</span>
+                            <span
+                              className="text-[10px] text-slate-400 whitespace-nowrap flex-none font-medium"
+                              title={formatClaimTime(claim.created_at)}
+                            >
+                              {formatClaimAge(claim.created_at)}
+                            </span>
                           </div>
 
                           {/* Group Name Header */}
@@ -450,15 +483,9 @@ export function DashboardClinical() {
                             </div>
                           )}
 
-                          {/* Live Processing Bar & Stage Tag */}
+                          {/* Live Processing Bar */}
                           {isClaimProcessing ? (
                             <div className="space-y-1.5 pt-1">
-                              <div>
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 font-bold px-2 py-0.5 text-[9px]">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
-                                  {claim.status === "UPLOADED" ? "Uploaded" : "Parsing"}
-                                </span>
-                              </div>
                               <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
                                 <div
                                   className="h-full bg-blue-500 rounded-full transition-all duration-300"
@@ -973,9 +1000,20 @@ export function DashboardClinical() {
                       <div className="flex items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <h2 className="text-xs sm:text-sm font-bold text-foreground truncate">Processing Pipeline</h2>
-                          <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate font-mono mt-0.5">
-                            ID: {s.claimId ? `${s.claimId.slice(0, 8)}...` : (s.analyzing ? "Generating..." : "Ready for Upload")}
-                          </p>
+                          <div className="flex items-center gap-2 flex-wrap text-[10px] sm:text-[11px] text-muted-foreground mt-0.5">
+                            <span className="font-mono font-medium">
+                              {s.claimId ? `#${s.claimId.replace(/-/g, "").slice(-8).toUpperCase()}` : (s.analyzing ? "Generating..." : "Ready for Upload")}
+                            </span>
+                            {s.claimId && s.claimCreatedAt && (
+                              <>
+                                <span className="text-slate-300">•</span>
+                                <span className="text-muted-foreground flex items-center gap-1 font-sans" title={s.claimCreatedAt}>
+                                  <Clock className="h-3 w-3 text-slate-400 flex-none" />
+                                  <span>Uploaded: <strong className="font-medium text-slate-600">{formatClaimExactDateTime(s.claimCreatedAt)}</strong></span>
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-1.5 flex-none">
@@ -990,9 +1028,9 @@ export function DashboardClinical() {
                               MISMATCH
                             </span>
                           ) : s.progress >= 100 ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-emerald-700 border border-emerald-500/30">
-                              <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                              100% COMPLETE
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium text-emerald-700 border border-emerald-500/20">
+                              <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
+                              Ready
                             </span>
                           ) : s.progress === 0 && !s.analyzing ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold text-slate-500 border border-slate-200">

@@ -143,6 +143,7 @@ export function useAuditorState() {
 
   /* Real Backend State */
   const [claimId, setClaimId] = useState<string | null>(null);
+  const [claimCreatedAt, setClaimCreatedAt] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [realPreview, setRealPreview] = useState<RealClaimPreview | null>(null);
@@ -262,7 +263,27 @@ export function useAuditorState() {
       }
       const claims = await fetchRecentClaims(patientId);
       if (claims) {
-        setRecentClaims(claims);
+        // Merge: preserve any locally-held optimistic/in-progress claims that
+        // the backend hasn't indexed yet (e.g. during OCR or early upload).
+        setRecentClaims((prev) => {
+          const backendIds = new Set(claims.map((c) => c.id));
+          const ACTIVE_STATUSES = new Set(["UPLOADED", "PROCESSING", "OCR_PROCESSING", "OCR_DONE", "PARSING", "PARSED", "PREDICTED"]);
+          // Keep local optimistic claims that are still processing and not yet in backend
+          const survivingLocal = prev.filter(
+            (c) => !backendIds.has(c.id) && ACTIVE_STATUSES.has((c.status || "").toUpperCase())
+          );
+          // Also keep the currently active claim if it's missing from backend
+          const activeId = activeClaimIdRef.current;
+          if (activeId && !backendIds.has(activeId) && !survivingLocal.some((c) => c.id === activeId)) {
+            const activeClaim = prev.find((c) => c.id === activeId);
+            if (activeClaim) {
+              survivingLocal.push(activeClaim);
+            }
+          }
+          if (survivingLocal.length === 0) return claims;
+          // Merge: optimistic claims on top, then backend claims
+          return [...survivingLocal, ...claims];
+        });
       }
     } catch (err) {
       console.warn("Failed to load recent claims list:", err);
@@ -305,7 +326,10 @@ export function useAuditorState() {
           patientId = session.user.sub;
         }
         const claims = await fetchRecentClaims(patientId);
-        setRecentClaims(claims || []);
+        if (claims !== null) {
+          setRecentClaims(claims);
+        }
+        const claimsList = claims || [];
 
         // Check if a specific claim was requested via URL query string
         let targetId: string | null = null;
@@ -314,7 +338,7 @@ export function useAuditorState() {
           targetId = params.get('claim_id') || params.get('claimId') || params.get('id');
         }
 
-        const latestId = targetId || (claims.length > 0 ? claims[0].id : null);
+        const latestId = targetId || (claimsList.length > 0 ? claimsList[0].id : null);
         if (latestId) {
           activeClaimIdRef.current = latestId;
           setClaimId(latestId);
@@ -439,6 +463,7 @@ export function useAuditorState() {
 
     activeClaimIdRef.current = targetId;
     setClaimId(targetId);
+    setClaimCreatedAt(targetClaimMeta?.created_at || null);
     setIsUploadOpen(false); // Auto-collapse upload dropdown when selecting old claims
     setEdited({}); // Reset edit badges from previous claim
 
@@ -825,6 +850,9 @@ export function useAuditorState() {
         activeClaimId = res.claim_id;
         activeClaimIdRef.current = res.claim_id;
         setClaimId(res.claim_id);
+        if (!appendToActive) {
+          setClaimCreatedAt(new Date().toISOString());
+        }
 
         if (appendToActive && effectiveTargetClaimId) {
           // In-place update of existing claim record
@@ -923,6 +951,7 @@ export function useAuditorState() {
         activeClaimId = res.claim_id;
         activeClaimIdRef.current = res.claim_id;
         setClaimId(res.claim_id);
+        setClaimCreatedAt(new Date().toISOString());
 
         // Optimistically remove old duplicate claim from list & prepend new claim
         setRecentClaims((prev) => {
@@ -1149,6 +1178,7 @@ export function useAuditorState() {
     tpaPdfViewUrl,
     irdaPdfViewUrl,
     recentClaims,
+    claimCreatedAt: recentClaims.find((c) => c.id === claimId)?.created_at || (realPreview as any)?.created_at || claimCreatedAt,
     selectClaim,
     deleteClaim,
     deleteDocument,

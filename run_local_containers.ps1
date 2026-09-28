@@ -12,6 +12,13 @@ param (
     [switch]$Stop = $false
 )
 
+if ($args -contains "--rebuild" -or $args -contains "-rebuild") {
+    $Rebuild = $true
+}
+if ($args -contains "--stop" -or $args -contains "-stop") {
+    $Stop = $true
+}
+
 $ErrorActionPreference = "Continue"
 $ProjectRoot = $PSScriptRoot
 
@@ -62,7 +69,7 @@ docker build -t claimsguru-core:test -f "$ProjectRoot/infra/docker/Dockerfile.co
 if ($Rebuild -or -not (docker images -q claimsguru-frontend:test)) {
     Write-Host ""
     Write-Host "[4/5] Building claimsguru-frontend:test..." -ForegroundColor Yellow
-    docker build -t claimsguru-frontend:test -f "$ProjectRoot/infra/docker/Dockerfile.web" "$ProjectRoot"
+    docker build --no-cache -t claimsguru-frontend:test -f "$ProjectRoot/infra/docker/Dockerfile.web" "$ProjectRoot"
 }
 
 # 4. Remove old application containers & free port 8000
