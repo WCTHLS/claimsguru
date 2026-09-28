@@ -182,16 +182,28 @@ export function formatClaimTime(createdAt?: string | null): string {
 }
 
 export function formatClaimAge(createdAt?: string | null): string {
-  if (!createdAt) return '0m';
+  if (!createdAt) return 'Just now';
   const d = new Date(createdAt);
-  if (isNaN(d.getTime())) return '0m';
+  if (isNaN(d.getTime())) return 'Just now';
   const diffMs = Date.now() - d.getTime();
-  if (diffMs < 0) return '0m';
+  if (diffMs < 0) return 'Just now';
   const diffMin = Math.floor(diffMs / (1000 * 60));
-  if (diffMin < 60) return `${diffMin}m`;
+  if (diffMin < 1) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
   const diffHrs = Math.floor(diffMin / 60);
-  if (diffHrs < 24) return `${diffHrs}h`;
+  if (diffHrs < 24) return `${diffHrs}h ago`;
   const diffDays = Math.floor(diffHrs / 24);
-  return `${diffDays}d`;
+  return `${diffDays}d ago`;
+}
+
+export function formatClaimExactDateTime(createdAt?: string | null): string {
+  if (!createdAt) return '';
+  const d = new Date(createdAt);
+  if (isNaN(d.getTime())) return '';
+  const day = d.getDate();
+  const month = d.toLocaleString('en-US', { month: 'short' });
+  const year = d.getFullYear();
+  const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true });
+  return `${day} ${month} ${year}, ${time}`;
 }
 

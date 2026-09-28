@@ -24,9 +24,12 @@ import {
   ZoomOut,
   Maximize2,
   Send,
+  Clock,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
-import { formatINR } from '@/lib/claimgpt-data';
+import { formatINR, formatClaimExactDateTime } from '@/lib/claimgpt-data';
 import { cn } from '@/lib/utils';
 import { SUBMISSION_API } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
@@ -39,6 +42,7 @@ interface ExpenseItem {
 
 export function ClaimReportModal({ s }: { s: AuditorState }) {
   const { toast } = useToast();
+  const [copiedId, setCopiedId] = useState(false);
   const [loadingPdf, setLoadingPdf] = useState<'tpa' | 'irdai' | null>(null);
   const [isSubmittingToPayer, setIsSubmittingToPayer] = useState(false);
   const [isSubmittedToPayer, setIsSubmittedToPayer] = useState(false);
@@ -177,6 +181,23 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const varianceAfterDeductions = Math.abs((totalItemizedExpenses - deductions) - billedAmount);
   const expenseMismatch = isWithinBillBounds ? 0 : Math.min(varianceToNet, varianceToGross, varianceAfterDeductions);
 
+
+  const uploadCreatedAt = s.claimCreatedAt || (preview as any)?.created_at || s.recentClaims?.find((c) => c.id === s.claimId)?.created_at;
+  const uploadExactTime = formatClaimExactDateTime(uploadCreatedAt);
+  const shortId = (s.claimId || "").replace(/-/g, "").slice(-8).toUpperCase();
+
+  const handleCopyClaimId = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (s.claimId) {
+      navigator.clipboard.writeText(s.claimId);
+      setCopiedId(true);
+      toast({
+        title: "Claim ID Copied",
+        description: s.claimId,
+      });
+      setTimeout(() => setCopiedId(false), 2000);
+    }
+  };
 
   if (!s.showReportModal) return null;
 
@@ -324,11 +345,32 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <h2 className="text-xs sm:text-base font-bold text-white tracking-tight">AI Audit &amp; Claim Report</h2>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[9px] sm:text-xs font-semibold text-emerald-400">
-                  <CheckCircle2 className="h-2.5 sm:h-3 w-2.5 sm:w-3" /> VERIFIED
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium text-emerald-400/90">
+                  <CheckCircle2 className="h-2.5 w-2.5" /> Verified
                 </span>
               </div>
-              <p className="text-[10px] sm:text-xs text-slate-400 truncate">Claim ID: {s.claimId || 'N/A'}</p>
+              <div className="flex items-center gap-x-2 gap-y-1 flex-wrap text-[10px] sm:text-xs text-slate-400 mt-0.5">
+                <button
+                  type="button"
+                  onClick={handleCopyClaimId}
+                  className="inline-flex items-center gap-1 rounded bg-blue-500/15 hover:bg-blue-500/25 active:scale-95 text-blue-400 font-mono font-bold px-1.5 py-0.5 text-[9px] sm:text-[10px] border border-blue-500/30 transition-all cursor-pointer flex-none"
+                  title={`Full Claim ID: ${s.claimId || 'N/A'}\n(Click to copy)`}
+                >
+                  <span>#{shortId || "CLM001"}</span>
+                  {copiedId ? (
+                    <Check className="h-2.5 w-2.5 text-emerald-400 flex-none" />
+                  ) : (
+                    <Copy className="h-2.5 w-2.5 opacity-60 hover:opacity-100 flex-none" />
+                  )}
+                </button>
+                {uploadExactTime && (
+                  <div className="inline-flex items-center gap-1 text-slate-400 text-[10px] sm:text-xs whitespace-nowrap" title={uploadCreatedAt || uploadExactTime}>
+                    <span className="text-slate-600 font-semibold hidden sm:inline">•</span>
+                    <Clock className="h-3 w-3 text-slate-500 flex-none" />
+                    <span>Uploaded: <strong className="font-medium text-slate-300">{uploadExactTime}</strong></span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -657,15 +699,19 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">📁 Documents Analyzed ({documents?.length ?? (s.claimId ? 1 : 0)})</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 {documents && documents.length > 0 ? (
-                  documents.map((doc, idx) => (
-                    <div key={idx} className="rounded-xl bg-slate-900/70 p-2.5 border border-white/5 text-xs">
-                      <span className="rounded bg-teal-500/20 px-1.5 py-0.5 text-[9px] font-bold text-teal-300">{(doc.type || 'DOCUMENT').toUpperCase()}</span>
-                      <p className="font-semibold text-white mt-1.5 truncate">{doc.name || `Document ${idx + 1}`}</p>
-                      {doc.fields_extracted !== undefined && (
-                        <p className="text-[10px] text-slate-400 mt-0.5">{doc.fields_extracted} fields extracted</p>
-                      )}
-                    </div>
-                  ))
+                  documents.map((doc: any, idx) => {
+                    const docType = (doc.doc_type || doc.type || 'DOCUMENT').toUpperCase();
+                    const docName = doc.file_name || doc.original_filename || doc.display_title || doc.name || `Document ${idx + 1}`;
+                    return (
+                      <div key={idx} className="rounded-xl bg-slate-900/70 p-2.5 border border-white/5 text-xs">
+                        <span className="rounded bg-teal-500/20 px-1.5 py-0.5 text-[9px] font-bold text-teal-300">{docType}</span>
+                        <p className="font-semibold text-white mt-1.5 truncate" title={docName}>{docName}</p>
+                        <p className="text-[10px] text-slate-400 mt-0.5">
+                          {doc.fields_extracted !== undefined ? `${doc.fields_extracted} fields extracted` : 'OCR Parsed & Verified'}
+                        </p>
+                      </div>
+                    );
+                  })
                 ) : s.claimId ? (
                   <div className="rounded-xl bg-slate-900/70 p-2.5 border border-white/5 text-xs">
                     <span className="rounded bg-teal-500/20 px-1.5 py-0.5 text-[9px] font-bold text-teal-300">CLAIM</span>
