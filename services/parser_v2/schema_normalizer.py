@@ -167,6 +167,11 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
             if any(kw in val_lower for kw in hospital_keywords) and "ms." not in val_lower and "mr." not in val_lower:
                 canonical_key = "hospital_name"
 
+        # Ensure historical previous claims are not mapped to current claim's claimed_total
+        if canonical_key == "claimed_total":
+            if any(term in key_norm for term in ["previous", "prior", "past", "history", "risk"]):
+                canonical_key = "previous_claims_amount"
+
         if canonical_key and canonical_key != "signature" and val_str:
             normalized.append({
                 "field": key_norm,
@@ -244,7 +249,10 @@ def _is_invalid_expense_row(description: str, amount: str = "") -> bool:
         "sex", "weight", "apgar", "delivery notes", "discharge summary",
         "gestation", "gravida", "parity", "baby of", "infant", "newborn",
         "gender", " age:", " age ", "time:", "date:", "treatment on discharge",
-        "vitals", "pulse rate", "blood pressure", "respiratory rate", "temperature", "spo2"
+        "vitals", "pulse rate", "blood pressure", "respiratory rate", "temperature", "spo2",
+        "condition", "conditions", "condition(s)", "medication review", "disorder", "situation",
+        "diagnoses", "primary clinical diagnosis", "secondary diagnosis", "diagnosis count",
+        "documented conditions", "active prescriptions"
     }
     
     # Check if any blacklist term matches

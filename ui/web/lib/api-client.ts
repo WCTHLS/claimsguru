@@ -98,6 +98,9 @@ export interface RecentClaimSummary {
   patient_id?: string;
   documents?: Array<{ id: string; file_name: string; doc_type?: string }>;
   progress?: { percentage: number; step: string };
+  has_action_request?: boolean;
+  tpa_message?: string;
+  tpa_requested_docs?: string[];
 }
 
 export const PIPELINE_ACTIVE_STATUSES = new Set([
@@ -418,15 +421,21 @@ export async function fetchRecentClaims(patientId?: string): Promise<RecentClaim
     const data = await res.json();
     const claims = data.claims || data.results || (Array.isArray(data) ? data : []);
 
-    return claims.map((c: any) => ({
-      id: c.id || c.claim_id,
-      patient_name: c.patient_name || c.name || c.summary?.patient_name || (c.documents && c.documents.length > 0 ? c.documents[0].file_name : "Claim Record"),
-      status: (c.status || "PROCESSING").toUpperCase(),
-      created_at: c.created_at || "",
-      total_amount: c.total_amount || c.amount || "",
-      documents: c.documents || [],
-      progress: c.progress,
-    }));
+    return claims.map((c: any) => {
+      const isAction = c.status === "DOCUMENTS_REQUESTED" || Boolean(c.has_action_request) || Boolean(c.tpa_requested_docs?.length > 0);
+      return {
+        id: c.id || c.claim_id,
+        patient_name: c.patient_name || c.name || c.summary?.patient_name || (c.documents && c.documents.length > 0 ? c.documents[0].file_name : "Claim Record"),
+        status: isAction ? "DOCUMENTS_REQUESTED" : (c.status || "PROCESSING").toUpperCase(),
+        created_at: c.created_at || "",
+        total_amount: c.total_amount || c.amount || "",
+        documents: c.documents || [],
+        progress: c.progress,
+        has_action_request: isAction,
+        tpa_message: c.tpa_message,
+        tpa_requested_docs: c.tpa_requested_docs || [],
+      };
+    });
   } catch {
     return null;
   }

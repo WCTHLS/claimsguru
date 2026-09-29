@@ -107,6 +107,12 @@ _NON_EXPENSE_ROW_KEYWORDS = {
     "life-saving",
     "suresh reddy",
     "ramesh kumar",
+    "condition",
+    "conditions",
+    "condition(s)",
+    "medication review",
+    "disorder",
+    "situation",
 }
 
 

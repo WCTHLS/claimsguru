@@ -180,14 +180,21 @@ def _gather_ocr_pages(db: Session, claim_id: uuid.UUID) -> list[dict[str, Any]]:
 
 
 def _get_document_type_map(db: Session, claim_id: uuid.UUID) -> dict[str, str]:
-    """Get mapping of document_id (string) to doc_type from DocValidation table."""
+    """Get mapping of document_id (string) to doc_type from Document and DocValidation tables."""
     doc_type_map: dict[str, str] = {}
+    docs = db.query(Document).filter(Document.claim_id == claim_id).all()
+    for d in docs:
+        if getattr(d, "doc_type", None) and d.doc_type != "IDENTITY_GATE":
+            doc_type_map[str(d.id)] = str(d.doc_type)
+
     validations = db.query(DocValidation).filter(
-        DocValidation.claim_id == claim_id
+        DocValidation.claim_id == claim_id,
+        DocValidation.doc_type != "IDENTITY_GATE"
     ).all()
     for validation in validations:
         doc_id_str = str(validation.document_id)
-        doc_type_map[doc_id_str] = str(validation.doc_type) or "UNKNOWN"
+        if validation.doc_type and validation.doc_type != "IDENTITY_GATE":
+            doc_type_map[doc_id_str] = str(validation.doc_type)
     return doc_type_map
 
 

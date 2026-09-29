@@ -17,7 +17,11 @@ NON_EXPENSE_NARRATIVE_PATTERNS = (
     "diagnos", "co-morbidity", "comorbidity", "chief complaint", "declaration",
     "risk classification", "risk factor", "patient information", "hospitalization details",
     "insurance information", "doctor signature", "patient signature", "date of birth",
-    "relation to insured", "member id", "policy number", "group number", "sum insured"
+    "relation to insured", "member id", "policy number", "group number", "sum insured",
+    "amount exceeding policy", "claim amount requested", "total amount", "planned/emergency",
+    "prior claim", "previous claim", "ward type", "admission type", "condition", "conditions",
+    "medication review", "disorder", "situation", "signature", "attendant signature",
+    "hospital signature", "physician signature", "primary clinical diagnosis"
 )
 
 def _normalize_desc(text: str) -> str:
@@ -26,6 +30,8 @@ def _normalize_desc(text: str) -> str:
     # Strip common prefixes like Rx:, Tab., Inj., Syrup, etc.
     s = text.lower().strip()
     s = re.sub(r"^(rx\s*:?|tab\s*\.?|inj\s*\.?|cap\s*\.?|syr\s*\.?)\s*", "", s)
+    # Strip leading numbering like '1 ', '2 ', '3. ', '#4 '
+    s = re.sub(r"^#?\d+[\.\-\s]+", "", s)
     # Strip batch, exp, qty trailing details for matching
     s = re.sub(r"\b(batch|bt\d+|exp|expiry|\d{1,2}/\d{2,4})\b.*", "", s)
     s = re.sub(r"[^\w\s]", " ", s)
@@ -43,7 +49,7 @@ def _is_pharmacy_voucher_line(text: str) -> bool:
 
 def _infer_doc_type(file_name: str, text: str) -> str:
     sample = f"{(file_name or '').lower()}\n{(text or '').lower()}"
-    if any(k in sample for k in ("final hospital bill", "itemized inpatient hospital bill", "hospital bill", "reimbursement claim summary", "hospitalization details")):
+    if any(k in sample for k in ("final hospital bill", "itemized inpatient hospital bill", "hospital bill", "reimbursement claim summary", "hospitalization details", "hospital expense breakdown")):
         return "HOSPITAL_BILL"
     if any(k in sample for k in ("pharmacy bill", "patient pharmacy bill", "pharmacy invoice", "chemist bill", "rx bill", "drug dispensed")):
         return "PHARMACY_BILL"
@@ -67,7 +73,7 @@ def reconcile_claim_expenses(
     Reconciles raw extracted line items across single or multiple claim documents:
     1. Removes intra-document duplicate parses (e.g. overlapping multi-pass table scans).
     2. Filters out subtotal / total / payment lines and narrative text noise.
-    3. Identifies supporting pharmacy voucher tables/pages vs master hospital bill tables.
+    3. Drops spurious unit/quantity fragment rows (e.g. 'room: 1', 'ward - 1 days: 1').
     4. Suppresses supporting internal voucher documents/pages when already itemized in master bill.
     5. Preserves independent additive receipts (outpatient chemist, pre/post hospitalization).
     """
@@ -78,14 +84,16 @@ def reconcile_claim_expenses(
     filtered_expenses: list[dict[str, Any]] = []
     for exp in raw_expenses:
         cat = (exp.get("category") or "").strip().lower()
+        desc = (exp.get("description") or exp.get("item") or "").strip().lower()
+        full_text = f"{cat} {desc}".strip()
         amt = float(exp.get("amount") or 0.0)
-        if amt <= 0 and "free" not in cat and "included" not in cat:
+        if amt <= 0 and "free" not in full_text and "included" not in full_text:
             continue
         # Skip grand totals / sub-totals
-        if any(cat == kw or cat.startswith(kw + " ") or cat.endswith(" " + kw) for kw in SUBTOTAL_KEYWORDS):
+        if any(cat == kw or cat.startswith(kw + " ") or cat.endswith(" " + kw) or desc == kw or desc.startswith(kw + " ") for kw in SUBTOTAL_KEYWORDS):
             continue
         # Skip narrative non-expense text snippets
-        if any(np_kw in cat for np_kw in NON_EXPENSE_NARRATIVE_PATTERNS):
+        if any(np_kw in full_text for np_kw in NON_EXPENSE_NARRATIVE_PATTERNS):
             continue
         filtered_expenses.append(exp)
 
@@ -98,7 +106,7 @@ def reconcile_claim_expenses(
         key = (exp.get("document_id") or "unknown", exp.get("source_page"))
         page_to_expenses.setdefault(key, []).append(exp)
 
-    # 3. Clean intra-page duplicates within each page table
+    # 3. Clean intra-page duplicates & filter table fragments within each page
     cleaned_by_page: dict[tuple[str, Any], list[dict[str, Any]]] = {}
     for pkey, exp_list in page_to_expenses.items():
         unique_items: list[dict[str, Any]] = []
@@ -127,7 +135,28 @@ def reconcile_claim_expenses(
                     break
             if not is_dup:
                 unique_items.append(item)
-        cleaned_by_page[pkey] = unique_items
+
+        # Drop spurious column fragment rows (e.g., 'care - 1 days: 1', 'room: 1', 'nursing: 1', 'ward - 1 days: 1', 'charges general: 1')
+        # when a full legitimate expense row on the same page already covers the description
+        legit_rows = [it for it in unique_items if float(it.get("amount") or 0.0) > 10.0]
+        final_page_items: list[dict[str, Any]] = []
+        for it in unique_items:
+            amt = round(float(it.get("amount") or 0.0), 2)
+            desc_norm = _normalize_desc(it.get("category") or "")
+            if amt <= 10.0 and legit_rows:
+                desc_words = set(desc_norm.split())
+                is_fragment = False
+                for lr in legit_rows:
+                    lr_desc_norm = _normalize_desc(lr.get("category") or "")
+                    lr_words = set(lr_desc_norm.split())
+                    if desc_norm in lr_desc_norm or (desc_words and desc_words.issubset(lr_words) and len(desc_words) <= 3):
+                        is_fragment = True
+                        break
+                if is_fragment:
+                    logger.info("[EXPENSE_RECONCILER] Dropped table fragment row: %s (Rs. %s)", it.get("category"), amt)
+                    continue
+            final_page_items.append(it)
+        cleaned_by_page[pkey] = final_page_items
 
     # 4. Identify Master Bill Page(s) vs Supporting Voucher Page(s)
     # Master bill pages contain broader clinical line items (Room, Nursing, Lab, Rx)
@@ -189,6 +218,14 @@ def reconcile_claim_expenses(
                 logger.info("[EXPENSE_RECONCILER] Dropped duplicate voucher line: %s", cat[:60])
                 continue
         reconciled_final.append(it)
+
+    for it in reconciled_final:
+        cat = str(it.get("category") or "").strip()
+        # Clean leading digits like "1 ", "2 ", "#3 "
+        cat = re.sub(r"^#?\d+[\.\-\s]+", "", cat).strip()
+        if cat and not cat[0].isupper():
+            cat = cat.title()
+        it["category"] = cat
 
     return reconciled_final
 
