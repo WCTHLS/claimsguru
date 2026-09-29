@@ -17,8 +17,10 @@ class DocumentOut(BaseModel):
 
 class ClaimOut(BaseModel):
     id: UUID
+    org_id: UUID | None = None
     policy_id: str | None = None
     patient_id: str | None = None
+    insurance_company: str | None = None
     status: str
     source: str | None = None
     created_at: datetime

@@ -621,7 +621,7 @@ export function useAuditorState() {
         if (savedName) patientId = savedName;
       }
       const remainingClaims = await fetchRecentClaims(patientId);
-      setRecentClaims(remainingClaims);
+      setRecentClaims(remainingClaims || []);
     } catch (err) {
       console.warn("Backend deletion error:", err);
     }

@@ -28,12 +28,20 @@ import {
   Clock,
   Copy,
   Check,
+  Building2,
+  UploadCloud,
   Info,
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { formatINR, formatClaimExactDateTime } from '@/lib/claimgpt-data';
 import { cn } from '@/lib/utils';
-import { SUBMISSION_API } from '@/lib/api-client';
+import {
+  SUBMISSION_API,
+  fetchTpaListApi,
+  extractPolicyFromDocApi,
+  submitClaimToPayerApi,
+  type TpaProviderItem,
+} from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 
 interface CanonicalField {
@@ -69,6 +77,20 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const [loadingPdf, setLoadingPdf] = useState<'tpa' | 'irdai' | null>(null);
   const [isSubmittingToPayer, setIsSubmittingToPayer] = useState(false);
   const [isSubmittedToPayer, setIsSubmittedToPayer] = useState(false);
+  const [submittedPayer, setSubmittedPayer] = useState<string>('');
+
+  // Submit to Insurer / TPA State
+  const [showInsurerModal, setShowInsurerModal] = useState(false);
+  const [tpaList, setTpaList] = useState<TpaProviderItem[]>([]);
+  const [loadingTpas, setLoadingTpas] = useState(false);
+  const [selectedOrgId, setSelectedOrgId] = useState<string>('');
+  const [selectedInsurer, setSelectedInsurer] = useState<string>('Star Health');
+  const [policyId, setPolicyId] = useState<string>('');
+  const [policyFromOcr, setPolicyFromOcr] = useState<boolean>(false);
+  const [isUploadingPolicyDoc, setIsUploadingPolicyDoc] = useState(false);
+  const [ocrSuccessBanner, setOcrSuccessBanner] = useState<string | null>(null);
+  const policyFileInputRef = useRef<HTMLInputElement | null>(null);
+
   const [inlinePdf, setInlinePdf] = useState<{
     url: string;
     title: string;
@@ -118,6 +140,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       return; // Already initialized for this claim session; preserve active user edits
     }
     lastInitializedKeyRef.current = claimKey;
+
+    // Check if claim is already submitted
+    if (preview?.status === 'SUBMITTED' || (preview as any)?.is_submitted) {
+      setIsSubmittedToPayer(true);
+      if ((preview as any)?.payer) setSubmittedPayer((preview as any).payer);
+    } else {
+      setIsSubmittedToPayer(false);
+      setSubmittedPayer('');
+    }
 
     if (!isDetailsDirty) {
       setPatientName(summary?.patient_name || s.patientName || 'Patient');
@@ -201,13 +232,13 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     }
     // Fallback to top-level preview / auditor state if not in parsed_fields
     if (!val) {
-      if (cfg.key === 'patient_name') val = (preview?.patient_name && preview.patient_name !== 'N/A' ? preview.patient_name : (s.patientName || ''));
-      else if (cfg.key === 'hospital_name') val = (preview?.hospital_name && preview.hospital_name !== 'N/A' ? preview.hospital_name : (s.hospitalName || ''));
-      else if (cfg.key === 'admission_date') val = (preview?.admission_date && preview.admission_date !== 'N/A' ? preview.admission_date : (s.admissionDate || ''));
-      else if (cfg.key === 'discharge_date') val = (preview?.discharge_date && preview.discharge_date !== 'N/A' ? preview.discharge_date : (s.dischargeDate || ''));
-      else if (cfg.key === 'diagnosis') val = (preview?.diagnosis && preview.diagnosis !== 'N/A' ? preview.diagnosis : (s.diagnosis || ''));
-      else if (cfg.key === 'policy_number') val = preview?.policy_id || s.policyNumber || '';
-      else if (cfg.key === 'patient_id') val = preview?.patient_id || s.patientId || '';
+      if (cfg.key === 'patient_name') val = (preview?.patient_name && preview.patient_name !== 'N/A' ? preview.patient_name : ((s as any)?.patientName || ''));
+      else if (cfg.key === 'hospital_name') val = (preview?.hospital_name && preview.hospital_name !== 'N/A' ? preview.hospital_name : ((s as any)?.hospitalName || ''));
+      else if (cfg.key === 'admission_date') val = (preview?.admission_date && preview.admission_date !== 'N/A' ? preview.admission_date : ((s as any)?.admissionDate || ''));
+      else if (cfg.key === 'discharge_date') val = (preview?.discharge_date && preview.discharge_date !== 'N/A' ? preview.discharge_date : ((s as any)?.dischargeDate || ''));
+      else if (cfg.key === 'diagnosis') val = (preview?.diagnosis && preview.diagnosis !== 'N/A' ? preview.diagnosis : ((s as any)?.diagnosis || ''));
+      else if (cfg.key === 'policy_number') val = preview?.policy_id || (s as any)?.policyNumber || '';
+      else if (cfg.key === 'patient_id') val = preview?.patient_id || (s as any)?.patientId || '';
       else if (cfg.key === 'gender') val = preview?.gender || '';
       else if (cfg.key === 'age') val = preview?.age ? String(preview.age) : '';
     }
@@ -430,28 +461,149 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     setIsExpensesDirty(true);
   };
 
-  const handleSubmitClaimToPayer = async () => {
+  const handleOpenInsurerModal = async () => {
+    const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(val.trim());
+
+    // 1. Determine pre-filled Policy ID from OCR or preview
+    let extractedPol = (
+      (summary as any)?.policy_number ||
+      (preview?.parsed_fields as any)?.policy_number ||
+      (preview?.parsed_fields as any)?.policy_id ||
+      ""
+    ).trim();
+
+    // If empty or UUID, check preview.policy_id only if it is NOT a UUID
+    if (!extractedPol || isUuid(extractedPol)) {
+      const cand = ((preview as any)?.policy_id || "").trim();
+      extractedPol = isUuid(cand) ? "" : cand;
+    }
+
+    const isValPol = Boolean(
+      extractedPol &&
+      !isUuid(extractedPol) &&
+      extractedPol.toUpperCase() !== "N/A" &&
+      extractedPol.toLowerCase() !== "rohan" &&
+      extractedPol.length >= 4
+    );
+
+    setPolicyId(isValPol ? extractedPol : (policyId && !isUuid(policyId) ? policyId : ''));
+    setPolicyFromOcr(isValPol);
+
+    // 2. Determine pre-filled Insurer
+    const detectedInsurer = (
+      (preview?.parsed_fields as any)?.insurance_company ||
+      (preview?.parsed_fields as any)?.insurer ||
+      (summary as any)?.insurer ||
+      (s as any)?.enrolledTpa ||
+      selectedInsurer ||
+      'Star Health'
+    );
+    setSelectedInsurer(detectedInsurer);
+
+    // 3. Fetch Organizations from DB
+    setLoadingTpas(true);
+    try {
+      const list = await fetchTpaListApi();
+      if (list && list.length > 0) {
+        setTpaList(list);
+        const matched = list.find(t => 
+          t.name.toLowerCase().includes(detectedInsurer.toLowerCase()) || 
+          detectedInsurer.toLowerCase().includes(t.name.toLowerCase())
+        ) || list[0];
+        setSelectedOrgId(matched.id);
+        setSelectedInsurer(matched.name);
+      }
+    } catch (err) {
+      console.warn('Could not load organizations list', err);
+    } finally {
+      setLoadingTpas(false);
+    }
+
+    setOcrSuccessBanner(null);
+    setShowInsurerModal(true);
+  };
+
+  const handlePolicyDocSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !s.claimId) return;
+
+    setIsUploadingPolicyDoc(true);
+    setOcrSuccessBanner(null);
+    try {
+      const res = await extractPolicyFromDocApi(s.claimId, file);
+      if (res.success && (res.policy_id || res.insurer)) {
+        if (res.policy_id) {
+          setPolicyId(res.policy_id);
+          setPolicyFromOcr(true);
+        }
+        if (res.insurer) {
+          setSelectedInsurer(res.insurer);
+        }
+        const bannerTxt = `Extracted ${res.policy_id ? `Policy #${res.policy_id}` : ''} ${res.insurer ? `(${res.insurer})` : ''} from ${file.name}`.trim();
+        setOcrSuccessBanner(bannerTxt);
+        toast({
+          title: "Policy Extracted via Fast OCR",
+          description: `Auto-filled: ${res.policy_id || 'Detected'}${res.insurer ? ` for ${res.insurer}` : ''}`,
+        });
+        // Reload preview to keep all reports linked
+        const prev = await s.saveDetails({
+          policy_number: res.policy_id || '',
+          insurance_company: res.insurer || '',
+        });
+      } else {
+        toast({
+          title: "OCR Scan Completed",
+          description: "Could not auto-detect policy number from this document. Please enter it manually.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Upload Error",
+        description: "Failed to process document with Fast OCR.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploadingPolicyDoc(false);
+      if (policyFileInputRef.current) policyFileInputRef.current.value = '';
+    }
+  };
+
+  const handleConfirmSubmitToTpa = async () => {
     if (!s.claimId || isSubmittingToPayer) return;
+    if (!policyId.trim()) {
+      toast({
+        title: "Policy ID Required",
+        description: "Please enter your policy number or upload your policy / health card.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!selectedInsurer) {
+      toast({
+        title: "Insurer Required",
+        description: "Please select an insurance company.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsSubmittingToPayer(true);
     try {
-      const res = await fetch(`${SUBMISSION_API}/submit/${s.claimId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ payer: 'Star Health' }),
-      });
-      if (res.ok) {
+      const res = await submitClaimToPayerApi(s.claimId, selectedInsurer, policyId.trim(), selectedOrgId);
+      if (res.success) {
         setIsSubmittedToPayer(true);
+        setSubmittedPayer(selectedInsurer);
+        setShowInsurerModal(false);
         toast({
           title: "Claim Submitted Successfully",
-          description: "Your claim has been dispatched to Star Health TPA for review and settlement.",
+          description: `Dispatched to ${selectedInsurer} TPA (Linked to Policy #${policyId.trim()}).`,
         });
         s.reloadRecentClaims();
       } else {
         toast({
           title: "Submission Error",
-          description: "Could not submit claim. Please try again.",
+          description: res.error || "Could not submit claim. Please try again.",
           variant: "destructive",
         });
       }
@@ -1063,7 +1215,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={handleSubmitClaimToPayer}
+              onClick={handleOpenInsurerModal}
               disabled={isSubmittingToPayer || isSubmittedToPayer}
               className="flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 min-h-[44px] px-4 text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer"
             >
@@ -1074,7 +1226,9 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               ) : (
                 <Send className="h-4 w-4" />
               )}
-              {isSubmittedToPayer ? "Submitted to Star Health" : "Submit Claim to Star Health"}
+              {isSubmittedToPayer
+                ? (submittedPayer ? `Submitted to ${submittedPayer}` : "Submitted to Insurer")
+                : "Submit Claim to Insurer"}
             </button>
 
             <button
@@ -1154,6 +1308,232 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
           </div>
         </div>
       ) : null}
+
+      {/* 9. 🏛️ SUBMIT CLAIM TO INSURER / TPA MODAL */}
+      {showInsurerModal && (
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
+          <div className="relative w-full max-w-lg rounded-2xl border border-white/15 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-white/10 bg-slate-800/80 px-4 sm:px-6 py-4">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <ShieldCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base sm:text-lg font-bold text-white leading-tight">
+                    Submit Claim to Insurer / TPA
+                  </h3>
+                  <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
+                    Select insurer and verify policy details to dispatch claim
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowInsurerModal(false)}
+                className="rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Body */}
+            <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
+              
+              {/* Insurer Dropdown Section */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Select Insurance Company / TPA <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <select
+                    value={selectedOrgId || selectedInsurer}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      const matched = tpaList.find((t) => t.id === val || t.name === val);
+                      if (matched) {
+                        setSelectedOrgId(matched.id);
+                        setSelectedInsurer(matched.name);
+                      } else {
+                        setSelectedInsurer(val);
+                      }
+                    }}
+                    className="w-full rounded-xl bg-slate-800/90 border border-white/15 px-3.5 py-2.5 text-xs sm:text-sm text-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none cursor-pointer pr-10"
+                  >
+                    {tpaList.map((org) => (
+                      <option key={org.id} value={org.id} className="bg-slate-900 text-white">
+                        {org.name} ({org.type})
+                      </option>
+                    ))}
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-slate-400">
+                    <Building2 className="h-4 w-4" />
+                  </div>
+                </div>
+
+                {/* Quick Chips for Active Organizations in DB */}
+                {tpaList.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap mt-2">
+                    <span className="text-[10px] text-slate-400 font-medium">Available in DB:</span>
+                    {tpaList.map((org) => (
+                      <button
+                        key={org.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedOrgId(org.id);
+                          setSelectedInsurer(org.name);
+                        }}
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-all cursor-pointer border",
+                          (selectedOrgId === org.id || selectedInsurer.toLowerCase() === org.name.toLowerCase())
+                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                            : "bg-slate-800 text-slate-300 hover:bg-slate-700 border-white/10"
+                        )}
+                      >
+                        {org.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Policy ID Section: Case A (Pre-filled via OCR) vs Case B (Not Found) */}
+              <div className="rounded-xl border border-white/10 bg-slate-800/40 p-3.5 sm:p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                    Policy Number / Health Card ID <span className="text-rose-400">*</span>
+                  </label>
+                  {policyFromOcr && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                      <CheckCircle2 className="h-3 w-3" /> Auto-detected via OCR
+                    </span>
+                  )}
+                </div>
+
+                {policyFromOcr ? (
+                  // CASE A: Found via OCR - Pre-filled & reviewable
+                  <div className="space-y-1.5">
+                    <input
+                      type="text"
+                      value={policyId}
+                      onChange={(e) => setPolicyId(e.target.value)}
+                      placeholder="e.g. POL-99882310"
+                      className="w-full rounded-xl bg-slate-800/90 border border-emerald-500/40 px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                    <p className="text-[11px] text-slate-400">
+                      Pre-filled from your uploaded claim documents. You can review or edit if necessary.
+                    </p>
+                  </div>
+                ) : (
+                  // CASE B: Policy NOT Found - Manual input OR Fast OCR Document Upload
+                  <div className="space-y-3">
+                    <input
+                      type="text"
+                      value={policyId}
+                      onChange={(e) => setPolicyId(e.target.value)}
+                      placeholder="Enter policy number e.g. P/161114/01/2024/002345"
+                      className="w-full rounded-xl bg-slate-800/90 border border-white/15 px-3.5 py-2.5 text-xs sm:text-sm font-mono text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+
+                    {/* Divider */}
+                    <div className="relative flex items-center justify-center">
+                      <div className="border-t border-white/10 w-full" />
+                      <span className="bg-slate-900 px-2 text-[10px] font-bold tracking-wider text-slate-400 uppercase absolute">
+                        OR Auto-Extract
+                      </span>
+                    </div>
+
+                    {/* Upload Health Card / Policy Box */}
+                    <div
+                      onClick={() => policyFileInputRef.current?.click()}
+                      className={cn(
+                        "rounded-xl border-2 border-dashed p-3.5 text-center cursor-pointer transition-all",
+                        isUploadingPolicyDoc
+                          ? "border-emerald-500/50 bg-emerald-500/10"
+                          : "border-white/20 bg-slate-800/60 hover:bg-slate-800/90 hover:border-emerald-400/50"
+                      )}
+                    >
+                      <input
+                        ref={policyFileInputRef}
+                        type="file"
+                        accept=".pdf,.png,.jpg,.jpeg,.webp"
+                        className="hidden"
+                        onChange={handlePolicyDocSelect}
+                      />
+
+                      {isUploadingPolicyDoc ? (
+                        <div className="flex flex-col items-center justify-center py-1">
+                          <Loader2 className="h-6 w-6 animate-spin text-emerald-400 mb-1.5" />
+                          <span className="text-xs font-semibold text-white">
+                            Running Fast OCR &amp; Extracting Policy ID...
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">
+                            Scanning card / policy for insurer and policy number
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center py-1">
+                          <UploadCloud className="h-6 w-6 text-slate-400 mb-1 group-hover:text-emerald-400" />
+                          <span className="text-xs font-semibold text-slate-200">
+                            Upload Health Card / Policy Document
+                          </span>
+                          <span className="text-[10px] text-slate-400 mt-0.5">
+                            Fast OCR will extract Policy ID &amp; Insurer instantly (PDF, JPG, PNG)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Banner when extracted via OCR */}
+                {ocrSuccessBanner && (
+                  <div className="rounded-lg bg-emerald-500/15 border border-emerald-500/30 p-2.5 flex items-center gap-2 text-xs text-emerald-300 animate-fade-in">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-none" />
+                    <span className="font-medium truncate">{ocrSuccessBanner}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* TPA Routing Disclaimer */}
+              <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-[11px] text-blue-300/90 flex items-start gap-2">
+                <Clock className="h-4 w-4 text-blue-400 flex-none mt-0.5" />
+                <span>
+                  <strong>TPA Routing:</strong> Claim documents will be submitted to the <strong>{selectedInsurer}</strong> TPA adjudication queue. The claim is permanently linked to Policy ID <strong>#{policyId.trim() || 'N/A'}</strong>.
+                </span>
+              </div>
+
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-2.5 border-t border-white/10 bg-slate-900/90 px-4 sm:px-6 py-3.5">
+              <button
+                type="button"
+                onClick={() => setShowInsurerModal(false)}
+                disabled={isSubmittingToPayer}
+                className="rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 px-4 py-2.5 text-xs font-semibold text-white transition-all cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmSubmitToTpa}
+                disabled={isSubmittingToPayer || !policyId.trim() || !selectedInsurer}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-5 py-2.5 text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer"
+              >
+                {isSubmittingToPayer ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="h-4 w-4" />
+                )}
+                Submit Claim to TPA
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 }

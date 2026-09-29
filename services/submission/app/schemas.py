@@ -29,3 +29,7 @@ class SubmissionDetailOut(BaseModel):
 
 class SubmitRequest(BaseModel):
     payer: str | None = None
+    org_id: str | None = None
+    policy_id: str | None = None
+    insurance_company: str | None = None
+
