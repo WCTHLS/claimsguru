@@ -167,6 +167,60 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
             if any(kw in val_lower for kw in hospital_keywords) and "ms." not in val_lower and "mr." not in val_lower:
                 canonical_key = "hospital_name"
 
+        # Clean doctor_name (reject license terms, signature terms, or non-name noise)
+        if canonical_key == "doctor_name" and val_str:
+            if any(term in val_lower for term in ["license", "ug license", "dl no", "reg no", "registration", "pharmacy", "hospital", "seal", "stamp", "signature", "declaration"]):
+                continue
+            cleaned_doc = re.sub(r"^(?:treating\s+doctor|treating\s+consultant|consultant|doctor|physician|dr\.?)\s*[:\-=–—|]?\s*", "", val_str, flags=re.IGNORECASE).strip()
+            if cleaned_doc and not any(ch.isdigit() for ch in cleaned_doc) and len(cleaned_doc.split()) <= 4:
+                val_str = f"Dr. {cleaned_doc}" if not cleaned_doc.lower().startswith("dr") else cleaned_doc
+            else:
+                continue
+
+        # Clean insurance_policy_number (isolate policy token from multi-column OCR concatenation)
+        if canonical_key == "insurance_policy_number" and val_str:
+            policy_match = re.search(r"\b([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]{3,8}-[A-Z0-9]{2,6}-[A-Z0-9]{4,12})\b", val_str)
+            if policy_match:
+                val_str = policy_match.group(1)
+            else:
+                cleaned_pol = re.sub(r"\b(?:Aadhaar|Aadhar|PAN|Card|India|General|Insurance|TPA|Co\.?|Ltd\.?|Name|Number|Sum|Insured|Type|Tata|AIG|Genins|Top-?Up|declare|terms|All|was)\b", "", val_str, flags=re.IGNORECASE).strip()
+                cleaned_pol = re.sub(r"[\s:\-–—,|/()\[\]]+", " ", cleaned_pol).strip()
+                tokens = cleaned_pol.split()
+                digit_tokens = [t for t in tokens if any(c.isdigit() for c in t) and len(t) >= 6]
+                if digit_tokens:
+                    val_str = digit_tokens[0]
+                elif len(val_str) > 30:
+                    continue
+
+        # Clean patient_id / UHID / IP Number (isolate discrete ID token from multi-column bill headers)
+        if canonical_key == "patient_id" and val_str:
+            uhid_match = re.search(r"\b(UH\d{5,12}|MRN\d{4,12}|PID\d{4,12})\b", val_str, flags=re.IGNORECASE)
+            ip_match = re.search(r"\b(IP\d{5,12}|IPN\d{4,12})\b", val_str, flags=re.IGNORECASE)
+            if uhid_match and ip_match:
+                val_str = f"{uhid_match.group(1)} / {ip_match.group(1)}"
+            elif uhid_match:
+                val_str = uhid_match.group(1)
+            elif ip_match:
+                val_str = ip_match.group(1)
+            else:
+                cleaned_id = re.sub(r"\b(?:No:|Name:|Bill|Date:|Patient|Ward|Type|Was|Surgery|Room|Number|Admission|Emergency|Semi-Private)\b", "", val_str, flags=re.IGNORECASE).strip()
+                cleaned_id = re.sub(r"[\s:\-–—,|/()\[\]]+", " ", cleaned_id).strip()
+                tokens = [t for t in cleaned_id.split() if any(c.isdigit() for c in t) and len(t) >= 4]
+                if tokens:
+                    val_str = tokens[0]
+                elif len(val_str) > 25:
+                    continue
+
+        # Clean patient_address (strip leading demographics, blood group, driver occupation bleed)
+        if canonical_key == "patient_address" and val_str:
+            cleaned_addr = re.sub(r"^(?:blood\s*group\s*[A-Z\+\-]+|group\s*[A-Z\+\-]+|occupation\s*[\w\s]+|driver|self|salaried|business)\s*[\/|\-,:]*\s*", "", val_str, flags=re.IGNORECASE).strip()
+            cleaned_addr = re.sub(r"\s+(?:GSTIN|Treating\s*Doctor|Hospital|Admission|Date|Time|Duration|Department).*$", "", cleaned_addr, flags=re.IGNORECASE).strip()
+            cleaned_addr = re.sub(r"^[\s:\-–—,|/]+|[\s:\-–—,|/]+$", "", cleaned_addr).strip()
+            if cleaned_addr:
+                val_str = cleaned_addr
+            elif len(val_str) < 5 or val_lower in {"driver", "self", "salaried"}:
+                continue
+
         # Ensure historical previous claims are not mapped to current claim's claimed_total
         if canonical_key == "claimed_total":
             if any(term in key_norm for term in ["previous", "prior", "past", "history", "risk"]):

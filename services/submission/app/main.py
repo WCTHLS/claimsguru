@@ -293,11 +293,58 @@ def _pick_best_field_value(field_name: str, values: list[tuple[str, str]]) -> st
     if field_name == "doctor_name":
         cleaned_docs = []
         for v, _mv in clean:
-            if any(st in v.lower() for st in ["signature", "sign", "seal", "stamp", "declaration", "attendant"]) or re.search(r"_{2,}", v):
+            v_lower = v.lower()
+            if any(st in v_lower for st in ["signature", "sign", "seal", "stamp", "declaration", "attendant", "license", "ug license", "dl no", "reg no", "registration", "pharmacy", "hospital"]) or re.search(r"_{2,}", v) or any(ch.isdigit() for ch in v):
                 continue
-            cleaned_docs.append(v.strip())
+            doc_cleaned = re.sub(r"^(?:treating\s+doctor|treating\s+consultant|consultant|doctor|physician|dr\.?)\s*[:\-=–—|]?\s*", "", v, flags=re.IGNORECASE).strip()
+            if doc_cleaned and len(doc_cleaned.split()) <= 4:
+                val = f"Dr. {doc_cleaned}" if not doc_cleaned.lower().startswith("dr") else doc_cleaned
+                cleaned_docs.append(val)
         if cleaned_docs:
-            return sorted(cleaned_docs, key=lambda x: (x.count("|") + 2 * x.count("\n"), 0 if len(x) >= 4 else 1, -len(x)))[0]
+            return sorted(cleaned_docs, key=lambda x: (0 if x.lower().startswith("dr.") else 1, x.count("|") + 2 * x.count("\n"), -len(x)))[0]
+        return ""
+
+    if field_name in {"insurance_policy_number", "policy_number", "policy_id"}:
+        cleaned_pols = []
+        for v, _mv in clean:
+            pm = re.search(r"\b([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]{3,8}-[A-Z0-9]{2,6}-[A-Z0-9]{4,12})\b", v)
+            if pm:
+                cleaned_pols.append(pm.group(1))
+            elif len(v) <= 30 and not any(kw in v.lower() for kw in ["aadhaar", "pan", "sum insured", "tpa", "declare"]):
+                cleaned_pols.append(v.strip())
+        if cleaned_pols:
+            return cleaned_pols[0]
+        return ""
+
+    if field_name in {"patient_id", "uhid", "ip_number"}:
+        cleaned_ids = []
+        for v, _mv in clean:
+            um = re.search(r"\b(UH\d{5,12}|MRN\d{4,12}|PID\d{4,12})\b", v, re.I)
+            im = re.search(r"\b(IP\d{5,12}|IPN\d{4,12})\b", v, re.I)
+            if um and im:
+                cleaned_ids.append(f"{um.group(1)} / {im.group(1)}")
+            elif um:
+                cleaned_ids.append(um.group(1))
+            elif im:
+                cleaned_ids.append(im.group(1))
+            elif len(v) <= 25 and not any(kw in v.lower() for kw in ["bill", "patient name", "date", "room"]):
+                cleaned_ids.append(v.strip())
+        if cleaned_ids:
+            return cleaned_ids[0]
+        return ""
+
+    if field_name == "patient_address":
+        cleaned_addrs = []
+        for v, _mv in clean:
+            c_addr = re.sub(r"^(?:blood\s*group\s*[A-Z\+\-]+|group\s*[A-Z\+\-]+|occupation\s*[\w\s]+|driver\s*|self\s*|salaried\s*|business\s*)\s*[\/|\-,:]*\s*", "", v, flags=re.IGNORECASE).strip()
+            c_addr = re.sub(r"^(?:driver|self|salaried|business)\b\s*", "", c_addr, flags=re.IGNORECASE).strip()
+            c_addr = re.sub(r"\s+(?:GSTIN|Treating\s*Doctor|Hospital|Admission|Date|Time|Duration|Department).*$", "", c_addr, flags=re.IGNORECASE).strip()
+            c_addr = re.sub(r"^[\s:\-–—,|/]+|[\s:\-–—,|/]+$", "", c_addr).strip()
+            if c_addr and len(c_addr) >= 5 and c_addr.lower() not in {"driver", "self", "salaried"}:
+                cleaned_addrs.append(c_addr)
+        if cleaned_addrs:
+            return sorted(cleaned_addrs, key=lambda x: -len(x))[0]
+        return ""
 
     def _noise_score(v: str) -> tuple[int, int, int]:
         pipes = v.count("|")
@@ -610,6 +657,54 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
                 if cand:
                     parsed["hospital_name"] = cand
                     break
+        except Exception:
+            pass
+
+    # If parser didn't populate doctor_name, try extracting Dr. [Name] from OCR text
+    if not parsed.get("doctor_name"):
+        try:
+            for did, dtext in doc_ocr_map.items():
+                if not dtext:
+                    continue
+                doc_m = re.search(r"(?im)(?:consultant|treating\s+doctor|treating\s+physician|doctor)\s*[:\-=–—|]?[ \t]*(?:dr\.?[ \t]*)?([A-Z][a-zA-Z\.\'-]+(?:[ \t]+[A-Z][a-zA-Z\.\'-]+){1,3})\b", dtext)
+                if doc_m and not any(kw in doc_m.group(1).lower() for kw in ["hospital", "speciality", "clinic", "center", "license", "department", "medicine", "consultant"]):
+                    parsed["doctor_name"] = f"Dr. {doc_m.group(1).strip()}"
+                    break
+                doc_m2 = re.search(r"(?im)\bdr\.?[ \t]+([A-Z][a-zA-Z\.\'-]+(?:[ \t]+[A-Z][a-zA-Z\.\'-]+){1,3})\b", dtext)
+                if doc_m2 and not any(kw in doc_m2.group(1).lower() for kw in ["hospital", "speciality", "clinic", "center", "license", "department", "medicine", "consultant"]):
+                    parsed["doctor_name"] = f"Dr. {doc_m2.group(1).strip()}"
+                    break
+        except Exception:
+            pass
+
+    # If parser didn't populate policy_number, try extracting clean policy token from OCR text
+    if not parsed.get("policy_number") and not parsed.get("insurance_policy_number"):
+        try:
+            for did, dtext in doc_ocr_map.items():
+                if not dtext:
+                    continue
+                pol_m = re.search(r"(?im)(?:policy\s*(?:no|number|id)|policy)\s*[:\-=–—|]?[ \t]*([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]{3,8}-[A-Z0-9]{2,6}-[A-Z0-9]{4,12})\b", dtext)
+                if pol_m:
+                    parsed["insurance_policy_number"] = pol_m.group(1).strip()
+                    parsed["policy_number"] = pol_m.group(1).strip()
+                    break
+        except Exception:
+            pass
+
+    # If parser didn't populate patient_address, try extracting clean address from OCR text
+    if not parsed.get("patient_address"):
+        try:
+            for did, dtext in doc_ocr_map.items():
+                if not dtext:
+                    continue
+                addr_m = re.search(r"(?im)(?:address|patient\s+address)\s*[:\-=–—|]?[ \t]*([0-9A-Za-z][^\n\r|]{5,100}(?:\n[ \t]*[A-Za-z0-9][^\n\r|]{3,50})?)", dtext)
+                if addr_m:
+                    cleaned_a = addr_m.group(1).replace("\n", " ").strip()
+                    cleaned_a = re.sub(r"^(?:driver|self|salaried|business|blood\s*group\s*[A-Z\+\-]+)\b\s*[\/|\-,:]*\s*", "", cleaned_a, flags=re.IGNORECASE).strip()
+                    cleaned_a = re.sub(r"\s+(?:GSTIN|Treating\s*Doctor|Hospital|Admission|Date|Time|Duration|Department).*$", "", cleaned_a, flags=re.IGNORECASE).strip()
+                    if len(cleaned_a) >= 8 and not any(kw in cleaned_a.lower() for kw in ["hospital", "treating", "gstin"]):
+                        parsed["patient_address"] = cleaned_a
+                        break
         except Exception:
             pass
     _codes_for_rules = [{"code": c.code, "code_system": c.code_system, "is_primary": getattr(c, "is_primary", False)} for c in codes]

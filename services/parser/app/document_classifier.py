@@ -37,8 +37,8 @@ def classify_document(ocr_pages: list[dict[str, Any]], layout: dict[str, Any] | 
     if has_pharmacy_kw:
         return "pharmacy_bill"
 
-    # 6. Insurance Claim Form / Pre-authorizations
-    if any(kw in combined_text for kw in ("claim form", "insurance form", "policy number", "tpa", "sum insured", "pre-authorization", "pre-auth", "insurer communication", "part a", "part b")):
+    # 6. Insurance Claim Form / Pre-authorizations / Settlement Forms
+    if any(kw in combined_text for kw in ("claim form", "insurance form", "policy number", "tpa", "sum insured", "pre-authorization", "pre-auth", "insurer communication", "part a", "part b", "neft settlement", "bank details", "cancelled cheque", "reimbursement claim", "declaration", "account holder")):
         return "insurance_form"
 
     # 6b. Billing & Expense Tables (Loose Fallback Check)

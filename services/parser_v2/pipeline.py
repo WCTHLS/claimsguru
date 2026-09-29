@@ -690,11 +690,23 @@ def parse_document(
             return True
 
         if field_name == "doctor_name":
-            # Doctor name noise: contains digits (e.g. "Reg: No.= Primary 1"), registration labels, signature labels, or known metadata words
+            # Doctor name noise: contains digits, license terms, registration labels, signature labels
             if any(ch.isdigit() for ch in v) or re.search(r"_{2,}", v):
                 return True
-            noise_terms = ["reg", "registration", "primary", "secondary", "no.", "ref", "days", "insured", "claim", "signature", "sign", "seal", "stamp", "declaration", "attendant"]
+            noise_terms = ["license", "ug license", "dl no", "reg", "registration", "primary", "secondary", "no.", "ref", "days", "insured", "claim", "signature", "sign", "seal", "stamp", "declaration", "attendant", "pharmacy", "hospital"]
             if any(term in v_lower for term in noise_terms):
+                return True
+
+        elif field_name in {"insurance_policy_number", "policy_number"}:
+            if len(v) > 35 or any(term in v_lower for term in ["aadhaar", "pan card", "sum insured", "tpa name", "insurer name", "declare"]):
+                return True
+
+        elif field_name in {"patient_id", "uhid"}:
+            if len(v) > 25 or any(term in v_lower for term in ["bill no", "patient name", "bill date", "ward type", "surgery", "semi-private"]):
+                return True
+
+        elif field_name == "patient_address":
+            if any(v_lower.startswith(term) for term in ["group ", "driver", "occupation", "blood group", "gstin"]):
                 return True
 
         elif field_name == "patient_name":

@@ -45,10 +45,12 @@ _DOC_TYPE_PATTERNS: list[tuple[str, str, re.Pattern]] = [
         r"\b(?:consultation|consult\s+note|specialist\s+(?:opinion|report)|referral\s+letter)\b", re.I)),
     ("INSURANCE_FORM", "Insurance / Claim Form", re.compile(
         r"\b(?:claim\s+form|insurance\s+(?:form|card|policy)|pre[\-\s]?auth|cashless|"
-        r"TPA|third\s+party|reimbursement\s+form|policy\s+(?:number|document))\b", re.I)),
+        r"TPA|third\s+party|reimbursement\s+(?:form|claim)|bank\s+details|neft\s+settlement|"
+        r"cancelled\s+cheque|declaration|policy\s+(?:number|document))\b", re.I)),
     ("ID_DOCUMENT", "Identity Document", re.compile(
-        r"\b(?:aadhaar|aadhar|PAN\s+card|voter\s+ID|passport|driving\s+licen[sc]e|"
-        r"photo\s+ID|identity\s+(?:card|proof|document))\b", re.I)),
+        r"\b(?:unique\s+identification|mera\s+aadhaar|government\s+of\s+india|"
+        r"income\s+tax\s+department|election\s+commission|driving\s+licen[sc]e|passport|"
+        r"voter\s+id|pan\s+card|aadhaar\s+card|aadhar\s+card|aadhaar\s+number|photo\s+ID|identity\s+(?:card|proof|document))\b", re.I)),
     ("CONSENT_FORM", "Consent Form", re.compile(
         r"\b(?:consent\s+(?:form|document)|informed\s+consent|authorization\s+for\s+treatment)\b", re.I)),
     ("INVESTIGATION", "Investigation / Diagnostic Report", re.compile(

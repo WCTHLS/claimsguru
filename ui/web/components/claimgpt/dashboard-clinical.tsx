@@ -1082,12 +1082,12 @@ export function DashboardClinical() {
                           ) : s.progress === 0 && !s.analyzing ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold text-slate-500 border border-slate-200">
                               <Clock className="h-3 w-3 text-slate-400" />
-                              0%
+                              Idle
                             </span>
                           ) : (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-cyan-700 border border-cyan-500/30 animate-pulse">
-                              <Loader2 className="h-3 w-3 text-cyan-600 animate-spin" />
-                              {s.progress}%
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold text-teal-700 border border-teal-500/30">
+                              <Loader2 className="h-3 w-3 text-teal-600 animate-spin" />
+                              Analyzing
                             </span>
                           )}
 
@@ -1122,13 +1122,13 @@ export function DashboardClinical() {
                         <div className="mt-1.5 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5 min-w-0">
                             {s.analyzing && s.progress < 100 && !s.isDocumentsRequested && (
-                              <span className="h-1.5 w-1.5 rounded-full bg-teal-500 animate-ping flex-none" />
+                              <span className="h-1.5 w-1.5 rounded-full bg-teal-500 flex-none" />
                             )}
                             <span className="text-[11px] font-semibold text-slate-700 truncate">
                               {s.progress >= 100
                                 ? "AI Verification Complete"
                                 : (s.analyzing || s.progress > 0)
-                                ? (s.stepDescription || (s.progress < 50 ? `OCR (extracting text) - ${s.progress}%` : s.progress < 75 ? `Parsing (LLM agent reading document) - ${s.progress}%` : `Analyzing documents... - ${s.progress}%`))
+                                ? (s.stepDescription?.replace(/\s*[-·]\s*\d+%\s*$/, '') || (s.progress < 50 ? "OCR (extracting text)" : s.progress < 75 ? "Parsing (LLM agent reading document)" : "Analyzing documents..."))
                                 : "Ready for Document Upload"}
                             </span>
                           </div>
