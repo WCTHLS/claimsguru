@@ -159,10 +159,16 @@ export function useAuditorState() {
   const [isLiveSessionCompleted, setIsLiveSessionCompleted] = useState(false);
   const activePollRef = useRef<NodeJS.Timeout | null>(null);
   const activeClaimIdRef = useRef<string | null>(null);
+  const progressRef = useRef<number>(0);
 
   /* Central progress and pipeline stage synchronizer */
   const updateProgressAndStage = (targetPct: number, customStep?: string) => {
-    const nextPct = Math.min(Math.max(targetPct, 0), 100);
+    let nextPct = Math.min(Math.max(targetPct, 0), 100);
+    // Monotonic guard: never regress backwards while actively analyzing the same claim
+    if (analyzing && targetPct > 0 && targetPct < 100 && nextPct < progressRef.current) {
+      nextPct = progressRef.current;
+    }
+    progressRef.current = nextPct;
     setProgress(nextPct);
     const stepLower = (customStep || "").toLowerCase();
 
@@ -452,6 +458,13 @@ export function useAuditorState() {
   /* Select any previous claim from history list */
   const selectClaim = async (targetId: string) => {
     if (!targetId) return;
+
+    // Guard 1: If user clicks the claim that is ALREADY active and actively analyzing/uploading,
+    // do NOT cancel polling or regress the progress bar!
+    if (targetId === activeClaimIdRef.current && (analyzing || uploading)) {
+      return;
+    }
+
     if (activePollRef.current) {
       clearInterval(activePollRef.current);
       activePollRef.current = null;
@@ -467,16 +480,22 @@ export function useAuditorState() {
     setIsUploadOpen(false); // Auto-collapse upload dropdown when selecting old claims
     setEdited({}); // Reset edit badges from previous claim
 
-    // Synchronously set analyzing state so there is 0ms glitch or flicker while awaiting network
     if (isKnownActive) {
+      // Switching to an active/processing claim:
+      // Clear previous claim's preview so previous patient's details don't bleed into this processing claim
+      setRealPreview(null);
       setAnalyzing(true);
       setIsLiveSessionCompleted(false);
-      const initialPct = targetClaimMeta?.progress?.percentage || (rawStatus === "UPLOADED" ? 20 : 55);
-      updateProgressAndStage(initialPct, targetClaimMeta?.progress?.step || (rawStatus === "UPLOADED" ? "OCR (extracting text) - 20%" : `Parsing (LLM agent reading document) - ${initialPct}%`));
+      progressRef.current = 0;
+      // Only set initial progress if targetClaimMeta actually has progress data — never regress blindly to 55%!
+      if (targetClaimMeta?.progress?.percentage) {
+        updateProgressAndStage(targetClaimMeta.progress.percentage, targetClaimMeta.progress.step);
+      }
     } else {
       setAnalyzing(false);
       setIsLiveSessionCompleted(true);
       setIsDocumentsRequested(false);
+      progressRef.current = 100;
       updateProgressAndStage(100, "Claim Analysis 100% Complete");
     }
 
