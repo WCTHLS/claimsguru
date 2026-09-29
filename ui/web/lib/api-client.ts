@@ -430,7 +430,7 @@ export async function fetchRecentClaims(patientId?: string): Promise<RecentClaim
         created_at: c.created_at || "",
         total_amount: c.total_amount || c.amount || "",
         documents: c.documents || [],
-        progress: c.progress,
+        progress: c.progress || (typeof c.percentage === "number" ? { percentage: c.percentage, step: c.current_step } : undefined),
         has_action_request: isAction,
         tpa_message: c.tpa_message,
         tpa_requested_docs: c.tpa_requested_docs || [],

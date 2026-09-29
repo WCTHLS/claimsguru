@@ -832,12 +832,31 @@ export function DashboardClinical() {
                         const isSelected = claim.id === s.claimId;
                         const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                         const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
+                        const liveProgress = (s as any).claimProgressMap?.[claim.id] || claim.progress;
                         const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has((claim.status || "").toUpperCase());
-                        const isClaimProcessing = isClaimActiveStatus || (isSelected && s.analyzing);
-                        const currentProgress = isSelected && s.analyzing ? s.progress : (claim.progress?.percentage || (claim.status === "UPLOADED" ? 20 : 55));
-                        const currentStep = isSelected && s.analyzing
-                          ? (s.stepDescription || `${claim.status === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"} - ${currentProgress}%`)
-                          : (claim.progress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : `Parsing (LLM agent reading document) - ${currentProgress}%`));
+                        const isClaimProcessing = isClaimActiveStatus || (isSelected && s.analyzing) || Boolean(liveProgress && liveProgress.percentage < 100);
+
+                        const currentProgress = (isSelected && s.analyzing)
+                          ? s.progress
+                          : (liveProgress?.percentage ?? (claim.status === "UPLOADED" ? 20 : 55));
+
+                        const currentStep = (isSelected && s.analyzing)
+                          ? (s.stepDescription || liveProgress?.step || `Processing - ${currentProgress}%`)
+                          : (liveProgress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : (currentProgress >= 75 ? `ICD-10 / CPT Coding - ${currentProgress}%` : (currentProgress >= 50 ? `Parsing (LLM agent reading document) - ${currentProgress}%` : `OCR (extracting text) - ${currentProgress}%`))));
+
+                        const stageBadgeText = () => {
+                          if (isSelected && s.analyzing) {
+                            if (s.activeStage === 'coding') return 'Coding';
+                            if (s.activeStage === 'scoring') return 'Scoring';
+                            if (s.activeStage === 'parsing') return 'Parsing';
+                            return 'OCR';
+                          }
+                          const p = currentProgress;
+                          if (p < 50) return 'OCR';
+                          if (p < 75) return 'Parsing';
+                          if (p < 85) return 'Coding';
+                          return 'Scoring';
+                        };
                         const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
 
                         return (
@@ -861,9 +880,7 @@ export function DashboardClinical() {
                                 {isClaimProcessing ? (
                                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 text-[9px] border border-amber-300">
                                     <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
-                                    {isSelected && s.analyzing
-                                      ? (s.activeStage === 'coding' ? 'Coding' : s.activeStage === 'scoring' ? 'Scoring' : s.activeStage === 'ocr' ? 'OCR' : 'Parsing')
-                                      : (claim.status === "UPLOADED" ? "OCR" : "Parsing")}
+                                    {stageBadgeText()}
                                   </span>
                                 ) : (
                                   <span className="rounded-full bg-emerald-100 text-emerald-800 px-1.5 py-0.5 text-[9px] font-bold">

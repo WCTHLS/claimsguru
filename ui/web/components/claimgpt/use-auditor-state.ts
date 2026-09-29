@@ -161,6 +161,8 @@ export function useAuditorState() {
   const activeClaimIdRef = useRef<string | null>(null);
   const progressRef = useRef<number>(0);
 
+  const [claimProgressMap, setClaimProgressMap] = useState<Record<string, { percentage: number; step: string }>>({});
+
   /* Central progress and pipeline stage synchronizer */
   const updateProgressAndStage = (targetPct: number, customStep?: string) => {
     let nextPct = Math.min(Math.max(targetPct, 0), 100);
@@ -175,18 +177,26 @@ export function useAuditorState() {
     if (nextPct >= 100) {
       setActiveStage('scoring');
       setStepDescription("Claim Analysis 100% Complete");
-    } else if (stepLower.includes('scor') || stepLower.includes('compliance') || nextPct >= 85) {
+    } else if (stepLower.includes('scor') || stepLower.includes('compliance') || stepLower.includes('risk') || nextPct >= 85) {
       setActiveStage('scoring');
       setStepDescription(customStep || `Compliance & Risk Scoring - ${nextPct}%`);
-    } else if (stepLower.includes('cod') || (nextPct >= 65 && nextPct < 85)) {
+    } else if (stepLower.includes('cod') || stepLower.includes('icd') || stepLower.includes('cpt') || (nextPct >= 75 && nextPct < 85)) {
       setActiveStage('coding');
       setStepDescription(customStep || `ICD-10 / CPT Coding - ${nextPct}%`);
-    } else if (stepLower.includes('pars') || (nextPct >= 30 && nextPct < 65)) {
+    } else if (stepLower.includes('pars') || (nextPct >= 50 && nextPct < 75)) {
       setActiveStage('parsing');
       setStepDescription(customStep || `Parsing (LLM agent reading document) - ${nextPct}%`);
     } else {
       setActiveStage('ocr');
       setStepDescription(customStep || `OCR (extracting text) - ${nextPct}%`);
+    }
+
+    if (activeClaimIdRef.current) {
+      const activeId = activeClaimIdRef.current;
+      setClaimProgressMap((prev) => ({
+        ...prev,
+        [activeId]: { percentage: nextPct, step: customStep || `Processing - ${nextPct}%` },
+      }));
     }
   };
 
@@ -487,9 +497,9 @@ export function useAuditorState() {
       setAnalyzing(true);
       setIsLiveSessionCompleted(false);
       progressRef.current = 0;
-      // Only set initial progress if targetClaimMeta actually has progress data — never regress blindly to 55%!
-      if (targetClaimMeta?.progress?.percentage) {
-        updateProgressAndStage(targetClaimMeta.progress.percentage, targetClaimMeta.progress.step);
+      const knownLive = claimProgressMap[targetId] || targetClaimMeta?.progress;
+      if (knownLive?.percentage) {
+        updateProgressAndStage(knownLive.percentage, knownLive.step);
       }
     } else {
       setAnalyzing(false);
@@ -1228,6 +1238,7 @@ export function useAuditorState() {
     identityMismatchMessage,
     saveExpenses,
     saveDetails,
+    claimProgressMap,
   };
 }
 

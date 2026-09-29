@@ -3447,6 +3447,11 @@ def list_claims(
                 elif audit.action == "CLAIM_SUBMITTED":
                     effective_status = "SUBMITTED"
 
+            step_label = None
+            pct_val = None
+            if w_state and (w_state.status == "RUNNING" or (w_state.current_step not in ("FINISHED", "COMPLETED") and effective_status in ("UPLOADED", "PARSING", "PROCESSING", "IN_PROGRESS"))):
+                step_label, pct_val = _map_progress(w_state.current_step, w_state.status)
+
             claim_items.append({
                 "id": c.id,
                 "policy_id": c.policy_id,
@@ -3464,6 +3469,8 @@ def list_claims(
                 "has_action_request": has_action_request,
                 "tpa_message": tpa_message,
                 "tpa_requested_docs": tpa_requested_docs,
+                "current_step": step_label,
+                "percentage": pct_val,
             })
 
         return ClaimListOut(claims=claim_items, total=total)
