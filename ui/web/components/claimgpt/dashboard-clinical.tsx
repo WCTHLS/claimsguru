@@ -363,12 +363,37 @@ export function DashboardClinical() {
                       const docs = (claim.documents && claim.documents.length > 0)
                         ? claim.documents
                         : (isSelected && s.analyzing && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
-                      const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has((claim.status || "").toUpperCase());
-                      const isClaimProcessing = isClaimActiveStatus || (isSelected && s.analyzing);
-                      const currentProgress = isSelected && s.analyzing ? s.progress : (claim.progress?.percentage || (claim.status === "UPLOADED" ? 20 : 55));
-                      const currentStep = isSelected && s.analyzing
-                        ? (s.stepDescription || `${claim.status === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"} - ${currentProgress}%`)
-                        : (claim.progress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : `Parsing (LLM agent reading document) - ${currentProgress}%`));
+                      const liveProgress = (s as any).claimProgressMap?.[claim.id] || claim.progress;
+                      const rawStatus = (claim.status || "").toUpperCase();
+                      const isCompletedStatus = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "FINISHED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "IDENTITY_MISMATCH";
+                      const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has(rawStatus) && !isCompletedStatus;
+                      const isClaimProcessing = !isCompletedStatus && (
+                        (isSelected && s.analyzing && s.progress < 100) ||
+                        (isClaimActiveStatus && (!liveProgress || liveProgress.percentage < 100)) ||
+                        Boolean(liveProgress && typeof liveProgress.percentage === "number" && liveProgress.percentage > 0 && liveProgress.percentage < 100 && !liveProgress.is_complete)
+                      );
+
+                      const currentProgress = (isSelected && s.analyzing)
+                        ? s.progress
+                        : (liveProgress?.percentage ?? (claim.status === "UPLOADED" ? 20 : 55));
+
+                      const currentStep = (isSelected && s.analyzing)
+                        ? (s.stepDescription || liveProgress?.step || `Processing - ${currentProgress}%`)
+                        : (liveProgress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : (currentProgress >= 75 ? `ICD-10 / CPT Coding - ${currentProgress}%` : (currentProgress >= 50 ? `Parsing (LLM agent reading document) - ${currentProgress}%` : `OCR (extracting text) - ${currentProgress}%`))));
+
+                      const stageBadgeText = () => {
+                        if (isSelected && s.analyzing) {
+                          if (s.activeStage === 'coding') return 'Coding';
+                          if (s.activeStage === 'scoring') return 'Scoring';
+                          if (s.activeStage === 'parsing') return 'Parsing';
+                          return 'OCR';
+                        }
+                        const p = currentProgress;
+                        if (p < 50) return 'OCR';
+                        if (p < 75) return 'Parsing';
+                        if (p < 85) return 'Coding';
+                        return 'Scoring';
+                      };
                       const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
                       const hasDocsRequested = (
                         (isSelected && s.isDocumentsRequested) ||
@@ -409,7 +434,7 @@ export function DashboardClinical() {
                               {isClaimProcessing ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 font-bold px-1.5 py-0.5 text-[9px]">
                                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
-                                  {claim.status === "UPLOADED" ? "OCR" : "Parsing"}
+                                  {stageBadgeText()}
                                 </span>
                               ) : hasDocsRequested ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 text-[9px] border border-amber-300 animate-pulse">
@@ -833,8 +858,14 @@ export function DashboardClinical() {
                         const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                         const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
                         const liveProgress = (s as any).claimProgressMap?.[claim.id] || claim.progress;
-                        const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has((claim.status || "").toUpperCase());
-                        const isClaimProcessing = isClaimActiveStatus || (isSelected && s.analyzing) || Boolean(liveProgress && liveProgress.percentage < 100);
+                        const rawStatus = (claim.status || "").toUpperCase();
+                        const isCompletedStatus = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "FINISHED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "IDENTITY_MISMATCH";
+                        const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has(rawStatus) && !isCompletedStatus;
+                        const isClaimProcessing = !isCompletedStatus && (
+                          (isSelected && s.analyzing && s.progress < 100) ||
+                          (isClaimActiveStatus && (!liveProgress || liveProgress.percentage < 100)) ||
+                          Boolean(liveProgress && typeof liveProgress.percentage === "number" && liveProgress.percentage > 0 && liveProgress.percentage < 100 && !liveProgress.is_complete)
+                        );
 
                         const currentProgress = (isSelected && s.analyzing)
                           ? s.progress
@@ -1096,8 +1127,8 @@ export function DashboardClinical() {
                             <span className="text-[11px] font-semibold text-slate-700 truncate">
                               {s.progress >= 100
                                 ? "AI Verification Complete"
-                                : s.analyzing
-                                ? (s.stepDescription || "Analyzing documents...")
+                                : (s.analyzing || s.progress > 0)
+                                ? (s.stepDescription || (s.progress < 50 ? `OCR (extracting text) - ${s.progress}%` : s.progress < 75 ? `Parsing (LLM agent reading document) - ${s.progress}%` : `Analyzing documents... - ${s.progress}%`))
                                 : "Ready for Document Upload"}
                             </span>
                           </div>
@@ -1126,8 +1157,9 @@ export function DashboardClinical() {
 
                           {PIPELINE.map((stage, i) => {
                             const isIdle = s.progress === 0 && !s.analyzing;
+                            const isProcessing = s.analyzing || (s.progress > 0 && s.progress < 100);
                             const done = !isIdle && (i < s.stageIndex || s.progress >= 100);
-                            const current = s.analyzing && i === s.stageIndex && s.progress < 100;
+                            const current = isProcessing && i === s.stageIndex && s.progress < 100;
                             const shortLabels = ['Attached', 'OCR Text', 'Parsing', 'Coding', 'Settled'];
 
                             return (
@@ -1167,8 +1199,9 @@ export function DashboardClinical() {
                       <div className="hidden sm:grid grid-cols-5 gap-2 pt-3 border-t border-border/50">
                         {PIPELINE.map((stage, i) => {
                           const isIdle = s.progress === 0 && !s.analyzing;
+                          const isProcessing = s.analyzing || (s.progress > 0 && s.progress < 100);
                           const done = !isIdle && (i < s.stageIndex || s.progress >= 100);
-                          const current = s.analyzing && i === s.stageIndex && s.progress < 100;
+                          const current = isProcessing && i === s.stageIndex && s.progress < 100;
                           return (
                             <button
                               key={stage.key}

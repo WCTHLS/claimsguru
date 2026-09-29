@@ -3449,7 +3449,8 @@ def list_claims(
 
             step_label = None
             pct_val = None
-            if w_state and (w_state.status == "RUNNING" or (w_state.current_step not in ("FINISHED", "COMPLETED") and effective_status in ("UPLOADED", "PARSING", "PROCESSING", "IN_PROGRESS"))):
+            is_terminal_status = effective_status in ("COMPLETED", "VALIDATED", "APPROVED", "SETTLED", "REJECTED", "IDENTITY_MISMATCH", "FAILED", "WORKFLOW_FAILED")
+            if w_state and not is_terminal_status and w_state.current_step not in ("FINISHED", "COMPLETED") and w_state.status not in ("FINISHED", "COMPLETED"):
                 step_label, pct_val = _map_progress(w_state.current_step, w_state.status)
 
             claim_items.append({
@@ -3699,7 +3700,7 @@ def get_claim(
 
 def _map_progress(current_step: str | None, status: str | None) -> tuple[str | None, int]:
     if current_step == "STARTING":
-        return "Starting", 5
+        return "OCR (extracting text)", 20
     if current_step == "OCR_IN_PROGRESS":
         return "OCR (extracting text)", 20
     if current_step == "OCR_COMPLETED":
@@ -3785,8 +3786,8 @@ def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
         # the upload stopped, instead of polling forever on 0%.
         try:
             claim_rec = db.query(Claim).filter(Claim.id == cid).first()
-            if claim_rec and claim_rec.notes:
-                error_message = claim_rec.notes
+            if claim_rec and hasattr(claim_rec, "notes") and getattr(claim_rec, "notes", None):
+                error_message = getattr(claim_rec, "notes")
             
             if not error_message:
                 latest_parse = (

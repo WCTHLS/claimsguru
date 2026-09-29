@@ -107,10 +107,13 @@ export const PIPELINE_ACTIVE_STATUSES = new Set([
   "UPLOADED",
   "PROCESSING",
   "OCR_PROCESSING",
+  "OCR_IN_PROGRESS",
   "OCR_DONE",
-  "PARSING",
-  "PARSED",
-  "PREDICTED",
+  "PARSING_IN_PROGRESS",
+  "CODING_ANALYSIS",
+  "RISK_ANALYSIS",
+  "VALIDATION_RUNNING",
+  "IN_PROGRESS",
 ]);
 
 /**
@@ -219,14 +222,14 @@ export async function uploadClaimDocument(
       method: "POST",
       body: formData,
       headers: getAuthHeaders(),
-    }, 12000);
+    }, 60000);
 
     if (!res || !res.ok) {
       res = await safeFetch(claimId ? url : `${INGRESS_API}/claims`, {
         method: "POST",
         body: formData,
         headers: getAuthHeaders(),
-      }, 12000);
+      }, 60000);
     }
 
     if (res && res.ok) {
@@ -247,7 +250,7 @@ export async function uploadClaimDocument(
           const claimsListRes = await safeFetch(`${INGRESS_API}/claims?${queryParams.toString()}`, {
             cache: "no-store",
             headers: getAuthHeaders(),
-          }, 3000);
+          }, 5000);
           if (claimsListRes && claimsListRes.ok) {
             const claimsData = await claimsListRes.json();
             const claims = claimsData.claims || claimsData.results || (Array.isArray(claimsData) ? claimsData : []);
@@ -281,8 +284,8 @@ export async function uploadClaimDocument(
     /* safe catch */
   }
 
-  // Graceful offline fallback return
-  return { claim_id: fallbackClaimId, document_id: "doc-offline" };
+  // If server is reachable but upload had issues, do not simulate false completion
+  return { claim_id: "", document_id: "" };
 }
 
 /**
@@ -301,22 +304,44 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
     }, 2500);
     if (res) {
       if (res.status === 404) {
-        return { percentage: 0, step: "Claim not found", status: "NOT_FOUND", is_complete: true, not_found: true };
+        return { percentage: 0, step: "Claim not found", status: "NOT_FOUND", is_complete: false, not_found: true };
       }
       if (res.ok) {
         const data = await res.json();
         let pct = typeof data.percentage === "number" ? data.percentage : 0;
         const stepStr = data.step || data.current_step || "";
         const statusStr = (data.status || "").toUpperCase();
+
+        if (statusStr === "IDENTITY_MISMATCH" || stepStr.toLowerCase().includes("identity mismatch")) {
+          return {
+            percentage: 0,
+            step: "Identity Mismatch",
+            status: "IDENTITY_MISMATCH",
+            is_complete: false,
+            error: data.error || "Identity mismatch detected across documents. Uploaded set removed. Please re-upload the entire set.",
+          };
+        }
+
+        if (statusStr === "FAILED") {
+          return {
+            percentage: 0,
+            step: stepStr || "Processing Failed",
+            status: "FAILED",
+            is_complete: false,
+            error: data.error || "Claim processing failed. Please retry.",
+          };
+        }
+
         const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 100);
 
         if (isComplete) {
           return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
         }
 
+        const normalizedStep = (stepStr && !stepStr.toLowerCase().includes("start")) ? stepStr : (statusStr === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)");
         return {
           percentage: Math.max(pct, 20),
-          step: stepStr || (statusStr === "UPLOADED" ? "OCR (extracting text)" : "Parsing (LLM agent reading document)"),
+          step: normalizedStep,
           status: statusStr || "UPLOADED",
           is_complete: false,
         };
@@ -330,13 +355,32 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
     }, 2500);
     if (statusRes) {
       if (statusRes.status === 404) {
-        return { percentage: 0, step: "Claim not found", status: "NOT_FOUND", is_complete: true, not_found: true };
+        return { percentage: 0, step: "Claim not found", status: "NOT_FOUND", is_complete: false, not_found: true };
       }
       if (statusRes.ok) {
         const data = await statusRes.json();
         let pct = typeof data.percentage === "number" ? data.percentage : (typeof data.pct === "number" ? data.pct : 0);
         const stepStr = data.current_step || data.step || "";
         const statusStr = (data.status || "").toUpperCase();
+
+        if (statusStr === "IDENTITY_MISMATCH" || stepStr.toLowerCase().includes("identity mismatch")) {
+          return {
+            percentage: 0,
+            step: "Identity Mismatch",
+            status: "IDENTITY_MISMATCH",
+            is_complete: false,
+          };
+        }
+
+        if (statusStr === "FAILED") {
+          return {
+            percentage: 0,
+            step: stepStr || "Processing Failed",
+            status: "FAILED",
+            is_complete: false,
+          };
+        }
+
         const isComplete = Boolean(data.is_complete || statusStr === "COMPLETED" || statusStr === "VALIDATED" || statusStr === "FINISHED" || pct >= 100);
 
         if (isComplete) {

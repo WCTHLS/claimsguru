@@ -285,7 +285,8 @@ def parser_task(self, result: dict) -> dict[str, str]:
             claim = db.query(Claim).filter(Claim.id == cid).first()
             if claim:
                 claim.status = "IDENTITY_MISMATCH"
-                claim.notes = err_msg
+                if hasattr(claim, "notes"):
+                    claim.notes = err_msg
             db.commit()
         finally:
             db.close()
@@ -1109,7 +1110,8 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
             claim = db.query(Claim).filter(Claim.id == cid).first()
             if claim:
                 claim.status = "IDENTITY_MISMATCH"
-                claim.notes = err_msg
+                if hasattr(claim, "notes"):
+                    claim.notes = err_msg
             db.commit()
         finally:
             db.close()
