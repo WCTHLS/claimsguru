@@ -30,8 +30,10 @@ class Claim(Base):
     __tablename__ = "claims"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id", ondelete="SET NULL"), nullable=True)
     policy_id = Column(Text, nullable=True)
     patient_id = Column(Text, nullable=True)
+    insurance_company = Column(String(255), nullable=True)
     canonical_json = Column(JSONB, nullable=True)
     status = Column(Text, nullable=False, default="UPLOADED")
     source = Column(Text, nullable=True, default="PATIENT")
@@ -39,6 +41,7 @@ class Claim(Base):
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
     # Relationships (Targeted for High-Scale Cleanup)
+    organization = relationship("Organization", foreign_keys=[org_id])
     documents = relationship("Document", back_populates="claim", cascade="all, delete-orphan", passive_deletes=True)
     submissions = relationship("Submission", back_populates="claim", cascade="all, delete-orphan", passive_deletes=True)
     audit_logs = relationship("AuditLog", back_populates="claim", cascade="all, delete-orphan", passive_deletes=True)

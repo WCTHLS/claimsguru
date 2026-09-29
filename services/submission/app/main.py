@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import hashlib
+import io
 import logging
+from pathlib import Path
 import re
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
@@ -25,6 +28,7 @@ from .models import (
     ScanAnalysis,
     Submission,
     TpaProvider,
+    Organization,
 )
 from libs.auth.middleware import get_current_user
 from libs.auth.models import TokenPayload
@@ -995,31 +999,31 @@ def health():
 
 # Fallback seed data — used only if DB table is empty (first boot)
 _TPA_SEED = [
-    ("icici_lombard",       "ICICI Lombard",            "🏦", "Private", "claims@icicilombard.com",       "1800-266-7700", "https://www.icicilombard.com"),
-    ("star_health",         "Star Health",              "⭐", "Private", "claims@starhealth.in",          "1800-425-2255", "https://www.starhealth.in"),
-    ("hdfc_ergo",           "HDFC ERGO",                "🔷", "Private", "claims@hdfcergo.com",           "1800-266-0700", "https://www.hdfcergo.com"),
-    ("bajaj_allianz",       "Bajaj Allianz",            "🛡️", "Private", "claims@bajajallianz.co.in",     "1800-209-5858", "https://www.bajajallianz.com"),
-    ("new_india",           "New India Assurance",       "🇮🇳", "PSU",     "claims@newindia.co.in",        "1800-209-1415", "https://www.newindia.co.in"),
-    ("niva_bupa",           "Niva Bupa",                "💙", "Private", "claims@nivabupa.com",           "1800-200-5577", "https://www.nivabupa.com"),
-    ("care_health",         "Care Health",              "💚", "Private", "claims@careinsurance.com",      "1800-102-4488", "https://www.careinsurance.com"),
-    ("tata_aig",            "Tata AIG",                 "🔶", "Private", "claims@tataaig.com",            "1800-266-7780", "https://www.tataaig.com"),
-    ("sbi_general",         "SBI General",              "🏛️", "PSU",     "claims@sbigeneral.in",          "1800-102-1111", "https://www.sbigeneral.in"),
-    ("oriental_insurance",  "Oriental Insurance",        "🌅", "PSU",     "claims@orientalinsurance.co.in","1800-118-485",  "https://www.orientalinsurance.org.in"),
-    ("max_bupa",            "Max Bupa",                 "🟣", "Private", "claims@maxbupa.com",            "1800-200-5577", "https://www.maxbupa.com"),
-    ("manipal_cigna",       "ManipalCigna",             "🩺", "Private", "claims@manipalcigna.com",       "1800-266-0800", "https://www.manipalcigna.com"),
-    ("united_india",        "United India Insurance",    "🏛️", "PSU",     "claims@uiic.co.in",            "1800-425-33-33","https://www.uiic.co.in"),
-    ("national_insurance",  "National Insurance",        "🏛️", "PSU",     "claims@nic.co.in",             "1800-345-0330", "https://www.nationalinsurance.nic.co.in"),
-    ("iffco_tokio",         "IFFCO Tokio",              "🟢", "Private", "claims@iffcotokio.co.in",       "1800-103-5499", "https://www.iffcotokio.co.in"),
-    ("reliance_general",    "Reliance General",          "🔴", "Private", "claims@reliancegeneral.co.in",  "1800-102-1010", "https://www.reliancegeneral.co.in"),
-    ("cholamandalam",       "Cholamandalam MS",          "🟡", "Private", "claims@cholams.murugappa.com",  "1800-200-5544", "https://www.cholainsurance.com"),
-    ("aditya_birla",        "Aditya Birla Health",       "🌐", "Private", "claims@adityabirlacapital.com", "1800-270-7000", "https://www.adityabirlahealthinsurance.com"),
-    ("medi_assist",         "Medi Assist (TPA)",         "🏥", "TPA",     "claims@mediassist.in",          "1800-425-3030", "https://www.mediassist.in"),
-    ("paramount_health",    "Paramount Health (TPA)",    "🏥", "TPA",     "claims@paramounttpa.com",       "1800-233-8181", "https://www.paramounttpa.com"),
-    ("vidal_health",        "Vidal Health (TPA)",        "🏥", "TPA",     "claims@vidalhealth.com",        "1800-425-4033", "https://www.vidalhealth.com"),
-    ("heritage_health",     "Heritage Health (TPA)",     "🏥", "TPA",     "claims@heritagehealthtpa.com",  "1800-102-4488", "https://www.heritagehealthtpa.com"),
-    ("md_india",            "MD India (TPA)",            "🏥", "TPA",     "claims@maborehealthcaretpa.com","1800-233-3010", "https://www.maborehealthcaretpa.com"),
-    ("digital_insurance",   "Go Digit General",          "💜", "Private", "claims@godigit.com",            "1800-258-5956", "https://www.godigit.com"),
-    ("kotak_general",       "Kotak Mahindra General",    "🔴", "Private", "claims@kotakgi.com",            "1800-266-4545", "https://www.kotakgeneralinsurance.com"),
+    ("icici_lombard",       "ICICI Lombard",            "", "Private", "claims@icicilombard.com",       "1800-266-7700", "https://www.icicilombard.com"),
+    ("star_health",         "Star Health",              "", "Private", "claims@starhealth.in",          "1800-425-2255", "https://www.starhealth.in"),
+    ("hdfc_ergo",           "HDFC ERGO",                "", "Private", "claims@hdfcergo.com",           "1800-266-0700", "https://www.hdfcergo.com"),
+    ("bajaj_allianz",       "Bajaj Allianz",            "", "Private", "claims@bajajallianz.co.in",     "1800-209-5858", "https://www.bajajallianz.com"),
+    ("new_india",           "New India Assurance",       "", "PSU",     "claims@newindia.co.in",        "1800-209-1415", "https://www.newindia.co.in"),
+    ("niva_bupa",           "Niva Bupa",                "", "Private", "claims@nivabupa.com",           "1800-200-5577", "https://www.nivabupa.com"),
+    ("care_health",         "Care Health",              "", "Private", "claims@careinsurance.com",      "1800-102-4488", "https://www.careinsurance.com"),
+    ("tata_aig",            "Tata AIG",                 "", "Private", "claims@tataaig.com",            "1800-266-7780", "https://www.tataaig.com"),
+    ("sbi_general",         "SBI General",              "", "PSU",     "claims@sbigeneral.in",          "1800-102-1111", "https://www.sbigeneral.in"),
+    ("oriental_insurance",  "Oriental Insurance",        "", "PSU",     "claims@orientalinsurance.co.in","1800-118-485",  "https://www.orientalinsurance.org.in"),
+    ("max_bupa",            "Max Bupa",                 "", "Private", "claims@maxbupa.com",            "1800-200-5577", "https://www.maxbupa.com"),
+    ("manipal_cigna",       "ManipalCigna",             "", "Private", "claims@manipalcigna.com",       "1800-266-0800", "https://www.manipalcigna.com"),
+    ("united_india",        "United India Insurance",    "", "PSU",     "claims@uiic.co.in",            "1800-425-33-33","https://www.uiic.co.in"),
+    ("national_insurance",  "National Insurance",        "", "PSU",     "claims@nic.co.in",             "1800-345-0330", "https://www.nationalinsurance.nic.co.in"),
+    ("iffco_tokio",         "IFFCO Tokio",              "", "Private", "claims@iffcotokio.co.in",       "1800-103-5499", "https://www.iffcotokio.co.in"),
+    ("reliance_general",    "Reliance General",          "", "Private", "claims@reliancegeneral.co.in",  "1800-102-1010", "https://www.reliancegeneral.co.in"),
+    ("cholamandalam",       "Cholamandalam MS",          "", "Private", "claims@cholams.murugappa.com",  "1800-200-5544", "https://www.cholainsurance.com"),
+    ("aditya_birla",        "Aditya Birla Health",       "", "Private", "claims@adityabirlacapital.com", "1800-270-7000", "https://www.adityabirlahealthinsurance.com"),
+    ("medi_assist",         "Medi Assist (TPA)",         "", "TPA",     "claims@mediassist.in",          "1800-425-3030", "https://www.mediassist.in"),
+    ("paramount_health",    "Paramount Health (TPA)",    "", "TPA",     "claims@paramounttpa.com",       "1800-233-8181", "https://www.paramounttpa.com"),
+    ("vidal_health",        "Vidal Health (TPA)",        "", "TPA",     "claims@vidalhealth.com",        "1800-425-4033", "https://www.vidalhealth.com"),
+    ("heritage_health",     "Heritage Health (TPA)",     "", "TPA",     "claims@heritagehealthtpa.com",  "1800-102-4488", "https://www.heritagehealthtpa.com"),
+    ("md_india",            "MD India (TPA)",            "", "TPA",     "claims@maborehealthcaretpa.com","1800-233-3010", "https://www.maborehealthcaretpa.com"),
+    ("digital_insurance",   "Go Digit General",          "", "Private", "claims@godigit.com",            "1800-258-5956", "https://www.godigit.com"),
+    ("kotak_general",       "Kotak Mahindra General",    "", "Private", "claims@kotakgi.com",            "1800-266-4545", "https://www.kotakgeneralinsurance.com"),
 ]
 
 
@@ -1034,29 +1038,237 @@ def _ensure_tpa_table(db: Session):
     count = db.query(TpaProvider).count()
     if count == 0:
         for code, name, logo, ptype, email, phone, website in _TPA_SEED:
-            db.add(TpaProvider(code=code, name=name, logo=logo, provider_type=ptype, email=email, phone=phone, website=website))
+            db.add(TpaProvider(code=code, name=name, logo=logo or None, provider_type=ptype, email=email, phone=phone, website=website))
         db.commit()
         logger.info("Seeded %d TPA providers", len(_TPA_SEED))
 
 
 @router.get("/tpa-list")
 def list_tpas(db: Session = Depends(get_db)):
-    """Return available TPA/Insurance providers from DB."""
-    _ensure_tpa_table(db)
-    rows = db.query(TpaProvider).filter(TpaProvider.is_active).order_by(TpaProvider.name).all()
+    """Return organizations actually present in the database (organizations table)."""
+    rows = (
+        db.query(Organization)
+        .filter(
+            Organization.status == "ACTIVE",
+            Organization.type.in_(["INSURER", "TPA"])
+        )
+        .order_by(Organization.name)
+        .all()
+    )
+    tpa_list = []
+    seen = set()
+    for o in rows:
+        name = (o.name or "").strip()
+        norm = name.lower()
+        if norm in seen:
+            continue
+        seen.add(norm)
+        tpa_list.append({
+            "id": str(o.id),
+            "org_id": str(o.id),
+            "name": name,
+            "logo": "",
+            "type": o.type or "TPA",
+            "email": "",
+            "phone": "",
+            "website": "",
+        })
+    return {"tpas": tpa_list}
+
+
+def _extract_policy_and_insurer(text: str, filename: str = "") -> tuple[str | None, str | None]:
+    """Fast regex-based extractor for health insurance policy number and insurer."""
+    if not text:
+        return None, None
+
+    INSURERS = [
+        ("Star Health", ["star health", "star health and allied", "star health & allied"]),
+        ("Care Health", ["care health", "religare", "care insurance"]),
+        ("HDFC ERGO", ["hdfc ergo", "hdfc general"]),
+        ("ICICI Lombard", ["icici lombard", "icici general"]),
+        ("Bajaj Allianz", ["bajaj allianz"]),
+        ("New India Assurance", ["new india assurance", "new india"]),
+        ("Niva Bupa", ["niva bupa", "max bupa"]),
+        ("Tata AIG", ["tata aig"]),
+        ("SBI General", ["sbi general", "state bank of india"]),
+        ("Oriental Insurance", ["oriental insurance"]),
+        ("ManipalCigna", ["manipalcigna", "manipal cigna"]),
+        ("United India Insurance", ["united india insurance", "united india"]),
+        ("National Insurance", ["national insurance"]),
+        ("IFFCO Tokio", ["iffco tokio"]),
+        ("Reliance General", ["reliance general"]),
+        ("Cholamandalam MS", ["cholamandalam", "chola ms"]),
+        ("Aditya Birla Health", ["aditya birla"]),
+        ("Medi Assist", ["medi assist", "mediassist"]),
+        ("Paramount Health", ["paramount health", "paramount tpa"]),
+        ("Vidal Health", ["vidal health", "vidal tpa"]),
+        ("Heritage Health", ["heritage health"]),
+        ("MD India", ["md india", "mdindia"]),
+        ("Go Digit General", ["go digit", "digit general", "digit insurance"]),
+        ("Kotak Mahindra General", ["kotak mahindra", "kotak general"]),
+    ]
+
+    detected_insurer = None
+    combined_search = (filename + " " + text).lower()
+    for canonical_name, aliases in INSURERS:
+        if any(alias in combined_search for alias in aliases):
+            detected_insurer = canonical_name
+            break
+
+    patterns = [
+        # Explicit labels: Policy No / Policy # / Health Card No / Member ID / UHID
+        r"(?im)\b(?:policy\s*(?:no\.?|num|number|#|id)|policy\s*/\s*certificate\s*no\.?|certificate\s*no\.?|policy\s*/\s*health\s*card\s*no\.?|health\s*card\s*(?:no\.?|id)|card\s*no\.?|member\s*id|membership\s*(?:no\.?|id)|uhid|insurance\s*(?:id|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
+        # Multi-line label
+        r"(?im)\b(?:policy\s*(?:no\.?|num|number|#|id))\s*[:\-=\/|#]?\s*\n\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
+        # Standard insurer pattern
+        r"\b([A-Z]{1,4}/[0-9]{4,8}/[0-9]{1,4}/[0-9]{2,4}/[0-9]{4,8})\b",
+        r"\b([A-Z0-9]{2,5}-[A-Z0-9]{4,10}-[A-Z0-9]{4,10})\b",
+    ]
+
+    detected_policy = None
+    reject_terms = {
+        "number", "policy", "card", "insurance", "hospital", "patient", "valid", "from",
+        "date", "none", "null", "n/a", "amount", "rupees", "total", "details", "scheme", "claim"
+    }
+
+    for pat in patterns:
+        matches = re.finditer(pat, text)
+        for m in matches:
+            val = m.group(1).strip(" .;:,-_#/")
+            if val and val.lower() not in reject_terms and len(val) >= 4:
+                detected_policy = val
+                break
+        if detected_policy:
+            break
+
+    return detected_policy, detected_insurer
+
+
+@router.post("/claims/{claim_id}/extract-policy")
+@router.post("/extract-policy")
+async def extract_policy_document(
+    claim_id: str | None = None,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Fast OCR document extraction for Policy ID & Insurer.
+    Runs fast OCR on uploaded policy document/card, auto-links to claim in DB.
+    """
+    contents = await file.read()
+    filename = file.filename or "uploaded_policy_document"
+    ext = Path(filename).suffix.lower()
+
+    extracted_text = ""
+
+    # 1. Fast text extraction
+    if ext == ".pdf":
+        try:
+            import pdfplumber
+            with pdfplumber.open(io.BytesIO(contents)) as pdf:
+                text_chunks = []
+                for p in pdf.pages[:5]:
+                    t = p.extract_text() or ""
+                    if t.strip():
+                        text_chunks.append(t)
+                extracted_text = "\n".join(text_chunks)
+                
+                # Scanned PDF fallback via OCR
+                if len(extracted_text.strip()) < 30 and pdf.pages:
+                    try:
+                        import pytesseract
+                        img = pdf.pages[0].to_image(resolution=200).original
+                        extracted_text = pytesseract.image_to_string(img)
+                    except Exception as ocr_err:
+                        logger.warning(f"Tesseract OCR fallback on PDF failed: {ocr_err}")
+        except Exception as exc:
+            logger.warning(f"PDF extraction failed: {exc}")
+
+    if not extracted_text.strip() and ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"]:
+        try:
+            from PIL import Image
+            import pytesseract
+            img = Image.open(io.BytesIO(contents))
+            extracted_text = pytesseract.image_to_string(img)
+        except Exception as exc:
+            logger.warning(f"Image OCR failed: {exc}")
+
+    if not extracted_text.strip() and ext in [".txt", ".csv", ".json", ".md", ".html", ".log"]:
+        try:
+            extracted_text = contents.decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+
+    # 2. Extract policy ID and insurer
+    policy_id, insurer = _extract_policy_and_insurer(extracted_text, filename)
+
+    # 3. If claim_id is provided, store directly to claim in DB
+    if claim_id:
+        try:
+            cid = _parse_uuid(claim_id)
+            claim = db.query(Claim).filter(Claim.id == cid).first()
+            if claim:
+                if policy_id:
+                    clean_pol = str(policy_id).strip()
+                    claim.policy_id = clean_pol
+                    for fname in ["policy_number", "policy_id"]:
+                        pf = db.query(ParsedField).filter(
+                            ParsedField.claim_id == cid,
+                            ParsedField.field_name == fname,
+                        ).first()
+                        if pf:
+                            pf.field_value = clean_pol
+                        else:
+                            db.add(ParsedField(claim_id=cid, field_name=fname, field_value=clean_pol))
+                
+                if insurer:
+                    for fname in ["insurance_company", "insurer"]:
+                        pf = db.query(ParsedField).filter(
+                            ParsedField.claim_id == cid,
+                            ParsedField.field_name == fname,
+                        ).first()
+                        if pf:
+                            pf.field_value = insurer
+                        else:
+                            db.add(ParsedField(claim_id=cid, field_name=fname, field_value=insurer))
+
+                # Save uploaded policy document to storage and add Document row
+                try:
+                    sha = hashlib.sha256(contents).hexdigest()
+                    storage_dir = Path("/app/storage/claims") / str(cid)
+                    storage_dir.mkdir(parents=True, exist_ok=True)
+                    saved_path = storage_dir / filename
+                    saved_path.write_bytes(contents)
+
+                    existing_doc = db.query(Document).filter(
+                        Document.claim_id == cid,
+                        Document.content_hash == sha
+                    ).first()
+                    if not existing_doc:
+                        db.add(Document(
+                            claim_id=cid,
+                            file_name=filename,
+                            file_type=file.content_type or "application/octet-stream",
+                            minio_path=str(saved_path),
+                            content_hash=sha,
+                            doc_type="HEALTH_CARD",
+                            display_title=f"Policy / Health Card ({filename})"
+                        ))
+                except Exception as doc_err:
+                    logger.warning(f"Could not save document file to disk/db: {doc_err}")
+
+                db.commit()
+                logger.info(f"Policy '{policy_id}' and insurer '{insurer}' saved directly to claim {cid}")
+        except Exception as exc:
+            logger.warning(f"Failed to link policy to claim {claim_id}: {exc}")
+
     return {
-        "tpas": [
-            {
-                "id": t.code,
-                "name": t.name,
-                "logo": t.logo or "🏥",
-                "type": t.provider_type or "Private",
-                "email": t.email or "",
-                "phone": t.phone or "",
-                "website": t.website or "",
-            }
-            for t in rows
-        ]
+        "success": True,
+        "policy_id": policy_id or "",
+        "insurer": insurer or "",
+        "extracted": bool(policy_id or insurer),
+        "file_name": filename,
+        "raw_snippet": (extracted_text[:300] + "...") if len(extracted_text) > 300 else extracted_text,
     }
 
 
@@ -1076,7 +1288,72 @@ def submit_claim(
     if not claim:
         raise HTTPException(status_code=404, detail="Claim not found")
 
+    # Link policy_id to claim if provided
+    if body.policy_id:
+        clean_pol = str(body.policy_id).strip()
+        claim.policy_id = clean_pol
+        for fname in ["policy_number", "policy_id"]:
+            existing_pf = db.query(ParsedField).filter(
+                ParsedField.claim_id == cid,
+                ParsedField.field_name == fname,
+            ).first()
+            if existing_pf:
+                existing_pf.field_value = clean_pol
+            else:
+                db.add(ParsedField(claim_id=cid, field_name=fname, field_value=clean_pol))
+
     payer = body.payer or settings.default_payer
+    resolved_org_id = None
+    if getattr(body, "org_id", None):
+        try:
+            resolved_org_id = _parse_uuid(body.org_id)
+        except Exception:
+            resolved_org_id = None
+
+    if not resolved_org_id and payer:
+        matched_org = db.query(Organization).filter(
+            (Organization.name.ilike(payer)) |
+            (Organization.name.ilike(f"%{payer}%"))
+        ).first()
+        if matched_org:
+            resolved_org_id = matched_org.id
+            payer = matched_org.name
+
+    if resolved_org_id:
+        claim.org_id = resolved_org_id
+
+    claim.insurance_company = payer
+    if payer:
+        for fname in ["insurance_company", "insurer"]:
+            existing_pf = db.query(ParsedField).filter(
+                ParsedField.claim_id == cid,
+                ParsedField.field_name == fname,
+            ).first()
+            if existing_pf:
+                existing_pf.field_value = payer
+            else:
+                db.add(ParsedField(claim_id=cid, field_name=fname, field_value=payer))
+
+    # Keep canonical_json synchronized
+    if claim.canonical_json:
+        canonical = claim.canonical_json
+        if isinstance(canonical, str):
+            try:
+                import json as _json
+                canonical = _json.loads(canonical)
+            except Exception:
+                canonical = {}
+        if isinstance(canonical, dict):
+            if "patient" not in canonical:
+                canonical["patient"] = {}
+            if body.policy_id:
+                canonical["patient"]["policy_number"] = str(body.policy_id).strip()
+            if "insurance" not in canonical:
+                canonical["insurance"] = {}
+            if payer:
+                canonical["insurance"]["company"] = payer
+            claim.canonical_json = canonical
+
     adapter = get_adapter(payer)
 
     claim_data = _gather_claim_data(db, claim)
@@ -1096,7 +1373,7 @@ def submit_claim(
     db.commit()
     db.refresh(sub)
 
-    logger.info("Claim %s submitted to payer '%s' — status=%s", cid, payer, status)
+    logger.info("Claim %s submitted to payer '%s' with policy_id '%s' — status=%s", cid, payer, claim.policy_id, status)
 
     return SubmissionOut(
         submission_id=sub.id,

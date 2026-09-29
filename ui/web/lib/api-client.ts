@@ -70,6 +70,17 @@ export interface RealClaimPreview {
   gross_total?: number;
   net_payable?: number;
   deductions?: number;
+  potential_non_medical_total?: number;
+  admissibility_guidance?: string;
+  patient_name?: string;
+  hospital_name?: string;
+  admission_date?: string;
+  discharge_date?: string;
+  diagnosis?: string;
+  policy_id?: string;
+  patient_id?: string;
+  gender?: string;
+  age?: string | number;
   predictions: Array<{ rejection_score: number; top_reasons: Array<{ reason: string; weight: number }> }>;
   validations: Array<{ rule_name: string; severity: string; message: string; passed: boolean }>;
   ocr_excerpt?: string;
@@ -291,7 +302,7 @@ export async function uploadClaimDocument(
 /**
  * Poll processing progress safely — checks both ingress progress & submission preview readiness
  */
-export async function fetchClaimProgress(claimId: string): Promise<{ percentage: number; step: string; status: string; is_complete: boolean; not_found?: boolean }> {
+export async function fetchClaimProgress(claimId: string): Promise<{ percentage: number; step: string; status: string; is_complete: boolean; not_found?: boolean; error?: string }> {
   if (isMockId(claimId)) {
     return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
   }
@@ -588,5 +599,79 @@ export async function saveClaimDetailsApi(claimId: string, details: Record<strin
     return Boolean(res && res.ok);
   } catch (err) {
     return false;
+  }
+}
+
+export interface TpaProviderItem {
+  id: string;
+  org_id?: string;
+  name: string;
+  logo: string;
+  type: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+}
+
+/**
+ * Fetch available Insurance / TPA providers
+ */
+export async function fetchTpaListApi(): Promise<TpaProviderItem[]> {
+  try {
+    const res = await safeFetch(`${SUBMISSION_API}/tpa-list`, {}, 5000);
+    if (!res || !res.ok) return [];
+    const data = await res.json();
+    return data.tpas || [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Fast OCR document extraction for policy ID & insurer
+ */
+export async function extractPolicyFromDocApi(
+  claimId: string,
+  file: File
+): Promise<{ success: boolean; policy_id: string; insurer: string; file_name: string; raw_snippet?: string; message?: string }> {
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    const res = await fetch(`${SUBMISSION_API}/claims/${claimId}/extract-policy`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      return { success: false, policy_id: "", insurer: "", file_name: file.name, message: "Extraction failed" };
+    }
+    return await res.json();
+  } catch (err: any) {
+    return { success: false, policy_id: "", insurer: "", file_name: file.name, message: err?.message || "Network error" };
+  }
+}
+
+/**
+ * Submit claim to selected insurer / TPA
+ */
+export async function submitClaimToPayerApi(
+  claimId: string,
+  payer: string,
+  policyId?: string,
+  orgId?: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const res = await fetch(`${SUBMISSION_API}/submit/${claimId}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payer, policy_id: policyId, org_id: orgId }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { success: true, data };
+    }
+    const errData = await res.json().catch(() => null);
+    return { success: false, error: errData?.detail || "Submission failed" };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Network error" };
   }
 }

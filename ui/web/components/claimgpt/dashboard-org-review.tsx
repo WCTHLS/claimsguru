@@ -348,12 +348,15 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
     const token = session?.accessToken;
     const headers: Record<string, string> = {
       "X-User-Role": session?.role || "reviewer",
+      ...(orgSlug ? { "X-Organization-Slug": orgSlug } : {}),
       ...(token ? { Authorization: `Bearer ${token}` } : {})
     };
 
     try {
       let rawClaims: Claim[] = [];
       let rawTotal = 0;
+
+      const orgParam = orgSlug ? `&organization=${encodeURIComponent(orgSlug)}` : '';
 
       if (search.trim()) {
         const searchRes = await fetch(`${SEARCH_API}/?q=${encodeURIComponent(search)}&limit=${PAGE_SIZE}`, { headers }).catch(() => null);
@@ -362,7 +365,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
           const results = data.results || [];
           const details = await Promise.all(
             results.map((r: any) =>
-              fetch(`${INGRESS_API}/claims/${r.claim_id}`, { headers })
+              fetch(`${INGRESS_API}/claims/${r.claim_id}${orgParam ? `?${orgParam.slice(1)}` : ''}`, { headers })
                 .then((res) => (res.ok ? res.json() : null))
                 .catch(() => null)
             )
@@ -371,7 +374,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
           rawTotal = rawClaims.length;
         }
       } else {
-        const res = await fetch(`${INGRESS_API}/claims?offset=${page * PAGE_SIZE}&limit=${PAGE_SIZE}`, { headers }).catch(() => null);
+        const res = await fetch(`${INGRESS_API}/claims?offset=${page * PAGE_SIZE}&limit=${PAGE_SIZE}${orgParam}`, { headers }).catch(() => null);
         if (res && res.ok) {
           const data = await res.json();
           rawClaims = data.claims || data.results || (Array.isArray(data) ? data : []);
@@ -384,7 +387,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
       }
 
       // Enrich claims with submission preview data
-      const enriched: EnrichedClaim[] = await Promise.all(
+      let enriched: EnrichedClaim[] = await Promise.all(
         rawClaims.map(async (c) => {
           try {
             const prevRes = await fetch(`${SUBMISSION_API}/claims/${c.id}/preview`, { headers }).catch(() => null);
@@ -396,6 +399,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                 billed_total: prevData.billed_total ?? (c as any).billed_total,
                 edited_fields: prevData.field_feedback ? Object.keys(prevData.field_feedback) : (c as any).edited_fields,
                 field_feedback: prevData.field_feedback || (c as any).field_feedback,
+                insurance_company: (c as any).insurance_company || prevData.payer || (prevData.summary as any)?.insurer || null,
               };
             }
           } catch {
@@ -405,6 +409,19 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
         })
       );
 
+      // On dedicated TPA review portals, strictly show only claims submitted to that TPA/insurer
+      if (orgSlug && !['admin', 'system', 'claimsguru', 'global'].includes(orgSlug.toLowerCase())) {
+        const orgKey = orgSlug.replace(/[-_]/g, ' ').toLowerCase();
+        const keywords = orgKey.split(' ').filter(k => !['org', 'tpa', 'hospital', 'review', 'admin'].includes(k));
+        if (keywords.length > 0) {
+          enriched = enriched.filter(c => {
+            const payer = ((c as any).insurance_company || (c as any).payer || (c.summary as any)?.insurer || '').toLowerCase();
+            return payer && keywords.some(k => payer.includes(k));
+          });
+          rawTotal = enriched.length;
+        }
+      }
+
       setClaims(enriched);
       setTotal(rawTotal);
     } catch {
@@ -413,7 +430,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
     } finally {
       setLoading(false);
     }
-  }, [session?.accessToken, session?.role, page, search, statusFilter, refreshKey]);
+  }, [session?.accessToken, session?.role, orgSlug, page, search, statusFilter, refreshKey]);
 
   useEffect(() => {
     fetchClaims();

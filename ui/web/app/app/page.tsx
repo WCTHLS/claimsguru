@@ -20,7 +20,7 @@ export default function AppPage() {
     // The patient workspace is for submitters / patients.
     const isSubmitter =
       session.accountRole === 'submitter' ||
-      session.accountRole === 'patient' ||
+      (session.accountRole as any) === 'patient' ||
       session.role === 'patient' ||
       (!session.accountRole && session.role !== 'tpa');
 

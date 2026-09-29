@@ -174,6 +174,22 @@ class RobustFieldExtractor:
             # Priority 3: Generic Total
             r"(?im)\btotal\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
         ],
+
+        "policy_number": [
+            # Priority 0: Explicit "Policy Number: 12345678", "Policy No: POL-998812", etc.
+            r"(?im)\b(?:policy\s*(?:no\.?|num|number|#|id)|policy\s*/\s*certificate\s*no\.?|certificate\s*no\.?|policy\s*/\s*health\s*card\s*no\.?|health\s*card\s*(?:no\.?|id)|card\s*no\.?|uhid|insurance\s*(?:id|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
+            # Priority 1: Multi-line policy number
+            r"(?im)\b(?:policy\s*(?:no\.?|num|number|#|id))\s*[:\-=\/|#]?\s*\n\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
+            # Priority 2: Member / TPA ID
+            r"(?im)\b(?:membership\s*(?:no\.?|num|number|id)|member\s*id|tpa\s*(?:id|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
+            # Priority 3: Standard alphanumeric pattern (e.g. MED2660848972, POL1029384729)
+            r"\b([A-Z]{2,5}[0-9]{7,14})\b",
+            r"\b([A-Z]{1,4}/[0-9]{4,8}/[0-9]{1,4}/[0-9]{2,4}/[0-9]{4,8})\b",
+        ],
+
+        "member_id": [
+            r"(?im)\b(?:member\s*(?:id|no\.?|num|number)|membership\s*(?:no\.?|id)|tpa\s*(?:id|no\.?)|beneficiary\s*id)\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
+        ],
     }
 
     HOSPITAL_REJECT_TERMS = {
@@ -703,6 +719,15 @@ class RobustFieldExtractor:
                         valid_candidates.append((p_idx, start_pos, value))
                     except ValueError:
                         continue
+
+            elif field_name in {"policy_number", "member_id"}:
+                value = re.sub(r"^[^\w]+|[^\w]+$", "", value)
+                val_lower = value.lower()
+                reject_terms = {"number", "policy", "card", "insurance", "hospital", "patient", "valid", "from", "date", "none", "null", "n/a", "amount", "rupees", "total", "details", "scheme", "claim"}
+                is_uuid = bool(re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", val_lower))
+                if val_lower in reject_terms or len(value) < 4 or is_uuid:
+                    continue
+                valid_candidates.append((p_idx, start_pos, value))
 
             else:
                 if len(value) >= 3:

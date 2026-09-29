@@ -31,7 +31,7 @@ def _safe_parse_uuid(val: Any) -> uuid.UUID | None:
 
 import aiofiles
 from celery import chord, group, chain
-from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, Response
+from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
@@ -48,7 +48,7 @@ from services.shared_tasks import (
 )
 from libs.shared.celery_app import celery_app
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from sqlalchemy import text, func, cast, String
+from sqlalchemy import text, func, cast, String, or_, and_
 from sqlalchemy.orm import Session, selectinload
 
 from .config import settings
@@ -3170,7 +3170,7 @@ async def create_claim(
         claim_id = uuid.uuid4()
         claim = Claim(
             id=claim_id,
-            policy_id=policy_id or resolved_patient_id,
+            policy_id=policy_id or None,
             patient_id=resolved_patient_id,
             status="UPLOADED",
             source="PATIENT",
@@ -3265,10 +3265,13 @@ async def create_claim(
 
 @router.get("/claims", response_model=ClaimListOut)
 def list_claims(
+    request: Request,
     offset: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     patient_id: str | None = Query(None),
     policy_id: str | None = Query(None),
+    organization: str | None = Query(None),
+    insurance_company: str | None = Query(None),
     auth_user: AuthUser = Depends(get_current_user_context),
     db: Session = Depends(get_db),
 ):
@@ -3325,12 +3328,40 @@ def list_claims(
             if user_identity_ids:
                 query = query.filter(Claim.patient_id.in_(list(user_identity_ids)))
         else:
-            # Privileged roles (admin/auditor) can query all claims or filter by specific patient_id
+            # Privileged roles (admin/auditor/reviewer) can query all claims or filter by specific patient_id
             if patient_id:
                 query = query.filter(Claim.patient_id == patient_id.strip())
         
         if policy_id:
             query = query.filter(Claim.policy_id == policy_id)
+
+        # Organization / TPA / Insurer filtering for Reviewer and Org portals
+        org_candidate = (organization or insurance_company or request.headers.get("x-organization-slug") or "").strip()
+        if org_candidate:
+            org_clean = org_candidate.replace("-", " ").replace("_", " ").lower()
+            if org_clean not in ("system", "admin", "claimsguru", "global", "all"):
+                parsed_org_uuid = _safe_parse_uuid(org_candidate)
+                org_query = db.query(Organization).filter(Organization.status == "ACTIVE")
+                if parsed_org_uuid:
+                    matched_orgs = org_query.filter(Organization.id == parsed_org_uuid).all()
+                else:
+                    matched_orgs = org_query.filter(
+                        (Organization.name.ilike(f"%{org_candidate}%")) |
+                        (Organization.name.ilike(f"%{org_clean}%"))
+                    ).all()
+                matched_org_ids = [o.id for o in matched_orgs]
+
+                STOPWORDS = {"org", "tpa", "hospital", "claims", "corp", "review", "admin", "health", "insurance", "general", "assurance", "co", "ltd"}
+                keywords = [k for k in org_clean.split() if k not in STOPWORDS]
+
+                claim_conditions = []
+                if matched_org_ids:
+                    claim_conditions.append(Claim.org_id.in_(matched_org_ids))
+                if keywords:
+                    claim_conditions.extend([Claim.insurance_company.ilike(f"%{k}%") for k in keywords])
+
+                if claim_conditions:
+                    query = query.filter(or_(*claim_conditions))
 
         total = query.count()
         claims = (
@@ -3350,7 +3381,8 @@ def list_claims(
                     "patient_name", "member_name", "insured_name",
                     "hospital_name", "hospital",
                     "doctor_name", "doctor", "provider_name", "rendering_provider",
-                    "diagnosis", "primary_diagnosis", "chief_complaint"
+                    "diagnosis", "primary_diagnosis", "chief_complaint",
+                    "insurance_company", "insurer"
                 ])
             ).all()
             
@@ -3365,6 +3397,8 @@ def list_claims(
                 c.hospital_name = fields.get("hospital_name") or fields.get("hospital") or None
                 c.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
                 c.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
+                if not getattr(c, "insurance_company", None):
+                    c.insurance_company = fields.get("insurance_company") or fields.get("insurer") or None
 
         # Batch-fetch workflow states to ensure live status accuracy (e.g. FINISHED -> COMPLETED)
         wf_states = {}
@@ -3455,8 +3489,10 @@ def list_claims(
 
             claim_items.append({
                 "id": c.id,
+                "org_id": getattr(c, "org_id", None),
                 "policy_id": c.policy_id,
                 "patient_id": c.patient_id,
+                "insurance_company": getattr(c, "insurance_company", None),
                 "status": effective_status,
                 "source": c.source,
                 "created_at": c.created_at,
@@ -3685,7 +3721,8 @@ def get_claim(
             "patient_name", "member_name", "insured_name",
             "hospital_name", "hospital",
             "doctor_name", "doctor", "provider_name", "rendering_provider",
-            "diagnosis", "primary_diagnosis", "chief_complaint"
+            "diagnosis", "primary_diagnosis", "chief_complaint",
+            "insurance_company", "insurer"
         ])
     ).all()
     
@@ -3694,6 +3731,8 @@ def get_claim(
     claim.hospital_name = fields.get("hospital_name") or fields.get("hospital") or None
     claim.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
     claim.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
+    if not getattr(claim, "insurance_company", None):
+        claim.insurance_company = fields.get("insurance_company") or fields.get("insurer") or None
     
     return ClaimOut.model_validate(claim).model_dump(mode="json")
 
@@ -4367,6 +4406,8 @@ def delete_claim(
 
 class SubmitClaimPayload(BaseModel):
     payer: str | None = "Star Health"
+    policy_id: str | None = None
+    org_id: str | None = None
 
 
 @router.post("/claims/{claim_id}/submit")
@@ -4386,9 +4427,78 @@ def submit_claim_endpoint(
             raise HTTPException(status_code=404, detail="Claim not found")
 
         payer_name = payload.payer or "Star Health"
+        resolved_org_id = None
+        if getattr(payload, "org_id", None):
+            try:
+                resolved_org_id = _safe_parse_uuid(payload.org_id)
+            except Exception:
+                resolved_org_id = None
 
-        # 1. Update claim status to SUBMITTED
+        if not resolved_org_id and payer_name:
+            matched_org = db.query(Organization).filter(
+                (Organization.name.ilike(payer_name)) |
+                (Organization.name.ilike(f"%{payer_name}%"))
+            ).first()
+            if matched_org:
+                resolved_org_id = matched_org.id
+                payer_name = matched_org.name
+
+        if resolved_org_id and not payer_name:
+            matched_org = db.query(Organization).filter(Organization.id == resolved_org_id).first()
+            if matched_org:
+                payer_name = matched_org.name
+
+        # 1. Update claim status to SUBMITTED and link policy_id, org_id, and insurance_company
         claim.status = "SUBMITTED"
+        if resolved_org_id:
+            claim.org_id = resolved_org_id
+        if payer_name:
+            claim.insurance_company = payer_name
+
+        if payload.policy_id:
+            clean_pol = str(payload.policy_id).strip()
+            claim.policy_id = clean_pol
+            for fname in ["policy_number", "policy_id"]:
+                pf = db.query(ParsedField).filter(
+                    ParsedField.claim_id == cid,
+                    ParsedField.field_name == fname
+                ).first()
+                if pf:
+                    pf.field_value = clean_pol
+                else:
+                    db.add(ParsedField(claim_id=cid, field_name=fname, field_value=clean_pol))
+
+        if payer_name:
+            for fname in ["insurance_company", "insurer"]:
+                pf = db.query(ParsedField).filter(
+                    ParsedField.claim_id == cid,
+                    ParsedField.field_name == fname
+                ).first()
+                if pf:
+                    pf.field_value = payer_name
+                else:
+                    db.add(ParsedField(claim_id=cid, field_name=fname, field_value=payer_name))
+
+        # Keep canonical_json synchronized
+        if claim.canonical_json:
+            canonical = claim.canonical_json
+            if isinstance(canonical, str):
+                try:
+                    import json as _json
+                    canonical = _json.loads(canonical)
+                except Exception:
+                    canonical = {}
+            if isinstance(canonical, dict):
+                if "patient" not in canonical:
+                    canonical["patient"] = {}
+                if payload.policy_id:
+                    canonical["patient"]["policy_number"] = str(payload.policy_id).strip()
+                if "insurance" not in canonical:
+                    canonical["insurance"] = {}
+                if payer_name:
+                    canonical["insurance"]["company"] = payer_name
+                claim.canonical_json = canonical
+
         db.commit()
 
         # 2. Record submission entry
@@ -4398,7 +4508,7 @@ def submit_claim_endpoint(
                 id=sub_id,
                 claim_id=cid,
                 payer=payer_name,
-                request_payload={"claim_id": str(cid), "payer": payer_name},
+                request_payload={"claim_id": str(cid), "payer": payer_name, "policy_id": claim.policy_id, "org_id": str(resolved_org_id) if resolved_org_id else None},
                 response_payload={"status": "ACCEPTED", "message": f"Queued for {payer_name} adjudication"},
                 status="SUBMITTED",
             )
@@ -4407,24 +4517,31 @@ def submit_claim_endpoint(
         except Exception as se:
             logger.warning("Submission record write fallback: %s", se)
             db.rollback()
-            # Ensure claim stays SUBMITTED
+            # Ensure claim stays SUBMITTED with org_id and insurance_company
             c_retry = db.query(Claim).filter(Claim.id == cid).first()
             if c_retry:
                 c_retry.status = "SUBMITTED"
+                if resolved_org_id:
+                    c_retry.org_id = resolved_org_id
+                if payer_name:
+                    c_retry.insurance_company = payer_name
+                if payload.policy_id:
+                    c_retry.policy_id = str(payload.policy_id).strip()
                 db.commit()
 
         try:
-            _audit(db, "CLAIM_SUBMITTED", claim_id=cid, metadata={"payer": payer_name, "submission_id": str(sub_id)})
+            _audit(db, "CLAIM_SUBMITTED", claim_id=cid, metadata={"payer": payer_name, "org_id": str(resolved_org_id) if resolved_org_id else None, "submission_id": str(sub_id)})
         except Exception:
             pass
 
         now_str = datetime.now(timezone.utc).isoformat()
-        logger.info("Claim %s successfully submitted to '%s'", cid, payer_name)
+        logger.info("Claim %s successfully submitted to '%s' (org_id=%s)", cid, payer_name, resolved_org_id)
 
         return {
             "submission_id": str(sub_id),
             "claim_id": str(cid),
             "payer": payer_name,
+            "org_id": str(resolved_org_id) if resolved_org_id else None,
             "status": "SUBMITTED",
             "reference": f"TPA-{payer_name.upper()[:4]}-{str(sub_id)[:8].upper()}",
             "submitted_at": now_str,

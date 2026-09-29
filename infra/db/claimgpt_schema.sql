@@ -118,14 +118,20 @@ ON CONFLICT (name) DO NOTHING;
 -- =====================================================
 CREATE TABLE claims (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    org_id UUID REFERENCES organizations(id) ON DELETE SET NULL,
     policy_id TEXT,
     patient_id TEXT,
+    insurance_company TEXT,
     canonical_json JSONB,
     status TEXT NOT NULL DEFAULT 'UPLOADED',
     source TEXT DEFAULT 'PATIENT',
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+CREATE INDEX IF NOT EXISTS idx_claims_org_id ON claims(org_id);
+CREATE INDEX IF NOT EXISTS idx_claims_policy_id ON claims(policy_id);
+CREATE INDEX IF NOT EXISTS idx_claims_insurance_company ON claims(insurance_company);
 
 -- =====================================================
 -- 2. Uploaded Documents (PDFs, Images)
