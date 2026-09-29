@@ -9,8 +9,6 @@ import {
   ArrowRight,
   Calendar,
   CheckCircle2,
-  CreditCard,
-  IndianRupee,
   Lock,
   ShieldCheck,
   Upload,
@@ -30,7 +28,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { INSURERS, formatDob } from '@/lib/claimgpt-data';
+import { formatDob } from '@/lib/claimgpt-data';
 import {
   AuroraBackground,
   GradientText,
@@ -46,7 +44,6 @@ export function RegisterClinical() {
   const [agree, setAgree] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [gender, setGender] = useState('Male');
-  const [insurer, setInsurer] = useState('Star Health');
   const [dobInput, setDobInput] = useState('');
   const [fileName, setFileName] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -141,8 +138,6 @@ export function RegisterClinical() {
     const firstName = getValue('c-firstName') || initialFirstName;
     const lastName = getValue('c-lastName') || initialLastName;
     const fullName = `${firstName} ${lastName}`.trim() || email.split('@')[0];
-    const policy = getValue('c-policy');
-    const sumInsured = getValue('c-sumInsured');
     const dob = dobInput || getValue('c-dob');
 
     if (!isEntraMode) {
@@ -181,12 +176,6 @@ export function RegisterClinical() {
         localStorage.setItem('claimgpt_user_dob', formattedDob);
         localStorage.setItem(`claimgpt_user_gender_${email}`, gender || 'Male');
         localStorage.setItem('claimgpt_user_gender', gender || 'Male');
-        localStorage.setItem(`claimgpt_user_insurer_${email}`, insurer || 'Star Health');
-        localStorage.setItem('claimgpt_user_insurer', insurer || 'Star Health');
-        localStorage.setItem(`claimgpt_user_policy_${email}`, policy || 'P-0007401');
-        localStorage.setItem('claimgpt_user_policy', policy || 'P-0007401');
-        localStorage.setItem(`claimgpt_user_sum_${email}`, sumInsured || '5000000');
-        localStorage.setItem('claimgpt_user_sum', sumInsured || '5000000');
         localStorage.setItem(`claimgpt_user_name_${email}`, fullName);
         localStorage.setItem('claimgpt_user_name', fullName);
         localStorage.setItem(`claimgpt_profile_complete_${email}`, 'true');
@@ -202,8 +191,6 @@ export function RegisterClinical() {
           last_name: lastName || undefined,
           dob: formattedDob || undefined,
           gender: gender || undefined,
-          policy: policy || undefined,
-          sum_insured: sumInsured || undefined,
           requested_role: 'patient',
           external_subject_id: getStoredAuthSession()?.user?.oid || getStoredAuthSession()?.user?.sub || email,
         };
@@ -238,8 +225,6 @@ export function RegisterClinical() {
           last_name: lastName || undefined,
           dob: formattedDob || undefined,
           gender: gender || undefined,
-          policy: policy || undefined,
-          sum_insured: sumInsured || undefined,
           provider: 'local',
         };
 
@@ -299,7 +284,7 @@ export function RegisterClinical() {
             </h1>
             <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
               {isEntraMode
-                ? 'Your authentication has succeeded via Microsoft Entra External ID. Please complete your policy and clinical details to finalize onboarding.'
+                ? 'Your authentication has succeeded via Microsoft Entra External ID. Please complete your personal details to finalize onboarding.'
                 : 'Fill in your details below to register your ClaimsGuru patient account.'}
             </p>
           </StaggerItem>
@@ -408,11 +393,11 @@ export function RegisterClinical() {
                 </fieldset>
               </SpotlightCard>
 
-              {/* Contact + Coverage */}
+              {/* Contact */}
               <SpotlightCard className="bg-white p-5 shadow-elevation-sm sm:p-6">
                 <fieldset>
                   <legend className="px-2 text-xs font-semibold uppercase tracking-wide text-teal-700">
-                    2. Contact &amp; Insurance Coverage
+                    2. Contact Information
                   </legend>
                   <div className="mt-3 grid grid-cols-1 gap-5 sm:grid-cols-2">
                     <div className="space-y-2 sm:col-span-2">
@@ -429,35 +414,6 @@ export function RegisterClinical() {
                         className={isEntraMode && initialEmail ? 'h-11 bg-slate-100/80 cursor-not-allowed font-medium text-slate-700' : 'h-11'}
                         required
                       />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Insurer Provider</Label>
-                      <Select value={insurer} onValueChange={setInsurer}>
-                        <SelectTrigger className="h-11">
-                          <SelectValue placeholder="Select insurer" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {INSURERS.map((ins) => (
-                            <SelectItem key={ins} value={ins}>
-                              {ins}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="c-policy">Policy Number <span className="text-rose-500">*</span></Label>
-                      <div className="relative">
-                        <CreditCard className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input id="c-policy" placeholder="e.g. POL-123456" className="h-11 pl-10" required />
-                      </div>
-                    </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="c-sumInsured">Sum Insured (INR)</Label>
-                      <div className="relative">
-                        <IndianRupee className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                        <Input id="c-sumInsured" type="number" min="0" placeholder="e.g. 500000" className="h-11 pl-10" required />
-                      </div>
                     </div>
                   </div>
                 </fieldset>
