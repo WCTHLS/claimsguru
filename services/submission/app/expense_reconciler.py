@@ -239,57 +239,62 @@ IRDAI_NON_MEDICAL_KEYWORDS = (
 )
 
 
-def evaluate_non_medical_expenses(expenses: list[dict[str, Any]]) -> dict[str, Any]:
+def evaluate_non_medical_expenses(
+    expenses: list[dict[str, Any]], 
+    explicit_deductions: float = 0.0
+) -> dict[str, Any]:
     """
-    Evaluates itemized expenses against IRDAI Non-Medical Schedule items.
+    Evaluates itemized expenses against IRDAI Non-Medical Schedule items and
+    harmonizes with any explicit non-payable deductions stated on the hospital bill.
     Returns potential non-medical total, flagged items, and clear admissibility guidance.
     """
-    if not expenses:
-        return {
-            "potential_non_medical_total": 0.0,
-            "non_medical_items": [],
-            "admissibility_guidance": "All line items qualify as legitimate medical expenses under IRDAI guidelines with zero non-medical deductions.",
-            "is_all_medical": True,
-        }
-
     flagged_items = []
     non_med_total = 0.0
 
-    for exp in expenses:
-        cat = str(exp.get("category") or "").strip().lower()
-        desc = str(exp.get("description") or exp.get("item") or "").strip().lower()
-        full_text = f"{cat} {desc}".strip()
-        amt = float(exp.get("amount") or 0.0)
+    if expenses:
+        for exp in expenses:
+            cat = str(exp.get("category") or "").strip().lower()
+            desc = str(exp.get("description") or exp.get("item") or "").strip().lower()
+            full_text = f"{cat} {desc}".strip()
+            amt = float(exp.get("amount") or 0.0)
 
-        # Check if line contains IRDAI non-medical keywords
-        if any(kw in full_text for kw in IRDAI_NON_MEDICAL_KEYWORDS):
-            # Verify it's not a legitimate medical term containing partial letters
-            if not any(med_kw in full_text for med_kw in ("administration", "iv administration", "blood administration", "feeding tube", "dietician consultation")):
-                flagged_items.append({
-                    "category": exp.get("category", "Miscellaneous"),
-                    "description": exp.get("description") or exp.get("category", ""),
-                    "amount": amt,
-                })
-                non_med_total += amt
+            # Check if line contains IRDAI non-medical keywords
+            if any(kw in full_text for kw in IRDAI_NON_MEDICAL_KEYWORDS):
+                # Verify it's not a legitimate medical procedure
+                if not any(med_kw in full_text for med_kw in (
+                    "iv administration", "blood administration", "drug administration", 
+                    "medication administration", "fluid administration", "feeding tube"
+                )):
+                    flagged_items.append({
+                        "category": exp.get("category", "Miscellaneous"),
+                        "description": exp.get("description") or exp.get("category", ""),
+                        "amount": amt,
+                    })
+                    non_med_total += amt
 
     non_med_total = round(non_med_total, 2)
-    is_all_med = len(flagged_items) == 0
+    
+    # If the hospital bill explicitly specifies a non-payable deduction (e.g. Less: Non-Payable Items Rs. 5,212.43),
+    # use that authoritative deduction figure. Otherwise use evaluated itemized non-medical total.
+    effective_non_payable = round(explicit_deductions if explicit_deductions > 0 else non_med_total, 2)
+    is_all_med = (effective_non_payable == 0.0)
 
     if is_all_med:
         guidance = "All line items qualify as legitimate medical expenses under IRDAI guidelines with zero non-medical deductions. Final settlement is subject to your policy sum insured and sub-limits."
     else:
         guidance = (
-            f"Non-medical expenses (e.g., admin, food, or visitor charges totaling ₹{non_med_total:,.2f}) "
+            f"Non-medical expenses (e.g., admin, food, or non-payable items totaling ₹{effective_non_payable:,.2f}) "
             "are covered in full if your insurance policy includes a Non-Medical / Consumables Rider or corporate 100% GMC cover. "
             "The final settlement decision and deduction approval rest with your Insurer / TPA."
         )
 
     return {
-        "potential_non_medical_total": non_med_total,
+        "potential_non_medical_total": effective_non_payable,
         "non_medical_items": flagged_items,
         "admissibility_guidance": guidance,
         "is_all_medical": is_all_med,
     }
+
 
 
 

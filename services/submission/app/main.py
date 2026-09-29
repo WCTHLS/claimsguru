@@ -356,17 +356,26 @@ def _infer_document_type(file_name: str, text: str) -> str:
 def _extract_net_payable(text: str) -> float | None:
     if not text:
         return None
+    
+    # Check if document has insurance cashless pre-auth / adjusted lines
+    has_insurance_settlement = bool(re.search(r"insurance\s*(?:approved|adjusted|pre-?auth|settled)", text, re.I))
+
     patterns = [
         re.compile(r"claim\s*amount\s*requested\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
         re.compile(r"net\s*admissible\s*(?:amount|total)?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
         re.compile(r"admissible\s*amount\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"net\s*(?:amount\s*)?payable\s*(?:by\s*(?:patient|insurer))?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"amount\s*payable\s*(?:by\s*(?:patient|insurer))?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"net\s*(?:total|amount)\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"payable\s*(?:total|amount)\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"total\s*payable\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
-        re.compile(r"claim\s*amount\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"net\s*amount\s*payable\s*by\s*patient\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        re.compile(r"net\s*(?:payable|amount|total)\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
     ]
+    if not has_insurance_settlement:
+        patterns.extend([
+            re.compile(r"amount\s*payable\s*(?:by\s*(?:patient|insurer))?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+            re.compile(r"patient\s*payable\s*(?:amount|total)?\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+            re.compile(r"total\s*payable\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+            re.compile(r"payable\s*(?:total|amount)\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+            re.compile(r"claim\s*amount\s*(?:[:|\-]|\|)?\s*(?:rs|inr|usd|\$|₹)?\.?\s*([\d,]+\.?\d*)", re.I),
+        ])
+
     for pat in patterns:
         matches = [m.group(1) for m in pat.finditer(text)]
         for raw in reversed(matches):
@@ -884,7 +893,14 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
 
     # Dynamic IRDAI Non-Medical Expenses Admissibility Assessment
     from .expense_reconciler import evaluate_non_medical_expenses
-    admissibility_eval = evaluate_non_medical_expenses(expenses)
+    admissibility_eval = evaluate_non_medical_expenses(
+        expenses=expenses,
+        explicit_deductions=deductions_claimed if deductions_found else 0.0,
+    )
+
+    final_gross = round(gross_total_claimed if (gross_total_found and gross_total_claimed > 0) else (billed_total if billed_total > 0 else expense_total), 2)
+    final_deductions = round(admissibility_eval.get("potential_non_medical_total", 0.0), 2)
+    final_net = round(max(0.0, final_gross - final_deductions), 2)
 
     return {
         "claim_id": str(claim.id),
@@ -907,10 +923,10 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         "expenses": expenses,
         "expense_total": round(expense_total, 2),
         "billed_total": round(billed_total, 2),
-        "gross_total": round(gross_total_claimed, 2) if (gross_total_found and gross_total_claimed > 0) else round(billed_total, 2),
-        "net_payable": round(net_payable_claimed, 2) if (net_payable_found and net_payable_claimed > 0) else round(billed_total, 2),
-        "deductions": round(max(0.0, (gross_total_claimed - net_payable_claimed)), 2) if (gross_total_found and net_payable_found and gross_total_claimed > net_payable_claimed and net_payable_claimed > 0) else 0.0,
-        "potential_non_medical_total": admissibility_eval.get("potential_non_medical_total", 0.0),
+        "gross_total": final_gross,
+        "net_payable": final_net,
+        "deductions": final_deductions,
+        "potential_non_medical_total": final_deductions,
         "non_medical_items": admissibility_eval.get("non_medical_items", []),
         "admissibility_guidance": admissibility_eval.get("admissibility_guidance", ""),
         "is_all_medical": admissibility_eval.get("is_all_medical", True),
