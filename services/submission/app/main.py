@@ -882,6 +882,10 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
     except Exception as _audit_err:
         logger.debug("Could not fetch audit log for tpa message: %s", _audit_err)
 
+    # Dynamic IRDAI Non-Medical Expenses Admissibility Assessment
+    from .expense_reconciler import evaluate_non_medical_expenses
+    admissibility_eval = evaluate_non_medical_expenses(expenses)
+
     return {
         "claim_id": str(claim.id),
         "created_at": claim.created_at.isoformat() if getattr(claim, "created_at", None) else None,
@@ -906,6 +910,10 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         "gross_total": round(gross_total_claimed, 2) if (gross_total_found and gross_total_claimed > 0) else round(billed_total, 2),
         "net_payable": round(net_payable_claimed, 2) if (net_payable_found and net_payable_claimed > 0) else round(billed_total, 2),
         "deductions": round(max(0.0, (gross_total_claimed - net_payable_claimed)), 2) if (gross_total_found and net_payable_found and gross_total_claimed > net_payable_claimed and net_payable_claimed > 0) else 0.0,
+        "potential_non_medical_total": admissibility_eval.get("potential_non_medical_total", 0.0),
+        "non_medical_items": admissibility_eval.get("non_medical_items", []),
+        "admissibility_guidance": admissibility_eval.get("admissibility_guidance", ""),
+        "is_all_medical": admissibility_eval.get("is_all_medical", True),
         "gross_total_found": gross_total_found,
         "net_payable_found": net_payable_found,
         "has_radiology_source": bool(radiology_doc_ids),

@@ -27,6 +27,7 @@ import {
   Clock,
   Copy,
   Check,
+  Info,
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { formatINR, formatClaimExactDateTime } from '@/lib/claimgpt-data';
@@ -645,6 +646,21 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   {formatINR(billedAmount > 0 ? billedAmount : ((preview?.gross_total || 0) - (preview?.deductions || 0)))}
                 </span>
               </div>
+            </div>
+
+            {/* Policy & Admissibility Guidance Box */}
+            <div className="rounded-xl border border-sky-500/20 bg-sky-950/30 p-3 text-xs text-sky-200/90 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px] uppercase tracking-wider">
+                <Info className="h-3.5 w-3.5 flex-none" />
+                <span>Policy &amp; Admissibility Guidance</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-300">
+                {preview?.admissibility_guidance || (
+                  preview?.potential_non_medical_total && preview.potential_non_medical_total > 0
+                    ? `Non-medical expenses (e.g., admin, food, or visitor charges totaling ${formatINR(preview.potential_non_medical_total)}) are covered in full if your insurance policy includes a Non-Medical / Consumables Rider or corporate 100% GMC cover. The final settlement decision and deduction approval rest with your Insurer / TPA.`
+                    : "All line items qualify as legitimate medical expenses under IRDAI guidelines with zero non-medical deductions. Final settlement is subject to your policy sum insured and sub-limits."
+                )}
+              </p>
             </div>
 
             {/* Total Summary Row / Verification Status */}
