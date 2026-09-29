@@ -139,7 +139,7 @@ export function DashboardClinical() {
 
   const processingInList = s.recentClaims.filter((c) => {
     const st = (c.status || "").toUpperCase();
-    return st === "PENDING" || st === "PROCESSING" || st === "IN_PROGRESS" || st === "QUEUED" || (st !== "COMPLETED" && st !== "VALIDATED" && st !== "FINISHED" && st !== "REJECTED");
+    return st === "PENDING" || st === "PROCESSING" || st === "IN_PROGRESS" || st === "QUEUED" || st === "UPLOADING";
   });
 
   const isCurrentClaimProcessing = (s.progress > 0 && s.progress < 100) || s.uploading || s.analyzing;

@@ -7,16 +7,12 @@ import {
   FileText,
   X,
   Mail,
-  CreditCard,
   Users,
   CheckCircle2,
   ChevronRight,
-  Copy,
-  Check,
   Calendar,
   Phone,
   Building2,
-  IndianRupee,
   LogOut,
   LogIn,
   Trash2,
@@ -49,16 +45,12 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   variant = 'clinical',
 }) => {
   const router = useRouter();
-  const [copied, setCopied] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [userMeta, setUserMeta] = useState({
     dob: '01/01/2000',
     gender: 'Male',
-    insurer: 'Star Health',
-    policyNo: 'P-0007401',
-    sumInsured: '₹5,000,000',
   });
 
   const session = getStoredAuthSession();
@@ -112,31 +104,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         localStorage.getItem(`claimgpt_user_dob_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_dob_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_dob');
-      const insurer =
-        localStorage.getItem(`claimgpt_user_insurer_${emailKey}`) ||
-        localStorage.getItem(`claimgpt_user_insurer_${currentEmail}`) ||
-        localStorage.getItem('claimgpt_user_insurer');
-      const policy =
-        localStorage.getItem(`claimgpt_user_policy_${emailKey}`) ||
-        localStorage.getItem(`claimgpt_user_policy_${currentEmail}`) ||
-        localStorage.getItem('claimgpt_user_policy');
-      const sum =
-        localStorage.getItem(`claimgpt_user_sum_${emailKey}`) ||
-        localStorage.getItem(`claimgpt_user_sum_${currentEmail}`) ||
-        localStorage.getItem('claimgpt_user_sum');
       const gender =
         localStorage.getItem(`claimgpt_user_gender_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_gender_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_gender');
 
+      // Clean up any obsolete cached policy/sum keys from localStorage
+      try {
+        localStorage.removeItem(`claimgpt_user_policy_${emailKey}`);
+        localStorage.removeItem(`claimgpt_user_policy_${currentEmail}`);
+        localStorage.removeItem('claimgpt_user_policy');
+        localStorage.removeItem(`claimgpt_user_insurer_${emailKey}`);
+        localStorage.removeItem(`claimgpt_user_insurer_${currentEmail}`);
+        localStorage.removeItem('claimgpt_user_insurer');
+        localStorage.removeItem(`claimgpt_user_sum_${emailKey}`);
+        localStorage.removeItem(`claimgpt_user_sum_${currentEmail}`);
+        localStorage.removeItem('claimgpt_user_sum');
+      } catch {}
+
       setUserMeta({
         dob: formatDob(rawDob || '01012000'),
         gender: gender || 'Male',
-        insurer: insurer || (session?.role === 'tpa' ? 'TPA Adjuster Org' : 'Star Health'),
-        policyNo: policy || (session?.role === 'tpa' ? 'TPA-90021' : 'P-0007401'),
-        sumInsured: sum
-          ? (sum.startsWith('₹') ? sum : `₹${Number(sum).toLocaleString('en-IN')}`)
-          : '₹5,000,000',
       });
 
       // Always fetch live profile from backend database to ensure 100% sync across devices and Incognito
@@ -146,14 +134,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
           .then(res => (res.ok ? res.json() : null))
           .then(data => {
             if (data && data.success) {
-              if (data.policy_number) {
-                localStorage.setItem(`claimgpt_user_policy_${emailKey}`, data.policy_number);
-                localStorage.setItem('claimgpt_user_policy', data.policy_number);
-              }
-              if (data.sum_insured) {
-                localStorage.setItem(`claimgpt_user_sum_${emailKey}`, String(data.sum_insured));
-                localStorage.setItem('claimgpt_user_sum', String(data.sum_insured));
-              }
               if (data.dob) {
                 localStorage.setItem(`claimgpt_user_dob_${emailKey}`, data.dob);
                 localStorage.setItem('claimgpt_user_dob', data.dob);
@@ -169,13 +149,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
               setUserMeta(prev => ({
                 ...prev,
-                policyNo: data.policy_number || prev.policyNo,
                 dob: data.dob ? formatDob(data.dob) : prev.dob,
                 gender: data.gender || prev.gender,
-                sumInsured: data.sum_insured
-                  ? `₹${Number(data.sum_insured).toLocaleString('en-IN')}`
-                  : prev.sumInsured,
-                insurer: data.organization || prev.insurer,
               }));
             }
           })
@@ -194,15 +169,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     ? (nameParts[0][0] + nameParts[1][0]).toUpperCase()
     : userName.slice(0, 2).toUpperCase();
 
-  const handleCopyPolicy = () => {
-    try {
-      navigator.clipboard.writeText(userMeta.policyNo);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      /* fallback */
-    }
-  };
 
   // Compute family member / patient claim list under this account
   const accountClaims = s.recentClaims.length > 0
@@ -317,30 +283,16 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <>
                     <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-medium ${themeStyles.policyPill}`}>
                       <Building2 className="h-3 w-3 opacity-80" />
-                      <span>{session?.organization || userMeta.insurer || 'Star Health'}</span>
+                      <span>{session?.organization || 'Star Health'}</span>
                     </span>
                     <span className={`rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase ${themeStyles.tagBadge}`}>
                       {session?.accountRole === 'admin' ? 'Administrator' : 'Reviewer'}
                     </span>
                   </>
                 ) : (
-                  <>
-                    {/* Policy ID with copy */}
-                    <button
-                      type="button"
-                      onClick={handleCopyPolicy}
-                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 font-medium transition-colors ${themeStyles.policyPill}`}
-                      title="Copy Policy Number"
-                    >
-                      <span>{userMeta.policyNo}</span>
-                      {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3 opacity-80" />}
-                    </button>
-
-                    {/* Status tag */}
-                    <span className={`rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase ${themeStyles.tagBadge}`}>
-                      Active Policy
-                    </span>
-                  </>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold uppercase ${themeStyles.tagBadge}`}>
+                    Verified Patient
+                  </span>
                 )}
               </div>
             </div>
@@ -363,7 +315,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
                     <Building2 className="h-3 w-3" /> ORGANIZATION
                   </span>
-                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{session?.organization || userMeta.insurer || 'Star Health'}</p>
+                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{session?.organization || 'Star Health'}</p>
                 </div>
 
                 {/* STAFF ROLE */}
@@ -400,29 +352,6 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   <p className={`font-bold truncate text-xs ${themeStyles.accentValue}`}>{userMeta.gender}</p>
                 </div>
 
-                {/* INSURER PROVIDER */}
-                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                    <Building2 className="h-3 w-3" /> INSURER
-                  </span>
-                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userMeta.insurer}</p>
-                </div>
-
-                {/* POLICY NUMBER */}
-                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                    <CreditCard className="h-3 w-3" /> POLICY NO.
-                  </span>
-                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userMeta.policyNo}</p>
-                </div>
-
-                {/* SUM INSURED (INR) */}
-                <div className={`col-span-2 rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                    <IndianRupee className="h-3 w-3" /> SUM INSURED (INR)
-                  </span>
-                  <p className={`font-bold text-xs sm:text-sm truncate ${themeStyles.sumValue}`}>{userMeta.sumInsured}</p>
-                </div>
               </>
             )}
           </div>

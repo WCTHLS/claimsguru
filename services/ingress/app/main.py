@@ -1921,7 +1921,7 @@ def get_user_profile(user_id_or_email: str):
                 "account_role": account_role,
                 "organization": org_name,
                 "organization_slug": org_slug,
-                "needs_onboarding": not bool(patient and patient.get("policy_number")) if not is_org else False,
+                "needs_onboarding": False,
             }
 
 
@@ -2271,7 +2271,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
                                 {"user_id": user_id},
                             ).mappings().first()
                         else:
-                            needs_onboarding = not bool(profile_row and profile_row.get("policy_number"))
+                            needs_onboarding = False
 
                         db.execute(
                             text("""
@@ -2405,7 +2405,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
                             "role": "patient",
                             "account_role": "submitter",
                             "is_new_user": True,
-                            "needs_onboarding": not has_policy,
+                            "needs_onboarding": False,
                             "message": "New patient registered in database successfully",
                         }
     except HTTPException:
