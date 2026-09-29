@@ -22,12 +22,17 @@ export async function POST(request: NextRequest) {
 
     let res: Response | null = null;
     let data: any = null;
+    const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '127.0.0.1';
 
     for (const url of urlsToTry) {
       try {
         const attempt = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Forwarded-For': clientIp,
+            'X-Real-IP': clientIp,
+          },
           body: JSON.stringify(payload),
         });
         if (attempt.status !== 404) {

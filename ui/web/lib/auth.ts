@@ -590,7 +590,10 @@ export async function authenticateWithPassword({
       let formattedMessage: string;
       let authErrorField: AuthErrorField;
 
-      if (role === 'tpa') {
+      if (backendResponse.status === 429) {
+        formattedMessage = 'Too many login attempts. Please wait a few seconds and try again.';
+        authErrorField = 'general';
+      } else if (role === 'tpa') {
         formattedMessage = 'Access denied. Please check your credentials or contact your administrator.';
         authErrorField = 'general';
       } else {
