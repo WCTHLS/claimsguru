@@ -249,7 +249,10 @@ def _is_invalid_expense_row(description: str, amount: str = "") -> bool:
         "sex", "weight", "apgar", "delivery notes", "discharge summary",
         "gestation", "gravida", "parity", "baby of", "infant", "newborn",
         "gender", " age:", " age ", "time:", "date:", "treatment on discharge",
-        "vitals", "pulse rate", "blood pressure", "respiratory rate", "temperature", "spo2"
+        "vitals", "pulse rate", "blood pressure", "respiratory rate", "temperature", "spo2",
+        "condition", "conditions", "condition(s)", "medication review", "disorder", "situation",
+        "diagnoses", "primary clinical diagnosis", "secondary diagnosis", "diagnosis count",
+        "documented conditions", "active prescriptions"
     }
     
     # Check if any blacklist term matches

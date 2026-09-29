@@ -219,6 +219,14 @@ def reconcile_claim_expenses(
                 continue
         reconciled_final.append(it)
 
+    for it in reconciled_final:
+        cat = str(it.get("category") or "").strip()
+        # Clean leading digits like "1 ", "2 ", "#3 "
+        cat = re.sub(r"^#?\d+[\.\-\s]+", "", cat).strip()
+        if cat and not cat[0].isupper():
+            cat = cat.title()
+        it["category"] = cat
+
     return reconciled_final
 
 

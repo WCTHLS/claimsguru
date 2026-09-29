@@ -957,24 +957,38 @@ def parse_document(
                 for expense in heuristic_expenses
             }
         else:
-            # Multi-page bill continuity: if heuristic table extraction misses one
-            # page (commonly page 1 when table continues on page 2+), merge
-            # summary-derived rows from uncovered pages.
-            summary_candidates = [
-                row
-                for row in summary_bill_expenses
-                if int(row.get("page") or 0) not in heuristic_pages
-            ]
+            # Multi-page bill continuity or higher-coverage replacement:
+            # If summary_bill_expenses has a complete list on a page where heuristic only had fragments,
+            # prefer the summary extraction for that page.
+            summary_by_page: dict[int, list[dict]] = {}
+            for row in summary_bill_expenses:
+                p = int(row.get("page") or 0)
+                summary_by_page.setdefault(p, []).append(row)
 
-            for row in summary_candidates:
-                row_key = (
-                    str(row.get("description") or "").strip().lower(),
-                    str(row.get("amount") or "").strip().lower(),
-                )
-                if not row_key[0] or not row_key[1] or row_key in existing_keys:
-                    continue
-                heuristic_expenses.append(row)
-                existing_keys.add(row_key)
+            heuristic_by_page: dict[int, list[dict]] = {}
+            for row in heuristic_expenses:
+                p = int(row.get("page") or 0)
+                heuristic_by_page.setdefault(p, []).append(row)
+
+            for p, s_rows in summary_by_page.items():
+                h_rows = heuristic_by_page.get(p, [])
+                if len(s_rows) >= 3 and len(s_rows) > len(h_rows):
+                    # Summary has significantly better coverage of line items on this page
+                    # Remove the partial heuristic rows for this page and add the full summary rows
+                    heuristic_expenses = [r for r in heuristic_expenses if int(r.get("page") or 0) != p]
+                    for s_row in s_rows:
+                        heuristic_expenses.append(s_row)
+                        existing_keys.add((str(s_row.get("description") or "").strip().lower(), str(s_row.get("amount") or "").strip().lower()))
+                elif p not in heuristic_pages:
+                    for row in s_rows:
+                        row_key = (
+                            str(row.get("description") or "").strip().lower(),
+                            str(row.get("amount") or "").strip().lower(),
+                        )
+                        if not row_key[0] or not row_key[1] or row_key in existing_keys:
+                            continue
+                        heuristic_expenses.append(row)
+                        existing_keys.add(row_key)
                 
     # Also consider region-level extracted expense rows (single-line items)
     # and merge any rows that are on pages not already covered by heuristic tables.
