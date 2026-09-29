@@ -19,7 +19,9 @@ NON_EXPENSE_NARRATIVE_PATTERNS = (
     "insurance information", "doctor signature", "patient signature", "date of birth",
     "relation to insured", "member id", "policy number", "group number", "sum insured",
     "amount exceeding policy", "claim amount requested", "total amount", "planned/emergency",
-    "prior claim", "previous claim", "ward type", "admission type"
+    "prior claim", "previous claim", "ward type", "admission type", "condition", "conditions",
+    "medication review", "disorder", "situation", "signature", "attendant signature",
+    "hospital signature", "physician signature", "primary clinical diagnosis"
 )
 
 def _normalize_desc(text: str) -> str:
@@ -82,14 +84,16 @@ def reconcile_claim_expenses(
     filtered_expenses: list[dict[str, Any]] = []
     for exp in raw_expenses:
         cat = (exp.get("category") or "").strip().lower()
+        desc = (exp.get("description") or exp.get("item") or "").strip().lower()
+        full_text = f"{cat} {desc}".strip()
         amt = float(exp.get("amount") or 0.0)
-        if amt <= 0 and "free" not in cat and "included" not in cat:
+        if amt <= 0 and "free" not in full_text and "included" not in full_text:
             continue
         # Skip grand totals / sub-totals
-        if any(cat == kw or cat.startswith(kw + " ") or cat.endswith(" " + kw) for kw in SUBTOTAL_KEYWORDS):
+        if any(cat == kw or cat.startswith(kw + " ") or cat.endswith(" " + kw) or desc == kw or desc.startswith(kw + " ") for kw in SUBTOTAL_KEYWORDS):
             continue
         # Skip narrative non-expense text snippets
-        if any(np_kw in cat for np_kw in NON_EXPENSE_NARRATIVE_PATTERNS):
+        if any(np_kw in full_text for np_kw in NON_EXPENSE_NARRATIVE_PATTERNS):
             continue
         filtered_expenses.append(exp)
 
