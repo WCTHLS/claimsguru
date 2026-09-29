@@ -257,7 +257,9 @@ def parse_document(
         
         # 2. Check doc_type_map
         if doc_type_map and doc_id and str(doc_id) in doc_type_map:
-            return doc_type_map[str(doc_id)]
+            mapped_type = str(doc_type_map[str(doc_id)] or "").strip()
+            if mapped_type and mapped_type.upper() != "IDENTITY_GATE":
+                return mapped_type
             
         # 3. Fallback: check filename hints from page_to_filename
         file_name = page_to_filename.get(page_num, "") if page_to_filename else ""
