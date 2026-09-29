@@ -892,6 +892,13 @@
         </div>
       </div>
     </div>
+
+    {% if admissibility_guidance %}
+    <div style="margin-top: 3mm; padding: 2.5mm 3.5mm; background: #f8fafc; border-left: 3px solid #0ea5e9; border-radius: 4px; font-size: 8pt; color: #334155; line-height: 1.4;">
+      <strong style="color: #0284c7;">Policy &amp; Admissibility Guidance:</strong>
+      {{ admissibility_guidance }}
+    </div>
+    {% endif %}
   </div>
 </div>
 

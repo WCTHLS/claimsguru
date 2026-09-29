@@ -230,4 +230,72 @@ def reconcile_claim_expenses(
     return reconciled_final
 
 
+# IRDAI Non-Medical Schedule keywords (Guidelines on Standardization in Health Insurance)
+IRDAI_NON_MEDICAL_KEYWORDS = (
+    "admin", "administrative", "registration", "file charge", "file charges", "admission fee",
+    "admission charges", "mrd charge", "mrd charges", "food", "diet", "dietary", "beverage",
+    "visitor", "attendant charge", "attendant charges", "telephone", "laundry", "toiletries",
+    "sanitary kit", "patient kit", "admission kit", "service charge", "documentation"
+)
+
+
+def evaluate_non_medical_expenses(
+    expenses: list[dict[str, Any]], 
+    explicit_deductions: float = 0.0
+) -> dict[str, Any]:
+    """
+    Evaluates itemized expenses against IRDAI Non-Medical Schedule items and
+    harmonizes with any explicit non-payable deductions stated on the hospital bill.
+    Returns potential non-medical total, flagged items, and clear admissibility guidance.
+    """
+    flagged_items = []
+    non_med_total = 0.0
+
+    if expenses:
+        for exp in expenses:
+            cat = str(exp.get("category") or "").strip().lower()
+            desc = str(exp.get("description") or exp.get("item") or "").strip().lower()
+            full_text = f"{cat} {desc}".strip()
+            amt = float(exp.get("amount") or 0.0)
+
+            # Check if line contains IRDAI non-medical keywords
+            if any(kw in full_text for kw in IRDAI_NON_MEDICAL_KEYWORDS):
+                # Verify it's not a legitimate medical procedure
+                if not any(med_kw in full_text for med_kw in (
+                    "iv administration", "blood administration", "drug administration", 
+                    "medication administration", "fluid administration", "feeding tube"
+                )):
+                    flagged_items.append({
+                        "category": exp.get("category", "Miscellaneous"),
+                        "description": exp.get("description") or exp.get("category", ""),
+                        "amount": amt,
+                    })
+                    non_med_total += amt
+
+    non_med_total = round(non_med_total, 2)
+    
+    # If the hospital bill explicitly specifies a non-payable deduction (e.g. Less: Non-Payable Items Rs. 5,212.43),
+    # use that authoritative deduction figure. Otherwise use evaluated itemized non-medical total.
+    effective_non_payable = round(explicit_deductions if explicit_deductions > 0 else non_med_total, 2)
+    is_all_med = (effective_non_payable == 0.0)
+
+    if is_all_med:
+        guidance = "All line items qualify as legitimate medical expenses under IRDAI guidelines with zero non-medical deductions. Final settlement is subject to your policy sum insured and sub-limits."
+    else:
+        guidance = (
+            f"Non-medical expenses (e.g., admin, food, or non-payable items totaling ₹{effective_non_payable:,.2f}) "
+            "are covered in full if your insurance policy includes a Non-Medical / Consumables Rider or corporate 100% GMC cover. "
+            "The final settlement decision and deduction approval rest with your Insurer / TPA."
+        )
+
+    return {
+        "potential_non_medical_total": effective_non_payable,
+        "non_medical_items": flagged_items,
+        "admissibility_guidance": guidance,
+        "is_all_medical": is_all_med,
+    }
+
+
+
+
 

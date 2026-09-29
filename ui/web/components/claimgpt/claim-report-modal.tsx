@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import logoMark from './ClaimsGuru White PNG.png';
 import {
   CheckCircle2,
@@ -17,6 +17,7 @@ import {
   FileCheck,
   Layers,
   CheckSquare,
+  Square,
   Stethoscope,
   ArrowLeft,
   Download,
@@ -27,12 +28,34 @@ import {
   Clock,
   Copy,
   Check,
+  Info,
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { formatINR, formatClaimExactDateTime } from '@/lib/claimgpt-data';
 import { cn } from '@/lib/utils';
 import { SUBMISSION_API } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
+
+interface CanonicalField {
+  key: string;
+  label: string;
+  aliases: string[];
+  category: 'identity' | 'timeline' | 'clinical';
+}
+
+const CANONICAL_FIELDS: CanonicalField[] = [
+  { key: 'patient_name', label: 'Patient Name', aliases: ['patient_name', 'patientname', 'name'], category: 'identity' },
+  { key: 'patient_id', label: 'UHID / IP Number', aliases: ['patient_id', 'uhid', 'ip_number', 'ipd_no', 'ip_no'], category: 'identity' },
+  { key: 'policy_number', label: 'Policy Number', aliases: ['insurance_policy_number', 'policy_number', 'policy_no', 'policy'], category: 'identity' },
+  { key: 'gender', label: 'Gender', aliases: ['patient_gender', 'gender', 'sex'], category: 'identity' },
+  { key: 'age', label: 'Age', aliases: ['patient_age', 'age'], category: 'identity' },
+  { key: 'hospital_name', label: 'Hospital Name', aliases: ['hospital_name', 'hospital'], category: 'clinical' },
+  { key: 'admission_date', label: 'Admission Date', aliases: ['admission_date', 'admission'], category: 'timeline' },
+  { key: 'discharge_date', label: 'Discharge Date', aliases: ['discharge_date', 'discharge'], category: 'timeline' },
+  { key: 'doctor_name', label: 'Attending Doctor', aliases: ['doctor_name', 'doctor', 'consultant'], category: 'clinical' },
+  { key: 'diagnosis', label: 'Primary Diagnosis', aliases: ['diagnosis', 'primary_diagnosis', 'clinical_diagnosis', 'final_diagnosis'], category: 'clinical' },
+  { key: 'patient_address', label: 'Patient Address', aliases: ['patient_address', 'address'], category: 'identity' },
+];
 
 interface ExpenseItem {
   id: string;
@@ -158,14 +181,48 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     ? Math.round(rawRiskScore <= 1 ? rawRiskScore * 100 : rawRiskScore)
     : 12;
 
-  // Cross-Document Intelligence: compute from parsed_fields
-  const parsedFields = preview?.parsed_fields;
-  const parsedFieldEntries = (parsedFields && typeof parsedFields === 'object')
-    ? Object.entries(parsedFields as Record<string, unknown>)
-    : [];
-  const totalParsedFields = parsedFieldEntries.length;
-  const filledParsedFields = parsedFieldEntries.filter(([, v]) => v !== null && v !== undefined && v !== '').length;
-  const verificationReadiness = totalParsedFields > 0 ? Math.round((filledParsedFields / totalParsedFields) * 100) : 0;
+  // Cross-Document Intelligence: compute from canonical verified fields
+  const parsedFieldsObj = (preview?.parsed_fields && typeof preview.parsed_fields === 'object')
+    ? (preview.parsed_fields as Record<string, any>)
+    : {};
+
+  const verifiedFields = CANONICAL_FIELDS.map(cfg => {
+    let val: string = '';
+    for (const alias of cfg.aliases) {
+      const candidate = parsedFieldsObj[alias];
+      if (candidate !== undefined && candidate !== null && String(candidate).trim() !== '') {
+        const candidateStr = String(candidate).trim();
+        // Skip raw json strings
+        if (!candidateStr.startsWith('{') && !candidateStr.startsWith('[')) {
+          val = candidateStr;
+          break;
+        }
+      }
+    }
+    // Fallback to top-level preview / auditor state if not in parsed_fields
+    if (!val) {
+      if (cfg.key === 'patient_name') val = (preview?.patient_name && preview.patient_name !== 'N/A' ? preview.patient_name : (s.patientName || ''));
+      else if (cfg.key === 'hospital_name') val = (preview?.hospital_name && preview.hospital_name !== 'N/A' ? preview.hospital_name : (s.hospitalName || ''));
+      else if (cfg.key === 'admission_date') val = (preview?.admission_date && preview.admission_date !== 'N/A' ? preview.admission_date : (s.admissionDate || ''));
+      else if (cfg.key === 'discharge_date') val = (preview?.discharge_date && preview.discharge_date !== 'N/A' ? preview.discharge_date : (s.dischargeDate || ''));
+      else if (cfg.key === 'diagnosis') val = (preview?.diagnosis && preview.diagnosis !== 'N/A' ? preview.diagnosis : (s.diagnosis || ''));
+      else if (cfg.key === 'policy_number') val = preview?.policy_id || s.policyNumber || '';
+      else if (cfg.key === 'patient_id') val = preview?.patient_id || s.patientId || '';
+      else if (cfg.key === 'gender') val = preview?.gender || '';
+      else if (cfg.key === 'age') val = preview?.age ? String(preview.age) : '';
+    }
+    return {
+      key: cfg.key,
+      label: cfg.label,
+      value: val,
+      category: cfg.category,
+      isVerified: Boolean(val && val.toLowerCase() !== 'n/a' && val.toLowerCase() !== 'null' && val.trim() !== '')
+    };
+  });
+
+  const totalParsedFields = verifiedFields.length;
+  const verifiedCount = verifiedFields.filter(f => f.isVerified).length;
+  const verificationReadiness = totalParsedFields > 0 ? Math.round((verifiedCount / totalParsedFields) * 100) : 0;
   const documents = (preview as any)?.documents as Array<{ type?: string; name?: string; fields_extracted?: number }> | undefined;
   const totalItemizedExpenses = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const grossTotal = preview?.gross_total && preview.gross_total > 0 ? preview.gross_total : billedAmount;
@@ -181,6 +238,83 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const varianceAfterDeductions = Math.abs((totalItemizedExpenses - deductions) - billedAmount);
   const expenseMismatch = isWithinBillBounds ? 0 : Math.min(varianceToNet, varianceToGross, varianceAfterDeductions);
 
+
+  // Dynamic Checklist Verification based on actual analyzed documents and extracted claim data
+  const checklistItems = useMemo(() => {
+    const docList = ((preview as any)?.documents || []) as Array<{
+      doc_type?: string;
+      type?: string;
+      file_name?: string;
+      original_filename?: string;
+      name?: string;
+    }>;
+
+    const docTypeSet = new Set<string>();
+    for (const d of docList) {
+      const dt = String(d.doc_type || d.type || '').toUpperCase();
+      const fn = String(d.file_name || d.original_filename || d.name || '').toLowerCase();
+      if (dt) docTypeSet.add(dt);
+      if (fn.includes('discharge') || fn.includes('summary')) docTypeSet.add('DISCHARGE_SUMMARY');
+      if (fn.includes('bill') || fn.includes('hospital') || fn.includes('inpatient')) docTypeSet.add('HOSPITAL_BILL');
+      if (fn.includes('pharmacy') || fn.includes('rx') || fn.includes('drug') || fn.includes('invoice')) docTypeSet.add('PHARMACY_INVOICE');
+      if (fn.includes('lab') || fn.includes('radiology') || fn.includes('xray') || fn.includes('ct') || fn.includes('mri') || fn.includes('report') || fn.includes('diagnostic')) docTypeSet.add('LAB_REPORT');
+      if (fn.includes('policy') || fn.includes('card') || fn.includes('schedule') || fn.includes('insurance')) docTypeSet.add('INSURANCE_POLICY');
+    }
+
+    const hasExpenses = expenses.length > 0;
+    const hasPharmacyExpenses = expenses.some(e => {
+      const c = e.category.toLowerCase();
+      return c.includes('rx') || c.includes('inj.') || c.includes('tablet') || c.includes('pharmacy') || c.includes('medicine') || c.includes('drug') || c.includes('syrup') || c.includes('fluid');
+    });
+    const hasDiagnosticExpenses = expenses.some(e => {
+      const c = e.category.toLowerCase();
+      return c.includes('lab') || c.includes('blood') || c.includes('ecg') || c.includes('echo') || c.includes('x-ray') || c.includes('xray') || c.includes('mri') || c.includes('ct') || c.includes('scan') || c.includes('profile') || c.includes('creatinine') || c.includes('urea') || c.includes('test');
+    });
+
+    const hasClinicalDates = Boolean(admissionDate && admissionDate !== 'N/A' && dischargeDate && dischargeDate !== 'N/A');
+    const hasDiagnosis = Boolean(diagnosis && diagnosis !== 'N/A');
+
+    // 1. Discharge Summary
+    const hasDischargeDoc = docTypeSet.has('DISCHARGE_SUMMARY');
+    const hasDischargeContent = hasClinicalDates && hasDiagnosis;
+    const dischargeStatus = hasDischargeDoc
+      ? { label: 'Attached & Verified ✓', state: 'verified', color: 'emerald' }
+      : hasDischargeContent
+        ? { label: 'Extracted from Form ✓', state: 'extracted', color: 'teal' }
+        : { label: 'Missing / Not Attached', state: 'missing', color: 'rose' };
+
+    // 2. Hospital Bill
+    const hasBillDoc = docTypeSet.has('HOSPITAL_BILL') || docTypeSet.has('INSURANCE_FORM');
+    const hasBillAmount = billedAmount > 0;
+    const billStatus = hasBillDoc
+      ? { label: `Verified (${expenses.length > 0 ? `${expenses.length} Items` : 'Final Bill'}) ✓`, state: 'verified', color: 'emerald' }
+      : hasBillAmount
+        ? { label: `Billed Total Extracted ✓`, state: 'extracted', color: 'teal' }
+        : { label: 'Missing / No Bill Found', state: 'missing', color: 'rose' };
+
+    // 3. Pharmacy Receipts
+    const hasPharmacyDoc = docTypeSet.has('PHARMACY_INVOICE');
+    const pharmacyStatus = hasPharmacyDoc
+      ? { label: 'Invoice Attached ✓', state: 'verified', color: 'emerald' }
+      : hasPharmacyExpenses
+        ? { label: 'In-Hospital Supply Reconciled ✓', state: 'extracted', color: 'teal' }
+        : { label: 'Not Applicable / Optional', state: 'optional', color: 'slate' };
+
+    // 4. Diagnostic & Lab Reports
+    const hasLabDoc = docTypeSet.has('LAB_REPORT') || docTypeSet.has('RADIOLOGY_REPORT') || Boolean((preview as any)?.has_radiology_source);
+    const diagnosticStatus = hasLabDoc
+      ? { label: 'Lab Reports Attached ✓', state: 'verified', color: 'emerald' }
+      : hasDiagnosticExpenses
+        ? { label: 'Lab Charges Documented ✓', state: 'extracted', color: 'teal' }
+        : { label: 'Not Applicable / Optional', state: 'optional', color: 'slate' };
+
+    return [
+      { id: 'discharge', title: 'Hospital Discharge Summary', ...dischargeStatus },
+      { id: 'bill', title: 'Itemized Hospital Final Bill', ...billStatus },
+      { id: 'pharmacy', title: 'Pharmacy Receipts & Invoices', ...pharmacyStatus },
+      { id: 'diagnostic', title: 'Diagnostic & Lab Reports', ...diagnosticStatus },
+    ];
+  }, [preview, expenses, admissionDate, dischargeDate, diagnosis, billedAmount]);
 
   const uploadCreatedAt = s.claimCreatedAt || (preview as any)?.created_at || s.recentClaims?.find((c) => c.id === s.claimId)?.created_at;
   const uploadExactTime = formatClaimExactDateTime(uploadCreatedAt);
@@ -636,15 +770,30 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-2.5 flex flex-col justify-center">
                 <span className="text-[10px] uppercase font-bold text-rose-400/90 tracking-wider">Non-Payable / Deductions</span>
                 <span className="text-xs sm:text-sm font-bold text-rose-300 mt-0.5">
-                  {formatINR(preview?.deductions ?? 0)}
+                  {formatINR(preview?.deductions ?? (preview?.potential_non_medical_total ?? 0))}
                 </span>
               </div>
               <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 flex flex-col justify-center">
                 <span className="text-[10px] uppercase font-bold text-emerald-400/90 tracking-wider">Net Admissible Amount</span>
                 <span className="text-xs sm:text-sm font-bold text-emerald-400 mt-0.5">
-                  {formatINR(billedAmount > 0 ? billedAmount : ((preview?.gross_total || 0) - (preview?.deductions || 0)))}
+                  {formatINR(preview?.net_payable && preview.net_payable > 0 ? preview.net_payable : ((preview?.gross_total || billedAmount) - (preview?.deductions || 0)))}
                 </span>
               </div>
+            </div>
+
+            {/* Policy & Admissibility Guidance Box */}
+            <div className="rounded-xl border border-sky-500/20 bg-sky-950/30 p-3 text-xs text-sky-200/90 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px] uppercase tracking-wider">
+                <Info className="h-3.5 w-3.5 flex-none" />
+                <span>Policy &amp; Admissibility Guidance</span>
+              </div>
+              <p className="text-[11px] leading-relaxed text-slate-300">
+                {preview?.admissibility_guidance || (
+                  preview?.potential_non_medical_total && preview.potential_non_medical_total > 0
+                    ? `Non-medical expenses (e.g., admin, food, or visitor charges totaling ${formatINR(preview.potential_non_medical_total)}) are covered in full if your insurance policy includes a Non-Medical / Consumables Rider or corporate 100% GMC cover. The final settlement decision and deduction approval rest with your Insurer / TPA.`
+                    : "All line items qualify as legitimate medical expenses under IRDAI guidelines with zero non-medical deductions. Final settlement is subject to your policy sum insured and sub-limits."
+                )}
+              </p>
             </div>
 
             {/* Total Summary Row / Verification Status */}
@@ -726,63 +875,78 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
             {/* Cross-Document Field Verification */}
             <div className="space-y-2">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">🔍 Cross-Document Field Verification</p>
-              <div className="space-y-1.5 text-xs">
-                {parsedFieldEntries.length > 0 ? (
-                  parsedFieldEntries.map(([key, value]) => {
-                    let displayVal = '';
-                    if (value !== null && value !== undefined && value !== '') {
-                      if (typeof value === 'object') {
-                        const obj = value as Record<string, unknown>;
-                        displayVal = obj.description && obj.amount ? `${obj.description} — ₹${obj.amount}` : (obj.description ? String(obj.description) : JSON.stringify(value));
-                      } else {
-                        const str = String(value);
-                        if (str.startsWith('{') && str.endsWith('}')) {
-                          try {
-                            const obj = JSON.parse(str);
-                            displayVal = obj.description && obj.amount ? `${obj.description} — ₹${obj.amount}` : (obj.description ? String(obj.description) : str);
-                          } catch { displayVal = str; }
-                        } else { displayVal = str; }
-                      }
-                    }
-
-                    return (
-                      <div key={key} className="flex items-center justify-between p-2 rounded-xl bg-slate-900/50 border border-white/5 gap-3">
-                        <span className="font-medium text-slate-300 flex-none">{key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
-                        {displayVal ? (
-                          <span className="font-bold text-emerald-400 flex items-center gap-1 text-[11px] text-right truncate"><CheckCircle2 className="h-3.5 w-3.5 flex-none" /> {displayVal}</span>
-                        ) : (
-                          <span className="font-semibold text-slate-500 text-[11px]">Not extracted</span>
-                        )}
-                      </div>
-                    );
-                  })
-                ) : (
-                  <p className="text-xs text-muted-foreground italic text-slate-500">No parsed fields available</p>
-                )}
+              <div className="flex items-center justify-between">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">🔍 Cross-Document Field Verification</p>
+                <span className="text-[10px] font-semibold text-slate-400">
+                  {verifiedCount}/{totalParsedFields} Verified
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {verifiedFields.map((field) => (
+                  <div key={field.key} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 border border-white/5 gap-3">
+                    <span className="font-medium text-slate-300 flex-none text-[11px]">{field.label}</span>
+                    {field.isVerified ? (
+                      <span className="font-bold text-emerald-400 flex items-center gap-1 text-[11px] text-right truncate">
+                        <CheckCircle2 className="h-3.5 w-3.5 flex-none text-emerald-400" />
+                        <span className="truncate" title={field.value}>{field.value}</span>
+                      </span>
+                    ) : (
+                      <span className="font-medium text-slate-500 text-[10px] italic">Not in document</span>
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Reimbursement Checklist */}
+            {/* Dynamic Reimbursement Checklist */}
             <div className="space-y-2">
               <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">✅ Required Checklist Items</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-900/50 border border-white/5">
-                  <CheckSquare className="h-4 w-4 text-emerald-400 flex-none" />
-                  <span className="font-semibold text-slate-200">Hospital Discharge Summary</span>
-                </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-900/50 border border-white/5">
-                  <CheckSquare className="h-4 w-4 text-emerald-400 flex-none" />
-                  <span className="font-semibold text-slate-200">Itemized Hospital Final Bill</span>
-                </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-900/50 border border-white/5">
-                  <CheckSquare className="h-4 w-4 text-emerald-400 flex-none" />
-                  <span className="font-semibold text-slate-200">Pharmacy Receipts &amp; Vouchers</span>
-                </div>
-                <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-900/50 border border-white/5">
-                  <CheckSquare className="h-4 w-4 text-emerald-400 flex-none" />
-                  <span className="font-semibold text-slate-200">Diagnostic &amp; Lab Reports</span>
-                </div>
+                {checklistItems.map((item) => {
+                  const isVerified = item.state === 'verified' || item.state === 'extracted';
+                  const isMissing = item.state === 'missing';
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={cn(
+                        "flex items-center justify-between p-2.5 rounded-xl border gap-2",
+                        isMissing
+                          ? "bg-rose-500/5 border-rose-500/20 text-rose-300"
+                          : item.state === 'verified'
+                            ? "bg-emerald-500/5 border-emerald-500/20 text-slate-200"
+                            : item.state === 'extracted'
+                              ? "bg-teal-500/5 border-teal-500/20 text-slate-200"
+                              : "bg-slate-900/50 border-white/5 text-slate-400"
+                      )}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {isVerified ? (
+                          <CheckSquare className="h-4 w-4 text-emerald-400 flex-none" />
+                        ) : isMissing ? (
+                          <AlertTriangle className="h-4 w-4 text-rose-400 flex-none" />
+                        ) : (
+                          <Square className="h-4 w-4 text-slate-500 flex-none" />
+                        )}
+                        <span className="font-semibold truncate text-[11px]">{item.title}</span>
+                      </div>
+                      <span
+                        className={cn(
+                          "text-[9px] font-bold px-2 py-0.5 rounded flex-none uppercase tracking-wide",
+                          item.color === 'emerald'
+                            ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/25"
+                            : item.color === 'teal'
+                              ? "text-teal-400 bg-teal-500/10 border border-teal-500/25"
+                              : item.color === 'rose'
+                                ? "text-rose-400 bg-rose-500/10 border border-rose-500/25"
+                                : "text-slate-400 bg-slate-800 border border-white/5"
+                        )}
+                      >
+                        {item.label}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>

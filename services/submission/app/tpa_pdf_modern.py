@@ -270,6 +270,12 @@ def generate_tpa_pdf_modern(claim_data: dict[str, Any]) -> bytes:
             "gender": fields.get("gender") or summary_raw.get("gender") or "N/A",
         }
 
+        admissibility_guidance = claim_data.get("admissibility_guidance")
+        if not admissibility_guidance:
+            from .expense_reconciler import evaluate_non_medical_expenses
+            eval_res = evaluate_non_medical_expenses(expenses)
+            admissibility_guidance = eval_res.get("admissibility_guidance")
+
         context = {
             "claim_id": claim_id,
             "tpa_name": tpa_name,
@@ -288,6 +294,7 @@ def generate_tpa_pdf_modern(claim_data: dict[str, Any]) -> bytes:
             "net_payable_formatted": _money(net_payable_num),
             "variance_amount": variance_num,
             "variance_formatted": _money(variance_num),
+            "admissibility_guidance": admissibility_guidance,
             "predictions": predictions,
             "validations": validations,
             "documents": documents,
