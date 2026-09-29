@@ -857,14 +857,28 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
             db.query(AuditLog)
             .filter(
                 AuditLog.claim_id == claim.id,
-                AuditLog.action.in_(["CLAIM_REQUEST_DOCS", "CLAIM_DOCUMENTS_REQUESTED", "CLAIM_MODIFICATION_REQUESTED", "CLAIM_SEND_BACK", "CLAIM_REJECT", "CLAIM_REJECTED"])
+                AuditLog.action.in_([
+                    "CLAIM_REQUEST_DOCS",
+                    "CLAIM_DOCUMENTS_REQUESTED",
+                    "CLAIM_MODIFICATION_REQUESTED",
+                    "CLAIM_SEND_BACK",
+                    "CLAIM_REJECT",
+                    "CLAIM_REJECTED",
+                    "CLAIM_DOCUMENTS_UPLOADED",
+                    "DOCUMENTS_ADDED",
+                    "CLAIM_RESUBMITTED",
+                    "CLAIM_APPROVED",
+                    "CLAIM_SETTLED",
+                    "CLAIM_SUBMITTED",
+                ])
             )
             .order_by(AuditLog.created_at.desc())
             .first()
         )
-        if latest_audit and latest_audit.audit_metadata:
-            tpa_message = latest_audit.audit_metadata.get("reason")
-            tpa_requested_docs = latest_audit.audit_metadata.get("requested_documents") or []
+        if latest_audit and latest_audit.action in ("CLAIM_REQUEST_DOCS", "CLAIM_DOCUMENTS_REQUESTED", "CLAIM_MODIFICATION_REQUESTED", "CLAIM_SEND_BACK"):
+            if latest_audit.audit_metadata:
+                tpa_message = latest_audit.audit_metadata.get("reason")
+                tpa_requested_docs = latest_audit.audit_metadata.get("requested_documents") or []
     except Exception as _audit_err:
         logger.debug("Could not fetch audit log for tpa message: %s", _audit_err)
 

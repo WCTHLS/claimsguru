@@ -431,6 +431,10 @@ export function DashboardClinical() {
                                 <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 font-bold px-1.5 py-0.5 text-[9px] border border-rose-300">
                                   ✕ Rejected
                                 </span>
+                              ) : (claim.status || "").toUpperCase() === "DOCUMENTS_UPLOADED" ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 text-[9px] border border-purple-300">
+                                  📄 Docs Uploaded
+                                </span>
                               ) : (claim.status || "").toUpperCase() === "SUBMITTED" ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 text-[9px] border border-sky-300">
                                   📤 Submitted

@@ -133,6 +133,7 @@ const STATUS_OPTIONS = [
   'VALIDATED',
   'VALIDATION_FAILED',
   'SUBMITTED',
+  'DOCUMENTS_UPLOADED',
   'COMPLETED',
   'APPROVED',
   'REJECTED',
@@ -146,6 +147,7 @@ const STATUS_OPTIONS = [
 const PAGE_SIZE = 20;
 
 function formatStatus(status: string) {
+  if (status === 'DOCUMENTS_UPLOADED') return 'Docs Uploaded';
   return status.replace(/_/g, ' ');
 }
 
@@ -154,6 +156,8 @@ function getStatusBadgeStyle(s: string) {
   if (status === 'SETTLED') return 'bg-emerald-100 text-emerald-800 border-emerald-300';
   if (status === 'COMPLETED' || status === 'VALIDATED' || status === 'APPROVED')
     return 'bg-teal-100 text-teal-800 border-teal-300';
+  if (status === 'DOCUMENTS_UPLOADED' || status === 'RESUBMITTED')
+    return 'bg-purple-100 text-purple-800 border-purple-300';
   if (status === 'SUBMITTED' || status === 'PREDICTED' || status === 'PROCESSING')
     return 'bg-sky-100 text-sky-800 border-sky-300';
   if (status.includes('FAIL') || status === 'REJECTED') return 'bg-rose-100 text-rose-800 border-rose-300';
@@ -169,7 +173,7 @@ function getStatusBadgeStyle(s: string) {
 function getPriorityLevel(c: EnrichedClaim): 'high' | 'medium' | 'low' {
   const st = (c.status || '').toUpperCase();
   if (['MANUAL_REVIEW_REQUIRED', 'VALIDATION_FAILED', 'REJECTED', 'WORKFLOW_FAILED'].includes(st)) return 'high';
-  if (['PROCESSING', 'MODIFICATION_REQUESTED', 'DOCUMENTS_REQUESTED'].includes(st)) return 'medium';
+  if (['PROCESSING', 'MODIFICATION_REQUESTED', 'DOCUMENTS_REQUESTED', 'DOCUMENTS_UPLOADED'].includes(st)) return 'medium';
   return 'low';
 }
 

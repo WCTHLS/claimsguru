@@ -3414,7 +3414,10 @@ def list_claims(
                             "CLAIM_REJECTED",
                             "CLAIM_APPROVED",
                             "CLAIM_SETTLED",
-                            "CLAIM_SUBMITTED"
+                            "CLAIM_SUBMITTED",
+                            "CLAIM_DOCUMENTS_UPLOADED",
+                            "DOCUMENTS_ADDED",
+                            "CLAIM_RESUBMITTED",
                         ])
                     )
                     .order_by(AuditLog.created_at.asc())
@@ -3452,6 +3455,12 @@ def list_claims(
                     if audit.audit_metadata:
                         tpa_message = audit.audit_metadata.get("reason")
                         tpa_requested_docs = audit.audit_metadata.get("requested_documents") or []
+                elif audit.action in ("CLAIM_DOCUMENTS_UPLOADED", "DOCUMENTS_ADDED", "CLAIM_RESUBMITTED"):
+                    has_action_request = False
+                    tpa_message = None
+                    tpa_requested_docs = []
+                    if effective_status in ("DOCUMENTS_REQUESTED", "MODIFICATION_REQUESTED", "UPLOADED"):
+                        effective_status = "DOCUMENTS_UPLOADED" if (w_state and (w_state.current_step in ("FINISHED", "COMPLETED") or w_state.status in ("FINISHED", "COMPLETED"))) or c.status == "PARSED" else "UPLOADED"
                 elif audit.action in ("CLAIM_REJECT", "CLAIM_REJECTED"):
                     effective_status = "REJECTED"
                 elif audit.action == "CLAIM_APPROVED":
@@ -4222,6 +4231,13 @@ async def add_documents_to_claim(
     if manual_review_message:
         extra["manual_review_reason"] = manual_review_message
     payload = _build_claim_response(db, cid, extra)
+    _audit(db, "CLAIM_DOCUMENTS_UPLOADED", claim_id=claim.id, metadata={
+        "files": [s for _, _, s, _, _ in file_data],
+        "file_count": len(new_docs),
+        "total_documents": existing_count + len(new_docs),
+        "identity_gate": gate_result,
+        "manual_review_reason": manual_review_message,
+    })
     _audit(db, "DOCUMENTS_ADDED", claim_id=claim.id, metadata={
         "files": [s for _, _, s, _, _ in file_data],
         "file_count": len(new_docs),
