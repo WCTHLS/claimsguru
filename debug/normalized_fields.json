@@ -1,56 +1,25 @@
 [
   {
-    "field": "diagnosis",
-    "canonical_field": "diagnosis",
-    "value": "Count 6 documented conditions",
-    "confidence": 0.9,
-    "bbox": [
-      48.51969,
-      385.18360000000007,
-      83.63969,
-      393.18360000000007
-    ],
-    "page": 2
-  },
-  {
-    "field": "policy",
-    "canonical_field": "insurance_policy_number",
-    "value": "Status Active",
-    "confidence": 0.9,
-    "bbox": [
-      48.51969,
-      425.18360000000007,
-      69.85569,
-      433.18360000000007
-    ],
-    "page": 2
-  },
-  {
-    "field": "claimed_total",
-    "canonical_field": "claimed_total",
-    "value": "73,555",
+    "field": "policy_number",
+    "canonical_field": "policy_number",
+    "value": "POL1234567",
     "confidence": 0.85,
     "bbox": null,
-    "page": null,
+    "page": 1,
     "source_region_id": null,
     "source_region_type": "local_extraction",
-    "source_tokens": [],
-    "model_name": "local-rule",
-    "extractor_name": "local-rule",
-    "metadata": {
-      "source": "local_backend"
-    }
-  },
-  {
-    "field": "patient_name",
-    "canonical_field": "patient_name",
-    "value": "Irvin Patrick Brown",
-    "confidence": 0.85,
-    "bbox": null,
-    "page": null,
-    "source_region_id": null,
-    "source_region_type": "local_extraction",
-    "source_tokens": [],
+    "source_tokens": [
+      {
+        "text": "POL1234567",
+        "x0": 137.0,
+        "y0": 142.0,
+        "x1": 192.0,
+        "y1": 150.0,
+        "page": 1,
+        "document_id": null,
+        "claim_id": null
+      }
+    ],
     "model_name": "local-rule",
     "extractor_name": "local-rule",
     "metadata": {

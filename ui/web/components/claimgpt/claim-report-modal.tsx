@@ -144,7 +144,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     // Check if claim is already submitted
     if (preview?.status === 'SUBMITTED' || (preview as any)?.is_submitted) {
       setIsSubmittedToPayer(true);
-      if ((preview as any)?.payer) setSubmittedPayer((preview as any).payer);
+      const knownPayer = (preview as any)?.insurance_company || (preview as any)?.payer || (typeof window !== 'undefined' && s.claimId ? localStorage.getItem(`claimgpt_submitted_payer_${s.claimId}`) : '');
+      if (knownPayer) setSubmittedPayer(knownPayer);
     } else {
       setIsSubmittedToPayer(false);
       setSubmittedPayer('');
@@ -594,6 +595,11 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       if (res.success) {
         setIsSubmittedToPayer(true);
         setSubmittedPayer(selectedInsurer);
+        try {
+          if (typeof window !== 'undefined' && s.claimId) {
+            localStorage.setItem(`claimgpt_submitted_payer_${s.claimId}`, selectedInsurer);
+          }
+        } catch {}
         setShowInsurerModal(false);
         toast({
           title: "Claim Submitted Successfully",

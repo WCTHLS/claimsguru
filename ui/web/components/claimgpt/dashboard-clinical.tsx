@@ -235,11 +235,24 @@ export function DashboardClinical() {
                         </div>
                         <div className="flex-none flex items-center gap-1.5">
                           <span className="text-[10px] text-slate-400 whitespace-nowrap">{formatClaimTime(c.created_at)}</span>
-                          <span className={cn(
-                            "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase",
-                            c.status === "COMPLETED" ? "bg-emerald-100 text-emerald-800" : "bg-blue-100 text-blue-800"
-                          )}>
-                            {c.status || "COMPLETED"}
+                          <span
+                            className={cn(
+                              "px-1.5 py-0.5 rounded text-[9px] font-bold uppercase max-w-[140px] truncate",
+                              c.status === "COMPLETED"
+                                ? "bg-emerald-100 text-emerald-800"
+                                : (c.status || "").toUpperCase() === "SUBMITTED"
+                                ? "bg-sky-100 text-sky-800"
+                                : "bg-blue-100 text-blue-800"
+                            )}
+                            title={
+                              (c.status || "").toUpperCase() === "SUBMITTED"
+                                ? (c.insurance_company || c.payer ? `Submitted to ${c.insurance_company || c.payer}` : "SUBMITTED")
+                                : c.status || "COMPLETED"
+                            }
+                          >
+                            {(c.status || "").toUpperCase() === "SUBMITTED"
+                              ? (c.insurance_company || c.payer ? `Submitted to ${c.insurance_company || c.payer}` : "SUBMITTED")
+                              : (c.status || "COMPLETED")}
                           </span>
                         </div>
                       </div>
@@ -401,6 +414,16 @@ export function DashboardClinical() {
                         Boolean((claim as any).has_action_request) ||
                         Boolean((claim as any).tpa_requested_docs?.length)
                       );
+                      const resolvedInsurer = (
+                        claim.insurance_company ||
+                        claim.payer ||
+                        (typeof window !== "undefined" ? localStorage.getItem(`claimgpt_submitted_payer_${claim.id}`) : null) ||
+                        (isSelected && ((s.realPreview as any)?.insurance_company || (s.realPreview as any)?.payer)) ||
+                        ""
+                      ).trim();
+                      const submittedBadgeText = resolvedInsurer
+                        ? `Submitted to ${resolvedInsurer}`
+                        : "Submitted";
 
                       return (
                         <div
@@ -413,81 +436,85 @@ export function DashboardClinical() {
                               : "border-slate-200 bg-white/80 hover:bg-white shadow-2xs"
                           )}
                         >
-                          {/* Top Row: Short ID & 1-Click Copy, Status Badge, Delete X */}
-                          <div className="flex items-center justify-between gap-1 text-[10px]">
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              <button
-                                type="button"
-                                onClick={(e) => handleCopyClaimId(claim.id, e)}
-                                className="inline-flex items-center gap-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-mono font-bold px-1.5 py-0.5 text-[9px] border border-blue-200 transition-colors cursor-pointer"
-                                title={`Full Claim ID: ${claim.id}\n(Click to copy)`}
-                              >
-                                <span>#{shortId || "CLM001"}</span>
-                                {copiedClaimId === claim.id ? (
-                                  <Check className="h-2.5 w-2.5 text-emerald-600 flex-none" />
-                                ) : (
-                                  <Copy className="h-2.5 w-2.5 opacity-50 hover:opacity-100 flex-none" />
-                                )}
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-1.5 flex-none">
-                              {isClaimProcessing ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 font-bold px-1.5 py-0.5 text-[9px]">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
-                                  {stageBadgeText()}
-                                </span>
-                              ) : hasDocsRequested ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 text-[9px] border border-amber-300 animate-pulse">
-                                  ⚠️ Docs Req
-                                </span>
-                              ) : (claim.status || "").toUpperCase() === "MODIFICATION_REQUESTED" ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 text-[9px] border border-amber-300">
-                                  ⚠️ Info Req
-                                </span>
-                              ) : (claim.status || "").toUpperCase() === "APPROVED" ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 text-teal-800 font-bold px-1.5 py-0.5 text-[9px] border border-teal-300">
-                                  ✓ Approved
-                                </span>
-                              ) : (claim.status || "").toUpperCase() === "SETTLED" ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 text-[9px] border border-emerald-300">
-                                  💎 Settled
-                                </span>
-                              ) : (claim.status || "").toUpperCase() === "REJECTED" ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 font-bold px-1.5 py-0.5 text-[9px] border border-rose-300">
-                                  ✕ Rejected
-                                </span>
-                              ) : (claim.status || "").toUpperCase() === "DOCUMENTS_UPLOADED" ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 text-purple-800 font-bold px-1.5 py-0.5 text-[9px] border border-purple-300">
-                                  📄 Docs Uploaded
-                                </span>
-                              ) : (claim.status || "").toUpperCase() === "SUBMITTED" ? (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-bold px-1.5 py-0.5 text-[9px] border border-sky-300">
-                                  📤 Submitted
-                                </span>
+                          {/* Top Row: Short ID & 1-Click Copy on Left, Delete Trash on Right */}
+                          <div className="flex items-center justify-between gap-2 text-[10px]">
+                            <button
+                              type="button"
+                              onClick={(e) => handleCopyClaimId(claim.id, e)}
+                              className="inline-flex items-center gap-1 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 font-mono font-bold px-1.5 py-0.5 text-[9px] border border-blue-200 transition-colors cursor-pointer flex-none"
+                              title={`Full Claim ID: ${claim.id}\n(Click to copy)`}
+                            >
+                              <span>#{shortId || "CLM001"}</span>
+                              {copiedClaimId === claim.id ? (
+                                <Check className="h-2.5 w-2.5 text-emerald-600 flex-none" />
                               ) : (
-                                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold px-1.5 py-0.5 text-[9px] border border-emerald-200">
-                                  ✓ Audit Ready
-                                </span>
+                                <Copy className="h-2.5 w-2.5 opacity-50 hover:opacity-100 flex-none" />
                               )}
-                              <span
-                                role="button"
-                                tabIndex={0}
-                                onClick={(e) => {
+                            </button>
+                            <span
+                              role="button"
+                              tabIndex={0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setClaimToDelete({ id: claim.id, name: claimName });
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
                                   e.stopPropagation();
                                   setClaimToDelete({ id: claim.id, name: claimName });
-                                }}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter' || e.key === ' ') {
-                                    e.stopPropagation();
-                                    setClaimToDelete({ id: claim.id, name: claimName });
-                                  }
-                                }}
-                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                title="Delete claim"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
+                                }
+                              }}
+                              className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer flex-none ml-auto"
+                              title="Delete claim"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </span>
+                          </div>
+
+                          {/* Status Badge Row */}
+                          <div className="flex items-center">
+                            {isClaimProcessing ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 font-bold px-2 py-0.5 text-[9px]">
+                                <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
+                                {stageBadgeText()}
                               </span>
-                            </div>
+                            ) : hasDocsRequested ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300 animate-pulse">
+                                ⚠️ Docs Req
+                              </span>
+                            ) : (claim.status || "").toUpperCase() === "MODIFICATION_REQUESTED" ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300">
+                                ⚠️ Info Req
+                              </span>
+                            ) : (claim.status || "").toUpperCase() === "APPROVED" ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 text-teal-800 font-bold px-2 py-0.5 text-[9px] border border-teal-300">
+                                ✓ Approved
+                              </span>
+                            ) : (claim.status || "").toUpperCase() === "SETTLED" ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 text-[9px] border border-emerald-300">
+                                💎 Settled
+                              </span>
+                            ) : (claim.status || "").toUpperCase() === "REJECTED" ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 font-bold px-2 py-0.5 text-[9px] border border-rose-300">
+                                ✕ Rejected
+                              </span>
+                            ) : (claim.status || "").toUpperCase() === "DOCUMENTS_UPLOADED" ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 text-purple-800 font-bold px-2 py-0.5 text-[9px] border border-purple-300">
+                                📄 Docs Uploaded
+                              </span>
+                            ) : (claim.status || "").toUpperCase() === "SUBMITTED" ? (
+                              <span
+                                className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-bold px-2 py-0.5 text-[10px] border border-sky-300 max-w-full"
+                                title={submittedBadgeText}
+                              >
+                                <span className="flex-none">📤</span>
+                                <span className="truncate">{submittedBadgeText}</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold px-2 py-0.5 text-[9px] border border-emerald-200">
+                                ✓ Audit Ready
+                              </span>
+                            )}
                           </div>
 
                           {/* Person / Policy Info & Age */}
@@ -889,6 +916,22 @@ export function DashboardClinical() {
                           return 'Scoring';
                         };
                         const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
+                        const hasDocsRequested = (
+                          (isSelected && s.isDocumentsRequested) ||
+                          (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED" ||
+                          Boolean((claim as any).has_action_request) ||
+                          Boolean((claim as any).tpa_requested_docs?.length)
+                        );
+                        const resolvedInsurer = (
+                          claim.insurance_company ||
+                          claim.payer ||
+                          (typeof window !== "undefined" ? localStorage.getItem(`claimgpt_submitted_payer_${claim.id}`) : null) ||
+                          (isSelected && ((s.realPreview as any)?.insurance_company || (s.realPreview as any)?.payer)) ||
+                          ""
+                        ).trim();
+                        const submittedBadgeText = resolvedInsurer
+                          ? `Submitted to ${resolvedInsurer}`
+                          : "Submitted";
 
                         return (
                           <div
@@ -901,42 +944,55 @@ export function DashboardClinical() {
                                 : "border-slate-200 bg-white/80 hover:bg-white shadow-2xs"
                             )}
                           >
-                            <div className="flex items-center justify-between gap-1 text-[10px]">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                <span className="rounded bg-blue-50 text-blue-700 font-mono font-bold px-1.5 py-0.5 text-[9px] border border-blue-200">
-                                  #{shortId || "CLM001"}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1 flex-none">
-                                {isClaimProcessing ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-1.5 py-0.5 text-[9px] border border-amber-300">
-                                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
-                                    {stageBadgeText()}
-                                  </span>
-                                ) : (
-                                  <span className="rounded-full bg-emerald-100 text-emerald-800 px-1.5 py-0.5 text-[9px] font-bold">
-                                    ✓ Ready
-                                  </span>
-                                )}
-                                <span
-                                  role="button"
-                                  tabIndex={0}
-                                  onClick={(e) => {
+                            {/* Top Row: Short ID on Left, Delete on Right */}
+                            <div className="flex items-center justify-between gap-2 text-[10px]">
+                              <span className="rounded bg-blue-50 text-blue-700 font-mono font-bold px-1.5 py-0.5 text-[9px] border border-blue-200">
+                                #{shortId || "CLM001"}
+                              </span>
+                              <span
+                                role="button"
+                                tabIndex={0}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setClaimToDelete({ id: claim.id, name: claimName });
+                                }}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter' || e.key === ' ') {
                                     e.stopPropagation();
                                     setClaimToDelete({ id: claim.id, name: claimName });
-                                  }}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter' || e.key === ' ') {
-                                      e.stopPropagation();
-                                      setClaimToDelete({ id: claim.id, name: claimName });
-                                    }
-                                  }}
-                                  className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                                  title="Delete claim"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
+                                  }
+                                }}
+                                className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                title="Delete claim"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </span>
+                            </div>
+
+                            {/* Status Badge */}
+                            <div className="flex items-center">
+                              {isClaimProcessing ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300">
+                                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
+                                  {stageBadgeText()}
                                 </span>
-                              </div>
+                              ) : hasDocsRequested ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300 animate-pulse">
+                                  ⚠️ Docs Req
+                                </span>
+                              ) : (claim.status || "").toUpperCase() === "SUBMITTED" ? (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-bold px-2 py-0.5 text-[9px] border border-sky-300 max-w-full"
+                                  title={submittedBadgeText}
+                                >
+                                  <span className="flex-none">📤</span>
+                                  <span className="truncate">{submittedBadgeText}</span>
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[9px] font-bold">
+                                  ✓ Ready
+                                </span>
+                              )}
                             </div>
 
                             <div className="min-w-0">
@@ -1073,6 +1129,24 @@ export function DashboardClinical() {
                             <span className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-bold text-red-700 border border-red-500/30 animate-pulse">
                               <AlertTriangle className="h-3 w-3 text-red-600" />
                               MISMATCH
+                            </span>
+                          ) : ((s.realPreview as any)?.status === "SUBMITTED" || (s.recentClaims.find(c => c.id === s.claimId)?.status || "").toUpperCase() === "SUBMITTED") ? (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-medium text-sky-700 border border-sky-200 max-w-[220px] truncate"
+                              title={(() => {
+                                const matched = s.recentClaims.find(c => c.id === s.claimId);
+                                const ins = (matched?.insurance_company || matched?.payer || (s.realPreview as any)?.insurance_company || (s.realPreview as any)?.payer || (typeof window !== "undefined" && s.claimId ? localStorage.getItem(`claimgpt_submitted_payer_${s.claimId}`) : "") || "").trim();
+                                return ins ? `Submitted to ${ins}` : "Submitted";
+                              })()}
+                            >
+                              <span className="flex-none">📤</span>
+                              <span className="truncate">
+                                {(() => {
+                                  const matched = s.recentClaims.find(c => c.id === s.claimId);
+                                  const ins = (matched?.insurance_company || matched?.payer || (s.realPreview as any)?.insurance_company || (s.realPreview as any)?.payer || (typeof window !== "undefined" && s.claimId ? localStorage.getItem(`claimgpt_submitted_payer_${s.claimId}`) : "") || "").trim();
+                                  return ins ? `Submitted to ${ins}` : "Submitted";
+                                })()}
+                              </span>
                             </span>
                           ) : s.progress >= 100 ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium text-emerald-700 border border-emerald-500/20">

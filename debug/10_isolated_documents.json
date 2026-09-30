@@ -3,76 +3,28 @@
   "document_count": 1,
   "documents": [
     {
-      "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df",
-      "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
+      "claim_id": "unknown",
+      "document_id": "unknown",
       "page_count": 1,
-      "total_regions": 5,
-      "total_tokens": 175,
+      "total_regions": 1,
+      "total_tokens": 2,
       "pages": [
         [
-          2,
+          1,
           {
-            "page_number": 2,
-            "token_count": 175,
-            "region_count": 5,
+            "page_number": 1,
+            "token_count": 2,
+            "region_count": 1,
             "regions": [
               {
-                "region_type": "expense_table",
-                "region_id": "0f64f921-030b-44a5-ac7c-8a07c55fde35",
-                "token_count": 85,
-                "bbox": [
-                  47.51969,
-                  54.072200000000066,
-                  546.7559600000001,
-                  301.05200000000013
-                ],
-                "confidence": 1.0
-              },
-              {
-                "region_type": "medications",
-                "region_id": "8c7edaab-1f9e-452f-b967-8eb29a147546",
-                "token_count": 23,
-                "bbox": [
-                  48.51969,
-                  324.18360000000007,
-                  394.97339000000005,
-                  433.18360000000007
-                ],
-                "confidence": 1.0
-              },
-              {
-                "region_type": "table",
-                "region_id": "1b3dbec4-3d2c-426c-99bf-dc065fc2f306",
-                "token_count": 38,
-                "bbox": [
-                  50.51969,
-                  457.52220000000005,
-                  520.9996899999992,
-                  500.52220000000005
-                ],
-                "confidence": 1.0
-              },
-              {
-                "region_type": "table",
-                "region_id": "26992487-701b-4176-9cd4-ec6468aeef51",
-                "token_count": 18,
-                "bbox": [
-                  50.51969,
-                  526.7573,
-                  419.39779,
-                  580.0678
-                ],
-                "confidence": 1.0
-              },
-              {
                 "region_type": "footer",
-                "region_id": "31a26280-a7c8-4b11-9b7d-53c44685838f",
-                "token_count": 11,
+                "region_id": "f14ab2c6-e25c-4dad-8b5a-d0a0727fb5f1",
+                "token_count": 2,
                 "bbox": [
-                  198.55279,
-                  603.9923000000001,
-                  396.72279,
-                  610.9923000000001
+                  64.0,
+                  142.0,
+                  192.0,
+                  150.0
                 ],
                 "confidence": 1.0
               }

@@ -107,9 +107,22 @@ def extract_fields(region: Region) -> List[FormField]:
                     "diagnosis",
                     "occupation",
                 ]
+                # ADDED: Handle composite keys like "Policy Number", "Member ID"
+                if text.lower() == "policy" and i + 1 < len(line) and str(line[i + 1].get("text", "")).strip().lower() in {"number", "no", "id", "#"}:
+                    is_key = True
+                    key_text = "policy_number"
+                    key_tokens = [token, line[i + 1]]
+                    token = line[i + 1]
+                    i += 1
+                elif text.lower() == "member" and i + 1 < len(line) and str(line[i + 1].get("text", "")).strip().lower() in {"id", "no", "number", "#"}:
+                    is_key = True
+                    key_text = "member_id"
+                    key_tokens = [token, line[i + 1]]
+                    token = line[i + 1]
+                    i += 1
                 # ADDED: Only use concept_keys if it's truly a standalone key at line start, not part of table
                 # If line has many tokens, it's less likely to be a form field
-                if text.lower() in concept_keys and len(line) <= 5:
+                elif text.lower() in concept_keys and len(line) <= 5:
                     is_key = True
                     key_text = text
                     key_tokens = [token]
@@ -181,7 +194,7 @@ def _looks_like_anchor(text: str, row: List[Dict[str, Any]], index: int) -> bool
         if phrase2 in {"patient name", "date of birth", "admission date", "discharge date", "hospital name", "occupation"}:
             return True
 
-    return any(word in phrase for word in ["name", "age", "sex", "gender", "address", "occupation", "diagnosis", "patient", "admission", "discharge", "hospital", "doctor", "bill", "reg", "ipd", "doa"])
+    return any(word in phrase for word in ["name", "age", "sex", "gender", "address", "occupation", "diagnosis", "patient", "admission", "discharge", "hospital", "doctor", "bill", "reg", "ipd", "doa", "tpa", "insurer"])
 
 
 def _as_record(token: Any) -> Dict[str, Any]:

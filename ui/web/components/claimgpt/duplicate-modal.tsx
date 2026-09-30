@@ -46,7 +46,7 @@ export function DuplicateClaimModal({
 
         <div className="my-2 p-3 bg-amber-50/70 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
           <span className="font-semibold text-amber-700 uppercase tracking-wide text-[10px] bg-amber-200/60 px-1.5 py-0.5 rounded shrink-0">Note</span>
-          <span>Choosing <strong>"Upload Anyway"</strong> will delete the previous duplicate claim and trigger a fresh end-to-end OCR, ICD-10 coding & adjudication run.</span>
+          <span>Choosing <strong>&quot;Upload Anyway&quot;</strong> will delete the previous duplicate claim and trigger a fresh end-to-end OCR, ICD-10 coding &amp; adjudication run.</span>
         </div>
 
         <DialogFooter className="flex flex-col sm:flex-row gap-2.5 mt-4">

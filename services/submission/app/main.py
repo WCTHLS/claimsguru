@@ -1005,6 +1005,8 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         "claim_id": str(claim.id),
         "created_at": claim.created_at.isoformat() if getattr(claim, "created_at", None) else None,
         "status": claim.status,
+        "insurance_company": getattr(claim, "insurance_company", None) or parsed.get("insurance_company") or parsed.get("insurer") or None,
+        "payer": getattr(claim, "insurance_company", None) or parsed.get("insurance_company") or parsed.get("insurer") or None,
         "tpa_message": tpa_message,
         "tpa_requested_docs": tpa_requested_docs,
         "policy_id": claim.policy_id,
@@ -1669,6 +1671,8 @@ def preview_claim_data(claim_id: str, db: Session = Depends(get_db)):
     fields = data.get("parsed_fields", {})
     data["summary"] = {
         "patient_name": fields.get("patient_name") or fields.get("member_name") or fields.get("insured_name", "N/A"),
+        "insurance_company": getattr(claim, "insurance_company", None) or fields.get("insurance_company") or fields.get("insurer") or None,
+        "payer": getattr(claim, "insurance_company", None) or fields.get("insurance_company") or fields.get("insurer") or None,
         "policy_number": fields.get("policy_number") or fields.get("policy_id") or fields.get("policy_no") or data.get("policy_id", "N/A"),
         "age": fields.get("age", "N/A"),
         "gender": fields.get("gender", "N/A"),
