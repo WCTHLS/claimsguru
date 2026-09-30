@@ -726,7 +726,9 @@ export function DashboardClinical() {
                           </div>
                           <div>
                             <p className="text-base font-bold text-foreground">AI Medical Engine Analyzing...</p>
-                            <p className="text-xs font-semibold text-accent mt-1">{s.stepDescription || "OCR (extracting text) · 20%"}</p>
+                            <p className="text-xs font-semibold text-accent mt-1">
+                              {s.stepDescription && !s.stepDescription.includes("100%") ? s.stepDescription : "OCR (extracting text) · 20%"}
+                            </p>
                           </div>
                         </div>
                       ) : s.isLiveSessionCompleted ? (
@@ -1331,15 +1333,17 @@ export function DashboardClinical() {
                                   We detected incomplete information in your claim upload. Please upload the following items to resume analysis:
                                 </p>
                               )}
-                              {s.missingGroups.length > 0 && (
+                              {s.missingGroups.filter((grp: string) => grp && grp.trim() && grp.trim() !== (s.tpaMessage || "").trim()).length > 0 && (
                                 <div>
                                   <span className="text-[10px] uppercase font-bold text-amber-700 block mb-1">
                                     {s.tpaMessage ? "Requested Items / Missing Categories:" : "Missing Items:"}
                                   </span>
                                   <ul className="list-disc list-inside pl-1.5 text-xs font-medium space-y-0.5 text-amber-900">
-                                    {s.missingGroups.map((grp: string) => (
-                                      <li key={grp}>{grp}</li>
-                                    ))}
+                                    {s.missingGroups
+                                      .filter((grp: string) => grp && grp.trim() && grp.trim() !== (s.tpaMessage || "").trim())
+                                      .map((grp: string) => (
+                                        <li key={grp}>{grp}</li>
+                                      ))}
                                   </ul>
                                 </div>
                               )}
