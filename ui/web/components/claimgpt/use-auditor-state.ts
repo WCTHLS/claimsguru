@@ -168,10 +168,11 @@ export function useAuditorState() {
   const updateProgressAndStage = (targetPct: number, customStep?: string) => {
     let nextPct = Math.min(Math.max(targetPct, 0), 100);
     // Monotonic guard: never regress backwards while actively analyzing the same claim
-    if ((isAnalyzingRef.current || analyzing) && targetPct > 0 && targetPct < 100 && nextPct < progressRef.current) {
+    if (isAnalyzingRef.current && targetPct > 0 && targetPct < 100 && nextPct < progressRef.current) {
       nextPct = progressRef.current;
+    } else {
+      progressRef.current = nextPct;
     }
-    progressRef.current = nextPct;
     setProgress(nextPct);
     const stepLower = (customStep || "").toLowerCase();
 
@@ -347,28 +348,19 @@ export function useAuditorState() {
           "REJECTED",
           "IDENTITY_MISMATCH",
           "FAILED",
-          "WORKFLOW_FAILED"
+          "WORKFLOW_FAILED",
         ]);
 
-        // Find all active claims that need progress polling
+        // Find all background active claims that need progress polling (the current active claim is dedicatedly polled by runProgressSequence)
         const activeClaims = recentClaims.filter((c) => {
           if (!c.id || isMockId(c.id)) return false;
+          if (c.id === activeClaimIdRef.current && isAnalyzingRef.current) return false;
           const st = (c.status || "").toUpperCase();
           if (TERMINAL_STATUSES.has(st)) return false;
           const curMap = claimProgressMap[c.id];
           if (curMap && curMap.percentage >= 100) return false;
           return true;
         });
-
-        // Also include currently selected claim if actively analyzing
-        if (activeClaimIdRef.current && isAnalyzingRef.current && !isMockId(activeClaimIdRef.current)) {
-          if (!activeClaims.some((c) => c.id === activeClaimIdRef.current)) {
-            const activeMeta = recentClaims.find((c) => c.id === activeClaimIdRef.current);
-            if (activeMeta) {
-              activeClaims.push(activeMeta);
-            }
-          }
-        }
 
         if (activeClaims.length === 0) return;
 
@@ -1130,12 +1122,6 @@ export function useAuditorState() {
           });
         }
 
-        // Try immediate prefetch for this claim ID
-        const initialPreview = await fetchClaimPreview(res.claim_id);
-        if (initialPreview) {
-          setRealPreview(initialPreview);
-          setPreviewVersion((v) => v + 1);
-        }
       }
     } catch (err) {
       console.warn("Backend API upload error:", err);
