@@ -52,8 +52,13 @@ docker compose -p claimgpt-feature -f "$ProjectRoot/infra/docker/docker-compose.
 # 2. Wait for SQL Server to be healthy and initialize database
 Write-Host ""
 Write-Host "[2/5] Initializing Database Schema..." -ForegroundColor Yellow
-Start-Sleep -Seconds 3
 docker exec -i claimgpt-feature-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -C -Q "IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'claimgpt') CREATE DATABASE claimgpt;" 2>$null
+docker exec -i claimgpt-feature-mssql-db-1 /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourStrong!Password" -C -d claimgpt -Q "
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('claims') AND name = 'org_id')
+    ALTER TABLE claims ADD org_id UNIQUEIDENTIFIER NULL;
+IF NOT EXISTS (SELECT 1 FROM sys.columns WHERE object_id = OBJECT_ID('claims') AND name = 'insurance_company')
+    ALTER TABLE claims ADD insurance_company NVARCHAR(255) NULL;
+" 2>$null
 
 $VenvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
 $InitDbScript = Join-Path $ProjectRoot "init_db.py"
