@@ -218,6 +218,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     ? (preview.parsed_fields as Record<string, any>)
     : {};
 
+  const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test((val || '').trim());
+
   const verifiedFields = CANONICAL_FIELDS.map(cfg => {
     let val: string = '';
     for (const alias of cfg.aliases) {
@@ -226,6 +228,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         const candidateStr = String(candidate).trim();
         // Skip raw json strings
         if (!candidateStr.startsWith('{') && !candidateStr.startsWith('[')) {
+          if (cfg.key === 'policy_number' && (isUuid(candidateStr) || candidateStr.toUpperCase() === 'N/A' || candidateStr.toLowerCase() === 'null' || candidateStr === preview?.patient_id || candidateStr === (s as any)?.patientId)) {
+            continue;
+          }
+          if (cfg.key === 'patient_id' && (isUuid(candidateStr) || candidateStr.toUpperCase() === 'N/A' || candidateStr.toLowerCase() === 'null')) {
+            continue;
+          }
           val = candidateStr;
           break;
         }
@@ -238,17 +246,24 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       else if (cfg.key === 'admission_date') val = (preview?.admission_date && preview.admission_date !== 'N/A' ? preview.admission_date : ((s as any)?.admissionDate || ''));
       else if (cfg.key === 'discharge_date') val = (preview?.discharge_date && preview.discharge_date !== 'N/A' ? preview.discharge_date : ((s as any)?.dischargeDate || ''));
       else if (cfg.key === 'diagnosis') val = (preview?.diagnosis && preview.diagnosis !== 'N/A' ? preview.diagnosis : ((s as any)?.diagnosis || ''));
-      else if (cfg.key === 'policy_number') val = preview?.policy_id || (s as any)?.policyNumber || '';
-      else if (cfg.key === 'patient_id') val = preview?.patient_id || (s as any)?.patientId || '';
+      else if (cfg.key === 'policy_number') {
+        const cand = ((summary as any)?.policy_number || preview?.policy_id || (s as any)?.policyNumber || '').trim();
+        val = (!cand || isUuid(cand) || cand.toUpperCase() === 'N/A' || cand.toLowerCase() === 'null' || cand === preview?.patient_id || cand === (s as any)?.patientId) ? '' : cand;
+      }
+      else if (cfg.key === 'patient_id') {
+        const cand = ((preview as any)?.uhid || (preview as any)?.ip_number || '').trim();
+        val = (!cand || isUuid(cand) || cand.toUpperCase() === 'N/A' || cand.toLowerCase() === 'null') ? '' : cand;
+      }
       else if (cfg.key === 'gender') val = preview?.gender || '';
       else if (cfg.key === 'age') val = preview?.age ? String(preview.age) : '';
     }
+    const isValClean = Boolean(val && !isUuid(val) && val.toLowerCase() !== 'n/a' && val.toLowerCase() !== 'null' && val.trim() !== '');
     return {
       key: cfg.key,
       label: cfg.label,
-      value: val,
+      value: isValClean ? val : 'N/A',
       category: cfg.category,
-      isVerified: Boolean(val && val.toLowerCase() !== 'n/a' && val.toLowerCase() !== 'null' && val.trim() !== '')
+      isVerified: isValClean
     };
   });
 
@@ -1049,7 +1064,9 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                         <span className="truncate" title={field.value}>{field.value}</span>
                       </span>
                     ) : (
-                      <span className="font-medium text-slate-500 text-[10px] italic">Not in document</span>
+                      <span className="font-medium text-slate-500 text-[10px] italic">
+                        {field.key === 'policy_number' ? 'N/A' : 'Not in document'}
+                      </span>
                     )}
                   </div>
                 ))}

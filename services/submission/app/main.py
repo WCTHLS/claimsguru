@@ -1066,6 +1066,15 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
     final_gross = round(gross_total_claimed if (gross_total_found and gross_total_claimed > 0) else (billed_total if billed_total > 0 else expense_total), 2)
     final_deductions = round(admissibility_eval.get("potential_non_medical_total", 0.0), 2)
     final_net = round(max(0.0, final_gross - final_deductions), 2)
+    raw_policy_id = str(claim.policy_id or "").strip()
+    is_pol_uuid = False
+    if raw_policy_id:
+        try:
+            uuid.UUID(raw_policy_id)
+            is_pol_uuid = True
+        except (ValueError, AttributeError):
+            is_pol_uuid = False
+    clean_policy_id = None if (is_pol_uuid or raw_policy_id == str(claim.patient_id or "").strip() or raw_policy_id.lower() in ("n/a", "none", "null")) else raw_policy_id
 
     return {
         "claim_id": str(claim.id),
@@ -1075,7 +1084,7 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         "payer": getattr(claim, "insurance_company", None) or parsed.get("insurance_company") or parsed.get("insurer") or None,
         "tpa_message": tpa_message,
         "tpa_requested_docs": tpa_requested_docs,
-        "policy_id": claim.policy_id,
+        "policy_id": clean_policy_id,
         "patient_id": claim.patient_id,
         "parsed_fields": parsed,
         "icd_codes": icd_list,
@@ -1785,13 +1794,25 @@ def preview_claim_data(claim_id: str, db: Session = Depends(get_db)):
         logger.warning(f"Could not load field_feedback for claim {cid}: {exc}")
         data["field_feedback"] = {}
 
-    # Enrich with formatted summary for UI display
     fields = data.get("parsed_fields", {})
+    raw_pol_cand = fields.get("policy_number") or fields.get("policy_no") or fields.get("policy_id") or data.get("policy_id")
+    is_cand_uuid = False
+    if raw_pol_cand:
+        try:
+            uuid.UUID(str(raw_pol_cand).strip())
+            is_cand_uuid = True
+        except (ValueError, AttributeError):
+            is_cand_uuid = False
+    if not raw_pol_cand or is_cand_uuid or str(raw_pol_cand).strip().lower() in ("n/a", "none", "null") or str(raw_pol_cand).strip() == str(claim.patient_id or "").strip():
+        summary_policy_num = "N/A"
+    else:
+        summary_policy_num = str(raw_pol_cand).strip()
+
     data["summary"] = {
         "patient_name": fields.get("patient_name") or fields.get("member_name") or fields.get("insured_name", "N/A"),
         "insurance_company": getattr(claim, "insurance_company", None) or fields.get("insurance_company") or fields.get("insurer") or None,
         "payer": getattr(claim, "insurance_company", None) or fields.get("insurance_company") or fields.get("insurer") or None,
-        "policy_number": fields.get("policy_number") or fields.get("policy_id") or fields.get("policy_no") or data.get("policy_id", "N/A"),
+        "policy_number": summary_policy_num,
         "age": fields.get("age", "N/A"),
         "gender": fields.get("gender", "N/A"),
         "hospital": fields.get("hospital_name") or fields.get("hospital", "N/A"),

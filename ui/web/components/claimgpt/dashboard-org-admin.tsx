@@ -183,8 +183,10 @@ function getPatientName(c: EnrichedClaim) {
 }
 
 function getPolicyNum(c: EnrichedClaim) {
-  if (c.summary?.policy_number && c.summary.policy_number !== 'N/A') return c.summary.policy_number;
-  return c.policy_id || 'N/A';
+  const isUuid = (val: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test((val || '').trim());
+  if (c.summary?.policy_number && c.summary.policy_number !== 'N/A' && !isUuid(c.summary.policy_number)) return c.summary.policy_number;
+  if (c.policy_id && !isUuid(c.policy_id)) return c.policy_id;
+  return 'N/A';
 }
 
 /** Fallback mock claims for standalone offline demonstration */

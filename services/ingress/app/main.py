@@ -3166,11 +3166,24 @@ async def create_claim(
                 for old_cid in dup_claim_ids:
                     _delete_claim_internal(db, old_cid)
 
+        # Clean policy_id: never set policy_id to user_id/patient_id UUID
+        clean_policy_id = None
+        if policy_id and str(policy_id).strip():
+            pol_str = str(policy_id).strip()
+            is_uuid_val = False
+            try:
+                uuid.UUID(pol_str)
+                is_uuid_val = True
+            except (ValueError, AttributeError):
+                is_uuid_val = False
+            if not is_uuid_val and pol_str != resolved_patient_id and pol_str.lower() not in ("none", "null", "n/a"):
+                clean_policy_id = pol_str
+
         # 1. Create Claim in Database
         claim_id = uuid.uuid4()
         claim = Claim(
             id=claim_id,
-            policy_id=policy_id or None,
+            policy_id=clean_policy_id,
             patient_id=resolved_patient_id,
             status="UPLOADED",
             source="PATIENT",

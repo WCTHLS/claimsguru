@@ -52,35 +52,36 @@ try:
     print("Registering Shared tables (users, organizations, invitations, profiles)...")
     SharedBase.metadata.create_all(bind=engine)
 
-    # 5. Schema patch for existing databases (e.g. MS SQL Server)
-    from sqlalchemy import text
+    # 5. Ensure newly added model columns exist on existing tables (SQL Server schema migration)
+    print("Checking and migrating missing columns on existing tables...")
+    from sqlalchemy import text, inspect
+    insp = inspect(engine)
     with engine.connect() as conn:
-        try:
-            conn.execute(text("""
-                IF NOT EXISTS (
-                    SELECT 1 FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('claim_field_feedback') 
-                    AND name = 'predicted_value'
-                )
-                BEGIN
-                    ALTER TABLE claim_field_feedback ADD predicted_value NVARCHAR(MAX) NULL;
-                END
-            """))
-            conn.execute(text("""
-                IF NOT EXISTS (
-                    SELECT 1 FROM sys.columns 
-                    WHERE object_id = OBJECT_ID('claim_field_feedback') 
-                    AND name = 'action'
-                )
-                BEGIN
-                    ALTER TABLE claim_field_feedback ADD action NVARCHAR(255) NULL;
-                END
-            """))
-            conn.commit()
-        except Exception as patch_err:
-            pass
+        if insp.has_table("claims"):
+            cols = [c["name"] for c in insp.get_columns("claims")]
+            if "org_id" not in cols:
+                conn.execute(text("ALTER TABLE claims ADD org_id UNIQUEIDENTIFIER NULL;"))
+                if insp.has_table("organizations"):
+                    try:
+                        conn.execute(text("ALTER TABLE claims ADD CONSTRAINT FK_claims_organizations FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE SET NULL;"))
+                    except Exception:
+                        pass
+                print("  -> Added missing column 'org_id' to 'claims'")
+            if "insurance_company" not in cols:
+                conn.execute(text("ALTER TABLE claims ADD insurance_company VARCHAR(255) NULL;"))
+                print("  -> Added missing column 'insurance_company' to 'claims'")
 
-    print("[SUCCESS] All tables including 'invitations', 'medical_codes' and 'features' are created!")
+        if insp.has_table("claim_field_feedback"):
+            cols = [c["name"] for c in insp.get_columns("claim_field_feedback")]
+            if "predicted_value" not in cols:
+                conn.execute(text("ALTER TABLE claim_field_feedback ADD predicted_value NVARCHAR(MAX) NULL;"))
+                print("  -> Added missing column 'predicted_value' to 'claim_field_feedback'")
+            if "action" not in cols:
+                conn.execute(text("ALTER TABLE claim_field_feedback ADD action NVARCHAR(MAX) NULL;"))
+                print("  -> Added missing column 'action' to 'claim_field_feedback'")
+        conn.commit()
+
+    print("[SUCCESS] All tables and columns are verified and up to date!")
 
 except Exception as e:
     print(f"[ERROR] {e}")

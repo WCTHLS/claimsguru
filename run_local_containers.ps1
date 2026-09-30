@@ -12,10 +12,10 @@ param (
     [switch]$Stop = $false
 )
 
-if ($args -contains "--rebuild" -or $args -contains "-rebuild") {
+if ($args -match "rebuild") {
     $Rebuild = $true
 }
-if ($args -contains "--stop" -or $args -contains "-stop") {
+if ($args -match "stop") {
     $Stop = $true
 }
 
@@ -93,6 +93,9 @@ docker run -d --name claimsguru-api-test -p 8000:8000 `
   -e REDIS_URL="redis://claimgpt-feature-redis-1:6379/4" `
   --env-file "$ProjectRoot/.env" `
   claimsguru-core:test
+
+Start-Sleep -Seconds 2
+docker exec claimsguru-api-test python /app/init_db.py 2>$null | Out-Null
 
 # OCR Worker
 docker run -d --name claimsguru-worker-ocr `
