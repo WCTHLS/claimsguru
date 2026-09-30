@@ -52,6 +52,34 @@ try:
     print("Registering Shared tables (users, organizations, invitations, profiles)...")
     SharedBase.metadata.create_all(bind=engine)
 
+    # 5. Schema patch for existing databases (e.g. MS SQL Server)
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("""
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('claim_field_feedback') 
+                    AND name = 'predicted_value'
+                )
+                BEGIN
+                    ALTER TABLE claim_field_feedback ADD predicted_value NVARCHAR(MAX) NULL;
+                END
+            """))
+            conn.execute(text("""
+                IF NOT EXISTS (
+                    SELECT 1 FROM sys.columns 
+                    WHERE object_id = OBJECT_ID('claim_field_feedback') 
+                    AND name = 'action'
+                )
+                BEGIN
+                    ALTER TABLE claim_field_feedback ADD action NVARCHAR(255) NULL;
+                END
+            """))
+            conn.commit()
+        except Exception as patch_err:
+            pass
+
     print("[SUCCESS] All tables including 'invitations', 'medical_codes' and 'features' are created!")
 
 except Exception as e:
