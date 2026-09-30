@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef, FormEvent } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef, FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import fullLogo from './ClaimsGuru Black PNG.png';
@@ -127,13 +127,7 @@ export interface ChatMessage {
 
 const STATUS_OPTIONS = [
   'ALL',
-  'UPLOADED',
-  'PROCESSING',
-  'PREDICTED',
-  'VALIDATED',
-  'VALIDATION_FAILED',
   'SUBMITTED',
-  'DOCUMENTS_UPLOADED',
   'COMPLETED',
   'APPROVED',
   'REJECTED',
@@ -279,7 +273,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
   const router = useRouter();
   const session = getStoredAuthSession();
 
-  const [claims, setClaims] = useState<EnrichedClaim[]>([]);
+  const [allClaims, setAllClaims] = useState<EnrichedClaim[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [statusFilter, setStatusFilter] = useState('ALL');
@@ -287,6 +281,11 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const filteredClaims = useMemo(() => {
+    if (statusFilter === 'ALL') return allClaims;
+    return allClaims.filter((c) => (c.status || '').toUpperCase() === statusFilter);
+  }, [allClaims, statusFilter]);
 
   /* Drawer & Modals */
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -303,13 +302,15 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
   const [actionType, setActionType] = useState<'approve' | 'reject' | 'send_back' | null>(null);
   const [actionReason, setActionReason] = useState('');
   const [actionSubmitting, setActionSubmitting] = useState(false);
-  const [actionFeedback, setActionFeedback] = useState('');
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   /* Settlement Maker-Checker Flow */
   const [sendMoneyClaim, setSendMoneyClaim] = useState<EnrichedClaim | null>(null);
   const [sendMoneyAmount, setSendMoneyAmount] = useState('');
   const [sendMoneySubmitting, setSendMoneySubmitting] = useState(false);
-  const [sendMoneyFeedback, setSendMoneyFeedback] = useState('');
+  const [sendMoneySuccess, setSendMoneySuccess] = useState<string | null>(null);
+  const [sendMoneyError, setSendMoneyError] = useState<string | null>(null);
   const [pendingAuth, setPendingAuth] = useState<Record<string, { by: string; at: string; amount: string }>>({});
 
   const auditor = useAuditorState();
@@ -318,7 +319,13 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
 
   /* Document & Summary Viewer Modals */
   const [reportModalClaimId, setReportModalClaimId] = useState<string | null>(null);
-  const [docPreviewModal, setDocPreviewModal] = useState<{ open: boolean; claimId: string | null }>({
+  const [docPreviewModal, setDocPreviewModal] = useState<{
+    open: boolean;
+    claimId: string | null;
+    initialDocId?: string | null;
+    documents?: any[];
+    patientName?: string;
+  }>({
     open: false,
     claimId: null,
   });
@@ -331,6 +338,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
   const [msgText, setMsgText] = useState('');
   const [msgSending, setMsgSending] = useState(false);
   const [msgSent, setMsgSent] = useState(false);
+  const [msgError, setMsgError] = useState<string | null>(null);
 
   /* Inline Chat State */
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -382,10 +390,6 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
         }
       }
 
-      if (statusFilter !== 'ALL') {
-        rawClaims = rawClaims.filter((c) => (c.status || '').toUpperCase() === statusFilter);
-      }
-
       // Enrich claims with submission preview data
       let enriched: EnrichedClaim[] = await Promise.all(
         rawClaims.map(async (c) => {
@@ -422,15 +426,15 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
         }
       }
 
-      setClaims(enriched);
+      setAllClaims(enriched);
       setTotal(rawTotal);
     } catch {
-      setClaims([]);
+      setAllClaims([]);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [session?.accessToken, session?.role, orgSlug, page, search, statusFilter, refreshKey]);
+  }, [session?.accessToken, session?.role, orgSlug, page, search, refreshKey]);
 
   useEffect(() => {
     fetchClaims();
@@ -439,7 +443,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
   /* Build search suggestions */
   useEffect(() => {
     const suggs = new Set<string>();
-    claims.forEach((c) => {
+    allClaims.forEach((c) => {
       if (c.summary?.patient_name && c.summary.patient_name !== 'N/A') suggs.add(c.summary.patient_name);
       if (c.summary?.policy_number && c.summary.policy_number !== 'N/A') suggs.add(c.summary.policy_number);
       if (c.summary?.hospital && c.summary.hospital !== 'N/A') suggs.add(c.summary.hospital);
@@ -447,7 +451,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
       if (c.id) suggs.add(c.id);
     });
     setSuggestions(Array.from(suggs));
-  }, [claims]);
+  }, [allClaims]);
 
   /* Expand / Collapse Claim Detail */
   async function toggleExpand(claimId: string) {
@@ -476,7 +480,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
         const preview = await res.json();
         setExpandedPreview(preview);
       } else {
-        const found = claims.find((c) => c.id === claimId);
+        const found = allClaims.find((c) => c.id === claimId);
         setExpandedPreview({
           summary: found?.summary,
           billed_total: found?.billed_total,
@@ -493,99 +497,134 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
     }
   }
 
+  /* Resilient Reviewer Action Dispatcher */
+  async function callReviewerAction(claimId: string, payload: { action: string; reason?: string; requested_documents?: string[] }) {
+    const token = session?.accessToken;
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-User-Role': session?.role || session?.accountRole || 'reviewer',
+      ...(session?.user?.email || session?.user?.id ? { 'X-User-Id': session.user.email || session.user.id } : {}),
+      ...(orgSlug ? { 'X-Organization-Slug': orgSlug } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+
+    const endpoints = [
+      `${SUBMISSION_API}/claims/${claimId}/tpa-action`,
+      `${INGRESS_API}/claims/${claimId}/tpa-action`,
+    ];
+
+    let lastError: Error | null = null;
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(payload),
+        });
+        if (res.ok) {
+          return await res.json().catch(() => ({ status: 'success' }));
+        }
+        const errData = await res.json().catch(() => ({}));
+        lastError = new Error(errData.detail || errData.message || `Action failed with HTTP ${res.status}`);
+      } catch (err: any) {
+        lastError = err;
+      }
+    }
+    throw lastError || new Error('Network error calling reviewer action');
+  }
+
   /* Quick Actions (Approve / Reject / Send Back) */
-  function openQuickAction(claimId: string, action: 'approve' | 'reject' | 'send_back', e: React.MouseEvent) {
-    e.stopPropagation();
+  function openQuickAction(claimId: string, action: 'approve' | 'reject' | 'send_back', e?: React.MouseEvent) {
+    e?.stopPropagation();
     setActionClaimId(claimId);
     setActionType(action);
     setActionReason('');
-    setActionFeedback('');
+    setActionSuccess(null);
+    setActionError(null);
   }
 
   async function submitQuickAction() {
     if (!actionClaimId || !actionType) return;
     setActionSubmitting(true);
-    setActionFeedback('');
-    const token = session?.accessToken;
+    setActionSuccess(null);
+    setActionError(null);
 
     try {
-      const res = await fetch(`${SUBMISSION_API}/claims/${actionClaimId}/tpa-action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ action: actionType, reason: actionReason }),
+      const data = await callReviewerAction(actionClaimId, {
+        action: actionType,
+        reason: actionReason.trim(),
       });
 
       let newStatus = actionType === 'approve' ? 'APPROVED' : actionType === 'reject' ? 'REJECTED' : 'MODIFICATION_REQUESTED';
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.new_status) newStatus = data.new_status;
+      if (data && data.new_status) {
+        newStatus = data.new_status;
       }
 
-      setActionFeedback(`Claim updated to ${formatStatus(newStatus)} successfully.`);
-      setClaims((prev) => prev.map((c) => (c.id === actionClaimId ? { ...c, status: newStatus } : c)));
+      setActionSuccess(`Claim updated to ${formatStatus(newStatus)} successfully.`);
+      setAllClaims((prev) => prev.map((c) => (c.id === actionClaimId ? { ...c, status: newStatus } : c)));
+      if (expandedId === actionClaimId) {
+        setExpandedPreview((prev: any) => (prev ? { ...prev, status: newStatus } : null));
+      }
+
       setTimeout(() => {
         setActionClaimId(null);
         setActionType(null);
-        setActionFeedback('');
+        setActionReason('');
+        setActionSuccess(null);
+        setActionError(null);
       }, 1500);
-    } catch {
-      setActionFeedback('Action failed. Please verify connection.');
+    } catch (err: any) {
+      setActionError(err.message || 'Action failed. Please check connection and try again.');
     } finally {
       setActionSubmitting(false);
     }
   }
 
-  /* Maker-Checker Settlement Flow */
-  function openSendMoney(c: EnrichedClaim, e: React.MouseEvent) {
-    e.stopPropagation();
+  /* Settlement Maker-Checker Flow */
+  function openSendMoney(c: EnrichedClaim, e?: React.MouseEvent) {
+    e?.stopPropagation();
     setSendMoneyClaim(c);
     setSendMoneyAmount((c.billed_total || 0).toString());
-    setSendMoneyFeedback('');
+    setSendMoneySuccess(null);
+    setSendMoneyError(null);
   }
 
-  function requestSettlement(c: EnrichedClaim, e: React.MouseEvent) {
-    e.stopPropagation();
-    setPendingAuth((prev) => ({
-      ...prev,
-      [c.id]: { by: session?.user?.name || 'Reviewer', at: new Date().toISOString(), amount: (c.billed_total || 0).toString() },
-    }));
+  function requestSettlement(c: EnrichedClaim, e?: React.MouseEvent) {
+    e?.stopPropagation();
+    openSendMoney(c, e);
   }
 
   async function submitSendMoney() {
     if (!sendMoneyClaim) return;
     setSendMoneySubmitting(true);
-    setSendMoneyFeedback('');
-    const token = session?.accessToken;
+    setSendMoneySuccess(null);
+    setSendMoneyError(null);
 
     try {
-      const res = await fetch(`${SUBMISSION_API}/claims/${sendMoneyClaim.id}/tpa-action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          action: 'send_money',
-          reason: `Settlement authorized: ₹${parseFloat(sendMoneyAmount).toLocaleString()}`,
-        }),
+      const amountVal = parseFloat(sendMoneyAmount) || sendMoneyClaim.billed_total || 0;
+      await callReviewerAction(sendMoneyClaim.id, {
+        action: 'send_money',
+        reason: `Settlement authorized: ₹${amountVal.toLocaleString()}`,
       });
 
-      setSendMoneyFeedback('Settlement authorized & dispatched to payout gateway.');
-      setClaims((prev) => prev.map((c) => (c.id === sendMoneyClaim.id ? { ...c, status: 'SETTLED' } : c)));
+      setSendMoneySuccess('Settlement authorized & payout recorded successfully.');
+      setAllClaims((prev) => prev.map((c) => (c.id === sendMoneyClaim.id ? { ...c, status: 'SETTLED' } : c)));
+      if (expandedId === sendMoneyClaim.id) {
+        setExpandedPreview((prev: any) => (prev ? { ...prev, status: 'SETTLED' } : null));
+      }
       setPendingAuth((prev) => {
         const updated = { ...prev };
         delete updated[sendMoneyClaim.id];
         return updated;
       });
+
       setTimeout(() => {
         setSendMoneyClaim(null);
-        setSendMoneyFeedback('');
-      }, 1800);
-    } catch {
-      setSendMoneyFeedback('Authorization failed.');
+        setSendMoneySuccess(null);
+        setSendMoneyError(null);
+      }, 1500);
+    } catch (err: any) {
+      setSendMoneyError(err.message || 'Authorization failed. Please try again.');
     } finally {
       setSendMoneySubmitting(false);
     }
@@ -595,25 +634,30 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
   async function sendMessage() {
     if (!msgClaim || !msgText.trim()) return;
     setMsgSending(true);
-    const token = session?.accessToken;
+    setMsgError(null);
+    setMsgSent(false);
 
     try {
-      await fetch(`${SUBMISSION_API}/claims/${msgClaim.id}/tpa-action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ action: 'request_docs', reason: msgText }),
+      await callReviewerAction(msgClaim.id, {
+        action: 'request_docs',
+        reason: msgText.trim(),
+        requested_documents: [msgText.trim()],
       });
+
       setMsgSent(true);
-      setClaims((prev) => prev.map((c) => (c.id === msgClaim.id ? { ...c, status: 'DOCUMENTS_REQUESTED' } : c)));
+      setAllClaims((prev) => prev.map((c) => (c.id === msgClaim.id ? { ...c, status: 'DOCUMENTS_REQUESTED' } : c)));
+      if (expandedId === msgClaim.id) {
+        setExpandedPreview((prev: any) => (prev ? { ...prev, status: 'DOCUMENTS_REQUESTED' } : null));
+      }
+
       setTimeout(() => {
         setMsgClaim(null);
         setMsgSent(false);
+        setMsgText('');
+        setMsgError(null);
       }, 1800);
-    } catch {
-      /* ignore */
+    } catch (err: any) {
+      setMsgError(err.message || 'Failed to dispatch document request. Please try again.');
     } finally {
       setMsgSending(false);
     }
@@ -675,14 +719,16 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
     }
   }
 
-  /* Aggregated Metrics */
-  const pendingCount = claims.filter((c) =>
-    ['PENDING', 'PROCESSING', 'PREDICTED', 'MANUAL_REVIEW_REQUIRED', 'SUBMITTED'].includes((c.status || '').toUpperCase())
+  /* Global Summary Metrics (Fixed across tabs & status filters) */
+  const totalClaimsCount = allClaims.length;
+
+  const pendingCount = allClaims.filter((c) =>
+    ['PENDING', 'PROCESSING', 'PREDICTED', 'MANUAL_REVIEW_REQUIRED', 'SUBMITTED', 'DOCUMENTS_REQUESTED', 'MODIFICATION_REQUESTED'].includes((c.status || '').toUpperCase())
   ).length;
 
-  const settledTotal = claims.reduce((acc, c) => acc + (c.billed_total || 0), 0);
+  const settledTotal = allClaims.reduce((acc, c) => acc + (c.billed_total || 0), 0);
 
-  const highRiskCount = claims.filter((c) => getPriorityLevel(c) === 'high').length;
+  const highRiskCount = allClaims.filter((c) => getPriorityLevel(c) === 'high').length;
 
   const orgDisplayName = orgSlug ? orgSlug.toUpperCase() : 'ORGANIZATION';
 
@@ -856,7 +902,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                   </div>
                 </div>
                 <div className="mt-3 text-2xl font-bold text-slate-900">
-                  <CountUp end={total || claims.length} />
+                  <CountUp end={totalClaimsCount} />
                 </div>
                 <p className="mt-1 text-xs text-slate-500">Submitted to {orgDisplayName}</p>
               </SpotlightCard>
@@ -907,7 +953,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                   <Filter className="h-4 w-4 text-slate-400 flex-none" />
                   <span className="text-xs font-semibold text-slate-600 flex-none mr-1">Status:</span>
-                  {['ALL', 'PROCESSING', 'VALIDATED', 'APPROVED', 'MANUAL_REVIEW_REQUIRED', 'REJECTED', 'SETTLED'].map((st) => (
+                  {['ALL', 'APPROVED', 'MANUAL_REVIEW_REQUIRED', 'DOCUMENTS_REQUESTED', 'REJECTED', 'SETTLED'].map((st) => (
                     <button
                       key={st}
                       onClick={() => {
@@ -952,7 +998,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
               <div className="border-b border-slate-200 px-6 py-4 flex items-center justify-between bg-slate-50/50">
                 <h3 className="font-semibold text-slate-900 text-sm">Submitted Claims Record</h3>
                 <span className="text-xs text-slate-500">
-                  Showing {claims.length} of {total} claims
+                  Showing {filteredClaims.length} of {allClaims.length} claims
                 </span>
               </div>
 
@@ -961,14 +1007,14 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                   <Loader2 className="h-5 w-5 animate-spin text-teal-600" />
                   <span>Loading claims record for {orgDisplayName}...</span>
                 </div>
-              ) : claims.length === 0 ? (
+              ) : filteredClaims.length === 0 ? (
                 <div className="py-16 text-center text-slate-500 text-sm">
                   <FileText className="mx-auto h-10 w-10 text-slate-300 mb-2" />
-                  <p>No claims found for status filter "{formatStatus(statusFilter)}".</p>
+                  <p>No claims found for status filter &quot;{formatStatus(statusFilter)}&quot;.</p>
                 </div>
               ) : (
                 <div className="divide-y divide-slate-200">
-                  {claims.map((c) => {
+                  {filteredClaims.map((c) => {
                     const isExpanded = expandedId === c.id;
                     const priority = getPriorityLevel(c);
                     const isPendingAuth = Boolean(pendingAuth[c.id]);
@@ -1070,6 +1116,19 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                                     </Button>
                                   )}
 
+                                  {c.status !== 'MODIFICATION_REQUESTED' && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={(e) => openQuickAction(c.id, 'send_back', e)}
+                                      className="h-8 border-sky-300 text-sky-700 hover:bg-sky-50 font-medium"
+                                      title="Send Back / Request Modifications"
+                                    >
+                                      <RotateCcw className="h-3.5 w-3.5 sm:mr-1" />
+                                      <span className="hidden sm:inline">Send Back</span>
+                                    </Button>
+                                  )}
+
                                   {c.status === 'DOCUMENTS_REQUESTED' ? (
                                     <Button
                                       size="sm"
@@ -1079,6 +1138,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                                         setMsgClaim(c);
                                         setMsgText('');
                                         setMsgSent(false);
+                                        setMsgError(null);
                                       }}
                                       className="h-8 border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 font-medium"
                                       title="Awaiting Patient Documents - Click to update note"
@@ -1095,6 +1155,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                                         setMsgClaim(c);
                                         setMsgText('');
                                         setMsgSent(false);
+                                        setMsgError(null);
                                       }}
                                       className="h-8 border-amber-300 text-amber-700 hover:bg-amber-50 font-medium"
                                       title="Request Missing Documents or Message Submitter"
@@ -1104,27 +1165,15 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                                     </Button>
                                   )}
 
-                                  {c.status === 'APPROVED' && !isPendingAuth && (
+                                  {c.status === 'APPROVED' && (
                                     <Button
                                       size="sm"
                                       onClick={(e) => requestSettlement(c, e)}
                                       className="h-8 bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-medium"
-                                      title="Request Payout Authorization"
+                                      title="Authorize Payout & Settle Claim"
                                     >
                                       <DollarSign className="h-3.5 w-3.5 sm:mr-1" />
                                       <span className="hidden sm:inline">Settle & Pay</span>
-                                    </Button>
-                                  )}
-
-                                  {isPendingAuth && (
-                                    <Button
-                                      size="sm"
-                                      onClick={(e) => openSendMoney(c, e)}
-                                      className="h-8 bg-emerald-600 hover:bg-emerald-700 text-white animate-pulse font-medium"
-                                      title="Authorize Payout"
-                                    >
-                                      <CheckCircle2 className="h-3.5 w-3.5 sm:mr-1" />
-                                      <span className="hidden sm:inline">Authorize Payout</span>
                                     </Button>
                                   )}
                                 </>
@@ -1190,9 +1239,9 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                                 size="sm"
                                 variant="outline"
                                 onClick={() => {
-                                  auditor.openReportModal();
+                                  auditor.openReportModal(c.id);
                                 }}
-                                className="ml-auto h-7 text-xs border-slate-300 text-slate-700 bg-white"
+                                className="ml-auto h-7 text-xs border-slate-300 text-slate-700 bg-white hover:bg-slate-50 cursor-pointer"
                               >
                                 <ExternalLink className="h-3 w-3 mr-1" />
                                 <span>Full Audit Report</span>
@@ -1317,6 +1366,9 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                                             setDocPreviewModal({
                                               open: true,
                                               claimId: c.id,
+                                              initialDocId: doc.id,
+                                              documents: c.documents,
+                                              patientName: getPatientName(c),
                                             })
                                           }
                                           className="h-7 text-xs text-teal-700 hover:text-teal-900"
@@ -1416,7 +1468,19 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
               className="w-full rounded-lg border border-slate-200 p-2.5 text-xs focus:border-teal-500 focus:outline-none"
             />
 
-            {actionFeedback && <p className="text-xs font-semibold text-teal-700">{actionFeedback}</p>}
+            {actionError && (
+              <p className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-lg flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 flex-none text-rose-600" />
+                <span>{actionError}</span>
+              </p>
+            )}
+
+            {actionSuccess && (
+              <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 p-2.5 rounded-lg flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 flex-none text-emerald-600" />
+                <span>{actionSuccess}</span>
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={() => setActionClaimId(null)}>
@@ -1428,7 +1492,11 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                 onClick={submitQuickAction}
                 className={cn(
                   'text-white',
-                  actionType === 'approve' ? 'bg-teal-600 hover:bg-teal-700' : 'bg-rose-600 hover:bg-rose-700'
+                  actionType === 'approve'
+                    ? 'bg-teal-600 hover:bg-teal-700'
+                    : actionType === 'reject'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : 'bg-sky-600 hover:bg-sky-700'
                 )}
               >
                 {actionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Confirm Action'}
@@ -1463,7 +1531,19 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
               />
             </div>
 
-            {sendMoneyFeedback && <p className="text-xs font-semibold text-emerald-700">{sendMoneyFeedback}</p>}
+            {sendMoneyError && (
+              <p className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 p-2.5 rounded-lg flex items-center gap-1.5">
+                <AlertTriangle className="h-4 w-4 flex-none text-rose-600" />
+                <span>{sendMoneyError}</span>
+              </p>
+            )}
+
+            {sendMoneySuccess && (
+              <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 p-2.5 rounded-lg flex items-center gap-1.5">
+                <CheckCircle2 className="h-4 w-4 flex-none text-emerald-600" />
+                <span>{sendMoneySuccess}</span>
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" size="sm" onClick={() => setSendMoneyClaim(null)}>
@@ -1557,9 +1637,15 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
               className="w-full rounded-xl border border-slate-200 p-3 text-xs focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500 bg-slate-50/50"
             />
 
+            {msgError && (
+              <p className="text-xs font-semibold text-rose-700 flex items-center gap-1.5 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                <AlertTriangle className="h-4 w-4 flex-none text-rose-600" /> {msgError}
+              </p>
+            )}
+
             {msgSent && (
               <p className="text-xs font-semibold text-emerald-700 flex items-center gap-1.5 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200">
-                <CheckCircle2 className="h-4 w-4 flex-none" /> Request dispatched to submitter dashboard &amp; notification bell!
+                <CheckCircle2 className="h-4 w-4 flex-none text-emerald-600" /> Request dispatched to submitter dashboard &amp; notification bell!
               </p>
             )}
 
@@ -1587,8 +1673,11 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
       {docPreviewModal.open && (
         <DocumentPreviewModal
           isOpen={docPreviewModal.open}
-          onClose={() => setDocPreviewModal({ open: false, claimId: null })}
+          onClose={() => setDocPreviewModal({ open: false, claimId: null, initialDocId: null, documents: [] })}
           claimId={docPreviewModal.claimId}
+          initialDocId={docPreviewModal.initialDocId}
+          documents={docPreviewModal.documents}
+          patientName={docPreviewModal.patientName}
         />
       )}
     </div>

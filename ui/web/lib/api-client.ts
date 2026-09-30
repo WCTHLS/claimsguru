@@ -104,6 +104,8 @@ export interface RecentClaimSummary {
   created_at: string;
   total_amount?: string;
   hospital_name?: string;
+  insurance_company?: string;
+  payer?: string;
   diagnosis?: string;
   policy_id?: string;
   patient_id?: string;
@@ -484,6 +486,12 @@ export async function fetchRecentClaims(patientId?: string): Promise<RecentClaim
         status: isAction ? "DOCUMENTS_REQUESTED" : (c.status || "PROCESSING").toUpperCase(),
         created_at: c.created_at || "",
         total_amount: c.total_amount || c.amount || "",
+        insurance_company: c.insurance_company || c.payer || c.summary?.insurance_company || c.summary?.payer || undefined,
+        payer: c.payer || c.insurance_company || undefined,
+        hospital_name: c.hospital_name || c.summary?.hospital || undefined,
+        diagnosis: c.diagnosis || c.summary?.diagnosis || undefined,
+        policy_id: c.policy_id || c.summary?.policy_number || undefined,
+        patient_id: c.patient_id || undefined,
         documents: c.documents || [],
         progress: c.progress || (typeof c.percentage === "number" ? { percentage: c.percentage, step: c.current_step } : undefined),
         has_action_request: isAction,

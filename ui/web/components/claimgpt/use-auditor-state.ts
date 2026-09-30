@@ -1243,9 +1243,9 @@ export function useAuditorState() {
 
 
   /* Manually open report modal and fetch selected or latest claim preview directly from backend */
-  const openReportModal = async () => {
+  const openReportModal = async (targetClaimId?: string) => {
     try {
-      const idToQuery = claimId || (await fetchLatestClaimId());
+      const idToQuery = targetClaimId || claimId || (await fetchLatestClaimId());
       if (idToQuery) {
         const prevData = await fetchClaimPreview(idToQuery);
         if (prevData) {
