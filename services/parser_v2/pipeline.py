@@ -528,6 +528,8 @@ def parse_document(
         if nf.get("canonical_field") == "patient_name" and nf.get("value"):
             nf["value"] = _clean_patient_name(str(nf["value"]))
 
+    all_token_dicts = [token.model_dump() for token in tokens]
+
     def _append_local_field(field_name: str, value: str | None, confidence: float = 0.75) -> None:
         if not value:
             return
@@ -561,22 +563,30 @@ def parse_document(
             logger.debug(f"[DEDUP] Skipping duplicate field {field_name}={text}")
             return
 
+        found_page = None
+        matched_tokens = []
+        if text:
+            for t in all_token_dicts:
+                t_txt = str(t.get("text", "")).strip()
+                if t_txt and (t_txt == text or t_txt in text or text in t_txt):
+                    found_page = t.get("page")
+                    matched_tokens.append(t)
+                    break
+
         doc.normalized_fields.append({
             "field": field_name,
             "canonical_field": field_name,
             "value": text,
             "confidence": confidence,
-            "bbox": None,
-            "page": None,
+            "bbox": matched_tokens[0].get("bbox") if (matched_tokens and "bbox" in matched_tokens[0]) else None,
+            "page": found_page,
             "source_region_id": None,
             "source_region_type": "local_extraction",
-            "source_tokens": [],
+            "source_tokens": matched_tokens,
             "model_name": "local-rule",
             "extractor_name": "local-rule",
             "metadata": {"source": "local_backend"},
         })
-
-    all_token_dicts = [token.model_dump() for token in tokens]
     
     # Use ROBUST REGEX-BASED extraction for PATIENT INFO fields.
     # We do not skip this pass if a single semantic field exists; instead we
@@ -596,6 +606,8 @@ def parse_document(
         "address",
         "occupation",
         "claimed_total",
+        "policy_number",
+        "member_id",
     }
     existing_patient_fields = {
         str(f.get("canonical_field") or "")

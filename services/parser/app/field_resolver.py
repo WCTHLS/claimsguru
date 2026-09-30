@@ -91,6 +91,32 @@ def _validate_patient_name(val: str) -> bool:
     return True
 
 
+def _validate_policy_number(val: str) -> bool:
+    if not val:
+        return False
+    s = str(val).strip()
+    if len(s) < 4 or len(s) > 35:
+        return False
+    if s.startswith(('&', '-', '/', ':', ';', '.', '+', '@')):
+        return False
+    s_lower = s.lower()
+    reject_words = {
+        'insured', 'details', 'policy', 'number', 'name', 'insurance', 'hospital', 
+        'patient', 'valid', 'amount', 'total', 'tpa', 'pvt', 'ltd', 'co', 'claim', 
+        'status', 'scheme', 'date', 'birth', 'signature', 'address'
+    }
+    words = [w.strip(' ,;:-_') for w in s_lower.split() if w.strip(' ,;:-_')]
+    if len(words) > 1 and any(w in reject_words for w in words):
+        return False
+    if words and words[0] in reject_words and len(words) == 1:
+        return False
+    if not re.search(r'\d', s) and not re.match(r'^[A-Z0-9\/\-_]{4,35}$', s):
+        return False
+    if not re.match(r'^[A-Za-z0-9][A-Za-z0-9\/\-_]{3,35}$', s):
+        return False
+    return True
+
+
 MULTI_VALUE_FIELDS: frozenset[str] = frozenset({
     "icd_code",
     "cpt_code",
@@ -122,6 +148,10 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
             fname = "secondary_diagnosis"
         elif fname == "claims.claimed_total":
             fname = "claimed_total"
+        elif fname in {"insurance.policy_number", "insurance_policy_number", "policy_no", "patient.policy_number"}:
+            fname = "policy_number"
+        elif fname in {"insurance.member_id", "insurance_member_id", "patient.member_id", "member_no"}:
+            fname = "member_id"
         c.field_name = fname
         grouped.setdefault(fname, []).append(c)
 
@@ -177,6 +207,10 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
                 if not _validate_patient_name(cand.field_value or ""):
                     accept = False
                     reason = "failed_patient_name_validation"
+            elif field in {"policy_number", "insurance.policy_number", "insurance_policy_number"}:
+                if not _validate_policy_number(cand.field_value or ""):
+                    accept = False
+                    reason = "failed_policy_number_validation"
             else:
                 if _is_obvious_label(cand.field_value or "", field_name=field):
                     accept = False

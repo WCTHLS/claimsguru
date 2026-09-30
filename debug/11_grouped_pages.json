@@ -3,15 +3,15 @@
   "group_count": 1,
   "groups": [
     {
-      "claim_id": "e3cfe610-8dcd-4803-a14b-27edb993c1df",
-      "document_id": "380cc7da-b14b-42a0-84d4-65f6840f5b25",
-      "page_number": 2,
-      "token_count": 175,
+      "claim_id": null,
+      "document_id": null,
+      "page_number": 1,
+      "token_count": 2,
       "bbox": [
-        47.51969,
-        54.072200000000066,
-        546.7559600000001,
-        610.9923000000001
+        64.0,
+        142.0,
+        192.0,
+        150.0
       ]
     }
   ]

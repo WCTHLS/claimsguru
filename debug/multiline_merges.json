@@ -1,18 +1,1 @@
-[
-  {
-    "table_id": "0f64f921-030b-44a5-ac7c-8a07c55fde35",
-    "from_row_index": 4,
-    "continuation_row_index": 5,
-    "gap": 4.0,
-    "overlap_ratio": 1.0,
-    "indent_delta": 161.57
-  },
-  {
-    "table_id": "1b3dbec4-3d2c-426c-99bf-dc065fc2f306",
-    "from_row_index": 1,
-    "continuation_row_index": 2,
-    "gap": 4.0,
-    "overlap_ratio": 1.0,
-    "indent_delta": 0.0
-  }
-]
+[]

@@ -1397,8 +1397,10 @@ def normalize_table_fields(tables: List[TableRegion]) -> List[Dict[str, Any]]:
         "hospital name",
         "doctor",
         "address",
-        "policy",
         "policy number",
+        "policy no",
+        "policy id",
+        "policy #",
         "member id",
         "date of birth",
         "dob",
@@ -1468,6 +1470,25 @@ def normalize_table_fields(tables: List[TableRegion]) -> List[Dict[str, Any]]:
 
                 canonical_key = CANONICAL_MAPPING.get(key_norm)
                 if canonical_key:
+                    if canonical_key == "insurance_policy_number":
+                        val_str = str(value).strip()
+                        val_lower = val_str.lower()
+                        reject_terms = {"insured", "details", "policy", "number", "name", "insurance", "hospital", "patient", "tpa", "pvt", "ltd", "claim"}
+                        if (
+                            len(val_str) < 4
+                            or val_str.startswith(("&", "-", "/", ":", ";", "."))
+                            or any(term in val_lower for term in {"& insured", "insured details", "policy &", "policy details"})
+                        ):
+                            continue
+                        # If value contains multiple tokens, extract the first alphanumeric policy token if present
+                        tokens_in_val = val_str.split()
+                        if len(tokens_in_val) > 1:
+                            m = re.search(r"\b([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b", val_str)
+                            if m and m.group(1).lower() not in reject_terms and any(ch.isdigit() for ch in m.group(1)):
+                                value = m.group(1)
+                            else:
+                                continue
+
                     normalized.append({
                         "field": key_norm,
                         "canonical_field": canonical_key,
