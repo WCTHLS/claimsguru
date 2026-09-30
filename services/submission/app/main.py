@@ -543,6 +543,51 @@ def _sort_icd_codes(codes: list[Any]) -> list[Any]:
     )
 
 
+def _recalculate_prediction_for_claim(cid: uuid.UUID, db: Session) -> None:
+    """Recompute feature vector and AI prediction when policy/insurer details change."""
+    try:
+        from services.predictor.app.engine import build_features, predict
+        from libs.shared.models import MedicalEntity, MedicalCode
+        from services.ingress.app.models import Feature
+        pf_rows = db.query(ParsedField).filter(ParsedField.claim_id == cid).all()
+        ent_rows = db.query(MedicalEntity).filter(MedicalEntity.claim_id == cid).all()
+        code_rows = db.query(MedicalCode).filter(MedicalCode.claim_id == cid).all()
+
+        parsed = [{"field_name": r.field_name, "field_value": r.field_value} for r in pf_rows]
+        entities = [{"entity_type": r.entity_type, "entity_text": r.entity_text} for r in ent_rows]
+        codes = [{"code": r.code, "code_system": r.code_system, "is_primary": r.is_primary} for r in code_rows]
+
+        features = build_features(parsed, entities, codes)
+        result = predict(features)
+
+        # Upsert Feature
+        feat = db.query(Feature).filter(Feature.claim_id == cid).first()
+        if feat:
+            feat.feature_vector = result.feature_vector
+        else:
+            db.add(Feature(claim_id=cid, feature_vector=result.feature_vector))
+
+        # Update or insert Prediction
+        pred = db.query(Prediction).filter(Prediction.claim_id == cid).order_by(Prediction.created_at.desc()).first()
+        if pred:
+            pred.rejection_score = result.rejection_score
+            pred.top_reasons = result.top_reasons
+            pred.model_name = result.model_name
+            pred.model_version = result.model_version
+        else:
+            db.add(Prediction(
+                claim_id=cid,
+                rejection_score=result.rejection_score,
+                top_reasons=result.top_reasons,
+                model_name=result.model_name,
+                model_version=result.model_version,
+            ))
+        db.commit()
+        logger.info(f"Refreshed prediction for claim {cid}: score={result.rejection_score}, reasons={result.top_reasons}")
+    except Exception as exc:
+        logger.warning(f"Could not refresh prediction for claim {cid}: {exc}")
+
+
 def _gather_claim_data(db: Session, claim: Claim) -> dict[str, Any]:
     """Collect all data needed for submission payload."""
     pf_rows = db.query(ParsedField).filter(ParsedField.claim_id == claim.id).all()
@@ -644,8 +689,29 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
                         except Exception:
                             pass
 
-    # Predictions
+    # Predictions — ensure prediction reflects current policy_number & parsed fields
+    has_cur_pol = bool((claim.policy_id and str(claim.policy_id).strip() and not str(claim.policy_id).startswith("ee8031ed")) or any(pf.field_name in ("policy_number", "policy_id") and pf.field_value for pf in pf_rows))
     preds = db.query(Prediction).filter(Prediction.claim_id == claim.id).order_by(Prediction.created_at.desc()).limit(3).all()
+    
+    # If prediction is missing or has stale 'Missing policy number' when policy is present, refresh it live
+    stale_policy_risk = False
+    if preds and has_cur_pol:
+        for p in preds:
+            top_r = p.top_reasons or []
+            if isinstance(top_r, list) and any(
+                isinstance(r, dict) and "Missing policy number" in str(r.get("reason", ""))
+                for r in top_r
+            ):
+                stale_policy_risk = True
+                break
+    
+    if (not preds and pf_rows) or stale_policy_risk:
+        try:
+            _recalculate_prediction_for_claim(claim.id, db)
+            preds = db.query(Prediction).filter(Prediction.claim_id == claim.id).order_by(Prediction.created_at.desc()).limit(3).all()
+        except Exception as _sync_err:
+            logger.warning(f"Could not refresh live prediction for preview: {_sync_err}")
+
     predictions = [{"rejection_score": p.rejection_score, "top_reasons": p.top_reasons, "model_name": p.model_name} for p in preds]
 
     # Validations — re-run rules live so preview always reflects current data
@@ -1356,6 +1422,7 @@ async def extract_policy_document(
 
                 db.commit()
                 logger.info(f"Policy '{policy_id}' and insurer '{insurer}' saved directly to claim {cid}")
+                _recalculate_prediction_for_claim(cid, db)
         except Exception as exc:
             logger.warning(f"Failed to link policy to claim {claim_id}: {exc}")
 
@@ -1469,6 +1536,7 @@ def submit_claim(
     claim.status = "SUBMITTED"
     db.commit()
     db.refresh(sub)
+    _recalculate_prediction_for_claim(cid, db)
 
     logger.info("Claim %s submitted to payer '%s' with policy_id '%s' — status=%s", cid, payer, claim.policy_id, status)
 

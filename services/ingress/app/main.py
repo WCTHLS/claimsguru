@@ -4534,6 +4534,13 @@ def submit_claim_endpoint(
         except Exception:
             pass
 
+        # Re-run prediction live so AI risk score & reasons immediately clear 'Missing policy number'
+        try:
+            from services.submission.app.main import _recalculate_prediction_for_claim
+            _recalculate_prediction_for_claim(cid, db)
+        except Exception as pred_err:
+            logger.warning(f"Could not refresh prediction on submission: {pred_err}")
+
         now_str = datetime.now(timezone.utc).isoformat()
         logger.info("Claim %s successfully submitted to '%s' (org_id=%s)", cid, payer_name, resolved_org_id)
 
