@@ -54,4 +54,4 @@ models/ensemble_weights.json
 models/xgb_feature_importance.json
 # TypeScript incremental build
 *.tsbuildinfo
-
+scratch/

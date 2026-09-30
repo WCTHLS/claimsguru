@@ -763,14 +763,20 @@ export function useAuditorState() {
 
   /* Reset upload state for new claim */
   const resetState = () => {
+    if (activePollRef.current) {
+      clearInterval(activePollRef.current);
+      activePollRef.current = null;
+    }
     setPendingFiles([]);
     setFiles([]);
     setClaimId(null);
     setRealPreview(null);
+    progressRef.current = 0;
     setProgress(0);
     setActiveStage('staged');
     setStepDescription("Claim Attached");
     setAnalyzing(false);
+    isAnalyzingRef.current = false;
     setUploading(false);
     setIsLiveSessionCompleted(false);
     setIsDocumentsRequested(false);
@@ -887,6 +893,26 @@ export function useAuditorState() {
           return;
         }
 
+        if (statusInfo.status === "FAILED") {
+          setAnalyzing(false);
+          isAnalyzingRef.current = false;
+          setIsLiveSessionCompleted(false);
+          setProgress(0);
+          setActiveStage('staged');
+          const errorDetail = (statusInfo as any).error || statusInfo.step || "Processing failed in the backend pipeline. Please check the logs or retry.";
+          setStepDescription(errorDetail);
+          dataArrived = true;
+          clearInterval(pollInterval);
+          if (activePollRef.current === pollInterval) activePollRef.current = null;
+          toast({
+            title: "Backend Processing Failed",
+            description: errorDetail,
+            variant: "destructive",
+          });
+          reloadRecentClaims();
+          return;
+        }
+
         if (statusInfo.status === "DOCUMENTS_REQUESTED" || statusInfo.status === "MANUAL_REVIEW_REQUIRED") {
           try {
             const finalData = await fetchClaimPreview(idToQuery);
@@ -944,9 +970,15 @@ export function useAuditorState() {
 
     const effectiveTargetClaimId = (appendToActive && (explicitClaimId || claimId)) ? (explicitClaimId || claimId) : null;
 
+    if (activePollRef.current) {
+      clearInterval(activePollRef.current);
+      activePollRef.current = null;
+    }
+
     if (!appendToActive) {
       setRealPreview(null);
       setClaimId(null);
+      activeClaimIdRef.current = null;
     }
     setIsDocumentsRequested(false);
     setMissingGroups([]);
@@ -958,6 +990,7 @@ export function useAuditorState() {
     setIsLiveSessionCompleted(false);
     setIsUploadOpen(true); // Keep open during analysis to show progress
     setActiveStage('ocr');
+    progressRef.current = 20;
     setProgress(20);
     setStepDescription("OCR (extracting text) · 20%");
 
@@ -1067,21 +1100,29 @@ export function useAuditorState() {
       
     if (filesToUpload.length === 0) return;
 
+    if (activePollRef.current) {
+      clearInterval(activePollRef.current);
+      activePollRef.current = null;
+    }
+
     const oldDupId = duplicateClaimId;
     setIsReprocessing(true);
     setDuplicateClaimId(null);
     setDuplicateFiles([]);
     setRealPreview(null);
     setClaimId(null);
+    activeClaimIdRef.current = null;
     setIsDocumentsRequested(false);
     setMissingGroups([]);
 
     setAnalyzing(true);
+    isAnalyzingRef.current = true;
     setUploading(true);
     setShowReportModal(false);
     setIsLiveSessionCompleted(false);
     setIsUploadOpen(true);
     setActiveStage('ocr');
+    progressRef.current = 20;
     setProgress(20);
     setStepDescription("OCR (extracting text) · 20%");
 

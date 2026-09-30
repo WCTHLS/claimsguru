@@ -118,6 +118,7 @@ export interface RecentClaimSummary {
 
 export const PIPELINE_ACTIVE_STATUSES = new Set([
   "UPLOADED",
+  "DOCUMENTS_UPLOADED",
   "PROCESSING",
   "OCR_PROCESSING",
   "OCR_IN_PROGRESS",
@@ -130,13 +131,12 @@ export const PIPELINE_ACTIVE_STATUSES = new Set([
 ]);
 
 /**
- * Check if a claim ID is a local mock/demo ID (e.g., demo-001, CLM-123456)
+ * Check if a claim ID is a local mock/demo ID (e.g., demo-001)
  * to avoid issuing bad requests to the backend server.
  */
 export function isMockId(id?: string | null): boolean {
   if (!id) return true;
-  if (id.startsWith('demo-')) return true;
-  if (id.startsWith('CLM-')) return true;
+  if (id.startsWith('demo-') || id.startsWith('mock-') || id === 'demo' || id === 'mock') return true;
   return false;
 }
 
@@ -191,7 +191,7 @@ export async function uploadClaimDocument(
   files: File | File[], 
   userName?: string, 
   claimId?: string,
-  force: boolean = false,
+  force: boolean = true,
   patientId?: string
 ): Promise<{ claim_id: string; document_id: string; status?: string; task_id?: string | null; is_duplicate?: boolean }> {
   const fileArray = Array.isArray(files) ? files : [files];
@@ -247,7 +247,7 @@ export async function uploadClaimDocument(
 
     if (res && res.ok) {
       const data = await res.json();
-      const directClaimId = data.claim_id || data.id;
+      const directClaimId = data.claim_id || data.id || claimId;
       const taskId = data.task_id;
       let finalClaimId = directClaimId || "";
       let finalDocId = data.document_id || (data.documents && data.documents[0]?.id) || "doc-1";
