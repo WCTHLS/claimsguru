@@ -29,7 +29,7 @@ export function DuplicateClaimModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
-      <DialogContent className="sm:max-w-[480px] bg-white border border-amber-200 shadow-2xl rounded-2xl p-6 text-slate-800">
+      <DialogContent className="w-[calc(100%-2rem)] sm:w-full max-w-[480px] bg-white border border-amber-200 shadow-2xl rounded-2xl p-4 sm:p-6 text-slate-800">
         <DialogHeader className="space-y-3">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 shadow-inner">
             <AlertCircle className="h-7 w-7" />

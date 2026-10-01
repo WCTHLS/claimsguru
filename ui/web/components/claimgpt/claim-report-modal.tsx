@@ -1200,67 +1200,71 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         </div>
 
         {/* 7. 🎯 B2C MOBILE-OPTIMIZED FOOTER ACTION BAR */}
-        <div className="flex-none flex items-center justify-between border-t border-white/10 bg-slate-900/95 px-3.5 sm:px-6 py-3.5 backdrop-blur-md gap-2.5">
-          <div className="flex items-center gap-2 flex-1 sm:flex-none">
-            {tpaUrl ? (
+        <div className="flex-none border-t border-white/10 bg-slate-900/95 px-3 sm:px-6 py-3 sm:py-3.5 backdrop-blur-md">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            {/* View Reports Group */}
+            <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
+              {tpaUrl ? (
+                <button
+                  type="button"
+                  onClick={() => openInlinePdfViewer(tpaUrl, 'tpa')}
+                  disabled={loadingPdf === 'tpa'}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 min-h-[40px] sm:min-h-[44px] px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  {loadingPdf === 'tpa' ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5" />
+                  )}
+                  View TPA Report
+                </button>
+              ) : null}
+
+              {irdaUrl ? (
+                <button
+                  type="button"
+                  onClick={() => openInlinePdfViewer(irdaUrl, 'irdai')}
+                  disabled={loadingPdf === 'irdai'}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 disabled:opacity-50 min-h-[40px] sm:min-h-[44px] px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold text-slate-200 transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+                >
+                  {loadingPdf === 'irdai' ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Eye className="h-3.5 w-3.5 text-amber-400" />
+                  )}
+                  View IRDAI Form
+                </button>
+              ) : null}
+            </div>
+
+            {/* Submit & Close Group */}
+            <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => openInlinePdfViewer(tpaUrl, 'tpa')}
-                disabled={loadingPdf === 'tpa'}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 min-h-[44px] px-4 text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer"
+                onClick={handleOpenInsurerModal}
+                disabled={isSubmittingToPayer || isSubmittedToPayer}
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 min-h-[42px] sm:min-h-[44px] px-4 text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer"
               >
-                {loadingPdf === 'tpa' ? (
+                {isSubmittingToPayer ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
+                ) : isSubmittedToPayer ? (
+                  <CheckCircle2 className="h-4 w-4 text-white" />
                 ) : (
-                  <Eye className="h-4 w-4" />
+                  <Send className="h-4 w-4" />
                 )}
-                View TPA Report
+                {isSubmittedToPayer
+                  ? (submittedPayer ? `Submitted to ${submittedPayer}` : "Submitted to Insurer")
+                  : "Submit Claim to Insurer"}
               </button>
-            ) : null}
 
-            {irdaUrl ? (
               <button
                 type="button"
-                onClick={() => openInlinePdfViewer(irdaUrl, 'irdai')}
-                disabled={loadingPdf === 'irdai'}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 disabled:opacity-50 min-h-[44px] px-4 text-xs font-bold text-slate-200 transition-all shadow-md active:scale-95 cursor-pointer"
+                onClick={s.closeReportModal}
+                className="flex-none rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 min-h-[42px] sm:min-h-[44px] px-3.5 sm:px-4 text-xs font-semibold text-white transition-all cursor-pointer"
               >
-                {loadingPdf === 'irdai' ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Eye className="h-4 w-4 text-amber-400" />
-                )}
-                View IRDAI Form
+                Close Report
               </button>
-            ) : null}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleOpenInsurerModal}
-              disabled={isSubmittingToPayer || isSubmittedToPayer}
-              className="flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 min-h-[44px] px-4 text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer"
-            >
-              {isSubmittingToPayer ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : isSubmittedToPayer ? (
-                <CheckCircle2 className="h-4 w-4 text-white" />
-              ) : (
-                <Send className="h-4 w-4" />
-              )}
-              {isSubmittedToPayer
-                ? (submittedPayer ? `Submitted to ${submittedPayer}` : "Submitted to Insurer")
-                : "Submit Claim to Insurer"}
-            </button>
-
-            <button
-              type="button"
-              onClick={s.closeReportModal}
-              className="flex-none rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 min-h-[44px] px-4 text-xs font-semibold text-white transition-all cursor-pointer"
-            >
-              Close Report
-            </button>
+            </div>
           </div>
         </div>
 
