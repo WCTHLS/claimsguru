@@ -35,7 +35,8 @@ def test_rtf_extractor_handles_minimal_rtf(tmp_path: Path) -> None:
 
     pages = ocr_engine._extract_from_rtf(p)
     assert len(pages) == 1
-    _page_no, text, _conf = pages[0]
+    page = pages[0]
+    text = page["text"] if isinstance(page, dict) else page[1]
     assert "Hello world" in text
     # No raw RTF control words leak through.
     assert r"\rtf1" not in text

@@ -127,6 +127,7 @@ export interface ChatMessage {
 
 const STATUS_OPTIONS = [
   'ALL',
+  'DOCUMENTS_UPLOADED',
   'SUBMITTED',
   'COMPLETED',
   'APPROVED',
@@ -643,7 +644,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
       await callReviewerAction(msgClaim.id, {
         action: 'request_docs',
         reason: msgText.trim(),
-        requested_documents: [msgText.trim()],
+        requested_documents: [],
       });
 
       setMsgSent(true);
@@ -955,7 +956,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                 <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                   <Filter className="h-4 w-4 text-slate-400 flex-none" />
                   <span className="text-xs font-semibold text-slate-600 flex-none mr-1">Status:</span>
-                  {['ALL', 'APPROVED', 'MANUAL_REVIEW_REQUIRED', 'DOCUMENTS_REQUESTED', 'REJECTED', 'SETTLED'].map((st) => (
+                  {['ALL', 'DOCUMENTS_UPLOADED', 'APPROVED', 'MANUAL_REVIEW_REQUIRED', 'DOCUMENTS_REQUESTED', 'REJECTED', 'SETTLED'].map((st) => (
                     <button
                       key={st}
                       onClick={() => {

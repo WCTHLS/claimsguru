@@ -14,9 +14,6 @@ class Settings(BaseSettings):
     redis_url: str = os.environ.get("REDIS_URL", "redis://localhost:6379/0")
     database_url: str = os.environ.get("DATABASE_URL", "postgresql://claimgpt:claimgpt@localhost:5432/claimgpt")
 
-    # Tesseract binary path (override if non-standard)
-    tesseract_cmd: str = "tesseract"
-
     # OCR backend controls
     enable_paddle_ocr: bool = True
     enable_paddle_vl: bool = False

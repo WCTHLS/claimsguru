@@ -1,26 +1,12 @@
-"""Tests for the coding engine — NER + ICD-10/CPT extraction."""
-
-import sys
-from pathlib import Path
-
-# Ensure the service package is importable
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "services" / "coding"))
-# Purge cached app modules so the correct service's 'app' package is used
-for _k in [k for k in sys.modules if k == "app" or k.startswith("app.")]:
-    del sys.modules[_k]
-# Purge cached app modules so the correct service's 'app' package is used
-for _k in [k for k in sys.modules if k == "app" or k.startswith("app.")]:
-    del sys.modules[_k]
-
-from app.engine import extract_entities_and_codes
-from app.icd10_rag import search_icd10_rag
+from services.coding.app.engine import extract_entities_and_codes
+from services.coding.app.icd10_rag import search_icd10_rag
 import pytest
 from unittest.mock import patch
 
 
 @pytest.fixture(autouse=True)
 def mock_llm_extract():
-    with patch("app.engine.extract_diagnosis_keywords", return_value=[]):
+    with patch("services.coding.app.engine.extract_diagnosis_keywords", return_value=[]):
         yield
 
 

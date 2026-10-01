@@ -176,7 +176,7 @@ def _run_validator_job(claim_id: str) -> dict[str, Any]:
     retry_backoff=True,
     retry_backoff_max=600,
     max_retries=5,
-    soft_time_limit=900,  # 15 minutes for OCR (includes Paddle/Tesseract inference)
+    soft_time_limit=900,  # 15 minutes for OCR (includes Azure Document Intelligence inference)
     time_limit=1200,      # 20 minutes hard limit (safety margin for cleanup)
 )
 def ocr_task(self, result: dict) -> dict[str, str]:

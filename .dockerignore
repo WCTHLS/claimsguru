@@ -32,7 +32,6 @@ build
 docs/
 infra/k8s/
 .DS_Store
-ui/web/.next/
 ui/web/.vercel/
 *.pdf
 *.sql
