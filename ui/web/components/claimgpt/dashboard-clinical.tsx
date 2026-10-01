@@ -164,9 +164,8 @@ export function DashboardClinical() {
         <div className="flex h-16 items-center justify-between gap-2 px-3 sm:px-6">
           <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
             <img src={fullLogo.src} className="h-7 sm:h-8 w-auto flex-none" alt="ClaimsGuru Logo" />
-            <span className="rounded bg-teal-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-teal-700 whitespace-nowrap flex-none">
-              <span className="hidden sm:inline">Self-Service Portal</span>
-              <span className="sm:hidden">Clinical</span>
+            <span className="hidden sm:inline-block rounded bg-teal-50 px-2 py-0.5 text-[10px] font-semibold text-teal-700 whitespace-nowrap flex-none">
+              Self-Service Portal
             </span>
           </div>
           <div className="relative ml-4 hidden flex-1 max-w-md md:block">
@@ -633,31 +632,31 @@ export function DashboardClinical() {
                 const topAction = actionClaims[0];
                 return (
                   <StaggerItem index={1}>
-                    <div className="rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-50/80 to-white p-4 sm:p-5 shadow-elevation-sm">
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                        <div className="flex items-start gap-3">
-                          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-amber-100 text-amber-700 border border-amber-300">
-                            <AlertTriangle className="h-5 w-5 animate-pulse" />
+                    <div className="rounded-xl sm:rounded-2xl border-2 border-amber-300 bg-gradient-to-r from-amber-50 via-amber-50/80 to-white p-3 sm:p-4 shadow-elevation-sm">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3">
+                        <div className="flex items-start gap-2.5 sm:gap-3 min-w-0">
+                          <div className="flex h-8 w-8 sm:h-9 sm:w-9 flex-none items-center justify-center rounded-lg sm:rounded-xl bg-amber-100 text-amber-700 border border-amber-300 mt-0.5 sm:mt-0">
+                            <AlertTriangle className="h-4 w-4 sm:h-4.5 sm:w-4.5 animate-pulse" />
                           </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h3 className="text-sm sm:text-base font-bold text-amber-950">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                              <h3 className="text-xs sm:text-sm font-bold text-amber-950 truncate">
                                 Action Required: Missing Document Request
                               </h3>
-                              <span className="rounded-full bg-amber-200/80 border border-amber-300 px-2.5 py-0.5 text-[10px] font-bold text-amber-900">
+                              <span className="rounded-full bg-amber-200/80 border border-amber-300 px-2 py-0.2 text-[9px] sm:text-[10px] font-bold text-amber-900">
                                 {actionClaims.length} Claim{actionClaims.length > 1 ? 's' : ''} Pending Action
                               </span>
                             </div>
-                            <p className="text-xs text-amber-900/90 mt-1 font-medium">
+                            <p className="text-[11px] sm:text-xs text-amber-900/90 mt-0.5 font-medium line-clamp-2 sm:line-clamp-none">
                               <strong>{topAction.patient_name || 'Claim'}</strong>: {topAction.tpa_message || 'The insurance reviewer requested additional supporting documents before this claim can be approved.'}
                             </p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2 self-end sm:self-center flex-none">
+                        <div className="flex items-center gap-2 self-stretch sm:self-center flex-none">
                           <Button
                             size="sm"
                             onClick={() => s.selectClaim(topAction.id)}
-                            className="bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs h-8 px-3.5 rounded-lg shadow-sm cursor-pointer"
+                            className="w-full sm:w-auto bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] sm:text-xs h-7 sm:h-8 px-3 sm:px-3.5 rounded-lg shadow-sm cursor-pointer"
                           >
                             Open Claim &amp; Upload Proofs →
                           </Button>
@@ -998,7 +997,7 @@ export function DashboardClinical() {
                                 </span>
                               ) : (
                                 <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[9px] font-bold">
-                                  ✓ Ready
+                                  ✓ Audit Ready
                                 </span>
                               )}
                             </div>
@@ -1157,9 +1156,9 @@ export function DashboardClinical() {
                               </span>
                             </span>
                           ) : s.progress >= 100 ? (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium text-emerald-700 border border-emerald-500/20">
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-emerald-700 border border-emerald-500/20">
                               <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
-                              Ready
+                              Audit Ready
                             </span>
                           ) : s.progress === 0 && !s.analyzing ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold text-slate-500 border border-slate-200">
