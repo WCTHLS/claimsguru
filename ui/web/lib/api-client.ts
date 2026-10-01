@@ -117,12 +117,9 @@ export interface RecentClaimSummary {
 }
 
 export const PIPELINE_ACTIVE_STATUSES = new Set([
-  "UPLOADED",
-  "DOCUMENTS_UPLOADED",
   "PROCESSING",
   "OCR_PROCESSING",
   "OCR_IN_PROGRESS",
-  "OCR_DONE",
   "PARSING_IN_PROGRESS",
   "CODING_ANALYSIS",
   "RISK_ANALYSIS",

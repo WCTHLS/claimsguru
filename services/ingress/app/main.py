@@ -3468,7 +3468,7 @@ def list_claims(
 
             step_label = None
             pct_val = None
-            is_terminal_status = effective_status in ("COMPLETED", "VALIDATED", "APPROVED", "SETTLED", "REJECTED", "IDENTITY_MISMATCH", "FAILED", "WORKFLOW_FAILED")
+            is_terminal_status = effective_status in ("COMPLETED", "VALIDATED", "APPROVED", "SETTLED", "REJECTED", "IDENTITY_MISMATCH", "FAILED", "WORKFLOW_FAILED", "DOCUMENTS_UPLOADED", "SUBMITTED")
             if w_state and not is_terminal_status and w_state.current_step not in ("FINISHED", "COMPLETED") and w_state.status not in ("FINISHED", "COMPLETED"):
                 step_label, pct_val = _map_progress(w_state.current_step, w_state.status)
 

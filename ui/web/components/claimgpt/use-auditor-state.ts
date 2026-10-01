@@ -533,7 +533,12 @@ export function useAuditorState() {
             statusInfo?.is_complete ||
             (statusInfo?.percentage ?? 0) >= 100 ||
             statusInfo?.status === "COMPLETED" ||
-            statusInfo?.status === "VALIDATED"
+            statusInfo?.status === "VALIDATED" ||
+            statusInfo?.status === "DOCUMENTS_UPLOADED" ||
+            statusInfo?.status === "SUBMITTED" ||
+            statusInfo?.status === "APPROVED" ||
+            statusInfo?.status === "SETTLED" ||
+            statusInfo?.status === "REJECTED"
           );
 
           if (!isComplete) {
@@ -642,7 +647,7 @@ export function useAuditorState() {
     const rawStatus = (targetClaimMeta?.status || "").toUpperCase();
     const liveProgress = claimProgressMap[targetId] || targetClaimMeta?.progress;
     const isLiveActive = Boolean(liveProgress && liveProgress.percentage > 0 && liveProgress.percentage < 100 && !liveProgress.is_complete);
-    const isTerminal = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "SUBMITTED" || rawStatus === "DOCUMENTS_REQUESTED";
+    const isTerminal = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "SUBMITTED" || rawStatus === "DOCUMENTS_REQUESTED" || rawStatus === "DOCUMENTS_UPLOADED" || rawStatus === "MODIFICATION_REQUESTED";
     const isKnownActive = !isTerminal && (isLiveActive || PIPELINE_ACTIVE_STATUSES.has(rawStatus));
 
     activeClaimIdRef.current = targetId;
