@@ -1,20 +1,8 @@
 import './globals.css';
 import type { Metadata } from 'next';
-import { Inter, Outfit } from 'next/font/google';
 import { DesignProvider } from '@/components/claimgpt/design-context';
 import { DesignSwitcher } from '@/components/claimgpt/design-switcher';
 import { Toaster } from '@/components/ui/toaster';
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-});
-const outfit = Outfit({
-  subsets: ['latin'],
-  variable: '--font-outfit',
-  display: 'swap',
-});
 
 export const metadata: Metadata = {
   title: 'ClaimsGuru | Enterprise · India',
@@ -29,7 +17,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${inter.variable} ${outfit.variable}`}>
+    <html lang="en">
       <body className="font-sans antialiased">
         <DesignProvider>
           {children}

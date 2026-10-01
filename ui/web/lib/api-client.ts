@@ -215,7 +215,6 @@ export async function uploadClaimDocument(
     const effectivePatientId = patientId || userSessionId || userSessionEmail;
     if (effectivePatientId) {
       formData.append("patient_id", effectivePatientId);
-      formData.append("policy_id", effectivePatientId);
     }
     if (userSessionEmail) {
       formData.append("email", userSessionEmail);

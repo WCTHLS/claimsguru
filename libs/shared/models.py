@@ -438,7 +438,6 @@ class PatientProfile(Base):
     last_name = Column(Text, nullable=False)
     dob = Column(Date, nullable=True)
     gender = Column(Text, nullable=True)
-    health_card_url = Column(Text, nullable=True)
     coverage_verified = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now())

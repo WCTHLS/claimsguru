@@ -1066,6 +1066,15 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
     final_gross = round(gross_total_claimed if (gross_total_found and gross_total_claimed > 0) else (billed_total if billed_total > 0 else expense_total), 2)
     final_deductions = round(admissibility_eval.get("potential_non_medical_total", 0.0), 2)
     final_net = round(max(0.0, final_gross - final_deductions), 2)
+    raw_policy_id = str(claim.policy_id or "").strip()
+    is_pol_uuid = False
+    if raw_policy_id:
+        try:
+            uuid.UUID(raw_policy_id)
+            is_pol_uuid = True
+        except (ValueError, AttributeError):
+            is_pol_uuid = False
+    clean_policy_id = None if (is_pol_uuid or raw_policy_id == str(claim.patient_id or "").strip() or raw_policy_id.lower() in ("n/a", "none", "null")) else raw_policy_id
 
     return {
         "claim_id": str(claim.id),
@@ -1075,7 +1084,7 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         "payer": getattr(claim, "insurance_company", None) or parsed.get("insurance_company") or parsed.get("insurer") or None,
         "tpa_message": tpa_message,
         "tpa_requested_docs": tpa_requested_docs,
-        "policy_id": claim.policy_id,
+        "policy_id": clean_policy_id,
         "patient_id": claim.patient_id,
         "parsed_fields": parsed,
         "icd_codes": icd_list,
@@ -1279,11 +1288,13 @@ def _extract_policy_and_insurer(text: str, filename: str = "") -> tuple[str | No
             break
 
     patterns = [
-        # Explicit labels: Policy No / Policy # / Health Card No / Member ID / UHID
-        r"(?im)\b(?:policy\s*(?:no\.?|num|number|#|id)|policy\s*/\s*certificate\s*no\.?|certificate\s*no\.?|policy\s*/\s*health\s*card\s*no\.?|health\s*card\s*(?:no\.?|id)|card\s*no\.?|member\s*id|membership\s*(?:no\.?|id)|uhid|insurance\s*(?:id|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
+        # Explicit labels: Policy No / Policy Number / Health Card No / Member ID / UHID
+        r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id)|policy\s*/\s*certificate\s*(?:number|no\.?|id)|certificate\s*(?:number|no\.?|id)|policy\s*/\s*health\s*card\s*(?:number|no\.?|id)|health\s*card\s*(?:number|no\.?|id)|card\s*(?:number|no\.?)|member\s*id|membership\s*(?:number|no\.?|id)|uhid|insurance\s*(?:id|number|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_\s]{2,35})",
         # Multi-line label
-        r"(?im)\b(?:policy\s*(?:no\.?|num|number|#|id))\s*[:\-=\/|#]?\s*\n\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
-        # Standard insurer pattern
+        r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id))\s*[:\-=\/|#]?\s*\n\s*([A-Za-z0-9][A-Za-z0-9\/\-_\s]{2,35})",
+        # Standard alphanumeric patterns
+        r"\b([A-Z]{2,5}[0-9]{7,14})\b",
+        r"\b([A-Z]{2,5}\s+[0-9]{7,14})\b",
         r"\b([A-Z]{1,4}/[0-9]{4,8}/[0-9]{1,4}/[0-9]{2,4}/[0-9]{4,8})\b",
         r"\b([A-Z0-9]{2,5}-[A-Z0-9]{4,10}-[A-Z0-9]{4,10})\b",
     ]
@@ -1291,13 +1302,18 @@ def _extract_policy_and_insurer(text: str, filename: str = "") -> tuple[str | No
     detected_policy = None
     reject_terms = {
         "number", "policy", "card", "insurance", "hospital", "patient", "valid", "from",
-        "date", "none", "null", "n/a", "amount", "rupees", "total", "details", "scheme", "claim"
+        "date", "none", "null", "n/a", "amount", "rupees", "total", "details", "scheme", "claim",
+        "schedule", "certificate", "membership"
     }
 
     for pat in patterns:
         matches = re.finditer(pat, text)
         for m in matches:
-            val = m.group(1).strip(" .;:,-_#/")
+            raw = m.group(1).split("\n")[0].strip(" .;:,-_#/")
+            if "/" not in raw and "-" not in raw:
+                val = re.sub(r"\s+", "", raw)
+            else:
+                val = re.sub(r"\s*/\s*", "/", re.sub(r"\s*-\s*", "-", raw.strip()))
             if val and val.lower() not in reject_terms and len(val) >= 4:
                 detected_policy = val
                 break
@@ -1316,7 +1332,7 @@ async def extract_policy_document(
 ):
     """
     Fast OCR document extraction for Policy ID & Insurer.
-    Runs fast OCR on uploaded policy document/card, auto-links to claim in DB.
+    Runs system OCR engine on uploaded policy document/card, auto-links to claim in DB.
     """
     contents = await file.read()
     filename = file.filename or "uploaded_policy_document"
@@ -1324,7 +1340,7 @@ async def extract_policy_document(
 
     extracted_text = ""
 
-    # 1. Fast text extraction
+    # 1. Text extraction
     if ext == ".pdf":
         try:
             import pdfplumber
@@ -1335,30 +1351,73 @@ async def extract_policy_document(
                     if t.strip():
                         text_chunks.append(t)
                 extracted_text = "\n".join(text_chunks)
-                
-                # Scanned PDF fallback via OCR
-                if len(extracted_text.strip()) < 30 and pdf.pages:
-                    try:
-                        import pytesseract
-                        img = pdf.pages[0].to_image(resolution=200).original
-                        extracted_text = pytesseract.image_to_string(img)
-                    except Exception as ocr_err:
-                        logger.warning(f"Tesseract OCR fallback on PDF failed: {ocr_err}")
         except Exception as exc:
-            logger.warning(f"PDF extraction failed: {exc}")
+            logger.warning(f"PDF digital text extraction failed: {exc}")
 
-    if not extracted_text.strip() and ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"]:
+        # If scanned PDF (no extractable text), fallback to system OCR
+        if len(extracted_text.strip()) < 30:
+            try:
+                import tempfile
+                with tempfile.NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                    tmp.write(contents)
+                    tmp_path = Path(tmp.name)
+                try:
+                    from services.ocr.app.engine import extract_text as ocr_extract_text
+                    ocr_res = ocr_extract_text(tmp_path)
+                    if ocr_res:
+                        extracted_text = "\n".join(p.get("text", "") for p in ocr_res if p.get("text"))
+                finally:
+                    tmp_path.unlink(missing_ok=True)
+            except Exception as ocr_err:
+                logger.warning(f"System OCR fallback on PDF failed: {ocr_err}")
+
+    elif ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"]:
+        # Run system OCR engine (same Azure Document Intelligence / system OCR used across ClaimGPT)
         try:
-            from PIL import Image
-            import pytesseract
-            img = Image.open(io.BytesIO(contents))
-            extracted_text = pytesseract.image_to_string(img)
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
+                tmp.write(contents)
+                tmp_path = Path(tmp.name)
+            try:
+                from services.ocr.app.engine import extract_text as ocr_extract_text
+                ocr_res = ocr_extract_text(tmp_path)
+                if ocr_res:
+                    extracted_text = "\n".join(p.get("text", "") for p in ocr_res if p.get("text"))
+            finally:
+                tmp_path.unlink(missing_ok=True)
         except Exception as exc:
-            logger.warning(f"Image OCR failed: {exc}")
+            logger.warning(f"System OCR engine on image failed: {exc}")
 
-    if not extracted_text.strip() and ext in [".txt", ".csv", ".json", ".md", ".html", ".log"]:
+        # Secondary fallback if local pytesseract is available
+        if not extracted_text.strip():
+            try:
+                from PIL import Image
+                import pytesseract
+                img = Image.open(io.BytesIO(contents))
+                extracted_text = pytesseract.image_to_string(img)
+            except Exception as exc:
+                logger.debug(f"Pytesseract fallback failed: {exc}")
+
+    elif ext in [".txt", ".csv", ".json", ".md", ".html", ".log"]:
         try:
             extracted_text = contents.decode("utf-8", errors="ignore")
+        except Exception:
+            pass
+
+    # Generic fallback if still no text extracted
+    if not extracted_text.strip() and ext not in [".txt", ".csv", ".json", ".md", ".html", ".log"]:
+        try:
+            import tempfile
+            with tempfile.NamedTemporaryFile(suffix=ext or ".png", delete=False) as tmp:
+                tmp.write(contents)
+                tmp_path = Path(tmp.name)
+            try:
+                from services.ocr.app.engine import extract_text as ocr_extract_text
+                ocr_res = ocr_extract_text(tmp_path)
+                if ocr_res:
+                    extracted_text = "\n".join(p.get("text", "") for p in ocr_res if p.get("text"))
+            finally:
+                tmp_path.unlink(missing_ok=True)
         except Exception:
             pass
 
@@ -1735,13 +1794,25 @@ def preview_claim_data(claim_id: str, db: Session = Depends(get_db)):
         logger.warning(f"Could not load field_feedback for claim {cid}: {exc}")
         data["field_feedback"] = {}
 
-    # Enrich with formatted summary for UI display
     fields = data.get("parsed_fields", {})
+    raw_pol_cand = fields.get("policy_number") or fields.get("policy_no") or fields.get("policy_id") or data.get("policy_id")
+    is_cand_uuid = False
+    if raw_pol_cand:
+        try:
+            uuid.UUID(str(raw_pol_cand).strip())
+            is_cand_uuid = True
+        except (ValueError, AttributeError):
+            is_cand_uuid = False
+    if not raw_pol_cand or is_cand_uuid or str(raw_pol_cand).strip().lower() in ("n/a", "none", "null") or str(raw_pol_cand).strip() == str(claim.patient_id or "").strip():
+        summary_policy_num = "N/A"
+    else:
+        summary_policy_num = str(raw_pol_cand).strip()
+
     data["summary"] = {
         "patient_name": fields.get("patient_name") or fields.get("member_name") or fields.get("insured_name", "N/A"),
         "insurance_company": getattr(claim, "insurance_company", None) or fields.get("insurance_company") or fields.get("insurer") or None,
         "payer": getattr(claim, "insurance_company", None) or fields.get("insurance_company") or fields.get("insurer") or None,
-        "policy_number": fields.get("policy_number") or fields.get("policy_id") or fields.get("policy_no") or data.get("policy_id", "N/A"),
+        "policy_number": summary_policy_num,
         "age": fields.get("age", "N/A"),
         "gender": fields.get("gender", "N/A"),
         "hospital": fields.get("hospital_name") or fields.get("hospital", "N/A"),
