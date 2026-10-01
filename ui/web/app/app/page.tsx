@@ -24,12 +24,15 @@ export default function AppPage() {
       session.role === 'patient' ||
       (!session.accountRole && session.role !== 'tpa');
 
+    const targetPath = getAuthRedirectPath(session);
+    if (targetPath && targetPath !== '/app') {
+      router.replace(targetPath);
+      return;
+    }
+
     if (!isSubmitter) {
-      const targetPath = getAuthRedirectPath(session);
-      if (targetPath && targetPath !== '/app') {
-        router.replace(targetPath);
-        return;
-      }
+      router.replace('/login');
+      return;
     }
 
     setIsAuthorized(true);
