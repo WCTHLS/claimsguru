@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   Lock,
   ShieldCheck,
-  Upload,
   User,
   UserCircle,
 } from 'lucide-react';
@@ -45,7 +44,6 @@ export function RegisterClinical() {
   const [submitting, setSubmitting] = useState(false);
   const [gender, setGender] = useState('Male');
   const [dobInput, setDobInput] = useState('');
-  const [fileName, setFileName] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Entra External ID profile completion parameters
@@ -419,45 +417,12 @@ export function RegisterClinical() {
                 </fieldset>
               </SpotlightCard>
 
-              {/* Health Document */}
-              <SpotlightCard className="bg-white p-5 shadow-elevation-sm sm:p-6">
-                <fieldset>
-                  <legend className="px-2 text-xs font-semibold uppercase tracking-wide text-teal-700">
-                    3. Health Card (Optional)
-                  </legend>
-                  <Label className="mt-3 block text-xs text-muted-foreground">Upload Health Card / Policy Copy</Label>
-                  <label
-                    htmlFor="c-doc"
-                    className="group mt-2 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-slate-50 px-6 py-8 text-center transition-all hover:border-teal-500/50 hover:bg-teal-50/5 tap-highlight-none"
-                  >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-teal-500/10 text-teal-600 transition-transform group-hover:scale-110">
-                      <Upload className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-foreground">
-                        {fileName ?? 'Click to upload or drag & drop'}
-                      </p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Upload your Health ID Card or Policy Copy to auto-verify your coverage details. PDF, JPG, PNG accepted.
-                      </p>
-                    </div>
-                    <input
-                      id="c-doc"
-                      type="file"
-                      accept=".pdf,.jpg,.jpeg,.png"
-                      className="hidden"
-                      onChange={(e) => setFileName(e.target.files?.[0]?.name ?? null)}
-                    />
-                  </label>
-                </fieldset>
-              </SpotlightCard>
-
               {/* Password Section (Only for Direct Local Registration) */}
               {!isEntraMode && (
                 <SpotlightCard className="bg-white p-5 shadow-elevation-sm sm:p-6">
                   <fieldset>
                     <legend className="px-2 text-xs font-semibold uppercase tracking-wide text-teal-700">
-                      4. Security Credentials
+                      3. Security Credentials
                     </legend>
                     <div className="mt-3 grid grid-cols-1 gap-5 sm:grid-cols-2">
                       <div className="space-y-2">

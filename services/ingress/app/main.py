@@ -1173,7 +1173,7 @@ def register_local_user(payload: RegisterUserIn):
         if not org_name_check:
             raise HTTPException(status_code=400, detail="Organization name is required for admin registration")
 
-    phone_val = (payload.phone or "").strip() or None
+    phone_val = (payload.phone or "").strip() or (email if "@" not in email and any(c.isdigit() for c in email) else None)
 
     with force_master_session(), SessionLocal() as db:
         try:
