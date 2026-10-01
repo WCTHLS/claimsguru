@@ -1009,7 +1009,7 @@ export function useAuditorState() {
         targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), 
         userName, 
         effectiveTargetClaimId ? effectiveTargetClaimId : undefined,
-        true,
+        false,
         effectivePatientId
       );
       if (res.claim_id) {
