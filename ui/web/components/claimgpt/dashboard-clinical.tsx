@@ -378,21 +378,24 @@ export function DashboardClinical() {
                         : (isSelected && s.analyzing && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
                       const liveProgress = (s as any).claimProgressMap?.[claim.id] || claim.progress;
                       const rawStatus = (claim.status || "").toUpperCase();
-                      const isCompletedStatus = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "FINISHED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "IDENTITY_MISMATCH";
-                      const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has(rawStatus) && !isCompletedStatus;
-                      const isClaimProcessing = !isCompletedStatus && (
-                        (isSelected && s.analyzing && s.progress < 100) ||
-                        (isClaimActiveStatus && (!liveProgress || liveProgress.percentage < 100)) ||
-                        Boolean(liveProgress && typeof liveProgress.percentage === "number" && liveProgress.percentage > 0 && liveProgress.percentage < 100 && !liveProgress.is_complete)
+                      const isCompletedStatus = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "FINISHED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "IDENTITY_MISMATCH" || rawStatus === "DOCUMENTS_UPLOADED" || rawStatus === "SUBMITTED";
+                      const isLiveActive = Boolean(
+                        liveProgress &&
+                        !liveProgress.is_complete &&
+                        typeof liveProgress.percentage === "number" &&
+                        liveProgress.percentage > 0 &&
+                        liveProgress.percentage < 100 &&
+                        (liveProgress.status === "RUNNING" || (!isCompletedStatus && PIPELINE_ACTIVE_STATUSES.has(rawStatus)))
                       );
+                      const isClaimProcessing = (isSelected && s.analyzing && s.progress < 100) || (!isCompletedStatus && isLiveActive);
 
                       const currentProgress = (isSelected && s.analyzing)
                         ? s.progress
-                        : (liveProgress?.percentage ?? (claim.status === "UPLOADED" ? 20 : 55));
+                        : (liveProgress?.percentage ?? 0);
 
                       const currentStep = (isSelected && s.analyzing)
                         ? (s.stepDescription || liveProgress?.step || `Processing - ${currentProgress}%`)
-                        : (liveProgress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : (currentProgress >= 75 ? `ICD-10 / CPT Coding - ${currentProgress}%` : (currentProgress >= 50 ? `Parsing (LLM agent reading document) - ${currentProgress}%` : `OCR (extracting text) - ${currentProgress}%`))));
+                        : (liveProgress?.step || (currentProgress > 0 ? `Processing - ${currentProgress}%` : ""));
 
                       const stageBadgeText = () => {
                         if (isSelected && s.analyzing) {
@@ -726,7 +729,9 @@ export function DashboardClinical() {
                           </div>
                           <div>
                             <p className="text-base font-bold text-foreground">AI Medical Engine Analyzing...</p>
-                            <p className="text-xs font-semibold text-accent mt-1">{s.stepDescription || "OCR (extracting text) · 20%"}</p>
+                            <p className="text-xs font-semibold text-accent mt-1">
+                              {s.stepDescription && !s.stepDescription.includes("100%") ? s.stepDescription : "OCR (extracting text) · 20%"}
+                            </p>
                           </div>
                         </div>
                       ) : s.isLiveSessionCompleted ? (
@@ -886,21 +891,24 @@ export function DashboardClinical() {
                         const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
                         const liveProgress = (s as any).claimProgressMap?.[claim.id] || claim.progress;
                         const rawStatus = (claim.status || "").toUpperCase();
-                        const isCompletedStatus = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "FINISHED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "IDENTITY_MISMATCH";
-                        const isClaimActiveStatus = PIPELINE_ACTIVE_STATUSES.has(rawStatus) && !isCompletedStatus;
-                        const isClaimProcessing = !isCompletedStatus && (
-                          (isSelected && s.analyzing && s.progress < 100) ||
-                          (isClaimActiveStatus && (!liveProgress || liveProgress.percentage < 100)) ||
-                          Boolean(liveProgress && typeof liveProgress.percentage === "number" && liveProgress.percentage > 0 && liveProgress.percentage < 100 && !liveProgress.is_complete)
+                        const isCompletedStatus = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "FINISHED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "IDENTITY_MISMATCH" || rawStatus === "DOCUMENTS_UPLOADED" || rawStatus === "SUBMITTED";
+                        const isLiveActive = Boolean(
+                          liveProgress &&
+                          !liveProgress.is_complete &&
+                          typeof liveProgress.percentage === "number" &&
+                          liveProgress.percentage > 0 &&
+                          liveProgress.percentage < 100 &&
+                          (liveProgress.status === "RUNNING" || (!isCompletedStatus && PIPELINE_ACTIVE_STATUSES.has(rawStatus)))
                         );
+                        const isClaimProcessing = (isSelected && s.analyzing && s.progress < 100) || (!isCompletedStatus && isLiveActive);
 
                         const currentProgress = (isSelected && s.analyzing)
                           ? s.progress
-                          : (liveProgress?.percentage ?? (claim.status === "UPLOADED" ? 20 : 55));
+                          : (liveProgress?.percentage ?? 0);
 
                         const currentStep = (isSelected && s.analyzing)
                           ? (s.stepDescription || liveProgress?.step || `Processing - ${currentProgress}%`)
-                          : (liveProgress?.step || (claim.status === "UPLOADED" ? "OCR (extracting text) - 20%" : (currentProgress >= 75 ? `ICD-10 / CPT Coding - ${currentProgress}%` : (currentProgress >= 50 ? `Parsing (LLM agent reading document) - ${currentProgress}%` : `OCR (extracting text) - ${currentProgress}%`))));
+                          : (liveProgress?.step || (currentProgress > 0 ? `Processing - ${currentProgress}%` : ""));
 
                         const stageBadgeText = () => {
                           if (isSelected && s.analyzing) {
@@ -1331,15 +1339,17 @@ export function DashboardClinical() {
                                   We detected incomplete information in your claim upload. Please upload the following items to resume analysis:
                                 </p>
                               )}
-                              {s.missingGroups.length > 0 && (
+                              {s.missingGroups.filter((grp: string) => grp && grp.trim() && grp.trim() !== (s.tpaMessage || "").trim()).length > 0 && (
                                 <div>
                                   <span className="text-[10px] uppercase font-bold text-amber-700 block mb-1">
                                     {s.tpaMessage ? "Requested Items / Missing Categories:" : "Missing Items:"}
                                   </span>
                                   <ul className="list-disc list-inside pl-1.5 text-xs font-medium space-y-0.5 text-amber-900">
-                                    {s.missingGroups.map((grp: string) => (
-                                      <li key={grp}>{grp}</li>
-                                    ))}
+                                    {s.missingGroups
+                                      .filter((grp: string) => grp && grp.trim() && grp.trim() !== (s.tpaMessage || "").trim())
+                                      .map((grp: string) => (
+                                        <li key={grp}>{grp}</li>
+                                      ))}
                                   </ul>
                                 </div>
                               )}

@@ -3142,29 +3142,14 @@ async def create_claim(
             
         existing_jobs = dup_query.all()
 
-        if existing_jobs:
-            if not force:
-                existing_job = existing_jobs[0]
-                upload_log.info(
-                    "UPLOAD_DUPLICATE | Found completed claim %s matching set_hash for user %s, returning duplicate status",
-                    existing_job.claim_id, resolved_patient_id
-                )
-                return {
-                    "claim_id": str(existing_job.claim_id),
-                    "id": str(existing_job.claim_id),
-                    "task_id": None,
-                    "status": "COMPLETED",
-                    "is_duplicate": True,
-                    "message": "Claim already processed.",
-                }
-            else:
-                upload_log.info(
-                    "UPLOAD_FORCE_REPROCESS | Force reprocess requested for duplicate claim matching set_hash for user %s. Deleting %d old claim(s).",
-                    resolved_patient_id, len(existing_jobs)
-                )
-                dup_claim_ids = [ej.claim_id for ej in existing_jobs if ej.claim_id]
-                for old_cid in dup_claim_ids:
-                    _delete_claim_internal(db, old_cid)
+        if existing_jobs and force:
+            upload_log.info(
+                "UPLOAD_FORCE_REPROCESS | Force reprocess requested for duplicate claim matching set_hash for user %s. Deleting %d old claim(s).",
+                resolved_patient_id, len(existing_jobs)
+            )
+            dup_claim_ids = [ej.claim_id for ej in existing_jobs if ej.claim_id]
+            for old_cid in dup_claim_ids:
+                _delete_claim_internal(db, old_cid)
 
         # Clean policy_id: never set policy_id to user_id/patient_id UUID
         clean_policy_id = None
@@ -3483,8 +3468,8 @@ def list_claims(
                     has_action_request = False
                     tpa_message = None
                     tpa_requested_docs = []
-                    if effective_status in ("DOCUMENTS_REQUESTED", "MODIFICATION_REQUESTED", "UPLOADED"):
-                        effective_status = "DOCUMENTS_UPLOADED" if (w_state and (w_state.current_step in ("FINISHED", "COMPLETED") or w_state.status in ("FINISHED", "COMPLETED"))) or c.status == "PARSED" else "UPLOADED"
+                    is_done = (w_state and (w_state.current_step in ("FINISHED", "COMPLETED") or w_state.status in ("FINISHED", "COMPLETED"))) or c.status in ("PARSED", "COMPLETED")
+                    effective_status = "DOCUMENTS_UPLOADED" if is_done else "UPLOADED"
                 elif audit.action in ("CLAIM_REJECT", "CLAIM_REJECTED"):
                     effective_status = "REJECTED"
                 elif audit.action == "CLAIM_APPROVED":
@@ -3496,7 +3481,7 @@ def list_claims(
 
             step_label = None
             pct_val = None
-            is_terminal_status = effective_status in ("COMPLETED", "VALIDATED", "APPROVED", "SETTLED", "REJECTED", "IDENTITY_MISMATCH", "FAILED", "WORKFLOW_FAILED")
+            is_terminal_status = effective_status in ("COMPLETED", "VALIDATED", "APPROVED", "SETTLED", "REJECTED", "IDENTITY_MISMATCH", "FAILED", "WORKFLOW_FAILED", "DOCUMENTS_UPLOADED", "SUBMITTED")
             if w_state and not is_terminal_status and w_state.current_step not in ("FINISHED", "COMPLETED") and w_state.status not in ("FINISHED", "COMPLETED"):
                 step_label, pct_val = _map_progress(w_state.current_step, w_state.status)
 
@@ -4249,6 +4234,8 @@ async def add_documents_to_claim(
     task_id: str | None = None
     if gate_result["accepted_count"] > 0:
         try:
+            upsert_workflow_state(db, claim.id, "STARTING", status="RUNNING")
+            db.commit()
             task_id = _enqueue_pipeline(str(claim.id))
         except Exception as exc:
             logger.exception("Failed to enqueue Celery pipeline for claim %s", claim.id)

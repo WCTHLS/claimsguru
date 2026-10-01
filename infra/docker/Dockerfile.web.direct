@@ -1,0 +1,18 @@
+FROM node:20-slim
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    HOSTNAME="0.0.0.0"
+
+COPY ui/web/.next/standalone/node_modules ./node_modules
+COPY ui/web/.next/standalone/server.js ./server.js
+COPY ui/web/.next/standalone/package.json ./package.json
+COPY ui/web/.next/standalone/.next ./.next
+COPY ui/web/.next/static ./.next/static
+COPY ui/web/public ./public
+COPY ui/web/.env* ./
+
+EXPOSE 3000
+
+CMD ["node", "server.js"]

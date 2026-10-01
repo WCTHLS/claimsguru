@@ -67,6 +67,7 @@ def test_add_documents_sets_status_to_uploaded(db_session):
          patch("services.ingress.app.main._extract_text_for_identity", return_value=""), \
          patch("services.ingress.app.main._enqueue_pipeline", return_value="mock-task-id") as mock_enqueue, \
          patch("services.ingress.app.main.RAW_STORAGE", new=MagicMock()), \
+         patch("libs.shared.storage.MinioStorage.upload_file", return_value="s3://bucket/new_doc.pdf"), \
          patch("aiofiles.open") as mock_aioopen:
          
         mock_aioopen.return_value = AsyncContextManagerMock()

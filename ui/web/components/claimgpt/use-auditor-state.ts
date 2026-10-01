@@ -234,10 +234,14 @@ export function useAuditorState() {
       const hasClinical = docs.some(d => clinical_types.includes((d.doc_type || "").toLowerCase()));
       const hasFinancial = docs.some(d => financial_types.includes((d.doc_type || "").toLowerCase()));
 
-      const missing = [];
+      const missing: string[] = [];
+      const msgClean = (preview.tpa_message || "").trim();
       if (preview.tpa_requested_docs && preview.tpa_requested_docs.length > 0) {
-        missing.push(...preview.tpa_requested_docs);
-      } else {
+        const distinct = preview.tpa_requested_docs.filter(
+          (d: string) => d && d.trim() && d.trim() !== msgClean
+        );
+        missing.push(...distinct);
+      } else if (!msgClean) {
         if (!hasClinical && !hasFinancial) missing.push("Hospital Documents (Discharge Summary / Hospital Bill)");
         if (!hasKyc) missing.push("Identity / KYC Proof (Aadhaar / PAN / Passport)");
       }
@@ -351,10 +355,10 @@ export function useAuditorState() {
           "WORKFLOW_FAILED",
         ]);
 
-        // Find all background active claims that need progress polling (the current active claim is dedicatedly polled by runProgressSequence)
+        // Find all background active claims that need progress polling (the current active claim is dedicatedly managed)
         const activeClaims = recentClaims.filter((c) => {
           if (!c.id || isMockId(c.id)) return false;
-          if (c.id === activeClaimIdRef.current && isAnalyzingRef.current) return false;
+          if (c.id === activeClaimIdRef.current) return false;
           const st = (c.status || "").toUpperCase();
           if (TERMINAL_STATUSES.has(st)) return false;
           const curMap = claimProgressMap[c.id];
@@ -529,7 +533,12 @@ export function useAuditorState() {
             statusInfo?.is_complete ||
             (statusInfo?.percentage ?? 0) >= 100 ||
             statusInfo?.status === "COMPLETED" ||
-            statusInfo?.status === "VALIDATED"
+            statusInfo?.status === "VALIDATED" ||
+            statusInfo?.status === "DOCUMENTS_UPLOADED" ||
+            statusInfo?.status === "SUBMITTED" ||
+            statusInfo?.status === "APPROVED" ||
+            statusInfo?.status === "SETTLED" ||
+            statusInfo?.status === "REJECTED"
           );
 
           if (!isComplete) {
@@ -554,7 +563,7 @@ export function useAuditorState() {
               setStepDescription(statusUpper === "DOCUMENTS_REQUESTED" ? "Documents Requested" : "Manual Review Required");
             } else {
               setAnalyzing(false);
-              setIsLiveSessionCompleted(true);
+              setIsLiveSessionCompleted(false);
               setIsDocumentsRequested(false);
               setProgress(100);
               setActiveStage('scoring');
@@ -637,105 +646,46 @@ export function useAuditorState() {
     const targetClaimMeta = recentClaims.find((c) => c.id === targetId);
     const rawStatus = (targetClaimMeta?.status || "").toUpperCase();
     const liveProgress = claimProgressMap[targetId] || targetClaimMeta?.progress;
-    const isLiveActive = Boolean(liveProgress && liveProgress.percentage > 0 && liveProgress.percentage < 100);
-    const isKnownActive = isLiveActive || (rawStatus !== "COMPLETED" && rawStatus !== "VALIDATED" && PIPELINE_ACTIVE_STATUSES.has(rawStatus));
+    const isLiveActive = Boolean(liveProgress && liveProgress.percentage > 0 && liveProgress.percentage < 100 && !liveProgress.is_complete);
+    const isTerminal = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "SUBMITTED" || rawStatus === "DOCUMENTS_REQUESTED" || rawStatus === "DOCUMENTS_UPLOADED" || rawStatus === "MODIFICATION_REQUESTED";
+    const isKnownActive = !isTerminal && (isLiveActive || PIPELINE_ACTIVE_STATUSES.has(rawStatus));
 
     activeClaimIdRef.current = targetId;
     setClaimId(targetId);
     setClaimCreatedAt(targetClaimMeta?.created_at || null);
-    setIsUploadOpen(false); // Auto-collapse upload dropdown when selecting old claims
+    setIsUploadOpen(false); // Auto-collapse upload dropdown when selecting claims
     setEdited({}); // Reset edit badges from previous claim
-
-    // ALWAYS reset previous claim's preview immediately so data never bleeds into this selection
-    setRealPreview(null);
+    setRealPreview(null); // Reset preview to prevent state bleeding
 
     if (isKnownActive) {
       setAnalyzing(true);
       isAnalyzingRef.current = true;
       setIsLiveSessionCompleted(false);
-      const existingPct = Math.max(liveProgress?.percentage ?? (rawStatus === "UPLOADED" ? 20 : 55), 20);
+      const existingPct = Math.max(liveProgress?.percentage ?? 20, 20);
       progressRef.current = existingPct;
       updateProgressAndStage(existingPct, liveProgress?.step);
-    } else {
-      setAnalyzing(false);
-      isAnalyzingRef.current = false;
-      setIsLiveSessionCompleted(true);
-      setIsDocumentsRequested(false);
-      progressRef.current = 100;
-      updateProgressAndStage(100, "Claim Analysis 100% Complete");
+      runProgressSequence(targetId);
+      return;
     }
 
+    setAnalyzing(false);
+    isAnalyzingRef.current = false;
+    setIsLiveSessionCompleted(false);
+    setIsDocumentsRequested(rawStatus === "DOCUMENTS_REQUESTED");
+    progressRef.current = 100;
+    updateProgressAndStage(100, rawStatus === "DOCUMENTS_REQUESTED" ? "Documents Requested" : rawStatus === "SUBMITTED" ? "Submitted" : "AI Verification Complete");
+
     try {
-      const statusInfo = await fetchClaimProgress(targetId);
+      const prevData = await fetchClaimPreview(targetId);
       if (activeClaimIdRef.current !== targetId) return;
-
-      if (statusInfo?.not_found || statusInfo?.status === "NOT_FOUND") {
-        setAnalyzing(false);
-        isAnalyzingRef.current = false;
-        setIsLiveSessionCompleted(false);
-        setProgress(0);
-        setActiveStage('staged');
-        setStepDescription("Claim not found");
-        setClaimId(null);
-        setRealPreview(null);
-        reloadRecentClaims();
-        return;
-      }
-
-      if (statusInfo?.status === "IDENTITY_MISMATCH" || statusInfo?.step?.includes("Identity Mismatch")) {
-        setAnalyzing(false);
-        isAnalyzingRef.current = false;
-        setIsLiveSessionCompleted(false);
-        setProgress(0);
-        setActiveStage('staged');
-        const errorDetail = (statusInfo as any).error || "Identity mismatch detected across documents. Uploaded set removed. Please re-upload the entire set.";
-        setStepDescription(errorDetail);
-        setIdentityMismatchMessage(errorDetail);
-        setShowIdentityMismatchModal(true);
-        reloadRecentClaims();
-        return;
-      }
-
-      const isComplete = !statusInfo?.not_found && statusInfo?.status !== "NOT_FOUND" && statusInfo?.status !== "IDENTITY_MISMATCH" && Boolean(
-        statusInfo?.is_complete ||
-        (statusInfo?.percentage ?? 0) >= 100 ||
-        statusInfo?.status === "COMPLETED" ||
-        statusInfo?.status === "VALIDATED"
-      );
-
-      if (!isComplete) {
-        setAnalyzing(true);
-        isAnalyzingRef.current = true;
-        setIsLiveSessionCompleted(false);
-        const livePct = Math.max(statusInfo?.percentage || 20, progressRef.current);
-        progressRef.current = livePct;
-        updateProgressAndStage(livePct, statusInfo?.step ? `${statusInfo.step} - ${livePct}%` : undefined);
-        runProgressSequence(targetId);
-      } else {
-        setAnalyzing(false);
-        isAnalyzingRef.current = false;
-        const prevData = await fetchClaimPreview(targetId);
-        if (activeClaimIdRef.current !== targetId) return;
-        if (prevData) {
-          setRealPreview(prevData);
-          setPreviewVersion((v) => v + 1);
-        }
-        setRecentClaims((prev) =>
-          prev.map((c) => (c.id === targetId ? { ...c, status: "COMPLETED" } : c))
-        );
-        const statusUpper = (prevData?.status || statusInfo?.status || "").toUpperCase();
-        if (statusUpper === "DOCUMENTS_REQUESTED" || statusUpper === "MANUAL_REVIEW_REQUIRED") {
-          setIsLiveSessionCompleted(false);
-          setIsDocumentsRequested(statusUpper === "DOCUMENTS_REQUESTED");
-          updateProgressAndStage(100, statusUpper === "DOCUMENTS_REQUESTED" ? "Documents Requested" : "Manual Review Required");
-        } else {
-          setIsLiveSessionCompleted(false);
-          setIsDocumentsRequested(false);
-          updateProgressAndStage(100, "Claim Analysis 100% Complete");
-        }
+      if (prevData) {
+        setRealPreview(prevData);
+        setPreviewVersion((v) => v + 1);
+        const statusUpper = (prevData.status || "").toUpperCase();
+        setIsDocumentsRequested(statusUpper === "DOCUMENTS_REQUESTED");
       }
     } catch (err) {
-      console.warn("Failed to select claim preview:", err);
+      console.warn("Failed to fetch preview for selected claim:", err);
     }
   };
 
@@ -818,14 +768,20 @@ export function useAuditorState() {
 
   /* Reset upload state for new claim */
   const resetState = () => {
+    if (activePollRef.current) {
+      clearInterval(activePollRef.current);
+      activePollRef.current = null;
+    }
     setPendingFiles([]);
     setFiles([]);
     setClaimId(null);
     setRealPreview(null);
+    progressRef.current = 0;
     setProgress(0);
     setActiveStage('staged');
     setStepDescription("Claim Attached");
     setAnalyzing(false);
+    isAnalyzingRef.current = false;
     setUploading(false);
     setIsLiveSessionCompleted(false);
     setIsDocumentsRequested(false);
@@ -843,7 +799,7 @@ export function useAuditorState() {
     await startClaimAnalysis(filesToUpload, appendToActive);
   };
 
-  /* Progress animation + background data sync that keeps polling until real data arrives */
+  /* Live real-time backend pipeline progress tracker */
   const runProgressSequence = (targetClaimId: string | null) => {
     let dataArrived = false;
 
@@ -863,6 +819,7 @@ export function useAuditorState() {
       setAnalyzing(false);
       isAnalyzingRef.current = false;
       setIsLiveSessionCompleted(true);
+      setIsUploadOpen(false); // Cleanly collapse the upload panel
       
       const idToQuery = targetClaimId || (await fetchLatestClaimId()) || null;
       if (idToQuery) {
@@ -876,9 +833,8 @@ export function useAuditorState() {
       reloadRecentClaims();
     };
 
-    // Clean polling every 800ms directly syncing with Docker backend
     const pollStartTime = Date.now();
-    let offlineSimStep = 0;
+
     const pollInterval = setInterval(async () => {
       if (dataArrived) {
         clearInterval(pollInterval);
@@ -905,16 +861,8 @@ export function useAuditorState() {
       }
 
       const idToQuery = targetClaimId;
-      if (!idToQuery || isMockId(idToQuery)) {
-        // Offline / mock fallback — smooth monotonic progression without flickering
-        offlineSimStep++;
-        if (offlineSimStep === 1) updateProgressAndStage(20, "OCR (extracting text) - 20%");
-        else if (offlineSimStep === 2) updateProgressAndStage(55, "Parsing (LLM agent reading document) - 55%");
-        else if (offlineSimStep === 3) updateProgressAndStage(75, "ICD-10 / CPT Coding - 75%");
-        else if (offlineSimStep === 4) updateProgressAndStage(90, "Compliance & Risk Scoring - 90%");
-        else if (offlineSimStep >= 5) {
-          await finishProgress();
-        }
+      if (isMockId(idToQuery)) {
+        await finishProgress();
         return;
       }
 
@@ -950,18 +898,23 @@ export function useAuditorState() {
           return;
         }
 
-        if (!statusInfo.not_found && statusInfo.status !== "NOT_FOUND" && statusInfo.status !== "IDENTITY_MISMATCH" && (statusInfo.is_complete || statusInfo.percentage >= 100 || statusInfo.status === "COMPLETED" || statusInfo.status === "VALIDATED")) {
-          try {
-            const finalData = await fetchClaimPreview(idToQuery);
-            if (finalData) {
-              setRealPreview(finalData);
-              setPreviewVersion((v) => v + 1);
-              setClaimId(idToQuery);
-            }
-          } catch {
-            /* ignore preview fetch error */
-          }
-          await finishProgress();
+        if (statusInfo.status === "FAILED") {
+          setAnalyzing(false);
+          isAnalyzingRef.current = false;
+          setIsLiveSessionCompleted(false);
+          setProgress(0);
+          setActiveStage('staged');
+          const errorDetail = (statusInfo as any).error || statusInfo.step || "Processing failed in the backend pipeline. Please check the logs or retry.";
+          setStepDescription(errorDetail);
+          dataArrived = true;
+          clearInterval(pollInterval);
+          if (activePollRef.current === pollInterval) activePollRef.current = null;
+          toast({
+            title: "Backend Processing Failed",
+            description: errorDetail,
+            variant: "destructive",
+          });
+          reloadRecentClaims();
           return;
         }
 
@@ -981,34 +934,31 @@ export function useAuditorState() {
           setIsLiveSessionCompleted(false);
           setProgress(100);
           setActiveStage('scoring');
-          setStepDescription("Manual Review Required");
+          setStepDescription(statusInfo.status === "DOCUMENTS_REQUESTED" ? "Documents Requested" : "Manual Review Required");
           dataArrived = true;
           clearInterval(pollInterval);
           return;
         }
 
-        if (statusInfo.percentage > 0 && statusInfo.percentage < 100) {
-          let stepLabel: string | undefined = undefined;
-          if (statusInfo.step) {
-            const stepUpper = statusInfo.step.toUpperCase();
-            if (stepUpper.includes("OCR")) {
-              stepLabel = `OCR (extracting text) - ${statusInfo.percentage}%`;
-            } else if (stepUpper.includes("PARS") || stepUpper.includes("LLM") || stepUpper.includes("LAYOUT") || stepUpper.includes("TABLE")) {
-              stepLabel = `Parsing (LLM agent reading document) - ${statusInfo.percentage}%`;
-            } else if (stepUpper.includes("COD") || stepUpper.includes("ICD") || stepUpper.includes("CPT")) {
-              stepLabel = `ICD-10 / CPT Coding - ${statusInfo.percentage}%`;
-            } else if (stepUpper.includes("SCOR") || stepUpper.includes("COMPLIANCE") || stepUpper.includes("RISK")) {
-              stepLabel = `Compliance & Risk Scoring - ${statusInfo.percentage}%`;
-            } else {
-              stepLabel = `${statusInfo.step} - ${statusInfo.percentage}%`;
-            }
-          }
-          if (!activeClaimIdRef.current || activeClaimIdRef.current === targetClaimId) {
-            updateProgressAndStage(statusInfo.percentage, stepLabel);
-          }
+        const isServerComplete = Boolean(
+          statusInfo.is_complete || 
+          statusInfo.percentage >= 100 || 
+          statusInfo.status === "COMPLETED" || 
+          statusInfo.status === "VALIDATED" ||
+          statusInfo.status === "FINISHED"
+        );
+
+        if (isServerComplete) {
+          await finishProgress();
+          return;
+        }
+
+        // Live real percentage and step directly from backend
+        if (statusInfo.percentage !== undefined && statusInfo.percentage > 0) {
+          updateProgressAndStage(statusInfo.percentage, statusInfo.step ? `${statusInfo.step} - ${statusInfo.percentage}%` : undefined);
         }
       }
-    }, 800);
+    }, 400);
     activePollRef.current = pollInterval;
   };
 
@@ -1025,12 +975,18 @@ export function useAuditorState() {
 
     const effectiveTargetClaimId = (appendToActive && (explicitClaimId || claimId)) ? (explicitClaimId || claimId) : null;
 
+    if (activePollRef.current) {
+      clearInterval(activePollRef.current);
+      activePollRef.current = null;
+    }
+
     if (!appendToActive) {
       setRealPreview(null);
       setClaimId(null);
-      setIsDocumentsRequested(false);
-      setMissingGroups([]);
+      activeClaimIdRef.current = null;
     }
+    setIsDocumentsRequested(false);
+    setMissingGroups([]);
 
     setAnalyzing(true);
     isAnalyzingRef.current = true;
@@ -1039,6 +995,7 @@ export function useAuditorState() {
     setIsLiveSessionCompleted(false);
     setIsUploadOpen(true); // Keep open during analysis to show progress
     setActiveStage('ocr');
+    progressRef.current = 20;
     setProgress(20);
     setStepDescription("OCR (extracting text) · 20%");
 
@@ -1052,7 +1009,7 @@ export function useAuditorState() {
         targetFiles.length > 0 ? targetFiles : files.map((f: any) => f.rawFile || new File([], f.name)), 
         userName, 
         effectiveTargetClaimId ? effectiveTargetClaimId : undefined,
-        false,
+        true,
         effectivePatientId
       );
       if (res.claim_id) {
@@ -1148,21 +1105,29 @@ export function useAuditorState() {
       
     if (filesToUpload.length === 0) return;
 
+    if (activePollRef.current) {
+      clearInterval(activePollRef.current);
+      activePollRef.current = null;
+    }
+
     const oldDupId = duplicateClaimId;
     setIsReprocessing(true);
     setDuplicateClaimId(null);
     setDuplicateFiles([]);
     setRealPreview(null);
     setClaimId(null);
+    activeClaimIdRef.current = null;
     setIsDocumentsRequested(false);
     setMissingGroups([]);
 
     setAnalyzing(true);
+    isAnalyzingRef.current = true;
     setUploading(true);
     setShowReportModal(false);
     setIsLiveSessionCompleted(false);
     setIsUploadOpen(true);
     setActiveStage('ocr');
+    progressRef.current = 20;
     setProgress(20);
     setStepDescription("OCR (extracting text) · 20%");
 
