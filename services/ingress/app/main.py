@@ -3127,7 +3127,6 @@ async def create_claim(
         hashes.sort()
         set_hash = hashlib.sha256(",".join(hashes).encode("utf-8")).hexdigest()
 
-        from sqlalchemy import func
         from libs.shared.models import ParseJob
         
         dup_query = (
@@ -3135,12 +3134,29 @@ async def create_claim(
             .join(Claim, ParseJob.claim_id == Claim.id)
             .filter(
                 ParseJob.set_hash == set_hash,
-                Claim.status == "COMPLETED",
-                Claim.patient_id.in_(list(user_identity_ids))
+                Claim.patient_id.in_(list(user_identity_ids)),
+                Claim.status.notin_(["DRAFT", "FAILED", "DELETED"])
             )
         )
             
         existing_jobs = dup_query.all()
+
+        if existing_jobs and not force:
+            existing_claim_id = str(existing_jobs[0].claim_id)
+            upload_log.info(
+                "UPLOAD_DUPLICATE_DETECTED | Duplicate claim detected with set_hash=%s for patient=%s matching existing_claim_id=%s",
+                set_hash, resolved_patient_id, existing_claim_id,
+            )
+            return {
+                "claim_id": existing_claim_id,
+                "id": existing_claim_id,
+                "document_id": None,
+                "task_id": None,
+                "status": "COMPLETED",
+                "is_duplicate": True,
+                "message": "Duplicate claim document detected. This exact document set has already been processed.",
+                "documents": [],
+            }
 
         if existing_jobs and force:
             upload_log.info(

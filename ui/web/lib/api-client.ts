@@ -188,7 +188,7 @@ export async function uploadClaimDocument(
   files: File | File[], 
   userName?: string, 
   claimId?: string,
-  force: boolean = true,
+  force: boolean = false,
   patientId?: string
 ): Promise<{ claim_id: string; document_id: string; status?: string; task_id?: string | null; is_duplicate?: boolean }> {
   const fileArray = Array.isArray(files) ? files : [files];
