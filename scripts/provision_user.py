@@ -36,6 +36,13 @@ import sys
 import uuid
 from typing import Any, Dict, Optional
 
+if sys.platform == "win32":
+    import io
+    if hasattr(sys.stdout, "buffer"):
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "buffer"):
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 # Attempt to load dotenv if available
 try:
     from dotenv import load_dotenv
@@ -195,7 +202,7 @@ class EntraNativeAuthClient:
         res = requests.post(start_url, data=start_payload, timeout=30)
         start_data = res.json() if res.content else {}
 
-        # If user already exists in Entra
+        # If user already exists in Entra or validation failed
         if not res.ok:
             error = start_data.get("error", "")
             suberror = start_data.get("suberror", "")
@@ -204,6 +211,12 @@ class EntraNativeAuthClient:
                 print(f"[*] User '{clean_email}' already exists in Microsoft Entra External ID.")
                 print(f"[*] Performing Native Sign-In to retrieve Subject ID and synchronize database...")
                 return self.login_user(clean_email, password)
+            if "password_banned" in suberror or "banned" in desc.lower():
+                raise RuntimeError(
+                    f"Password was rejected by Azure Entra ID (password is on the banned / common passwords list).\n"
+                    f"Please choose a stronger, unique password that does NOT contain common words like 'Password' "
+                    f"(for example: 'CareHealth#2026!' or 'Admin@CG2026!')."
+                )
             raise RuntimeError(f"Native signup start failed ({res.status_code}): {start_data}")
 
         continuation_token = start_data.get("continuation_token")
@@ -566,7 +579,6 @@ def main() -> int:
                 "EXPO_PUBLIC_ENTRA_CLIENT_ID",
                 "EXPO_PUBLIC_ENTRA_PATIENT_CLIENT_ID",
                 "NEXT_PUBLIC_ENTRA_PATIENT_CLIENT_ID",
-                "ENTRA_CLIENT_ID",
             ],
             default="3aab2b67-2c5a-4bea-be14-1a4290d2ae85",
         )
