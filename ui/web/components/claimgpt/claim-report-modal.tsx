@@ -1398,31 +1398,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     <Building2 className="h-4 w-4" />
                   </div>
                 </div>
-
-                {/* Quick Chips for Active Organizations in DB */}
-                {tpaList.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap mt-2">
-                    <span className="text-[10px] text-slate-400 font-medium">Available in DB:</span>
-                    {tpaList.map((org) => (
-                      <button
-                        key={org.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedOrgId(org.id);
-                          setSelectedInsurer(org.name);
-                        }}
-                        className={cn(
-                          "rounded-full px-2.5 py-0.5 text-[11px] font-semibold transition-all cursor-pointer border",
-                          (selectedOrgId === org.id || selectedInsurer.toLowerCase() === org.name.toLowerCase())
-                            ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
-                            : "bg-slate-800 text-slate-300 hover:bg-slate-700 border-white/10"
-                        )}
-                      >
-                        {org.name}
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {/* Policy ID Section: Case A (Pre-filled via OCR) vs Case B (Not Found) */}
