@@ -2009,7 +2009,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
 
                     # Find existing staff profile and organization
                     staff_row = db.execute(
-                        text("SELECT id, organization_id, first_name, last_name, role FROM staff_profiles WHERE user_id = :uid"),
+                        text("SELECT id, organization_id, first_name, last_name FROM staff_profiles WHERE user_id = :uid"),
                         {"uid": user_row["id"]}
                     ).mappings().first()
 
