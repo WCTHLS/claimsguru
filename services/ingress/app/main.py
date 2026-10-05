@@ -1591,11 +1591,12 @@ def login_local_user(payload: LoginUserIn):
             organization_slug = None
 
             if is_org_login:
-                # Organization accounts must hold either the admin or
-                # reviewer role — a submitter (patient) account trying the
-                # org login is denied without revealing that they're a patient.
+                # Organization accounts must hold either the admin or reviewer role
                 if actual_role not in ("admin", "reviewer"):
-                    raise HTTPException(status_code=403, detail="Access denied")
+                    raise HTTPException(
+                        status_code=403,
+                        detail="User is not registered as organization staff. Please continue as patient.",
+                    )
                 normalized_role = actual_role
 
                 org_row = db.execute(
@@ -1633,7 +1634,7 @@ def login_local_user(payload: LoginUserIn):
                 if not role_match and actual_role:
                     raise HTTPException(
                         status_code=403,
-                        detail="user not registered as a paient please continue on claimsguru org web portal",
+                        detail="User is not registered as a patient. Please continue as organization.",
                     )
 
             first_name = None
@@ -1974,183 +1975,56 @@ def sync_entra_user(payload: SyncEntraUserIn):
                     # ----------------------------------------------------
                     # Organization Flow (TPA / Admin / Reviewer)
                     # ----------------------------------------------------
-                    org_name = (payload.company_name or payload.organization or "").strip()
-                    if not org_name:
-                        domain_part = email.split("@")[-1].split(".")[0]
-                        if domain_part not in ("gmail", "yahoo", "outlook", "hotmail", "claimgpt", "test", "example"):
-                            org_name = domain_part.replace("-", " ").replace("_", " ").title()
-                        else:
-                            org_name = "Star Health"
-
-                    org_slug = _slugify_org(org_name)
-
-                    # 1. Ensure Organization exists via ORM (using cast for MSSQL text column safety)
-                    org = db.query(Organization).filter(
-                        (Organization.name == org_name) |
-                        (func.lower(cast(Organization.name, String(255))) == org_name.lower())
-                    ).first()
-                    if not org:
-                        org = Organization(
-                            id=uuid.uuid4(),
-                            name=org_name,
-                            type="TPA",
-                            status="ACTIVE",
+                    # Users must already exist in application DB with admin or reviewer role.
+                    # Self-registration is restricted to Patients only.
+                    if not user_row:
+                        raise HTTPException(
+                            status_code=403,
+                            detail="User is not registered as organization staff. Please continue as patient.",
                         )
-                        db.add(org)
-                        db.flush()
 
-                    # 2. Extract name parts
-                    name_parts = (payload.name or "").strip().split(" ")
-                    first_name = (payload.first_name or "").strip()
-                    last_name = (payload.last_name or "").strip()
-                    if not first_name and payload.name:
-                        first_name = name_parts[0]
-                        last_name = " ".join(name_parts[1:]) if len(name_parts) > 1 else ""
-                    if not first_name:
-                        first_name = email.split("@")[0].capitalize()
+                    actual_role_row = db.query(Role.name).join(
+                        UserRoleTable, UserRoleTable.role_id == Role.id
+                    ).filter(
+                        UserRoleTable.user_id == user_row["id"]
+                    ).order_by(Role.name).first()
+                    actual_role = actual_role_row[0] if actual_role_row else None
 
-                    # 3. Handle User via ORM
-                    user = db.query(User).filter(
-                        (User.email == email) |
-                        (func.lower(cast(User.email, String(255))) == email)
-                    ).first()
-                    is_new = False
-                    if not user:
-                        is_new = True
-                        user = User(
-                            id=uuid.uuid4(),
-                            email=email,
-                            phone=payload.phone,
-                            external_provider="entra",
-                            external_subject_id=subject_id,
-                            status="ACTIVE",
-                            email_verified=True,
+                    if actual_role not in ("admin", "reviewer"):
+                        raise HTTPException(
+                            status_code=403,
+                            detail="User is not registered as organization staff. Please continue as patient.",
                         )
-                        db.add(user)
-                        db.flush()
-                    else:
-                        if user.status in ("BLOCKED", "DELETED"):
-                            raise HTTPException(status_code=403, detail="Account is deactivated or blocked.")
+
+                    if user_row.get("status") in ("BLOCKED", "DELETED"):
+                        raise HTTPException(status_code=403, detail="Account is deactivated or blocked.")
+
+                    user = db.query(User).filter(User.id == user_row["id"]).first()
+                    if user:
                         user.external_provider = "entra"
                         if subject_id:
                             user.external_subject_id = subject_id
+                        user.last_login_at = func.now()
                         db.flush()
 
-                    # 4. Ensure 'admin' Role exists and is assigned
-                    admin_role = db.query(Role).filter(Role.name == "admin").first()
-                    if not admin_role:
-                        admin_role = Role(id=uuid.uuid4(), name="admin", description="Full system access")
-                        db.add(admin_role)
-                        db.flush()
+                    # Find existing staff profile and organization
+                    staff_row = db.execute(
+                        text("SELECT id, organization_id, first_name, last_name, role FROM staff_profiles WHERE user_id = :uid"),
+                        {"uid": user_row["id"]}
+                    ).mappings().first()
 
-                    _assign_user_role(db, user.id, admin_role.id)
+                    org_name = (payload.company_name or payload.organization or "").strip()
+                    if staff_row and staff_row.get("organization_id"):
+                        existing_org = db.query(Organization).filter(Organization.id == staff_row["organization_id"]).first()
+                        if existing_org:
+                            org_name = existing_org.name
 
-                    # 5. Handle StaffProfile dynamically matching whatever columns exist
-                    existing_cols = {
-                        r[0].lower()
-                        for r in db.execute(
-                            text("SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE LOWER(TABLE_NAME) = 'staff_profiles'")
-                        ).fetchall()
-                    }
+                    if not org_name:
+                        org_name = "Star Health"
 
-                    # Auto-add any missing essential columns
-                    for col, col_def in [
-                        ("first_name", "NVARCHAR(MAX)"),
-                        ("last_name", "NVARCHAR(MAX)"),
-                        ("role", "NVARCHAR(50)"),
-                        ("designation", "NVARCHAR(255)"),
-                        ("status", "NVARCHAR(50)"),
-                        ("organization_id", "UNIQUEIDENTIFIER"),
-                    ]:
-                        if existing_cols and col not in existing_cols:
-                            try:
-                                db.execute(text(f"ALTER TABLE staff_profiles ADD {col} {col_def} NULL"))
-                                db.commit()
-                                existing_cols.add(col)
-                            except Exception as e:
-                                db.rollback()
-                                logger.warning(f"Could not add column {col} to staff_profiles: {e}")
-
-                    staff_row = None
-                    try:
-                        staff_row = db.execute(
-                            text("SELECT id, organization_id, first_name, last_name FROM staff_profiles WHERE user_id = :uid"),
-                            {"uid": user.id}
-                        ).mappings().first()
-                    except Exception:
-                        try:
-                            staff_row = db.execute(
-                                text("SELECT id, organization_id FROM staff_profiles WHERE user_id = :uid"),
-                                {"uid": user.id}
-                            ).mappings().first()
-                        except Exception:
-                            staff_row = None
-
-                    if not staff_row:
-                        full_insert_data = {
-                            "id": uuid.uuid4(),
-                            "user_id": user.id,
-                            "organization_id": org.id,
-                            "first_name": first_name,
-                            "last_name": last_name or "",
-                            "role": "admin",
-                            "is_admin": 1,
-                            "is_active": 1,
-                            "designation": "Administrator",
-                            "department": "Operations",
-                            "employee_id": f"EMP-{str(uuid.uuid4())[:8].upper()}",
-                            "status": "ACTIVE",
-                        }
-                        if existing_cols:
-                            insert_data = {k: v for k, v in full_insert_data.items() if k in existing_cols}
-                        else:
-                            insert_data = {
-                                "id": full_insert_data["id"],
-                                "user_id": full_insert_data["user_id"],
-                                "organization_id": full_insert_data["organization_id"],
-                                "first_name": full_insert_data["first_name"],
-                                "last_name": full_insert_data["last_name"],
-                                "role": "admin",
-                                "is_admin": 1,
-                                "status": "ACTIVE",
-                            }
-
-                        col_names = ", ".join(insert_data.keys())
-                        placeholders = ", ".join(f":{k}" for k in insert_data.keys())
-                        db.execute(
-                            text(f"INSERT INTO staff_profiles ({col_names}) VALUES ({placeholders})"),
-                            insert_data
-                        )
-                        staff_fname = first_name
-                        staff_lname = last_name or ""
-                    else:
-                        staff_fname = (staff_row.get("first_name") if "first_name" in staff_row else None) or first_name or ""
-                        staff_lname = (staff_row.get("last_name") if "last_name" in staff_row else None) or last_name or ""
-                        if first_name and "first_name" in (existing_cols or ["first_name"]) and not staff_row.get("first_name"):
-                            try:
-                                db.execute(
-                                    text("UPDATE staff_profiles SET first_name = :fn WHERE user_id = :uid"),
-                                    {"fn": first_name, "uid": user.id}
-                                )
-                            except Exception:
-                                pass
-                            staff_fname = first_name
-                        if last_name and "last_name" in (existing_cols or ["last_name"]) and not staff_row.get("last_name"):
-                            try:
-                                db.execute(
-                                    text("UPDATE staff_profiles SET last_name = :ln WHERE user_id = :uid"),
-                                    {"ln": last_name, "uid": user.id}
-                                )
-                            except Exception:
-                                pass
-                            staff_lname = last_name
-
-                        org_id_val = staff_row.get("organization_id")
-                        if org_id_val:
-                            existing_org = db.query(Organization).filter(Organization.id == org_id_val).first()
-                            if existing_org:
-                                org_name = existing_org.name
-                                org_slug = _slugify_org(org_name)
+                    org_slug = _slugify_org(org_name)
+                    staff_fname = (staff_row.get("first_name") if staff_row else None) or (payload.first_name or "").strip() or email.split("@")[0].capitalize()
+                    staff_lname = (staff_row.get("last_name") if staff_row else None) or (payload.last_name or "").strip()
 
                     db.commit()
 
@@ -2158,18 +2032,18 @@ def sync_entra_user(payload: SyncEntraUserIn):
 
                     return {
                         "success": True,
-                        "user_id": str(user.id),
+                        "user_id": str(user_row["id"]),
                         "email": email,
                         "name": full_name,
                         "first_name": staff_fname,
                         "last_name": staff_lname,
                         "role": "tpa",
-                        "account_role": "admin",
+                        "account_role": actual_role if actual_role in ("admin", "reviewer") else "admin",
                         "organization": org_name,
                         "organization_slug": org_slug,
-                        "is_new_user": is_new,
+                        "is_new_user": False,
                         "needs_onboarding": False,
-                        "message": "Organization admin synchronized successfully",
+                        "message": "Organization staff authenticated successfully",
                     }
 
                 else:
@@ -2194,7 +2068,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
                         if actual_role in ("admin", "reviewer"):
                             raise HTTPException(
                                 status_code=403,
-                                detail="user not registered as a paient please continue on claimsguru org web portal",
+                                detail="User is not registered as a patient. Please continue as organization.",
                             )
 
                         # Check patient profile
