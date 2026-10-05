@@ -7,11 +7,13 @@ export function getAuthErrorField(message: string): AuthErrorField {
     lower.includes('role') ||
     lower.includes('not registered as') ||
     lower.includes('continue with correct identity') ||
+    lower.includes('continue as organization') ||
+    lower.includes('continue as patient') ||
     lower.includes('tpa adjuster')
   ) {
     return 'role';
   }
-  if (lower.includes('username') || lower.includes('email') || lower.includes('not found')) {
+  if (lower.includes('username') || lower.includes('email') || lower.includes('not found') || lower.includes('create a new account')) {
     return 'username';
   }
   if (lower.includes('password')) {
@@ -593,16 +595,15 @@ export async function authenticateWithPassword({
       if (backendResponse.status === 429) {
         formattedMessage = 'Too many login attempts. Please wait a few seconds and try again.';
         authErrorField = 'general';
-      } else if (role === 'tpa') {
-        formattedMessage = 'Access denied. Please check your credentials or contact your administrator.';
-        authErrorField = 'general';
       } else {
         const backendErrorRaw = backendData.detail || backendData.error;
         const backendErrorMessage = typeof backendErrorRaw === 'string'
           ? backendErrorRaw
           : typeof backendErrorRaw?.message === 'string'
             ? backendErrorRaw.message
-            : 'Invalid username or password.';
+            : role === 'tpa'
+              ? 'Access denied. Please check your credentials or contact your administrator.'
+              : 'Invalid username or password.';
         const backendActualRole = typeof backendData?.detail?.actual_role === 'string'
           ? backendData.detail.actual_role
           : typeof backendData?.actual_role === 'string'
