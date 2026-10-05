@@ -765,16 +765,28 @@ export function DashboardClinical() {
                             e.preventDefault();
                             s.handleSelectFile(e);
                           }}
-                          className="group flex min-h-[170px] cursor-pointer flex-col items-center justify-center gap-2.5 rounded-xl border-2 border-dashed border-teal-300/80 bg-teal-50/30 text-center transition-all hover:border-teal-500 hover:bg-teal-50/60 tap-highlight-none p-4"
+                          className={cn(
+                            "group flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-teal-300/80 bg-teal-50/30 text-center transition-all hover:border-teal-500 hover:bg-teal-50/60 tap-highlight-none",
+                            s.files.length > 0 
+                              ? "py-3 px-3 sm:py-4 sm:px-4 min-h-[90px] sm:min-h-[110px] gap-1.5" 
+                              : "py-4 sm:py-5 px-3 sm:px-4 min-h-[125px] sm:min-h-[150px] gap-2"
+                          )}
                         >
-                          <div className="flex h-13 w-13 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-md transition-transform group-hover:scale-110">
-                            <Upload className="h-6 w-6" />
+                          <div className={cn(
+                            "flex items-center justify-center rounded-xl bg-teal-600 text-white shadow-sm transition-transform group-hover:scale-105",
+                            s.files.length > 0 ? "h-7 w-7 sm:h-8 sm:w-8" : "h-8 w-8 sm:h-10 sm:w-10"
+                          )}>
+                            <Upload className={cn(s.files.length > 0 ? "h-3.5 w-3.5 sm:h-4 sm:w-4" : "h-4 w-4 sm:h-5 sm:w-5")} />
                           </div>
                           <div>
-                            <p className="text-sm font-bold text-foreground">Drag &amp; drop hospital bills or discharge summaries</p>
-                            <p className="text-xs text-muted-foreground mt-0.5">Supports PDF, JPG, PNG up to 25 MB — Instant AI verification</p>
+                            <p className="text-xs sm:text-sm font-bold text-foreground">
+                              {s.files.length > 0 ? "Drop more files to add to this claim" : "Drag & drop hospital bills or discharge summaries"}
+                            </p>
+                            <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5">
+                              Supports PDF, JPG, PNG up to 25 MB — Instant AI verification
+                            </p>
                           </div>
-                          <span className="inline-flex items-center gap-1 rounded-full bg-white border border-teal-200 px-3 py-1 text-[11px] font-bold text-teal-700 shadow-xs">
+                          <span className="inline-flex items-center gap-1 rounded-full bg-white border border-teal-200 px-2.5 py-0.5 text-[10px] sm:text-[11px] font-bold text-teal-700 shadow-xs">
                             <Plus className="h-3 w-3" /> Browse Files on Computer
                           </span>
                           <input

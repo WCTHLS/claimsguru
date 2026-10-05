@@ -2255,7 +2255,8 @@ def sync_entra_user(payload: SyncEntraUserIn):
                                 {"user_id": user_id},
                             ).mappings().first()
                         else:
-                            needs_onboarding = False
+                            has_complete_profile = bool(profile_row and profile_row.get("dob") and profile_row.get("gender") and profile_row.get("first_name"))
+                            needs_onboarding = not has_complete_profile
 
                         db.execute(
                             text("""
@@ -2353,6 +2354,10 @@ def sync_entra_user(payload: SyncEntraUserIn):
 
                         db.commit()
 
+                        # If DOB / Gender was provided in the payload, onboarding is complete; otherwise, user needs onboarding
+                        has_dob_or_gender = bool(payload.dob or payload.gender)
+                        new_needs_onboarding = not has_dob_or_gender
+
                         # Trigger asynchronous welcome notification
                         try:
                             from services.shared_tasks import dispatch_notification_async
@@ -2382,7 +2387,7 @@ def sync_entra_user(payload: SyncEntraUserIn):
                             "role": "patient",
                             "account_role": "submitter",
                             "is_new_user": True,
-                            "needs_onboarding": False,
+                            "needs_onboarding": new_needs_onboarding,
                             "message": "New patient registered in database successfully",
                         }
     except HTTPException:

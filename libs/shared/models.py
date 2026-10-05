@@ -120,7 +120,7 @@ class DocValidation(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
-    claim_id = Column(UUID(as_uuid=True), ForeignKey("claims.id", ondelete="CASCADE"), nullable=False)
+    claim_id = Column(UUID(as_uuid=True), ForeignKey("claims.id"), nullable=False)
     status = Column(Text, nullable=False)
     doc_type = Column(Text, nullable=True)
     doc_type_label = Column(Text, nullable=True)
