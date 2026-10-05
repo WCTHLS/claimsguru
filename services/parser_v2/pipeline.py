@@ -608,6 +608,9 @@ def parse_document(
         "claimed_total",
         "policy_number",
         "member_id",
+        "insurance_company",
+        "insurer",
+        "tpa_name",
     }
     existing_patient_fields = {
         str(f.get("canonical_field") or "")
@@ -638,6 +641,9 @@ def parse_document(
             "member_id": "member_id",
             "age": "age",
             "claimed_total": "claimed_total",
+            "insurance_company": "insurance_company",
+            "insurer": "insurance_company",
+            "tpa_name": "tpa_name",
         }
 
         for field_name in missing_patient_fields:

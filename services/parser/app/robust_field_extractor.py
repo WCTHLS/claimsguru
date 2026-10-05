@@ -190,6 +190,54 @@ class RobustFieldExtractor:
         "member_id": [
             r"(?im)\b(?:member\s*(?:id|no\.?|num|number)|membership\s*(?:no\.?|id)|tpa\s*(?:id|no\.?)|beneficiary\s*id)\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
         ],
+
+        "insurance_company": [
+            # Priority 0: Explicit insurer / company name headers
+            r"(?im)\b(HDFC\s+ERGO(?:\s+General\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)?)\b",
+            r"(?im)\b(Star\s+Health(?:\s+and\s+Allied\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?|\s+Insurance)?)\b",
+            r"(?im)\b(ICICI\s+Lombard(?:\s+General\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)?)\b",
+            r"(?im)\b(Care\s+Health\s+Insurance(?:\s+Limited|\s+Ltd\.?)?|Religare\s+Health\s+Insurance)\b",
+            r"(?im)\b(Niva\s+Bupa(?:\s+Health\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)?|Max\s+Bupa(?:\s+Health\s+Insurance)?)\b",
+            r"(?im)\b(Bajaj\s+Allianz(?:\s+General\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)?)\b",
+            r"(?im)\b(Tata\s+AIG(?:\s+General\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)?)\b",
+            r"(?im)\b(Aditya\s+Birla\s+Health\s+Insurance(?:\s+Co\.?\s*Limited|\s+Company\s+Limited)?)\b",
+            r"(?im)\b(ManipalCigna(?:\s+Health\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)?)\b",
+            r"(?im)\b(SBI\s+General\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)\b",
+            r"(?im)\b(The\s+New\s+India\s+Assurance(?:\s+Co\.?\s*Ltd\.?|\s+Company\s+Limited)?|New\s+India\s+Assurance)\b",
+            r"(?im)\b(National\s+Insurance\s+Company(?:\s+Limited|\s+Ltd\.?)?)\b",
+            r"(?im)\b(The\s+Oriental\s+Insurance\s+Company(?:\s+Limited|\s+Ltd\.?)?|Oriental\s+Insurance)\b",
+            r"(?im)\b(United\s+India\s+Insurance\s+Company(?:\s+Limited|\s+Ltd\.?)?|United\s+India\s+Insurance)\b",
+            r"(?im)\b(Go\s+Digit\s+General\s+Insurance(?:\s+Limited|\s+Ltd\.?)?|Digit\s+Insurance)\b",
+            r"(?im)\b(Acko\s+General\s+Insurance(?:\s+Limited|\s+Ltd\.?)?)\b",
+            # Priority 1: Explicit labels: "Insurance Company: HDFC ERGO", "Name of Insurer: ...", "Insurer: ..."
+            r"(?im)\b(?:insurance\s+company|name\s+of\s+(?:the\s+)?insurer|insurer\s+name|insurer|insurance\s+provider|name\s+of\s+insurance\s+company)\s*[:\-=\/|]?\s*([A-Za-z0-9][A-Za-z0-9\s&.,'’\-]{2,80}?)(?:\n|\||CIN|IRDAI|GSTIN|$)",
+            # Priority 2: Header lines ending with General Insurance / Health Insurance Company
+            r"(?im)^\s*([A-Za-z0-9\s&.,'’\-]{3,80}?\b(?:General\s+Insurance|Health\s+Insurance|Assurance\s+Company|Insurance\s+Company|Insurance\s+Co\.?\s*Ltd\.?))\b",
+        ],
+
+        "insurer": [
+            r"(?im)\b(HDFC\s+ERGO(?:\s+General\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)?)\b",
+            r"(?im)\b(Star\s+Health(?:\s+and\s+Allied\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?|\s+Insurance)?)\b",
+            r"(?im)\b(ICICI\s+Lombard(?:\s+General\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)?)\b",
+            r"(?im)\b(Care\s+Health\s+Insurance(?:\s+Limited|\s+Ltd\.?)?|Religare\s+Health\s+Insurance)\b",
+            r"(?im)\b(Niva\s+Bupa(?:\s+Health\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)?|Max\s+Bupa(?:\s+Health\s+Insurance)?)\b",
+            r"(?im)\b(Bajaj\s+Allianz(?:\s+General\s+Insurance(?:\s+Company(?:\s+Limited|\s+Ltd\.?)?)?)?)\b",
+            r"(?im)\b(?:insurance\s+company|name\s+of\s+(?:the\s+)?insurer|insurer\s+name|insurer|insurance\s+provider)\s*[:\-=\/|]?\s*([A-Za-z0-9][A-Za-z0-9\s&.,'’\-]{2,80}?)(?:\n|\||CIN|IRDAI|GSTIN|$)",
+        ],
+
+        "tpa_name": [
+            # Priority 0: Explicit TPA labels
+            r"(?im)\b(?:TPA\s*/\s*In-House\s+Claim\s+Service|TPA\s+Name|Name\s+of\s+TPA|TPA|In-House\s+Claims?|In-House\s+Claim\s+Service)\s*[:\-=\/|]?\s*([A-Za-z0-9][A-Za-z0-9\s&.,'’\-]{2,80}?)(?:\n|\||$)",
+            # Priority 1: Known TPAs
+            r"(?im)\b(Medi\s*Assist(?:\s+Insurance\s+TPA(?:\s+Pvt\.?\s*Ltd\.?)?)?)\b",
+            r"(?im)\b(Vidal\s+Health\s+TPA(?:\s+Pvt\.?\s*Ltd\.?)?)\b",
+            r"(?im)\b(Paramount\s+Health\s+Services(?:\s+&\s+Insurance\s+TPA)?)\b",
+            r"(?im)\b(MDIndia\s+Health\s+Insurance\s+TPA(?:\s+Pvt\.?\s*Ltd\.?)?|MDIndia\s+TPA)\b",
+            r"(?im)\b(Heritage\s+Health\s+Insurance\s+TPA(?:\s+Pvt\.?\s*Ltd\.?)?)\b",
+            r"(?im)\b(Raksha\s+Health\s+Insurance\s+TPA|Raksha\s+TPA)\b",
+            r"(?im)\b(Family\s+Health\s+Plan\s+Insurance\s+TPA|FHPL)\b",
+            r"(?im)\b(Health\s+India\s+Insurance\s+TPA)\b",
+        ],
     }
 
     HOSPITAL_REJECT_TERMS = {
@@ -570,6 +618,64 @@ class RobustFieldExtractor:
         return None
 
     @staticmethod
+    def _normalize_insurer(val: str) -> str:
+        """Normalize insurance company or TPA name to canonical brand."""
+        if not val:
+            return ""
+        s = str(val).strip()
+        low = s.lower()
+        if "hdfc" in low:
+            return "HDFC ERGO"
+        if "star health" in low or ("star" in low and "health" in low):
+            return "Star Health"
+        if "icici" in low or "lombard" in low:
+            return "ICICI Lombard"
+        if "care health" in low or "religare" in low:
+            return "Care Health"
+        if "niva" in low or "bupa" in low:
+            return "Niva Bupa"
+        if "bajaj" in low or "allianz" in low:
+            return "Bajaj Allianz"
+        if "tata" in low or "aig" in low:
+            return "Tata AIG"
+        if "aditya" in low or "birla" in low:
+            return "Aditya Birla"
+        if "manipal" in low or "cigna" in low:
+            return "ManipalCigna"
+        if "sbi" in low:
+            return "SBI General"
+        if "new india" in low:
+            return "New India Assurance"
+        if "national insurance" in low:
+            return "National Insurance"
+        if "oriental" in low:
+            return "Oriental Insurance"
+        if "united india" in low:
+            return "United India Insurance"
+        if "digit" in low:
+            return "Digit Insurance"
+        if "acko" in low:
+            return "Acko General Insurance"
+        if "medi assist" in low or "mediassist" in low:
+            return "Medi Assist"
+        if "vidal" in low:
+            return "Vidal Health"
+        if "paramount" in low:
+            return "Paramount Health"
+        if "mdindia" in low:
+            return "MDIndia"
+        if "raksha" in low:
+            return "Raksha TPA"
+        if "heritage" in low:
+            return "Heritage Health"
+        if "fhpl" in low or "family health" in low:
+            return "FHPL"
+        
+        # Clean generic corporate suffixes
+        s = re.sub(r"(?i)\s+(?:General\s+Insurance\s+Company\s+Limited|General\s+Insurance\s+Co\.?\s*Ltd\.?|General\s+Insurance|Health\s+Insurance\s+Company\s+Limited|Health\s+Insurance\s+Co\.?\s*Ltd\.?|Health\s+Insurance|Company\s+Limited|Co\.?\s*Ltd\.?|In-House\s+Claims?\s+Department|In-House\s+Claims?|Department)$", "", s).strip()
+        return s
+
+    @staticmethod
     def extract_field(field_name: str, full_text: str) -> Optional[str]:
         """Extract a single field from full text using all available patterns."""
         if field_name not in RobustFieldExtractor.PATTERNS:
@@ -729,6 +835,11 @@ class RobustFieldExtractor:
                     continue
                 valid_candidates.append((p_idx, start_pos, value))
 
+            elif field_name in {"insurance_company", "insurer", "tpa_name"}:
+                norm_ins = RobustFieldExtractor._normalize_insurer(value)
+                if norm_ins and len(norm_ins) >= 3:
+                    valid_candidates.append((p_idx, start_pos, norm_ins))
+
             else:
                 if len(value) >= 3:
                     valid_candidates.append((p_idx, start_pos, value))
@@ -747,9 +858,8 @@ class RobustFieldExtractor:
                 valid_candidates.sort(key=lambda x: x[1])
                 return valid_candidates[0][2]
 
-        if field_name == "patient_name":
+        if field_name in {"patient_name", "insurance_company", "insurer", "tpa_name"}:
             # Sort by pattern priority first (p_idx ascending), then by position in document (start_pos ascending)
-            # This ensures explicit "Patient Name: ..." (Priority 0) always wins over generic "Name: ..." (Priority 5)
             valid_candidates.sort(key=lambda x: (x[0], x[1]))
             return valid_candidates[0][2]
 

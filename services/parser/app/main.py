@@ -951,15 +951,44 @@ def _run_parse_job(job_id: uuid.UUID) -> None:
                 # Update Document records with doc_type, display_title, and page_count
                 try:
                     from .document_classifier import classify_document, generate_smart_display_title
-                    fields_map = {
-                        "hospital_name": canonical_claim.get("hospitalization", {}).get("hospital_name") or "",
-                        "patient_name": canonical_claim.get("patient", {}).get("name") or "",
-                        "claimed_total": str(canonical_claim.get("expenses", {}).get("claimed_total") or ""),
-                    }
+                    from .robust_field_extractor import RobustFieldExtractor
+
+                    global_hospital = canonical_claim.get("hospitalization", {}).get("hospital_name") or ""
+                    global_patient = canonical_claim.get("patient", {}).get("name") or ""
+                    global_total = str(canonical_claim.get("expenses", {}).get("claimed_total") or "")
+                    global_insurer = (
+                        canonical_claim.get("insurance", {}).get("company")
+                        or canonical_claim.get("insurance", {}).get("tpa_name")
+                        or ""
+                    )
+
                     claim_docs = db.query(Document).filter(Document.claim_id == job.claim_id).all()
                     for c_doc in claim_docs:
                         doc_pages = [p for p in combined_ocr_pages if str(p.get("document_id")) == str(c_doc.id)]
-                        d_type = classify_document(doc_pages) if doc_pages else "hospital_bill"
+                        doc_text = " ".join(str(p.get("text", "")) for p in doc_pages)
+                        
+                        d_type = classify_document(doc_pages) if doc_pages else "medical_document"
+                        
+                        doc_hospital = ""
+                        doc_insurer = ""
+                        doc_patient = ""
+                        doc_total = ""
+                        if doc_text:
+                            doc_insurer = RobustFieldExtractor.extract_field("insurance_company", doc_text) or ""
+                            if not doc_insurer:
+                                doc_insurer = RobustFieldExtractor.extract_field("tpa_name", doc_text) or ""
+                            doc_patient = RobustFieldExtractor.extract_field("patient_name", doc_text) or ""
+                            doc_hospital = RobustFieldExtractor.extract_field("hospital_name", doc_text) or ""
+                            doc_total = RobustFieldExtractor.extract_field("total_amount", doc_text) or ""
+
+                        fields_map = {
+                            "hospital_name": doc_hospital or (global_hospital if d_type == "hospital_bill" else ""),
+                            "patient_name": doc_patient or global_patient,
+                            "claimed_total": doc_total or (global_total if d_type == "hospital_bill" else ""),
+                            "insurance_company": doc_insurer or global_insurer,
+                            "insurer": doc_insurer or global_insurer,
+                            "tpa_name": doc_insurer or global_insurer,
+                        }
                         d_title = generate_smart_display_title(d_type, fields_map, c_doc.file_name)
                         c_doc.doc_type = d_type
                         c_doc.display_title = d_title

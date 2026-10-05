@@ -503,7 +503,7 @@
       </div>
       <div class="summary-item">
         <div class="k">Enrolled TPA / Insurer</div>
-        <div class="v" style="color: #fde68a;">{{ tpa_name or summary.tpa_name or summary.insurer or "Star Health" }}</div>
+        <div class="v" style="color: #fde68a;">{{ tpa_name or summary.tpa_name or summary.insurer or summary.insurance_company or "Not Specified (Standard IRDAI Audit)" }}</div>
       </div>
       <div class="summary-item">
         <div class="k">Policy / Member ID</div>
@@ -609,12 +609,12 @@
       <div class="field">
         <span class="k">Insurance Provider / TPA</span>
         <span class="v">
-          <strong style="color: #0369a1;">{{ tpa_name or fields.insurer or fields.insurance_company or "Star Health & Allied" }}</strong>
+          <strong style="color: #0369a1;">{{ tpa_name or fields.insurer or fields.insurance_company or summary.insurer or "Not Specified (Pending Policy Upload)" }}</strong>
         </span>
       </div>
       <div class="field">
         <span class="k">TPA Desk / Servicing Org</span>
-        <span class="v">{{ tpa_name or fields.tpa_name or fields.tpa or "Medi Assist TPA" }}</span>
+        <span class="v">{{ tpa_name or fields.tpa_name or fields.tpa or "Standard IRDAI Desk" }}</span>
       </div>
       <div class="field">
         <span class="k">Claim Type</span>

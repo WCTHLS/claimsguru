@@ -117,6 +117,17 @@ def _validate_policy_number(val: str) -> bool:
     return True
 
 
+def _validate_insurer(val: str) -> bool:
+    if not val:
+        return False
+    s = str(val).strip()
+    if len(s) < 3 or len(s) > 90:
+        return False
+    if _is_obvious_label(s):
+        return False
+    return True
+
+
 MULTI_VALUE_FIELDS: frozenset[str] = frozenset({
     "icd_code",
     "cpt_code",
@@ -152,6 +163,10 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
             fname = "policy_number"
         elif fname in {"insurance.member_id", "insurance_member_id", "patient.member_id", "member_no"}:
             fname = "member_id"
+        elif fname in {"insurance.payer", "insurance.insurance_company", "insurance_company", "insurer", "payer"}:
+            fname = "insurance_company"
+        elif fname in {"insurance.tpa_name", "insurance.tpa", "tpa_name", "tpa"}:
+            fname = "tpa_name"
         c.field_name = fname
         grouped.setdefault(fname, []).append(c)
 
@@ -211,6 +226,10 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
                 if not _validate_policy_number(cand.field_value or ""):
                     accept = False
                     reason = "failed_policy_number_validation"
+            elif field in {"insurance_company", "tpa_name", "insurer"}:
+                if not _validate_insurer(cand.field_value or ""):
+                    accept = False
+                    reason = "failed_insurer_validation"
             else:
                 if _is_obvious_label(cand.field_value or "", field_name=field):
                     accept = False

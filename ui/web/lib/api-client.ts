@@ -637,7 +637,20 @@ export async function fetchTpaListApi(): Promise<TpaProviderItem[]> {
 export async function extractPolicyFromDocApi(
   claimId: string,
   file: File
-): Promise<{ success: boolean; policy_id: string; insurer: string; file_name: string; raw_snippet?: string; message?: string }> {
+): Promise<{
+  success: boolean;
+  policy_id: string;
+  insurer: string;
+  sum_insured?: number | null;
+  room_rent_limit?: string | null;
+  copay_percent?: number | null;
+  ped_waiting_months?: number | null;
+  plan_name?: string | null;
+  org_id?: string;
+  file_name: string;
+  raw_snippet?: string;
+  message?: string;
+}> {
   try {
     const formData = new FormData();
     formData.append("file", file);
