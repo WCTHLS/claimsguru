@@ -76,12 +76,38 @@ try:
             if "predicted_value" not in cols:
                 conn.execute(text("ALTER TABLE claim_field_feedback ADD predicted_value NVARCHAR(MAX) NULL;"))
                 print("  -> Added missing column 'predicted_value' to 'claim_field_feedback'")
-            if "action" not in cols:
-                conn.execute(text("ALTER TABLE claim_field_feedback ADD action NVARCHAR(MAX) NULL;"))
-                print("  -> Added missing column 'action' to 'claim_field_feedback'")
-        conn.commit()
+        # 6. Seed standard insurers and TPAs if not present
+        if insp.has_table("organizations"):
+            import uuid
+            default_orgs = [
+                ("Star Health", "INSURER"),
+                ("HDFC ERGO", "INSURER"),
+                ("ICICI Lombard", "INSURER"),
+                ("Care Health", "INSURER"),
+                ("Bajaj Allianz", "INSURER"),
+                ("Niva Bupa", "INSURER"),
+                ("Tata AIG", "INSURER"),
+                ("SBI General", "INSURER"),
+                ("New India Assurance", "INSURER"),
+                ("MediBuddy", "TPA"),
+                ("Vidal Health TPA", "TPA"),
+                ("Paramount TPA", "TPA"),
+                ("Heritage Health TPA", "TPA"),
+            ]
+            for org_name, org_type in default_orgs:
+                existing = conn.execute(
+                    text("SELECT id FROM organizations WHERE LOWER(name) = LOWER(:name)"),
+                    {"name": org_name}
+                ).first()
+                if not existing:
+                    conn.execute(
+                        text("INSERT INTO organizations (id, name, type, status, created_at, updated_at) VALUES (:id, :name, :type, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)"),
+                        {"id": uuid.uuid4(), "name": org_name, "type": org_type}
+                    )
+                    print(f"  -> Seeded organization: {org_name} ({org_type})")
+            conn.commit()
 
-    print("[SUCCESS] All tables and columns are verified and up to date!")
+    print("[SUCCESS] All tables, columns, and organization seeds are verified and up to date!")
 
 except Exception as e:
     print(f"[ERROR] {e}")
