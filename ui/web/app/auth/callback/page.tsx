@@ -69,13 +69,33 @@ export default function AuthCallbackPage() {
             : 'Securely completing authentication…'}
         </p>
         {error && (
-          <button
-            type="button"
-            onClick={() => router.replace('/login')}
-            className="mt-4 inline-flex items-center justify-center rounded-xl bg-teal-600 px-5 py-2 text-xs font-semibold text-white hover:bg-teal-700 transition-colors"
-          >
-            Back to Sign In
-          </button>
+          <div className="mt-4 flex flex-col gap-2">
+            {error.toLowerCase().includes('continue as organization') && (
+              <button
+                type="button"
+                onClick={() => router.replace(`/login?role=tpa&error=${encodeURIComponent(error)}`)}
+                className="w-full inline-flex items-center justify-center rounded-xl bg-teal-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-teal-700 transition-colors shadow-xs"
+              >
+                Continue as Organization
+              </button>
+            )}
+            {error.toLowerCase().includes('continue as patient') && (
+              <button
+                type="button"
+                onClick={() => router.replace(`/login?role=patient&error=${encodeURIComponent(error)}`)}
+                className="w-full inline-flex items-center justify-center rounded-xl bg-teal-600 px-5 py-2.5 text-xs font-semibold text-white hover:bg-teal-700 transition-colors shadow-xs"
+              >
+                Continue as Patient
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => router.replace('/login')}
+              className="w-full inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              Back to Sign In
+            </button>
+          </div>
         )}
       </div>
     </main>

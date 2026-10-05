@@ -61,6 +61,16 @@ export function LoginClinical() {
       if (params.get('deleted') === 'true') {
         setSuccessMessage('Your account, personal data, and Microsoft Entra credentials have been permanently deleted.');
       }
+      const err = params.get('error');
+      if (err) {
+        const decoded = decodeURIComponent(err);
+        setErrorMessage(decoded);
+        setAuthErrorField(getAuthErrorField(decoded));
+      }
+      const requestedRole = params.get('role');
+      if (requestedRole === 'tpa' || requestedRole === 'patient') {
+        setRole(requestedRole);
+      }
     }
   }, []);
 
@@ -142,7 +152,7 @@ export function LoginClinical() {
                     onClick={() => setRole(role === 'patient' ? 'tpa' : 'patient')}
                     className={cn(
                       'group relative shrink-0 text-sm font-semibold text-accent hover:underline',
-                      authErrorField === 'role' ? 'text-red-400' : ''
+                      authErrorField === 'role' ? 'text-red-400 font-bold' : ''
                     )}
                   >
                     {role === 'patient' ? 'For Organizations' : 'For Patients'}
@@ -166,7 +176,12 @@ export function LoginClinical() {
                   type="button"
                   disabled={entraLoadingRole !== null}
                   onClick={() => handleEntraSignIn('patient')}
-                  className="group relative flex w-full items-center justify-between rounded-2xl border-2 border-border/80 bg-card/80 p-5 text-left shadow-xs backdrop-blur-sm transition-all hover:border-teal-500 hover:bg-teal-50/20 hover:shadow-md disabled:opacity-50"
+                  className={cn(
+                    "group relative flex w-full items-center justify-between rounded-2xl border-2 bg-card/80 p-5 text-left shadow-xs backdrop-blur-sm transition-all hover:border-teal-500 hover:bg-teal-50/20 hover:shadow-md disabled:opacity-50",
+                    errorMessage?.toLowerCase().includes('continue as patient')
+                      ? 'border-teal-600 ring-2 ring-teal-500/30 bg-teal-50/30'
+                      : 'border-border/80'
+                  )}
                 >
                   <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600 border border-teal-500/20 group-hover:bg-teal-500 group-hover:text-white transition-colors">
@@ -200,7 +215,12 @@ export function LoginClinical() {
                   type="button"
                   disabled={entraLoadingRole !== null}
                   onClick={() => handleEntraSignIn('tpa')}
-                  className="group relative flex w-full items-center justify-between rounded-2xl border-2 border-border/80 bg-card/80 p-5 text-left shadow-xs backdrop-blur-sm transition-all hover:border-teal-600 hover:bg-teal-50/20 hover:shadow-md disabled:opacity-50"
+                  className={cn(
+                    "group relative flex w-full items-center justify-between rounded-2xl border-2 bg-card/80 p-5 text-left shadow-xs backdrop-blur-sm transition-all hover:border-teal-600 hover:bg-teal-50/20 hover:shadow-md disabled:opacity-50",
+                    errorMessage?.toLowerCase().includes('continue as organization')
+                      ? 'border-teal-600 ring-2 ring-teal-500/30 bg-teal-50/30'
+                      : 'border-border/80'
+                  )}
                 >
                   <div className="flex items-start gap-4">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-600/10 text-teal-700 border border-teal-600/20 group-hover:bg-teal-600 group-hover:text-white transition-colors">
