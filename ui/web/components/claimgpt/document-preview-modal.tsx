@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, FileText, Download, ShieldCheck, FileCheck, Stethoscope, FileSearch, Layers, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Scan } from 'lucide-react';
+import { X, FileText, Download, FolderDown, ShieldCheck, FileCheck, Stethoscope, FileSearch, Layers, Loader2, ZoomIn, ZoomOut, ChevronLeft, ChevronRight, Scan } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { INGRESS_API, SUBMISSION_API, ClaimDocumentPreview } from '@/lib/api-client';
+import { INGRESS_API, SUBMISSION_API, ClaimDocumentPreview, getAuthHeaders, downloadAllClaimDocumentsZip } from '@/lib/api-client';
 
 interface DocumentPreviewModalProps {
   isOpen: boolean;
@@ -85,6 +85,8 @@ export function DocumentPreviewModal({
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState<boolean>(false);
+  const [isDownloadingAll, setIsDownloadingAll] = useState<boolean>(false);
   
   const [pageIndex, setPageIndex] = useState<number>(0);
   const [zoom, setZoom] = useState<number>(1);
@@ -112,6 +114,104 @@ export function DocumentPreviewModal({
 
   const activeTitle = activeDoc?.original_filename || activeDoc?.file_name || activeDoc?.display_title || fileObj?.name || 'claim_document.pdf';
   const lastFileNameRef = useRef<string>('');
+
+  const handleDownload = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isDownloading) return;
+
+    try {
+      setIsDownloading(true);
+
+      // 1. If local File object exists (staged upload), download directly from memory
+      const targetFile = fileObj instanceof File ? fileObj : (fileObj?.rawFile instanceof File ? fileObj.rawFile : null);
+      if (targetFile) {
+        const localBlobUrl = URL.createObjectURL(targetFile);
+        const a = document.createElement('a');
+        a.href = localBlobUrl;
+        a.download = targetFile.name || activeTitle;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(localBlobUrl), 1000);
+        return;
+      }
+
+      // 2. Demo or mock claims without actual backend storage
+      const isRealClaimId = claimId && claimId !== 'latest' && !claimId.startsWith('CLM-') && !claimId.startsWith('demo-') && claimId.length > 10;
+      const hasRealDoc = activeDocId && activeDocId !== 'doc_default';
+
+      if (!isRealClaimId || !hasRealDoc) {
+        const fallbackPdfBlob = createClaimPdfBlob(activeTitle);
+        const objUrl = URL.createObjectURL(fallbackPdfBlob);
+        const a = document.createElement('a');
+        a.href = objUrl;
+        a.download = activeTitle.endsWith('.pdf') ? activeTitle : `${activeTitle}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(objUrl), 1000);
+        return;
+      }
+
+      // 3. Backend download endpoint with view=false (forces Content-Disposition: attachment)
+      const downloadEndpoint = activeDocId && activeDocId !== 'doc_uploaded'
+        ? `${INGRESS_API}/claims/${validClaimId}/documents/${activeDocId}/file?view=false`
+        : `${INGRESS_API}/claims/${validClaimId}/file?view=false`;
+
+      const headers = getAuthHeaders();
+      const res = await fetch(downloadEndpoint, { headers });
+
+      if (!res.ok) {
+        throw new Error(`Failed to download: HTTP ${res.status}`);
+      }
+
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objUrl;
+      a.download = activeTitle || 'claim_document';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objUrl), 2000);
+    } catch (err) {
+      console.warn("Direct blob download failed, falling back to background iframe:", err);
+      const fallbackEndpoint = activeDocId && activeDocId !== 'doc_uploaded'
+        ? `${INGRESS_API}/claims/${validClaimId}/documents/${activeDocId}/file?view=false`
+        : `${INGRESS_API}/claims/${validClaimId}/file?view=false`;
+
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = fallbackEndpoint;
+      document.body.appendChild(iframe);
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 60000);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  const handleDownloadAll = async (e?: React.MouseEvent) => {
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+    if (isDownloadingAll) return;
+    try {
+      setIsDownloadingAll(true);
+      await downloadAllClaimDocumentsZip(validClaimId, patientName, displayDocs);
+    } catch (err) {
+      console.error("Failed to download all documents:", err);
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
 
   useEffect(() => {
     setSelectedDocId(initialDocId || getDocKey(normalizedDocs[0], 0));
@@ -331,9 +431,27 @@ export function DocumentPreviewModal({
           {/* Left Sidebar: Uploaded Docs (Visible only on desktop screens) */}
           <div className="hidden lg:flex w-72 flex-none border-r border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-950/40 flex-col gap-4 overflow-y-auto">
             <div>
-              <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase block mb-2">
-                Uploaded Documents ({displayDocs.length})
-              </span>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">
+                  Uploaded Documents ({displayDocs.length})
+                </span>
+                {displayDocs.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadAll}
+                    disabled={isDownloadingAll}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-400 dark:hover:text-teal-300 transition-colors cursor-pointer disabled:opacity-50"
+                    title={`Download all files inside ${patientName}_docs folder`}
+                  >
+                    {isDownloadingAll ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <FolderDown className="h-3 w-3" />
+                    )}
+                    <span>Download All</span>
+                  </button>
+                )}
+              </div>
               <div className="space-y-1.5">
                 {displayDocs.map((doc, index) => {
                   const docId = getDocKey(doc, index);
@@ -440,15 +558,39 @@ export function DocumentPreviewModal({
                   </div>
                 )}
 
-                <a
-                  href={fileUrl}
-                  download={activeTitle}
-                  className="inline-flex items-center gap-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition-colors cursor-pointer"
-                  title="Download Document"
+                <button
+                  type="button"
+                  onClick={handleDownload}
+                  disabled={isDownloading}
+                  className="inline-flex items-center gap-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 px-2.5 py-1.5 text-xs font-semibold text-slate-200 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Download Current Document"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Download</span>
-                </a>
+                  {isDownloading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-400" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" />
+                  )}
+                  <span className="hidden sm:inline">{isDownloading ? 'Downloading...' : 'Download'}</span>
+                </button>
+
+                {displayDocs.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={handleDownloadAll}
+                    disabled={isDownloadingAll}
+                    className="inline-flex items-center gap-1 rounded-lg bg-teal-600/20 hover:bg-teal-600/30 border border-teal-500/30 px-2.5 py-1.5 text-xs font-semibold text-teal-300 transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                    title={`Download all ${displayDocs.length} documents inside ${patientName}_docs.zip`}
+                  >
+                    {isDownloadingAll ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-300" />
+                    ) : (
+                      <FolderDown className="h-3.5 w-3.5 text-teal-300" />
+                    )}
+                    <span className="hidden sm:inline">
+                      {isDownloadingAll ? 'Zipping...' : 'Download All (ZIP)'}
+                    </span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -468,6 +610,15 @@ export function DocumentPreviewModal({
                     <p className="text-sm font-semibold text-slate-200">Unable to display preview</p>
                     <p className="text-xs text-slate-400">{error}</p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    disabled={isDownloading}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-teal-600 hover:bg-teal-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    {isDownloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                    <span>{isDownloading ? 'Downloading...' : 'Download Document'}</span>
+                  </button>
                 </div>
               ) : currentPageUrl && !imgError ? (
                 /* Custom Premium Image Viewer with Isolated Canvas Zoom */
