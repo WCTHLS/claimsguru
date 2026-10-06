@@ -158,6 +158,7 @@ Return STRICT JSON only adhering exactly to this schema:
   "admission_date": "Date of admission in DD/MM/YYYY or DD-MM-YYYY format",
   "discharge_date": "Date of discharge in DD/MM/YYYY or DD-MM-YYYY format",
   "diagnosis": "Primary clinical diagnosis / condition (e.g. 'LOWER OESOPHAGEAL HIATUS HERNIA', 'BILATERAL PNEUMONITIS / TYPE 2 DM / HTN')",
+  "clinical_diagnosis_summary": "Comprehensive clinical narrative containing the patient's presenting complaint, history of present illness, relevant past medical history and comorbidities, confirmed/provisional diagnoses, significant investigation findings, procedures/interventions, treatment provided, and condition at discharge. Preserve the exact clinical diagnoses, anatomical site, laterality, acuity, severity, complications, and other details relevant for ICD coding.",
   "policy_number": "Insurance policy number if explicitly present (do NOT use UHID, MRNO, or IPNO)",
   "claimed_total": "Final billed total amount as number or string if an invoice/bill is present (null if this is only a discharge summary with no bills)"
 }
@@ -622,7 +623,7 @@ class OpenRouterBackend(SemanticBackend):
                     {"role": "system", "content": "You are a professional medical insurance billing and clinical extraction AI. Extract structured JSON adhering strictly to the schema with zero markdown noise."},
                     {"role": "user", "content": prompt}
                 ],
-                "max_tokens": 1000,
+                "max_tokens": 2500,
                 "temperature": 0.0,
                 "response_format": {"type": "json_object"}
             }
@@ -761,7 +762,7 @@ class AzureOpenAISemanticBackend(SemanticBackend):
                 {"role": "system", "content": "You are a professional medical insurance billing and clinical extraction AI. Extract structured JSON adhering strictly to the schema with zero markdown noise."},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 1000,
+            "max_tokens": 2500,
             "temperature": 0.0,
             "response_format": {"type": "json_object"}
         }

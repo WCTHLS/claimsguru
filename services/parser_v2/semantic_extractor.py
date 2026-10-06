@@ -729,7 +729,16 @@ def _build_compact_page_digest(tokens: list[Any], page_num: int = 1) -> str:
         "admission", "discharge", "doa", "dod", "date",
         "diagnosis", "complaint", "clinical", "impression", "history", "under treatment",
         "grand total", "total billed", "net payable", "amount payable", "claimed", "rupees", "balance",
-        "certificate", "emergency", "essentiality", "invoice", "bill no", "cash bill"
+        "certificate", "emergency", "essentiality", "invoice", "bill no", "cash bill",
+        "procedure", "intervention", "investigation", "course in hospital", "hospital course",
+        "condition at discharge", "chief complaint", "comorbidit", "illness", "past history",
+    )
+
+    CLINICAL_SECTION_HEADERS = (
+        "diagnosis", "clinical summary", "course in hospital", "hospital course",
+        "impression", "complaint", "treatment", "history of present illness",
+        "past medical history", "past history", "procedure", "intervention", "investigation",
+        "condition at discharge", "discharge advice", "chief complaint",
     )
 
     # Noise patterns indicating raw biochemistry lab values or prescription drug schedules to omit
@@ -756,9 +765,9 @@ def _build_compact_page_digest(tokens: list[Any], page_num: int = 1) -> str:
             continue
         if any(kw in ls_lower for kw in KEYWORD_ANCHORS):
             selected_indices.add(i)
-            # If line introduces a diagnosis, chief complaint, or summary, keep immediate 1-2 lines
-            if any(h in ls_lower for h in ("diagnosis", "clinical summary", "course in hospital", "impression", "complaint", "treatment")):
-                for j in range(1, 3):
+            # If line introduces a diagnosis, chief complaint, clinical summary, or course, keep immediate lines
+            if any(h in ls_lower for h in CLINICAL_SECTION_HEADERS):
+                for j in range(1, 8):
                     if i + j < total_lines:
                         next_lower = line_strings[i + j].lower()
                         if not any(nk in next_lower for nk in NOISE_KEYWORDS):
@@ -834,6 +843,7 @@ def extract_semantics(
                             "admission_date": "admission_date",
                             "discharge_date": "discharge_date",
                             "diagnosis": "diagnosis",
+                            "clinical_diagnosis_summary": "clinical_diagnosis_summary",
                             "policy_number": "insurance_policy_number",
                             "claimed_total": "claimed_total",
                         }
@@ -852,7 +862,8 @@ def extract_semantics(
                                     extractor_name=getattr(backend, "name", "llm"),
                                     metadata={"source": "document_level_entity_extractor"}
                                 ))
-                                logger.info(f"[SEMANTIC_ENTITY] Extracted {canon}='{clean_v}' via {getattr(backend, 'name', 'llm')}")
+                                log_snippet = clean_v if len(clean_v) <= 120 else f"{clean_v[:120]}..."
+                                logger.info(f"[SEMANTIC_ENTITY] Extracted {canon}='{log_snippet}' via {getattr(backend, 'name', 'llm')}")
         except Exception as e:
             logger.warning(f"Failed document entity extraction: {e}")
 
