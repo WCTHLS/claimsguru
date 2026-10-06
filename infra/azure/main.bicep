@@ -273,14 +273,6 @@ resource emailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' 
   }
 }
 
-resource linkedDomain 'Microsoft.Communication/communicationServices/domains@2023-04-01' = {
-  parent: communicationService
-  name: emailDomain.name
-  properties: {
-    domainResourceId: emailDomain.id
-  }
-}
-
 var acrName = split(acrLoginServer, '.')[0]
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
   name: acrName

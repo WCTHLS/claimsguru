@@ -80,13 +80,8 @@ Write-Host "`n[Step 5/7] Building & Pushing Multi-Stage Images for [$Environment
 $coreImage = "$acrLoginServer/claimsguru-core:$ImageTag"
 $frontendImage = "$acrLoginServer/claimsguru-frontend:$ImageTag"
 
-$tokenJson = az acr login --name $AcrName --expose-token --output json 2>&1 | Out-String | ConvertFrom-Json
-if ($tokenJson -and $tokenJson.accessToken) {
-    $tokenJson.accessToken | docker login $acrLoginServer -u 00000000-0000-0000-0000-000000000000 --password-stdin
-    Write-Host " [OK] Docker authenticated with ACR." -ForegroundColor Green
-} else {
-    az acr login --name $AcrName
-}
+az acr login --name $AcrName
+Write-Host " [OK] Docker authenticated with ACR." -ForegroundColor Green
 
 Write-Host " [*] Building ClaimsGuru Core API & Workers Image: $coreImage"
 docker build -t $coreImage -f infra/docker/Dockerfile.core .
