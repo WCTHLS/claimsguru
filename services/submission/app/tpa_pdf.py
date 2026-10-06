@@ -313,8 +313,8 @@ _DOC_TYPE_PATTERNS = [
     ("Doctor Certificate", _re.compile(
         r"doctor.?s?\s+certificate|medical\s+certificate|fitness\s+certificate|treating\s+doctor",
         _re.IGNORECASE)),
-    ("Policy Document", _re.compile(
-        r"policy\s+(?:document|number|details|schedule)|sum\s+insured|premium|coverage",
+    ("Policy Document / Health Card", _re.compile(
+        r"policy\s+(?:document|number|details|schedule)|sum\s+insured|premium|coverage|health\s*card|e[\-\s]?card|tpa\s*card|member\s*id\s*card|insurance\s*card",
         _re.IGNORECASE)),
     ("KYC / ID", _re.compile(
         r"aadhaar|pan\s+card|passport|voter\s+id|identity\s+proof|kyc",
@@ -444,6 +444,7 @@ def _generate_reimbursement_brain(claim_data: dict[str, Any]) -> dict[str, Any]:
         "Discharge Summary": "Mandatory for all inpatient claims",
         "Hospital Bill": "Required for expense verification",
         "Insurance Claim Form": "Required — duly filled and signed",
+        "Policy Document / Health Card": "Required for policy coverage, room rent limit, and co-pay validation",
         "Prescription": "Needed for pharmacy charge verification",
         "Lab Report": "Supports medical necessity of investigations",
         "Radiology Report": "Supports imaging charges and diagnosis",

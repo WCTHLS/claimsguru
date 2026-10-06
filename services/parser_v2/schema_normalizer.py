@@ -306,7 +306,10 @@ def _is_invalid_expense_row(description: str, amount: str = "") -> bool:
         "vitals", "pulse rate", "blood pressure", "respiratory rate", "temperature", "spo2",
         "condition", "conditions", "condition(s)", "medication review", "disorder", "situation",
         "diagnoses", "primary clinical diagnosis", "secondary diagnosis", "diagnosis count",
-        "documented conditions", "active prescriptions"
+        "documented conditions", "active prescriptions",
+        # Corporate contact & footer metadata
+        "regd. office", "registered office", "corporate identity", "corporate office",
+        "cin", "emergency call", "toll free", "helpline", "fax", "tel:", "tel "
     }
     
     # Check if any blacklist term matches
@@ -1151,7 +1154,7 @@ def _normalize_page_summary_bill_expenses(tokens: List[Dict[str, Any]]) -> List[
         "co-pay", "patient share:", "received with thanks", "receipt bill",
         "total :", "lscs delivery", "operation theatre", "spinal anaesthesia",
         "neonatal observation",
-        "ipd bill", "bill", "invoice", "discharge summary", "total charges", "grand total",
+        "ipd bill", "bill", "invoice", "total charges", "grand total",
         "bill no", "maternity home", "room charges", "charges description"
     ]
     if not any(marker in document_text for marker in summary_markers):
@@ -1248,6 +1251,19 @@ def _normalize_page_summary_bill_expenses(tokens: List[Dict[str, Any]]) -> List[
         "uhid",
         "patient name",
         "hospital name",
+        "regd. office",
+        "corporate identity",
+        "registered office",
+        "corporate office",
+        "cin",
+        "emergency call",
+        "toll free",
+        "helpline",
+        "fax:",
+        "tel:",
+        "tel ",
+        "website",
+        "email",
         "admission date",
         "discharge date",
         "diagnosis",

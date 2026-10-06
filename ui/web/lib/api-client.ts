@@ -637,7 +637,20 @@ export async function fetchTpaListApi(): Promise<TpaProviderItem[]> {
 export async function extractPolicyFromDocApi(
   claimId: string,
   file: File
-): Promise<{ success: boolean; policy_id: string; insurer: string; file_name: string; raw_snippet?: string; message?: string }> {
+): Promise<{
+  success: boolean;
+  policy_id: string;
+  insurer: string;
+  sum_insured?: number | null;
+  room_rent_limit?: string | null;
+  copay_percent?: number | null;
+  ped_waiting_months?: number | null;
+  plan_name?: string | null;
+  org_id?: string;
+  file_name: string;
+  raw_snippet?: string;
+  message?: string;
+}> {
   try {
     const formData = new FormData();
     formData.append("file", file);
@@ -675,6 +688,33 @@ export async function submitClaimToPayerApi(
     }
     const errData = await res.json().catch(() => null);
     return { success: false, error: errData?.detail || "Submission failed" };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Network error" };
+  }
+}
+
+/**
+ * Reprocess / retry a stuck or failed claim from scratch
+ */
+export async function reprocessClaimApi(
+  claimId: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const authSession = getStoredAuthSession();
+    const headers: Record<string, string> = {};
+    if (authSession?.token) {
+      headers["Authorization"] = `Bearer ${authSession.token}`;
+    }
+    const res = await fetch(`${INGRESS_API}/claims/${claimId}/reprocess`, {
+      method: "POST",
+      headers,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { success: true, data };
+    }
+    const errData = await res.json().catch(() => null);
+    return { success: false, error: errData?.detail || "Reprocessing failed" };
   } catch (err: any) {
     return { success: false, error: err?.message || "Network error" };
   }

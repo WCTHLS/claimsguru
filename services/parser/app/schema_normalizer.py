@@ -146,8 +146,12 @@ def build_canonical_schema(
     expenses = [item for item in expenses if not (isinstance(item, dict) and _is_summary_expense_row(item))]
 
 
-    def get_field(flat_key, dot_key):
-        return form_data.get(flat_key) or form_data.get(dot_key)
+    def get_field(*keys):
+        for k in keys:
+            val = form_data.get(k)
+            if val:
+                return val
+        return None
 
     # Calculate totals
     expense_total = 0.0
@@ -229,9 +233,11 @@ def build_canonical_schema(
 
         },
         "insurance": {
-            "payer": get_field("payer", "insurance.payer"),
+            "payer": get_field("payer", "insurance.payer", "insurance_company", "insurer"),
+            "insurance_company": get_field("insurance_company", "insurance.insurance_company", "insurer", "payer"),
             "policy_number": get_field("policy_number", "insurance.policy_number"),
             "member_id": get_field("member_id", "insurance.member_id"),
+            "tpa_name": get_field("tpa_name", "insurance.tpa_name", "tpa"),
         },
         "hospitalization": {
             "hospital_name": get_field("hospital_name", "hospitalization.hospital_name"),

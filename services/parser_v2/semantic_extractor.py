@@ -76,9 +76,13 @@ _NON_EXPENSE_ROW_KEYWORDS = {
     "age/gender",
     "admission date",
     "discharge date",
-    "consultant",
+    "consultant name",
+    "consultant doctor name",
+    "consultant in-charge",
     "uhid",
-    "hospital",
+    "hospital name",
+    "hospital address",
+    "hospital registration",
     "diagnosis",
     "code",
     "claim(s)",
@@ -658,6 +662,112 @@ def _is_vitals_table(table: TableRegion) -> bool:
     return matches >= 2
 
 
+def _is_payment_receipt_table(table: TableRegion) -> bool:
+    """Detect if a table is purely a payment receipt / advance voucher / cash collection acknowledgement rather than billed hospital services."""
+    rows = list(getattr(table, "rows", []) or [])
+    if not rows:
+        return False
+    table_text = " ".join(str(cell.text or "") for row in rows for cell in row.cells).lower()
+
+    receipt_markers = [
+        "receipt no", "receipt number", "receipt date", "payment receipt", "advance receipt",
+        "collection receipt", "money receipt", "received with thanks", "mode of payment",
+        "payment mode", "txn id", "transaction id", "payment towards", "amount received",
+        "towards ip advance", "advance payment", "paid by:", "drawn on:", "cheque no",
+        "neft ref", "upi ref", "cash received", "total received"
+    ]
+    matches = sum(1 for marker in receipt_markers if marker in table_text)
+    if matches >= 2:
+        # If there are explicit hospital service breakdown lines (surgery, bed rent, nursing, ot charges), it's a bill
+        clinical_bill_indicators = ["ot charges", "bed charges", "nursing charges", "surgeon fee", "icu charges", "pharmacy charges", "anaesthesia fee"]
+        has_clinical_bill = any(ind in table_text for ind in clinical_bill_indicators)
+        if not has_clinical_bill:
+            return True
+    return False
+
+
+def _build_compact_page_digest(tokens: list[Any], page_num: int = 1) -> str:
+    """
+    Extract ONLY raw lines that contain patient demographics, hospital/doctor info,
+    clinical diagnosis/summary, or billing grand totals.
+    Strictly filters out lab biochemistry numbers, prescription drug dosages, and itemized billing rows.
+    """
+    if not tokens:
+        return ""
+    sorted_toks = sorted(tokens, key=lambda t: (getattr(t, "y0", 0.0), getattr(t, "x0", 0.0)))
+    lines: list[list[Any]] = []
+    current_line: list[Any] = []
+    current_y = None
+    for t in sorted_toks:
+        text = str(getattr(t, "text", "")).strip()
+        if not text:
+            continue
+        y0 = getattr(t, "y0", 0.0)
+        if current_y is None:
+            current_y = y0
+            current_line.append(t)
+        elif abs(y0 - current_y) <= 0.02 or abs(y0 - current_y) <= 12.0:
+            current_line.append(t)
+        else:
+            if current_line:
+                lines.append(current_line)
+            current_line = [t]
+            current_y = y0
+    if current_line:
+        lines.append(current_line)
+    if not lines:
+        return ""
+
+    line_strings = [" ".join(str(getattr(t, "text", "")).strip() for t in line).strip() for line in lines]
+    line_strings = [ls for ls in line_strings if ls]
+    total_lines = len(line_strings)
+
+    # Keywords indicating critical demographic, clinical, or billing metadata
+    KEYWORD_ANCHORS = (
+        "patient", "name", "age", "gender", "sex", "mrno", "ipno", "uhid", "opno", "reg",
+        "hospital", "dr.", "doctor", "consultant", "physician", "surgeon",
+        "admission", "discharge", "doa", "dod", "date",
+        "diagnosis", "complaint", "clinical", "impression", "history", "under treatment",
+        "grand total", "total billed", "net payable", "amount payable", "claimed", "rupees", "balance",
+        "certificate", "emergency", "essentiality", "invoice", "bill no", "cash bill"
+    )
+
+    # Noise patterns indicating raw biochemistry lab values or prescription drug schedules to omit
+    NOISE_KEYWORDS = (
+        "mg/dl", "iu/l", "cells/cum", "cumm", "g/dl", "sgot", "sgpt", "wbc", "rbc",
+        "cholesterol", "lymphocyte", "eosinophil", "neutrophil", "bilirubin", "creatinine",
+        "haematology", "urine analysis", "diabetic profile", "lipid profile",
+        "1-0-1", "0-0-1", "1-1-1", "0-1-0", "1-0-0", "0-0-2", "5yp.", "syp."
+    )
+
+    selected_indices: set[int] = set()
+
+    # On Page 1 or 2, take top 8 header lines unconditionally (Hospital letterhead & patient summary)
+    if page_num <= 2:
+        for i in range(min(8, total_lines)):
+            ls_lower = line_strings[i].lower()
+            if not any(nk in ls_lower for nk in NOISE_KEYWORDS):
+                selected_indices.add(i)
+
+    # On all pages, take lines matching target keywords (unless they are lab/dosage noise)
+    for i in range(total_lines):
+        ls_lower = line_strings[i].lower()
+        if any(nk in ls_lower for nk in NOISE_KEYWORDS):
+            continue
+        if any(kw in ls_lower for kw in KEYWORD_ANCHORS):
+            selected_indices.add(i)
+            # If line introduces a diagnosis, chief complaint, or summary, keep immediate 1-2 lines
+            if any(h in ls_lower for h in ("diagnosis", "clinical summary", "course in hospital", "impression", "complaint", "treatment")):
+                for j in range(1, 3):
+                    if i + j < total_lines:
+                        next_lower = line_strings[i + j].lower()
+                        if not any(nk in next_lower for nk in NOISE_KEYWORDS):
+                            selected_indices.add(i + j)
+
+    compact_lines = [line_strings[i] for i in sorted(selected_indices)]
+    return "\n".join(compact_lines)
+
+
 def extract_semantics(
     doc: DocumentStructure,
     page_images: dict[int, Image.Image] | None = None,
@@ -692,6 +802,59 @@ def extract_semantics(
     region_by_id = {region.region_id: region for region in doc.regions}
     lock = threading.Lock()
     failure_state = {"consecutive_failures": 0, "short_circuit": False}
+
+    # 1. Document-level Clinical & Patient Entity Extraction
+    if backend is not None:
+        try:
+            page_tokens_map: dict[int, list[Any]] = defaultdict(list)
+            for reg in doc.regions:
+                for tok in (reg.tokens or []):
+                    p = getattr(tok, "page", 1) or 1
+                    page_tokens_map[p].append(tok)
+
+            if page_tokens_map:
+                doc_text_parts = []
+                max_pages = min(5, len(page_tokens_map))
+                for p in sorted(page_tokens_map.keys())[:max_pages]:
+                    pts = page_tokens_map[p]
+                    p_text = _build_compact_page_digest(pts, page_num=p)
+                    if p_text:
+                        doc_text_parts.append(f"--- Page {p} ---\n{p_text}")
+
+                combined_clinical_text = "\n\n".join(doc_text_parts)
+                if combined_clinical_text:
+                    entities = backend.extract_document_entities(combined_clinical_text)
+                    if entities and isinstance(entities, dict):
+                        field_map = {
+                            "patient_name": "patient_name",
+                            "patient_age": "patient_age",
+                            "patient_gender": "patient_gender",
+                            "hospital_name": "hospital_name",
+                            "doctor_name": "doctor_name",
+                            "admission_date": "admission_date",
+                            "discharge_date": "discharge_date",
+                            "diagnosis": "diagnosis",
+                            "policy_number": "insurance_policy_number",
+                            "claimed_total": "claimed_total",
+                        }
+                        for k, v in entities.items():
+                            canon = field_map.get(k)
+                            if canon and v and str(v).strip() and str(v).strip().lower() not in {"none", "null", "n/a"}:
+                                clean_v = str(v).strip()
+                                semantic_fields.append(SemanticFieldOutput(
+                                    canonical_field=canon,
+                                    value=clean_v,
+                                    confidence=0.96,
+                                    source_region_id="doc_header",
+                                    source_region_type="clinical_summary",
+                                    source_tokens=[],
+                                    model_name=getattr(backend, "name", "llm"),
+                                    extractor_name=getattr(backend, "name", "llm"),
+                                    metadata={"source": "document_level_entity_extractor"}
+                                ))
+                                logger.info(f"[SEMANTIC_ENTITY] Extracted {canon}='{clean_v}' via {getattr(backend, 'name', 'llm')}")
+        except Exception as e:
+            logger.warning(f"Failed document entity extraction: {e}")
 
     def _analyze_region(region: Region, table: TableRegion | None = None) -> None:
         if backend is None:
@@ -951,12 +1114,16 @@ def extract_semantics(
         # Only send actual billing/expense tables to the LLM backend (minimum 2 rows)
         if table and len(getattr(table, "rows", [])) >= 2:
             is_lab_or_vitals = _is_lab_results_table(table) or _is_vitals_table(table)
+            is_receipt = _is_payment_receipt_table(table)
+            is_patient_form = _is_patient_form_table(table)
             is_relevant_billing = (
                 table.table_kind in SEMANTIC_EXPENSE_TABLE_KINDS
                 or is_expense_like
-            ) and not is_lab_or_vitals and not _is_patient_form_table(table)
+            ) and not is_lab_or_vitals and not is_receipt and not is_patient_form
             if is_relevant_billing:
                 tables_to_analyze.append((region, table))
+            elif is_receipt:
+                logger.info("[TABLE_FILTER] Skipping payment receipt table (region_id=%s) from LLM expense analysis", table.region_id)
 
     # Run region analyses in parallel using ThreadPoolExecutor
     # Strictly limit tasks to actual tables to minimize LLM calls and API cost

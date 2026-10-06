@@ -481,17 +481,17 @@ def create_or_update_db_user(
 
         # 4. Role assignment (user_roles)
         user_role_row = conn.execute(
-            text("SELECT id FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"),
+            text("SELECT user_id FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"),
             {"user_id": user_id, "role_id": role_id},
         ).mappings().first()
 
         if not user_role_row:
             conn.execute(
                 text("""
-                    INSERT INTO user_roles (id, user_id, role_id, created_at)
-                    VALUES (:id, :user_id, :role_id, CURRENT_TIMESTAMP)
+                    INSERT INTO user_roles (user_id, role_id)
+                    VALUES (:user_id, :role_id)
                 """),
-                {"id": uuid.uuid4(), "user_id": user_id, "role_id": role_id},
+                {"user_id": user_id, "role_id": role_id},
             )
             print(f"    ✓ Assigned role '{clean_role}' to user '{clean_email}'")
         else:

@@ -11,6 +11,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from .adapters import get_adapter
@@ -1248,51 +1249,82 @@ def list_tpas(db: Session = Depends(get_db)):
     return {"tpas": tpa_list}
 
 
-def _extract_policy_and_insurer(text: str, filename: str = "") -> tuple[str | None, str | None]:
-    """Fast regex-based extractor for health insurance policy number and insurer."""
+def _extract_rich_policy_data(text: str, filename: str = "") -> dict[str, Any]:
+    """Fast regex and weighted semantic pattern extractor for health insurance policy details."""
     if not text:
-        return None, None
+        return {
+            "policy_id": None,
+            "insurer": None,
+            "sum_insured": None,
+            "room_rent_limit": None,
+            "copay_percent": None,
+            "ped_waiting_months": None,
+            "plan_name": None,
+        }
 
     INSURERS = [
-        ("Star Health", ["star health", "star health and allied", "star health & allied"]),
-        ("Care Health", ["care health", "religare", "care insurance"]),
-        ("HDFC ERGO", ["hdfc ergo", "hdfc general"]),
-        ("ICICI Lombard", ["icici lombard", "icici general"]),
-        ("Bajaj Allianz", ["bajaj allianz"]),
-        ("New India Assurance", ["new india assurance", "new india"]),
-        ("Niva Bupa", ["niva bupa", "max bupa"]),
-        ("Tata AIG", ["tata aig"]),
-        ("SBI General", ["sbi general", "state bank of india"]),
-        ("Oriental Insurance", ["oriental insurance"]),
-        ("ManipalCigna", ["manipalcigna", "manipal cigna"]),
-        ("United India Insurance", ["united india insurance", "united india"]),
-        ("National Insurance", ["national insurance"]),
-        ("IFFCO Tokio", ["iffco tokio"]),
-        ("Reliance General", ["reliance general"]),
-        ("Cholamandalam MS", ["cholamandalam", "chola ms"]),
-        ("Aditya Birla Health", ["aditya birla"]),
-        ("Medi Assist", ["medi assist", "mediassist"]),
-        ("Paramount Health", ["paramount health", "paramount tpa"]),
-        ("Vidal Health", ["vidal health", "vidal tpa"]),
-        ("Heritage Health", ["heritage health"]),
-        ("MD India", ["md india", "mdindia"]),
-        ("Go Digit General", ["go digit", "digit general", "digit insurance"]),
-        ("Kotak Mahindra General", ["kotak mahindra", "kotak general"]),
+        ("HDFC ERGO", ["hdfc ergo general insurance", "hdfc ergo", "hdfc general insurance", "hdfc general", "hdfcergo"]),
+        ("Star Health", ["star health and allied insurance", "star health & allied insurance", "star health and allied", "star health & allied", "star health insurance", "star health"]),
+        ("Care Health", ["care health insurance", "care health", "religare health insurance", "religare health", "care insurance", "religare"]),
+        ("ICICI Lombard", ["icici lombard general insurance", "icici lombard", "icici general insurance", "icici general"]),
+        ("Bajaj Allianz", ["bajaj allianz general insurance", "bajaj allianz"]),
+        ("New India Assurance", ["the new india assurance", "new india assurance", "new india"]),
+        ("Niva Bupa", ["niva bupa health insurance", "niva bupa", "max bupa health insurance", "max bupa"]),
+        ("Tata AIG", ["tata aig general insurance", "tata aig"]),
+        ("SBI General", ["sbi general insurance", "sbi general"]),
+        ("Oriental Insurance", ["the oriental insurance", "oriental insurance"]),
+        ("ManipalCigna", ["manipalcigna health insurance", "manipalcigna", "manipal cigna"]),
+        ("United India Insurance", ["united india insurance company", "united india insurance", "united india"]),
+        ("National Insurance", ["national insurance company", "national insurance"]),
+        ("IFFCO Tokio", ["iffco tokio general insurance", "iffco tokio"]),
+        ("Reliance General", ["reliance general insurance", "reliance general"]),
+        ("Cholamandalam MS", ["cholamandalam ms general", "cholamandalam ms", "cholamandalam", "chola ms"]),
+        ("Aditya Birla Health", ["aditya birla health insurance", "aditya birla health", "aditya birla"]),
+        ("Medi Assist", ["medi assist healthcare", "medi assist", "mediassist"]),
+        ("Paramount Health", ["paramount health services", "paramount health", "paramount tpa"]),
+        ("Vidal Health", ["vidal health insurance", "vidal health", "vidal tpa"]),
+        ("Heritage Health", ["heritage health tpa", "heritage health"]),
+        ("MD India", ["md india healthcare", "md india", "mdindia"]),
+        ("Go Digit General", ["go digit general insurance", "go digit", "digit general insurance", "digit insurance", "digit general"]),
+        ("Kotak Mahindra General", ["kotak mahindra general insurance", "kotak general", "kotak mahindra"]),
     ]
 
-    detected_insurer = None
-    combined_search = (filename + " " + text).lower()
-    for canonical_name, aliases in INSURERS:
-        if any(alias in combined_search for alias in aliases):
-            detected_insurer = canonical_name
-            break
+    # Weighted scoring algorithm for insurer detection
+    # Document header (first 600 chars) and filename have dominant weights over footnotes
+    text_lower = text.lower()
+    fn_lower = filename.lower()
+    header_chunk = text_lower[:600]
 
+    insurer_scores: dict[str, int] = {}
+    for canonical_name, aliases in INSURERS:
+        score = 0
+        for alias in aliases:
+            # 1. Header occurrences (dominant priority)
+            if alias in header_chunk:
+                score += 150
+            # 2. Filename match
+            if alias in fn_lower:
+                score += 80
+            # 3. Overall document occurrences
+            occ = text_lower.count(alias)
+            if occ > 0:
+                score += (occ * 15)
+
+        # Exact canonical name presence in header
+        if canonical_name.lower() in header_chunk:
+            score += 100
+
+        if score > 0:
+            insurer_scores[canonical_name] = score
+
+    detected_insurer = None
+    if insurer_scores:
+        detected_insurer = max(insurer_scores.items(), key=lambda x: x[1])[0]
+
+    # Policy ID patterns
     patterns = [
-        # Explicit labels: Policy No / Policy Number / Health Card No / Member ID / UHID
         r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id)|policy\s*/\s*certificate\s*(?:number|no\.?|id)|certificate\s*(?:number|no\.?|id)|policy\s*/\s*health\s*card\s*(?:number|no\.?|id)|health\s*card\s*(?:number|no\.?|id)|card\s*(?:number|no\.?)|member\s*id|membership\s*(?:number|no\.?|id)|uhid|insurance\s*(?:id|number|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_\s]{2,35})",
-        # Multi-line label
         r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id))\s*[:\-=\/|#]?\s*\n\s*([A-Za-z0-9][A-Za-z0-9\/\-_\s]{2,35})",
-        # Standard alphanumeric patterns
         r"\b([A-Z]{2,5}[0-9]{7,14})\b",
         r"\b([A-Z]{2,5}\s+[0-9]{7,14})\b",
         r"\b([A-Z]{1,4}/[0-9]{4,8}/[0-9]{1,4}/[0-9]{2,4}/[0-9]{4,8})\b",
@@ -1320,7 +1352,78 @@ def _extract_policy_and_insurer(text: str, filename: str = "") -> tuple[str | No
         if detected_policy:
             break
 
-    return detected_policy, detected_insurer
+    # Sum Insured Extraction
+    sum_insured = None
+    si_m = re.search(r"(?im)(?:sum\s*insured|total\s*coverage|sum\s*assured|basic\s*si)\s*[:\-]?\s*(?:rs\.?|inr|₹)?\s*([0-9,]+(?:\.[0-9]{2})?)", text)
+    if si_m:
+        try:
+            cleaned_num = float(si_m.group(1).replace(",", ""))
+            if 50000 <= cleaned_num <= 100000000:
+                sum_insured = cleaned_num
+        except Exception:
+            pass
+
+    # Room Rent Limit Extraction
+    room_rent_limit = None
+    if re.search(r"(?im)(?:no\s*room\s*rent\s*(?:limit|capping)|no\s*capping|any\s*room|single\s*private\s*ac\s*room)", text):
+        room_rent_limit = "No Capping (Any Room Category)"
+    else:
+        rr_m = re.search(r"(?im)(?:room\s*rent\s*(?:limit|capping|eligibility)?|daily\s*room\s*limit)\s*[:\-]?\s*([^\n\r,\.]+)", text)
+        if rr_m:
+            candidate_rr = rr_m.group(1).strip()
+            if candidate_rr.lower() not in reject_terms and len(candidate_rr) >= 2:
+                room_rent_limit = candidate_rr
+        if not room_rent_limit:
+            room_rent_limit = "No Capping / As per Terms"
+
+    # Co-Pay Extraction
+    copay_percent = None
+    copay_m = re.search(r"(?im)(?:co[\-\s]?pay(?:ment)?)\s*[:\-]?\s*([0-9]{1,2})\s*%", text)
+    if copay_m:
+        try:
+            copay_percent = int(copay_m.group(1))
+        except Exception:
+            copay_percent = None
+
+    # PED Waiting Period Extraction
+    ped_waiting_months = None
+    ped_m = re.search(r"(?im)(?:pre[\-\s]?existing|ped)\s*(?:waiting|exclusion)?\s*(?:period)?\s*[:\-]?\s*([0-9]{1,2})\s*(months|years|yrs)", text)
+    if ped_m:
+        try:
+            num = int(ped_m.group(1))
+            unit = ped_m.group(2).lower()
+            ped_waiting_months = (num * 12) if "year" in unit or "yr" in unit else num
+        except Exception:
+            ped_waiting_months = None
+
+    # Plan / Product Name
+    plan_name = None
+    plan_m = re.search(r"(?im)(?:plan\s*name|scheme\s*name|product\s*name|policy\s*name|product|plan|scheme)\s*[:\-]?\s*([A-Za-z0-9\s:\(\)\/\-]{3,60})(?:\n|$)", text)
+    if plan_m:
+        cand_plan = plan_m.group(1).strip()
+        if cand_plan.lower() not in reject_terms and len(cand_plan) >= 3:
+            plan_name = cand_plan
+    if not plan_name:
+        for known_p in ["My:Health Suraksha", "Family Health Optima", "Optima Secure", "Care Supreme", "Star Comprehensive", "ReAssure", "Health Companion", "Activ Health"]:
+            if known_p.lower() in text.lower():
+                plan_name = f"{detected_insurer} {known_p}" if detected_insurer and detected_insurer not in known_p else known_p
+                break
+
+    return {
+        "policy_id": detected_policy,
+        "insurer": detected_insurer,
+        "sum_insured": sum_insured,
+        "room_rent_limit": room_rent_limit,
+        "copay_percent": copay_percent,
+        "ped_waiting_months": ped_waiting_months,
+        "plan_name": plan_name or (f"{detected_insurer} Policy" if detected_insurer else None),
+    }
+
+
+def _extract_policy_and_insurer(text: str, filename: str = "") -> tuple[str | None, str | None]:
+    """Compatibility wrapper returning (policy_id, insurer)."""
+    res = _extract_rich_policy_data(text, filename)
+    return res.get("policy_id"), res.get("insurer")
 
 
 @router.post("/claims/{claim_id}/extract-policy")
@@ -1331,8 +1434,8 @@ async def extract_policy_document(
     db: Session = Depends(get_db),
 ):
     """
-    Fast OCR document extraction for Policy ID & Insurer.
-    Runs system OCR engine on uploaded policy document/card, auto-links to claim in DB.
+    Fast OCR document extraction for Policy ID, Insurer, and Coverage Terms.
+    Runs system OCR engine on uploaded policy document/card, auto-links organization & claim in DB.
     """
     contents = await file.read()
     filename = file.filename or "uploaded_policy_document"
@@ -1372,7 +1475,6 @@ async def extract_policy_document(
                 logger.warning(f"System OCR fallback on PDF failed: {ocr_err}")
 
     elif ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tiff", ".tif"]:
-        # Run system OCR engine (same Azure Document Intelligence / system OCR used across ClaimGPT)
         try:
             import tempfile
             with tempfile.NamedTemporaryFile(suffix=ext, delete=False) as tmp:
@@ -1388,7 +1490,6 @@ async def extract_policy_document(
         except Exception as exc:
             logger.warning(f"System OCR engine on image failed: {exc}")
 
-        # Secondary fallback if local pytesseract is available
         if not extracted_text.strip():
             try:
                 from PIL import Image
@@ -1404,7 +1505,6 @@ async def extract_policy_document(
         except Exception:
             pass
 
-    # Generic fallback if still no text extracted
     if not extracted_text.strip() and ext not in [".txt", ".csv", ".json", ".md", ".html", ".log"]:
         try:
             import tempfile
@@ -1421,8 +1521,16 @@ async def extract_policy_document(
         except Exception:
             pass
 
-    # 2. Extract policy ID and insurer
-    policy_id, insurer = _extract_policy_and_insurer(extracted_text, filename)
+    # 2. Extract comprehensive policy data
+    policy_data = _extract_rich_policy_data(extracted_text, filename)
+    policy_id = policy_data.get("policy_id")
+    insurer = policy_data.get("insurer")
+    sum_insured = policy_data.get("sum_insured")
+    room_rent_limit = policy_data.get("room_rent_limit")
+    copay_percent = policy_data.get("copay_percent")
+    ped_waiting_months = policy_data.get("ped_waiting_months")
+    plan_name = policy_data.get("plan_name")
+    org_id = None
 
     # 3. If claim_id is provided, store directly to claim in DB
     if claim_id:
@@ -1430,57 +1538,89 @@ async def extract_policy_document(
             cid = _parse_uuid(claim_id)
             claim = db.query(Claim).filter(Claim.id == cid).first()
             if claim:
-                if policy_id:
-                    clean_pol = str(policy_id).strip()
-                    claim.policy_id = clean_pol
-                    for fname in ["policy_number", "policy_id"]:
-                        pf = db.query(ParsedField).filter(
-                            ParsedField.claim_id == cid,
-                            ParsedField.field_name == fname,
-                        ).first()
-                        if pf:
-                            pf.field_value = clean_pol
-                        else:
-                            db.add(ParsedField(claim_id=cid, field_name=fname, field_value=clean_pol))
-                
+                # Match organization in DB
                 if insurer:
-                    for fname in ["insurance_company", "insurer"]:
+                    matched_org = db.query(Organization).filter(
+                        func.lower(Organization.name) == insurer.lower()
+                    ).first()
+                    if not matched_org:
+                        matched_org = db.query(Organization).filter(
+                            Organization.name.ilike(f"%{insurer}%")
+                        ).first()
+                    if matched_org:
+                        org_id = str(matched_org.id)
+                        claim.org_id = matched_org.id
+                    claim.insurance_company = insurer
+                    claim.payer = insurer
+
+                clean_pol = str(policy_id).strip() if policy_id else None
+                if clean_pol:
+                    claim.policy_id = clean_pol
+
+                fields_to_save = {
+                    "policy_number": clean_pol,
+                    "policy_id": clean_pol,
+                    "insurance_company": insurer,
+                    "insurer": insurer,
+                    "payer": insurer,
+                    "tpa": insurer,
+                    "tpa_name": insurer,
+                    "sum_insured": str(sum_insured) if sum_insured else None,
+                    "room_rent_limit": room_rent_limit,
+                    "copay_percent": str(copay_percent) if copay_percent is not None else "0",
+                    "ped_waiting_months": str(ped_waiting_months) if ped_waiting_months else None,
+                    "plan_name": plan_name,
+                }
+
+                for fname, fval in fields_to_save.items():
+                    if fval is not None:
                         pf = db.query(ParsedField).filter(
                             ParsedField.claim_id == cid,
                             ParsedField.field_name == fname,
                         ).first()
                         if pf:
-                            pf.field_value = insurer
+                            pf.field_value = str(fval)
                         else:
-                            db.add(ParsedField(claim_id=cid, field_name=fname, field_value=insurer))
+                            db.add(ParsedField(claim_id=cid, field_name=fname, field_value=str(fval)))
 
                 # Save uploaded policy document to storage and add Document row
                 try:
                     sha = hashlib.sha256(contents).hexdigest()
-                    storage_dir = Path("/app/storage/claims") / str(cid)
-                    storage_dir.mkdir(parents=True, exist_ok=True)
-                    saved_path = storage_dir / filename
-                    saved_path.write_bytes(contents)
+                    from libs.shared.storage import MinioStorage
+                    ext = Path(filename).suffix or ".bin"
+                    s3_key = f"claims/{cid}/{cid}_policy_{sha[:8]}{ext}"
+                    minio_uri = MinioStorage.upload_file(s3_key, contents)
 
                     existing_doc = db.query(Document).filter(
                         Document.claim_id == cid,
                         Document.content_hash == sha
                     ).first()
                     if not existing_doc:
-                        db.add(Document(
+                        new_doc = Document(
                             claim_id=cid,
                             file_name=filename,
                             file_type=file.content_type or "application/octet-stream",
-                            minio_path=str(saved_path),
+                            minio_path=minio_uri,
                             content_hash=sha,
-                            doc_type="HEALTH_CARD",
-                            display_title=f"Policy / Health Card ({filename})"
-                        ))
+                            doc_type="insurance_form",
+                            display_title=f"Policy Document — {insurer or filename}"
+                        )
+                        db.add(new_doc)
+                        db.flush()
+
+                        if extracted_text:
+                            db.add(OcrResult(
+                                document_id=new_doc.id,
+                                page_number=1,
+                                text=extracted_text,
+                                confidence=0.98,
+                                engine="azure_di_policy",
+                            ))
                 except Exception as doc_err:
-                    logger.warning(f"Could not save document file to disk/db: {doc_err}")
+                    logger.warning(f"Could not save document file to storage/db: {doc_err}")
 
                 db.commit()
-                logger.info(f"Policy '{policy_id}' and insurer '{insurer}' saved directly to claim {cid}")
+                logger.info(f"Policy '{clean_pol}', insurer '{insurer}', SI '{sum_insured}' linked to claim {cid}")
                 _recalculate_prediction_for_claim(cid, db)
         except Exception as exc:
             logger.warning(f"Failed to link policy to claim {claim_id}: {exc}")
@@ -1489,6 +1629,12 @@ async def extract_policy_document(
         "success": True,
         "policy_id": policy_id or "",
         "insurer": insurer or "",
+        "sum_insured": sum_insured,
+        "room_rent_limit": room_rent_limit,
+        "copay_percent": copay_percent,
+        "ped_waiting_months": ped_waiting_months,
+        "plan_name": plan_name,
+        "org_id": org_id or "",
         "extracted": bool(policy_id or insurer),
         "file_name": filename,
         "raw_snippet": (extracted_text[:300] + "...") if len(extracted_text) > 300 else extracted_text,
@@ -1644,16 +1790,17 @@ def generate_tpa_claim_pdf(
 
     claim_data = _gather_claim_data_full(db, claim)
     
-    # Resolve TPA / Insurer name (Query param > Parsed fields > Payer > Default Star Health)
+    # Resolve TPA / Insurer name (Query param > Parsed fields > Payer > Claim Insurance Company > Pending)
     resolved_tpa = (
         tpa_name or
         claim_data.get("parsed_fields", {}).get("tpa_name") or
         claim_data.get("parsed_fields", {}).get("tpa") or
         claim_data.get("parsed_fields", {}).get("insurer") or
         claim_data.get("parsed_fields", {}).get("insurance_company") or
+        getattr(claim, "insurance_company", None) or
         getattr(claim, "payer", None) or
         getattr(claim, "payer_id", None) or
-        "Star Health"
+        "Pending Insurer Selection"
     ).strip()
     claim_data["tpa_name"] = resolved_tpa
     
@@ -1688,7 +1835,12 @@ def generate_tpa_claim_pdf(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'{disp}; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'{disp}; filename="{filename}"',
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
     )
 
 
@@ -1751,6 +1903,9 @@ def generate_irda_claim_pdf(
     disp = "inline" if view else "attachment"
     headers = {
         "Content-Disposition": f'{disp}; filename="{filename}"',
+        "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
         "X-IRDA-Renderer": renderer_used,
     }
     if renderer_warning:
@@ -1864,10 +2019,10 @@ def preview_claim_data(claim_id: str, db: Session = Depends(get_db)):
         doc_preview_list = []
         for d in doc_rows:
             p_count = getattr(d, "page_count", 1) or 1
-            d_type = getattr(d, "doc_type", "hospital_bill") or "hospital_bill"
+            d_type = getattr(d, "doc_type", "medical_document") or "medical_document"
             d_title = getattr(d, "display_title", None)
             if not d_title:
-                d_title = f"{d_type.replace('_', ' ').title()} — {d.file_name}"
+                d_title = d.file_name or f"{d_type.replace('_', ' ').title()}"
             page_urls = [
                 f"/claims/{cid}/documents/{d.id}/pages/{p_idx}/image"
                 for p_idx in range(1, p_count + 1)

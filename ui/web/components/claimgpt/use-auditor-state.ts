@@ -613,16 +613,7 @@ export function useAuditorState() {
 
     try {
       await deleteClaimApi(idToDelete);
-      let patientId: string | undefined = undefined;
-      const session = getStoredAuthSession();
-      if (session?.user?.name) {
-        patientId = session.user.name;
-      } else {
-        const savedName = localStorage.getItem('claimgpt_user_name');
-        if (savedName) patientId = savedName;
-      }
-      const remainingClaims = await fetchRecentClaims(patientId);
-      setRecentClaims(remainingClaims || []);
+      await reloadRecentClaims();
     } catch (err) {
       console.warn("Backend deletion error:", err);
     }
@@ -1231,6 +1222,19 @@ export function useAuditorState() {
   /* Resolve enrolled TPA / Insurer from registration, profile, or preview */
   const enrolledTpa = useMemo(() => {
     try {
+      // 1. First priority: Ground truth insurer extracted directly from the uploaded claim document
+      const docInsurer =
+        (realPreview?.parsed_fields as any)?.insurance_company ||
+        (realPreview?.parsed_fields as any)?.insurer ||
+        (realPreview?.parsed_fields as any)?.tpa_name ||
+        (realPreview?.summary as any)?.insurer ||
+        (realPreview as any)?.insurance_company ||
+        "";
+      if (docInsurer && docInsurer !== "Star Health" && docInsurer !== "N/A" && docInsurer !== "Pending Insurer Selection") {
+        return docInsurer.trim();
+      }
+
+      // 2. Second priority: User-explicitly configured insurer in session / profile storage
       const email = userEmail || "";
       const name = userName || "";
       const session = getStoredAuthSession();
@@ -1248,14 +1252,10 @@ export function useAuditorState() {
         (email && localStorage.getItem(`claimgpt_user_org_${email}`)) ||
         (name && localStorage.getItem(`claimgpt_user_org_${name}`)) ||
         localStorage.getItem("claimgpt_user_org") ||
-        (realPreview?.summary as any)?.insurer ||
-        (realPreview?.parsed_fields as any)?.insurer ||
-        (realPreview?.parsed_fields as any)?.insurance_company ||
-        (realPreview?.parsed_fields as any)?.tpa_name ||
-        "Star Health";
-      return stored;
+        "";
+      return (stored && stored !== "Star Health" && stored !== "N/A" && stored !== "Pending Insurer Selection") ? stored.trim() : (docInsurer.trim() || "");
     } catch {
-      return "Star Health";
+      return "";
     }
   }, [userEmail, userName, realPreview]);
 
@@ -1303,14 +1303,41 @@ export function useAuditorState() {
     }
   };
 
+  const refreshClaim = async (targetClaimId?: string) => {
+    const idToSync = targetClaimId || claimId;
+    if (!idToSync) return;
+    try {
+      const prevData = await fetchClaimPreview(idToSync);
+      if (prevData) {
+        setRealPreview(prevData);
+        setRecentClaims((prev) =>
+          prev.map((c) => {
+            if (c.id === idToSync) {
+              const pf = (prevData.parsed_fields as Record<string, string>) || {};
+              const pol = pf.policy_number || pf.policy_id || prevData.policy_id || c.policy_number;
+              const ins = prevData.insurance_company || pf.insurance_company || pf.insurer || c.insurer;
+              return {
+                ...c,
+                policy_number: pol,
+                insurer: ins,
+                documents: prevData.documents || c.documents,
+                document_count: (prevData.documents || []).length || c.document_count,
+              };
+            }
+            return c;
+          })
+        );
+      }
+    } catch (e) {
+      console.warn("Failed to refresh claim data:", e);
+    }
+  };
+
   const saveDetails = async (details: Record<string, string>) => {
     if (!claimId) return;
     const success = await saveClaimDetailsApi(claimId, details);
     if (success) {
-      const prevData = await fetchClaimPreview(claimId);
-      if (prevData) {
-        setRealPreview(prevData);
-      }
+      await refreshClaim(claimId);
       toast({
         title: "Success",
         description: "Details saved successfully.",
@@ -1408,6 +1435,7 @@ export function useAuditorState() {
     identityMismatchMessage,
     saveExpenses,
     saveDetails,
+    refreshClaim,
     claimProgressMap,
   };
 }
