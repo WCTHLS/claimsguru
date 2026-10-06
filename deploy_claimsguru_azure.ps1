@@ -5,7 +5,7 @@ param(
     
     [string]$Location = "centralindia",
     [string]$ResourceGroupName = "",
-    [string]$AcrName = "claimsgurucr",
+    [string]$AcrName = "",
     [string]$ImageTag = "$Environment-latest",
     [string]$SqlAdminUser = "claimsgurustageadmin",
     [string]$SqlAdminPassword = "ClaimsGuruStagePass!2026"
@@ -13,7 +13,18 @@ param(
 
 $ErrorActionPreference = "Continue"
 if (-not $ResourceGroupName) {
-    $ResourceGroupName = "claimsguru-$Environment-$Location-rg"
+    if ($Environment -eq "preprod") {
+        $ResourceGroupName = "claimsGuru"
+    } else {
+        $ResourceGroupName = "claimsguru-$Environment-$Location-rg"
+    }
+}
+if (-not $AcrName) {
+    if ($Environment -eq "preprod") {
+        $AcrName = "acrclaimsgurupreprod"
+    } else {
+        $AcrName = "claimsgurucr"
+    }
 }
 
 Write-Host "==========================================================================" -ForegroundColor Cyan
@@ -43,26 +54,26 @@ foreach ($p in $providers) {
 Write-Host " [OK] Resource providers registered." -ForegroundColor Green
 
 # 3. Create or Verify Resource Group
-Write-Host "`n[Step 3/7] Creating Resource Group: $ResourceGroupName in $Location..." -ForegroundColor Yellow
-az group create --name $ResourceGroupName --location $Location --output none
-Write-Host " [OK] Resource Group ready: $ResourceGroupName" -ForegroundColor Green
+Write-Host "`n[Step 3/7] Ensuring Resource Group ($ResourceGroupName) is Ready..." -ForegroundColor Yellow
+$rgExists = az group exists --name $ResourceGroupName 2>$null
+if ($rgExists -eq "true") {
+    Write-Host " [OK] Using existing Resource Group: $ResourceGroupName" -ForegroundColor Green
+} else {
+    az group create --name $ResourceGroupName --location $Location --output none
+    Write-Host " [OK] Resource Group created: $ResourceGroupName" -ForegroundColor Green
+}
 
 # 4. Create or Locate Azure Container Registry
 Write-Host "`n[Step 4/7] Ensuring Azure Container Registry ($AcrName) is Ready..." -ForegroundColor Yellow
-$acrCheck = az acr check-name --name $AcrName --output json | ConvertFrom-Json
-if ($acrCheck.nameAvailable -eq $true) {
+$acrShow = az acr show --name $AcrName --query "loginServer" --output tsv 2>$null
+if (-not $acrShow) {
     az acr create --resource-group $ResourceGroupName --name $AcrName --sku Standard --admin-enabled true --location $Location --output none
     Write-Host " [OK] ACR Created: $AcrName" -ForegroundColor Green
+    $acrLoginServer = az acr show --name $AcrName --query "loginServer" --output tsv
 } else {
-    Write-Host " [*] Using existing ACR: $AcrName" -ForegroundColor Yellow
+    $acrLoginServer = $acrShow.Trim()
+    Write-Host " [OK] Using existing ACR: $AcrName ($acrLoginServer)" -ForegroundColor Green
 }
-
-$acrLoginServer = az acr show --name $AcrName --query "loginServer" --output tsv
-if (-not $acrLoginServer) {
-    Write-Error "Could not retrieve ACR Login Server for '$AcrName'."
-    exit 1
-}
-Write-Host " [OK] ACR Login Server: $acrLoginServer" -ForegroundColor Green
 
 # 5. Build & Push Container Images
 Write-Host "`n[Step 5/7] Building & Pushing Multi-Stage Images for [$Environment]..." -ForegroundColor Yellow

@@ -15,7 +15,7 @@
       "value": "preprod-latest"
     },
     "acrLoginServer": {
-      "value": "claimsgurucr.azurecr.io"
+      "value": "acrclaimsgurupreprod.azurecr.io"
     },
     "sqlAdminLogin": {
       "value": "claimsgurupreprodadmin"
