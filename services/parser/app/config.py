@@ -36,7 +36,7 @@ class Settings(BaseSettings):
 
     # Region-first semantic extraction backend order.
     # Use OpenRouter directly for semantic extraction in production.
-    semantic_backend_order: str = "openrouter,qwen2-vl,layoutlmv3,florence-2,donut,ollama"
+    semantic_backend_order: str = "azure-openai,openrouter,qwen2-vl,layoutlmv3,florence-2,donut,ollama"
     qwen2_vl_model: str = ""
     florence2_model: str = ""
     donut_model: str = ""

@@ -536,7 +536,19 @@ def _process_single_document(db: Session, doc: Document) -> None:
             temp_local_path = MinioStorage.download_to_temp(doc.minio_path)
             file_path = Path(temp_local_path)
         else:
-            file_path = Path(doc.minio_path)
+            file_path = Path(doc.minio_path) if doc.minio_path else None
+            if not file_path or not file_path.exists():
+                try:
+                    from libs.shared.storage import MinioStorage
+                    alt_uri = f"s3://claimgpt/claims/{doc.claim_id}/{doc.file_name}"
+                    temp_local_path = MinioStorage.download_to_temp(alt_uri)
+                    file_path = Path(temp_local_path)
+                except Exception:
+                    pass
+
+        if not file_path or not file_path.exists():
+            logger.warning(f"[OCR] Document file {doc_id} ({doc.file_name}) not accessible at {doc.minio_path}. Skipping OCR for this item.")
+            return
 
         reject_reason = _reject_low_quality_scan(doc, file_path)
         if reject_reason:

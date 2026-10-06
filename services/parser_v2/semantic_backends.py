@@ -70,12 +70,105 @@ def _call_gemini(prompt: str, timeout: int = 60) -> str | None:
             if parts:
                 return parts[0].get("text")
         logger.warning("[GEMINI_FALLBACK] Gemini returned no content: %s", data)
+        save_llm_debug_dump("gemini_direct", prompt, data, cfg["model"])
         return None
     except Exception as exc:
         logger.error("[GEMINI_FALLBACK] Gemini call failed: %s", exc)
+        save_llm_debug_dump("gemini_direct_error", prompt, str(exc), cfg["model"])
         return None
 
 
+def save_llm_debug_dump(
+    call_type: str,
+    prompt: Any,
+    response: Any,
+    model: str = "",
+    parsed_result: Any = None,
+) -> None:
+    """Save LLM input prompt and raw output to tmp/llm_logs for inspection."""
+    try:
+        import time
+        from pathlib import Path
+        
+        candidate_paths = [
+            Path("/app/tmp/llm_logs"),
+            Path("tmp/llm_logs"),
+            Path(os.getcwd()) / "tmp" / "llm_logs"
+        ]
+        target_dir = None
+        for cp in candidate_paths:
+            try:
+                cp.mkdir(parents=True, exist_ok=True)
+                target_dir = cp
+                break
+            except Exception:
+                continue
+        if not target_dir:
+            return
+
+        ts_str = time.strftime("%Y%m%d_%H%M%S")
+        millis = int(time.time() * 1000) % 1000
+        safe_type = re.sub(r"[^\w\-]", "_", str(call_type))
+        safe_model = re.sub(r"[^\w\-]", "_", str(model or "model"))
+        filename = f"{ts_str}_{millis:03d}_{safe_type}_{safe_model}.json"
+        log_path = target_dir / filename
+
+        dump_data = {
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "call_type": call_type,
+            "model": model,
+            "input_prompt": prompt,
+            "raw_output": response,
+            "parsed_result": parsed_result,
+        }
+        with open(log_path, "w", encoding="utf-8") as f:
+            json.dump(dump_data, f, indent=2, ensure_ascii=False)
+        logger.info(f"[LLM_DEBUG_LOG] Stored LLM call dump at {log_path}")
+    except Exception as e:
+        logger.warning(f"Could not save LLM debug dump: {e}")
+
+
+def _parse_json_dict(raw_text: str) -> dict[str, Any] | None:
+    if not raw_text:
+        return None
+    cleaned = _strip_json_code_fences(raw_text)
+    if not cleaned:
+        return None
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+    if start < 0 or end < 0 or end <= start:
+        return None
+    try:
+        data = json.loads(cleaned[start : end + 1])
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
+
+
+DOCUMENT_ENTITY_PROMPT_TEMPLATE = """You are a medical insurance document understanding AI.
+Analyze the following medical claim document text and extract structured clinical and patient entities.
+
+Return STRICT JSON only adhering exactly to this schema:
+{
+  "patient_name": "Full name of the patient (e.g. 'SONAIMUTHU', 'Keerthi Ajay Kumar', 'KANAKAM LAXMI'). Exclude prefixes like Mr/Mrs/Ms/Dr if present.",
+  "patient_age": "Patient age as string (e.g. '71 Years', '34 Years', '58 Years')",
+  "patient_gender": "'Male' or 'Female'",
+  "hospital_name": "Full official hospital name (e.g. 'SANGEETHA HOSPITAL', 'APOLLO HOSPITALS', 'Balaji Hospital')",
+  "doctor_name": "Treating / primary consultant doctor name (e.g. 'Dr. Anand', 'Dr. Niraj Patil', 'Dr. K. Venkateshwar Rao')",
+  "admission_date": "Date of admission in DD/MM/YYYY or DD-MM-YYYY format",
+  "discharge_date": "Date of discharge in DD/MM/YYYY or DD-MM-YYYY format",
+  "diagnosis": "Primary clinical diagnosis / condition (e.g. 'LOWER OESOPHAGEAL HIATUS HERNIA', 'BILATERAL PNEUMONITIS / TYPE 2 DM / HTN')",
+  "policy_number": "Insurance policy number if explicitly present (do NOT use UHID, MRNO, or IPNO)",
+  "claimed_total": "Final billed total amount as number or string if an invoice/bill is present (null if this is only a discharge summary with no bills)"
+}
+
+Rules:
+1. Do NOT guess or hallucinate. If a field is not present in the document text, return null for that field.
+2. For discharge summaries with NO bills, claimed_total MUST be null.
+3. For patient_name: extract the real patient name, even if listed next to UHID/MRNO or printed as a single name.
+
+Document Text:
+"""
 
 SEMANTIC_REGION_TYPES = {
     "patient_info",
@@ -129,6 +222,9 @@ class SemanticBackend(ABC):
     @abstractmethod
     def analyze(self, request: SemanticRequest) -> dict[str, Any] | None:
         raise NotImplementedError
+
+    def extract_document_entities(self, text: str) -> dict[str, Any] | None:
+        return None
 
     @staticmethod
     def _source_tokens(request: SemanticRequest) -> list[SemanticSourceToken]:
@@ -513,6 +609,48 @@ class OpenRouterBackend(SemanticBackend):
             _write_debug(body)
             return None
 
+    def extract_document_entities(self, text: str) -> dict[str, Any] | None:
+        if not text:
+            return None
+        prompt = DOCUMENT_ENTITY_PROMPT_TEMPLATE + "\n" + text[:12000]
+        raw_text = None
+        if self.available():
+            headers = {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+            payload = {
+                "model": self.model,
+                "messages": [
+                    {"role": "system", "content": "You are a professional medical insurance billing and clinical extraction AI. Extract structured JSON adhering strictly to the schema with zero markdown noise."},
+                    {"role": "user", "content": prompt}
+                ],
+                "max_tokens": 1000,
+                "temperature": 0.0,
+                "response_format": {"type": "json_object"}
+            }
+            try:
+                resp = httpx.post(self.url, json=payload, headers=headers, timeout=self.timeout_seconds)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if isinstance(data, dict) and "choices" in data and data["choices"]:
+                        msg = data["choices"][0].get("message", {})
+                        raw_text = msg.get("content") if isinstance(msg, dict) else msg
+            except Exception:
+                pass
+
+        if not raw_text:
+            raw_text = _call_gemini(prompt, timeout=self.timeout_seconds)
+
+        if raw_text:
+            parsed = _parse_json_dict(str(raw_text))
+            save_llm_debug_dump(
+                call_type="openrouter_document_entities",
+                prompt=prompt,
+                response=raw_text,
+                model=self.model,
+                parsed_result=parsed
+            )
+            return parsed
+        return None
+
 
 class AzureOpenAISemanticBackend(SemanticBackend):
     name = "azure-openai"
@@ -580,23 +718,99 @@ class AzureOpenAISemanticBackend(SemanticBackend):
             if isinstance(data, dict) and "choices" in data and data["choices"]:
                 msg = data["choices"][0].get("message", {})
                 raw = msg.get("content") if isinstance(msg, dict) else msg
+            
+            parsed = _parse_semantic_response(str(raw), request, self.name) if raw else None
+            save_llm_debug_dump(
+                call_type="azure_openai_region_semantic",
+                prompt=prompt,
+                response=raw,
+                model=self.deployment,
+                parsed_result=parsed
+            )
             if not raw:
                 return None
-            return _parse_semantic_response(str(raw), request, self.name)
+            return parsed
         except Exception as exc:
             logger.warning("Azure OpenAI semantic extraction failed: %s", exc)
+            save_llm_debug_dump(
+                call_type="azure_openai_region_semantic_error",
+                prompt=prompt,
+                response=str(exc),
+                model=self.deployment
+            )
+            return None
+
+    def extract_document_entities(self, text: str) -> dict[str, Any] | None:
+        if not self.available() or not text:
+            return None
+
+        if "/chat/completions" in self.endpoint:
+            url = self.endpoint
+            if "api-version" not in url and "/openai/v1" not in self.endpoint:
+                sep = "&" if "?" in url else "?"
+                url = f"{url}{sep}api-version={self.api_version}"
+        elif self.endpoint.rstrip("/").endswith("/openai/v1") or "/v1" in self.endpoint:
+            url = f"{self.endpoint.rstrip('/')}/chat/completions"
+        else:
+            url = f"{self.endpoint.rstrip('/')}/openai/deployments/{self.deployment}/chat/completions?api-version={self.api_version}"
+
+        prompt = DOCUMENT_ENTITY_PROMPT_TEMPLATE + "\n" + text[:12000]
+        payload = {
+            "model": self.deployment,
+            "messages": [
+                {"role": "system", "content": "You are a professional medical insurance billing and clinical extraction AI. Extract structured JSON adhering strictly to the schema with zero markdown noise."},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 1000,
+            "temperature": 0.0,
+            "response_format": {"type": "json_object"}
+        }
+        headers = {
+            "api-key": self.api_key,
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            logger.info("Calling Azure OpenAI (%s) for document clinical entity extraction...", self.deployment)
+            resp = httpx.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
+            resp.raise_for_status()
+            data = resp.json()
+            raw = None
+            if isinstance(data, dict) and "choices" in data and data["choices"]:
+                msg = data["choices"][0].get("message", {})
+                raw = msg.get("content") if isinstance(msg, dict) else msg
+            
+            parsed = _parse_json_dict(str(raw)) if raw else None
+            save_llm_debug_dump(
+                call_type="azure_openai_document_entities",
+                prompt=prompt,
+                response=raw,
+                model=self.deployment,
+                parsed_result=parsed
+            )
+            if not raw:
+                return None
+            return parsed
+        except Exception as exc:
+            logger.warning("Azure OpenAI document entity extraction failed: %s", exc)
+            save_llm_debug_dump(
+                call_type="azure_openai_document_entities_error",
+                prompt=prompt,
+                response=str(exc),
+                model=self.deployment
+            )
             return None
 
 
 class SemanticBackendRegistry:
     def __init__(self) -> None:
         backend_order = [part.strip().lower() for part in (settings.semantic_backend_order or "").split(",") if part.strip()]
+        if os.getenv("AZURE_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"):
+            if "azure-openai" not in backend_order:
+                backend_order.insert(0, "azure-openai")
         if not backend_order:
-            # Azure OpenAI is the primary enterprise backend if configured
-            if os.getenv("AZURE_OPENAI_ENDPOINT") and os.getenv("AZURE_OPENAI_API_KEY"):
-                backend_order = ["azure-openai", "openrouter", "qwen2-vl", "layoutlmv3", "florence-2", "donut"]
-            else:
-                backend_order = ["openrouter", "qwen2-vl", "layoutlmv3", "florence-2", "donut"]
+            backend_order = ["azure-openai", "openrouter", "qwen2-vl", "layoutlmv3", "florence-2", "donut"]
 
         self.backends: list[SemanticBackend] = []
         for backend_name in backend_order:
@@ -698,10 +912,6 @@ def _text_only_request(request: SemanticRequest) -> str:
 
 def _build_semantic_prompt(request: SemanticRequest) -> str:
     region_type = request.region_type.lower()
-    # Prefer a compact table preview: headers / first few rows to reduce noise,
-    # but keep enough context for multi-row billing tables.
-    text = _text_only_request(request)
-    text = _redact_sensitive_info(text)
     table_rows = []
     max_rows = 150
     for row_index, row in enumerate((request.table_cells or [])[:max_rows]):
@@ -710,113 +920,46 @@ def _build_semantic_prompt(request: SemanticRequest) -> str:
             table_rows.append(f"row {row_index + 1}: " + " | ".join(cells))
     table_hint = "\n".join(table_rows)
 
-    return f"""
-You are a medical document understanding system.
-Analyze only this isolated region from a larger claim document.
+    if table_hint:
+        content_payload = f"Table rows:\n{table_hint}"
+    else:
+        text = _text_only_request(request)
+        text = _redact_sensitive_info(text)
+        content_payload = f"Document text:\n{text}"
 
-Return STRICT JSON only with this shape:
+    return f"""You are a medical document billing analyzer. Extract itemized expense rows from this table region into strict JSON.
+
+JSON Schema:
 {{
-  "region_type": "patient_info|hospitalization_info|insurance_info|diagnosis|expense_table|medication_table|lab_table|vitals_table|prescription|other",
-  "table_kind": "expenses|medications|lab_results|vitals|diagnoses|generic_table",
-  "confidence": 0.0,
-  "notes": "",
-  "fields": [
-    {{
-      "canonical_field": "patient_name",
-      "value": "",
-      "confidence": 0.0
-    }}
-  ],
+  "region_type": "expense_table",
+  "table_kind": "expenses",
+  "confidence": 0.95,
   "tables": [
     {{
       "table_kind": "expenses",
       "headers": ["category", "description", "amount"],
       "rows": [
-        {{"category": "", "description": "", "amount": ""}}
+        {{"category": "CategoryName", "description": "Item Description", "amount": "NumericAmount"}}
       ],
-      "confidence": 0.0
+      "confidence": 0.95
     }}
   ]
 }}
 
-Do not extract or infer patient, hospital, insurance, or diagnosis fields in this backend.
-This backend is for expense-table normalization only.
+Allowed Categories (choose best fit):
+Room Rent, Labour / Delivery, ICU, Nursing, Surgery / OT, Consultation, Pharmacy, Injection, Tablet, Laboratory, Radiology, Oxygen, Consumables, Anaesthesia, Supplies, Miscellaneous.
 
-EXPENSE TABLE EXTRACTION (CRITICAL):
-EXPENSE tables contain actual medical/hospital charges like: ICU, Room, Surgery, Pharmacy, Lab, Radiology, Nursing, Consultations, Medications, Tests, Equipment, Supplies, etc.
+Rules:
+1. Extract every individual billed item row separately. Preserve exact amounts (numeric string).
+2. COLUMN PRIORITY: If Net Payable / Payable / Amount Payable exists, ALWAYS extract that value for 'amount'. Otherwise extract Gross / Total / Amount. Never extract Gross if Net Payable is present. If Net is 0.00, extract 0.00.
+3. For pre-summarised multi-day charges (e.g. "ICU - 5 Days @ Rs. 15,000/day"), calculate total (75000). For date-keyed tables, extract each date's row separately with the date in description.
+4. DO NOT EXTRACT summary/grand totals (e.g. "Grand Total", "Total Amount", "Gross Bill", "Total Billed", "Net Amount Payable", "Total Paid", "Total Amount Received").
+5. DO NOT EXTRACT deduction/subtraction rows ("Less: ...", "Deductible", "Non-Payable Deductions", "Co-Pay", "Discount", "Balance Amount", "Patient Share").
+6. DO NOT EXTRACT metadata lines ("Ward: ...", "Admission Date: ...", "LOS: ...").
+7. If this table is NOT a billing/expense table (e.g. diagnostic lab report, insurance summary, clinical narrative), return "table_kind": "generic_table" with empty rows.
 
-CATEGORY MAPPING — always use one of these exact category names:
-- "Room Rent" — room, ward, bed, accommodation, stay, special room charges
-- "Labour / Delivery" — delivery charges, labour room charges, maternity charges, LSCS, C-section, episiotomy, obstetric procedure
-- "ICU" — ICU, intensive care
-- "Nursing" — nursing charges, nursing care, duty nurse
-- "Surgery / OT" — OT charges, operation theatre, surgical procedure, operation
-- "Consultation" — doctor fee, specialist visit, consultant fee, physician fee
-- "Pharmacy" — medicine, drug, pharmacy, IV fluid, saline, NS, RL
-- "Injection" — injection charges, IV drug administration (inj. prefix)
-- "Tablet" — tablet charges (tab. prefix)
-- "Laboratory" — lab test, blood test, investigation, pathology, diagnostic test
-- "Radiology" — X-ray, CT scan, MRI, ultrasound, USG, echo
-- "Oxygen" — oxygen charges, ventilator charges
-- "Consumables" — surgical consumables, gloves, syringes, disposables
-- "Anaesthesia" — anaesthesia charges, spinal block, epidural
-- "Supplies" — medical supplies, dressings, wound care products (Dettol, etc.)
-- "Miscellaneous" — anything else not fitting above categories
-
-When the table includes headers such as description, qty, rate, gross, net payable, or total, use the item rows underneath the header and ignore the header row itself.
-
-Return every unique bill line item visible in the region. Do not collapse the table to only the total or summary rows.
-
-NEVER classify as expense_table if it contains:
-- "Claims" (insurance claim counts)
-- "Claim vs Sum Insured" (insurance comparison)
-- "Policy", "Payer", "Premium", "Deductible" (insurance terms)
-- "Risk Factor", "Previous Claims" (insurance metadata)
-These should be classified as "generic_table" or "insurance_info" instead.
-
-If this IS an expense/billing table (any format), ALWAYS:
-1. Understand the table structure - may be: daily charges, itemized expenses, category-wise breakdown, or mixed format
-2. Extract EACH AND EVERY expense row as a separate entry with: category, description, amount
-3. For date-keyed tables (table has a Date column with one row per day):
-    - PRESERVE every row separately even if description and amount are identical across dates
-    - Include the date in the description: e.g., description="11-11-2025 General Ward Charges"
-    - NEVER collapse multiple date rows into one
-4. For pre-summarised multi-day charges in a single row (e.g., "ICU - 5 Days @ Rs. 15,000/day"):
-    - TOTAL: Calculate qty x unit_price = total amount (e.g., 5 x 15000 = 75000)
-    - RETURN: One row with category="ICU", description="ICU - 5 Days @ Rs. 15,000/day", amount="75000"
-5. For itemized tables: Extract each line item as-is
-6. Do NOT merge or deduplicate rows — the downstream system handles deduplication
-7. Do NOT include: summary rows, total rows, grand totals, headers, metadata, or insurance information
-8. Preserve exact amounts - do NOT modify, truncate, or divide amounts.
-9. COLUMN PRIORITY (CRITICAL FOR EXPENSES): When a table has multiple numeric amount columns (such as Rate, Gross, NP / Non-Payable, and Net Payable / Payable / Amount Payable):
-    - ALWAYS extract the **Net Payable / Payable / Amount Payable** column value for the `amount` field (this is the actual reimbursable amount payable).
-    - If no Net Payable column is present, extract the Gross / Total / Amount column value.
-    - NEVER extract the Gross column value when a Net Payable / Payable column exists in the table. This ensures the itemized line items sum up directly to the hospital's Net Claimed Billed Total.
-10. If an individual service row has a Net Payable of 0.00 or is marked fully Non-Payable (e.g. registration fees, administrative charges), extract its amount as 0.00 or do not inflate it to gross amount.
-
-CRITICAL EXCLUSION - NEVER extract these summary/deduction rows as expense items:
-- Summary grand totals: "Gross Hospital Bill" / "Gross Bill" / "Gross Amount" / "Total Billed Amount" / "Grand Total" / "Total Amount Received" — these are document-level totals, NOT individual charges
-- Deduction summary lines: "Less: Deductible / Excess" / "Less: Non-Payable (NP) Items" / "Less: Non Payable Deductions" — these are summary subtractions, NOT billed services
-- Settlement totals: "Final Amount Admissible" / "Amount Admissible" / "Admissible Amount" / "Net Payable" / "Net Amount Payable" / "Patient Share" / "Co-Pay" / "Balance Amount"
-- Non-billing metadata lines: "Ward: General Ward LOS: N", "Managed in General Ward for N days", "Admission Date: ...", "Discharge Date: ..."
-- Any row whose description starts with "Less:" or "Deduction:".
-
-Extraction Guidance:
-- ALWAYS extract age and gender if visible, even if region seems to be "lab_results"
-- ALWAYS extract doctor_name/treating_doctor and diagnosis if visible
-- Never return regex explanations or metadata
-- Prefer semantic interpretation over keyword matching
-- If this is a table, classify by meaning: expenses, medications, lab results, vitals, or diagnoses
-- If this is a form/summary block, extract canonical fields
-- Preserve medically relevant values exactly as shown
-- Do not invent data
-
-Region type hint: {region_type}
-Tabular hint (if present):
-{table_hint}
-Document text (truncated):
-{text}
-""".strip()
+Region hint: {region_type}
+{content_payload}""".strip()
 
 
 def _layoutlm_region_summary(request: SemanticRequest, model_name: str) -> dict[str, Any]:

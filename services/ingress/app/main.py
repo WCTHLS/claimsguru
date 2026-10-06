@@ -3276,7 +3276,7 @@ def list_claims(
                     "hospital_name", "hospital",
                     "doctor_name", "doctor", "provider_name", "rendering_provider",
                     "diagnosis", "primary_diagnosis", "chief_complaint",
-                    "insurance_company", "insurer"
+                    "insurance_company", "insurer", "tpa_name", "tpa"
                 ])
             ).all()
             
@@ -3291,8 +3291,12 @@ def list_claims(
                 c.hospital_name = fields.get("hospital_name") or fields.get("hospital") or None
                 c.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
                 c.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
-                if not getattr(c, "insurance_company", None):
-                    c.insurance_company = fields.get("insurance_company") or fields.get("insurer") or None
+                extracted_ins = fields.get("insurance_company") or fields.get("insurer") or fields.get("tpa_name") or None
+                if extracted_ins:
+                    if not getattr(c, "insurance_company", None) or getattr(c, "insurance_company", None) == "Star Health":
+                        c.insurance_company = extracted_ins
+                elif not getattr(c, "insurance_company", None):
+                    c.insurance_company = None
 
         # Batch-fetch workflow states to ensure live status accuracy (e.g. FINISHED -> COMPLETED)
         wf_states = {}
@@ -3616,7 +3620,7 @@ def get_claim(
             "hospital_name", "hospital",
             "doctor_name", "doctor", "provider_name", "rendering_provider",
             "diagnosis", "primary_diagnosis", "chief_complaint",
-            "insurance_company", "insurer"
+            "insurance_company", "insurer", "tpa_name", "tpa"
         ])
     ).all()
     
@@ -3625,8 +3629,12 @@ def get_claim(
     claim.hospital_name = fields.get("hospital_name") or fields.get("hospital") or None
     claim.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
     claim.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
-    if not getattr(claim, "insurance_company", None):
-        claim.insurance_company = fields.get("insurance_company") or fields.get("insurer") or None
+    extracted_ins = fields.get("insurance_company") or fields.get("insurer") or fields.get("tpa_name") or None
+    if extracted_ins:
+        if not getattr(claim, "insurance_company", None) or getattr(claim, "insurance_company", None) == "Star Health":
+            claim.insurance_company = extracted_ins
+    elif not getattr(claim, "insurance_company", None):
+        claim.insurance_company = None
     
     return ClaimOut.model_validate(claim).model_dump(mode="json")
 

@@ -195,7 +195,9 @@ def load_azure_layout_into_doc(azure_json_paths: list[str], tokens: list[Token])
                 rows = []
                 # Detect if this table is an expense table from header keywords
                 header_text = " ".join(str(c) for c in table_data[0]).lower()
-                is_expense_table = any(kw in header_text for kw in ["date", "description", "particular", "amount", "charge", "rate", "qty", "item", "fee", "cost", "rs", "price", "service", "np"])
+                has_monetary_indicator = any(kw in header_text for kw in ["amount", "charge", "rate", "cost", "fee", "price", "rs.", "rs", "₹", "paid amt", "net payable", "gross", "bill", "billing heads", "subtotal", "sub total"])
+                is_clinical_history = any(kw in header_text for kw in ["surgery name", "procedure name", "reference range", "normal range", "unit range", "biological reference", "dosage", "frequency"]) and not any(kw in header_text for kw in ["amount", "charge", "rate", "cost", "fee", "price", "rs.", "rs", "₹", "paid amt", "net payable"])
+                is_expense_table = has_monetary_indicator and not is_clinical_history
                 table_kind = "expenses" if is_expense_table else "generic_table"
 
                 for r_idx, row_data in enumerate(table_data):
@@ -261,22 +263,20 @@ def parse_document(
             if mapped_type and mapped_type.upper() != "IDENTITY_GATE":
                 return mapped_type
             
-        # 3. Fallback: check filename hints from page_to_filename
-        file_name = page_to_filename.get(page_num, "") if page_to_filename else ""
-        if file_name:
-            fn_lower = str(file_name).lower()
-            if any(x in fn_lower for x in ["pharmacy", "chemist", "drugstore"]):
-                return "PHARMACY_BILL"
-            if any(x in fn_lower for x in ["lab_report", "lab-report", "laboratory", "report"]):
-                return "LAB_REPORT"
-            if any(x in fn_lower for x in ["discharge", "summary"]):
+        # 4. Fallback: inspect page text tokens for document classification markers
+        page_toks = [t for t in tokens if getattr(t, "page", None) == page_num]
+        if page_toks:
+            page_text = " ".join(str(getattr(t, "text", "")).strip() for t in page_toks if getattr(t, "text", None)).lower()
+            if any(k in page_text for k in ["discharge summary", "summary of discharge", "discharge card", "discharge report", "clinical summary"]):
                 return "DISCHARGE_SUMMARY"
-            if any(x in fn_lower for x in ["prescription", "rx"]):
+            if any(k in page_text for k in ["investigation report", "laboratory report", "pathology report", "lab report", "test report"]):
+                return "LAB_REPORT"
+            if any(k in page_text for k in ["prescription", "rx "]):
                 return "PRESCRIPTION"
-            if any(x in fn_lower for x in ["radiology", "mri", "scan", "ultrasound", "usg"]):
-                return "RADIOLOGY_REPORT"
-            if any(x in fn_lower for x in ["claim", "insurance", "pre-auth", "preauth"]):
-                return "INSURANCE_FORM"
+            if any(k in page_text for k in ["ipd bill", "final bill", "detailed bill", "package billing summary", "tax invoice", "cash receipt", "hospital bill"]):
+                return "HOSPITAL_BILL"
+            if any(k in page_text for k in ["pharmacy bill", "retail invoice", "chemist"]):
+                return "PHARMACY_BILL"
                 
         return "UNKNOWN"
 
@@ -446,11 +446,11 @@ def parse_document(
                     sub_regions = detect_regions(region.tokens, gap_threshold=12.0)
                     for sub_reg in sub_regions:
                         if sub_reg.region_type in {"table", "expense_table"}:
-                            # Prevent duplicate tables if they overlap significantly with existing ones
+                            # Prevent duplicate tables if they overlap significantly with existing ones on the same page
                             is_duplicate = False
                             for existing_table in doc.tables:
-                                # Simple BBox overlap check
-                                if abs(sub_reg.bbox[1] - existing_table.bbox[1]) < 20 and abs(sub_reg.bbox[3] - existing_table.bbox[3]) < 20:
+                                # Simple BBox overlap check on the same page
+                                if getattr(sub_reg, "page", None) == getattr(existing_table, "page", None) and abs(sub_reg.bbox[1] - existing_table.bbox[1]) < 20 and abs(sub_reg.bbox[3] - existing_table.bbox[3]) < 20:
                                     is_duplicate = True
                                     break
                             
@@ -608,6 +608,9 @@ def parse_document(
         "claimed_total",
         "policy_number",
         "member_id",
+        "insurance_company",
+        "insurer",
+        "tpa_name",
     }
     existing_patient_fields = {
         str(f.get("canonical_field") or "")
@@ -638,6 +641,9 @@ def parse_document(
             "member_id": "member_id",
             "age": "age",
             "claimed_total": "claimed_total",
+            "insurance_company": "insurance_company",
+            "insurer": "insurance_company",
+            "tpa_name": "tpa_name",
         }
 
         for field_name in missing_patient_fields:
@@ -936,6 +942,9 @@ def parse_document(
         table_page = getattr(table, "page", 1)
         page_doc_type = _get_doc_type_for_page(table_page, tokens, doc_type_map, page_to_filename).upper()
         table_kind = str(getattr(table, "table_kind", "") or "").lower()
+        if page_doc_type in {"DISCHARGE_SUMMARY", "LAB_REPORT", "PRESCRIPTION", "INVESTIGATION_REPORT"}:
+            logger.info(f"[EXPENSE_FILTER] Skipping table on page {table_page} because doc_type is {page_doc_type}")
+            continue
         if table_kind == "expenses" or page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN", "CONSULTATION", "INSURANCE_FORM"}:
             filtered_tables.append(table)
         else:
@@ -1656,15 +1665,11 @@ def parse_document(
             )
             doc.normalized_expenses = expenses
         else:
-            heuristic_pages_set = {int(x.get("page") or 0) for x in heuristic_expenses if x.get("page") is not None}
-            semantic_pages_set = {int(x.get("page") or 0) for x in semantic_expenses if x.get("page") is not None}
-            uncovered_pages = heuristic_pages_set - semantic_pages_set
+            # If semantic backend extracted expenses with reasonable confidence, use semantic_only.
+            # Do NOT blend with heuristic expenses from non-billing pages (which falsely trigger on discharge summaries/receipts).
             should_blend = (
                 sem_count == 0
-                or bool(uncovered_pages)
-                or (heu_count >= max(10, sem_count * 2))
-                or (heu_count > sem_count and sem_conf < 0.60)
-                or (sem_total > 0 and heu_total > 0 and heu_total > sem_total * 1.6 and sem_conf < 0.85)
+                or (sem_count < 3 and heu_count >= 10 and sem_conf < 0.50)
             )
             if should_blend:
                 expenses = _merge_expense_lists(list(semantic_expenses), heuristic_expenses)

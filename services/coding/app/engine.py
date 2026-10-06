@@ -297,17 +297,8 @@ def _build_clinical_context(
     for pf in (parsed_fields or []):
         fname = (pf.get("field_name") or pf.get("field") or "").lower().strip()
         fval = str(pf.get("field_value") or pf.get("value") or "").strip()
-        if fname.startswith("expense_table_row_"):
-            try:
-                import json as _json
-                p_json = _json.loads(fval)
-                desc = p_json.get("description")
-                if desc and len(desc) > 3 and not any(bad in desc.lower() for bad in ["room", "diet", "admin", "nursing"]):
-                    clinical_lines.append(desc)
-            except Exception:
-                pass
-        elif fname in ("medication", "procedure", "primary_procedure"):
-            if fval and len(fval) > 3:
+        if fname in ("diagnosis", "primary_diagnosis", "clinical_diagnosis", "secondary_diagnosis", "procedure", "primary_procedure", "operative_procedure"):
+            if fval and len(fval) > 3 and fval.lower() not in {"none", "null", "n/a"}:
                 clinical_lines.append(fval)
 
     # 3. Fall back to the first 1500 chars if no clinical lines found

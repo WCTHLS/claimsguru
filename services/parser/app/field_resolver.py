@@ -76,17 +76,20 @@ def _validate_patient_name(val: str) -> bool:
     if _is_obvious_label(s):
         return False
     parts = [p for p in re.split(r"\s+", s) if p]
-    if len(parts) < 2 or len(parts) > 6:
+    if len(parts) < 1 or len(parts) > 6:
+        return False
+    # If 1 part, require at least 3 chars and not all numbers
+    if len(parts) == 1 and (len(parts[0]) < 3 or not any(ch.isalpha() for ch in parts[0])):
         return False
     # Reject numeric-only or contains digit tokens like '29'
     if any(re.search(r"\d", p) for p in parts):
         return False
-    # Reject when contains medical keywords
-    medical_kw = {"mg", "tablet", "medicine", "dose", "diagnosis", "summary"}
+    # Reject when contains medical keywords or form identifiers
+    medical_kw = {"mg", "tablet", "medicine", "dose", "diagnosis", "summary", "identifier", "patient", "uhid", "opd", "ipd"}
     if any(p.lower() in medical_kw for p in parts):
         return False
-    # Reject if contains ':' or '-' that indicates label
-    if ":" in s or "-" in s and len(parts) <= 2:
+    # Reject if contains ':' that indicates label
+    if ":" in s:
         return False
     return True
 
@@ -113,6 +116,17 @@ def _validate_policy_number(val: str) -> bool:
     if not re.search(r'\d', s) and not re.match(r'^[A-Z0-9\/\-_]{4,35}$', s):
         return False
     if not re.match(r'^[A-Za-z0-9][A-Za-z0-9\/\-_]{3,35}$', s):
+        return False
+    return True
+
+
+def _validate_insurer(val: str) -> bool:
+    if not val:
+        return False
+    s = str(val).strip()
+    if len(s) < 3 or len(s) > 90:
+        return False
+    if _is_obvious_label(s):
         return False
     return True
 
@@ -152,6 +166,10 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
             fname = "policy_number"
         elif fname in {"insurance.member_id", "insurance_member_id", "patient.member_id", "member_no"}:
             fname = "member_id"
+        elif fname in {"insurance.payer", "insurance.insurance_company", "insurance_company", "insurer", "payer"}:
+            fname = "insurance_company"
+        elif fname in {"insurance.tpa_name", "insurance.tpa", "tpa_name", "tpa"}:
+            fname = "tpa_name"
         c.field_name = fname
         grouped.setdefault(fname, []).append(c)
 
@@ -211,6 +229,10 @@ def resolve(candidates: List[Candidate]) -> Tuple[List[Dict[str, Any]], Dict[str
                 if not _validate_policy_number(cand.field_value or ""):
                     accept = False
                     reason = "failed_policy_number_validation"
+            elif field in {"insurance_company", "tpa_name", "insurer"}:
+                if not _validate_insurer(cand.field_value or ""):
+                    accept = False
+                    reason = "failed_insurer_validation"
             else:
                 if _is_obvious_label(cand.field_value or "", field_name=field):
                     accept = False
