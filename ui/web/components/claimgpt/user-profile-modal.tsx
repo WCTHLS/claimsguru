@@ -49,8 +49,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [userMeta, setUserMeta] = useState({
-    dob: '01/01/2000',
-    gender: 'Male',
+    dob: 'Not specified',
+    gender: 'Not specified',
   });
 
   const session = getStoredAuthSession();
@@ -123,8 +123,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       } catch {}
 
       setUserMeta({
-        dob: formatDob(rawDob || '01012000'),
-        gender: gender || 'Male',
+        dob: rawDob ? formatDob(rawDob) : 'Not specified',
+        gender: gender || 'Not specified',
       });
 
       // Always fetch live profile from backend database to ensure 100% sync across devices and Incognito
@@ -169,19 +169,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     ? (nameParts[0][0] + nameParts[1][0]).toUpperCase()
     : userName.slice(0, 2).toUpperCase();
 
-
   // Compute family member / patient claim list under this account
-  const accountClaims = s.recentClaims.length > 0
-    ? s.recentClaims
-    : [
-        {
-          id: s.claimId || 'CLM-18091900',
-          patient_name: s.patientName || 'Suresh',
-          status: 'COMPLETED',
-          created_at: 'Today',
-          total_amount: s.total ? `₹${s.total.toLocaleString('en-IN')}` : '₹12,500',
-        },
-      ];
+  const accountClaims = s.recentClaims || [];
 
   /* Theme-specific styles matching Design 1 (neon), Design 2 (clinical), and Design 3 (executive) */
   const themeStyles = {
@@ -368,36 +357,44 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
 
             <div className="space-y-1.5 max-h-[130px] overflow-y-auto">
-              {accountClaims.map((claim, idx) => (
-                <div
-                  key={claim.id || idx}
-                  onClick={() => {
-                    s.selectClaim(claim.id);
-                    onClose();
-                  }}
-                  className={`flex items-center justify-between rounded-xl p-2 transition-all cursor-pointer group text-xs ${themeStyles.gridBlock}`}
-                >
-                  <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-1.5">
-                      <p className={`text-[11px] font-bold truncate ${themeStyles.valueColor}`}>
-                        Patient: {claim.patient_name || 'Suresh'}
-                      </p>
-                      {claim.patient_name && claim.patient_name.toLowerCase() !== userName.toLowerCase() && (
-                        <span className="rounded bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-400/30 px-1 py-0.2 text-[8px] font-bold uppercase">
-                          Family
-                        </span>
-                      )}
-                    </div>
-                    <p className={`text-[9px] truncate mt-0.5 ${themeStyles.labelColor}`}>
-                      ID: {claim.id.slice(0, 8)}... &bull; {claim.total_amount || '₹12,500'}
-                    </p>
-                  </div>
-
-                  <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-0.5 flex-none">
-                    <CheckCircle2 className="h-3 w-3" /> Done
-                  </span>
+              {accountClaims.length === 0 ? (
+                <div className={`rounded-xl p-3 text-center ${themeStyles.gridBlock}`}>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                    No claims submitted yet
+                  </p>
                 </div>
-              ))}
+              ) : (
+                accountClaims.map((claim, idx) => (
+                  <div
+                    key={claim.id || idx}
+                    onClick={() => {
+                      s.selectClaim(claim.id);
+                      onClose();
+                    }}
+                    className={`flex items-center justify-between rounded-xl p-2 transition-all cursor-pointer group text-xs ${themeStyles.gridBlock}`}
+                  >
+                    <div className="min-w-0 pr-2">
+                      <div className="flex items-center gap-1.5">
+                        <p className={`text-[11px] font-bold truncate ${themeStyles.valueColor}`}>
+                          Patient: {claim.patient_name || 'Patient'}
+                        </p>
+                        {claim.patient_name && claim.patient_name.toLowerCase() !== userName.toLowerCase() && (
+                          <span className="rounded bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-400/30 px-1 py-0.2 text-[8px] font-bold uppercase">
+                            Family
+                          </span>
+                        )}
+                      </div>
+                      <p className={`text-[9px] truncate mt-0.5 ${themeStyles.labelColor}`}>
+                        ID: {claim.id.slice(0, 8)}... &bull; {claim.total_amount || '₹0'}
+                      </p>
+                    </div>
+
+                    <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-0.5 flex-none">
+                      <CheckCircle2 className="h-3 w-3" /> Done
+                    </span>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
