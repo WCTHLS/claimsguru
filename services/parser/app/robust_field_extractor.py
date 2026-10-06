@@ -729,7 +729,8 @@ class RobustFieldExtractor:
                 value = RobustFieldExtractor._clean_person_name(value)
                 # Strip trailing department/credential markers for doctor names
                 if field_name == "doctor_name":
-                    value = re.sub(r"\s+(?:Dept|Dept\.|Department|MD|PhD|Reg\.|Reg\s+No).*$", "", value, flags=re.IGNORECASE).strip()
+                    value = re.sub(r"\s+(?:Dept|Dept\.|Department|MD|PhD|Reg\.|Reg\s+No|MBBS|MS|DNB|DM|MCh|FRCS).*$", "", value, flags=re.IGNORECASE).strip()
+                    value = re.sub(r"[\(\)\[\]]+", "", value).strip(" ,;:|.-")
                 
                 words = [w for w in value.split() if w]
                 if words:
@@ -741,7 +742,7 @@ class RobustFieldExtractor:
                     if any(term in truncated_words_lower for term in reject_terms):
                         continue
 
-                    if len(words[:max_words]) >= 2:
+                    if len(words[:max_words]) >= 1:
                         has_valid_word = any(len(w) >= 3 and re.search(r"[A-Za-z]", w) for w in words[:max_words])
                         if has_valid_word:
                             valid_candidates.append((p_idx, start_pos, truncated_value))

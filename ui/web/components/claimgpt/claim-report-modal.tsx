@@ -453,7 +453,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     setLoadingPdf(type);
     const title = type === 'tpa' ? 'TPA Comprehensive Audit Report' : 'IRDAI Standardized Claim Form';
     try {
-      const res = await fetch(url);
+      const cacheBustUrl = url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`;
+      const res = await fetch(cacheBustUrl, { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP error ' + res.status);
       const contentType = res.headers.get('content-type') || '';
       const blob = await res.blob();
@@ -470,10 +471,14 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       }
       const pdfBlob = new Blob([blob], { type: 'application/pdf' });
       const blobUrl = URL.createObjectURL(pdfBlob);
+      if (inlinePdf?.url && inlinePdf.url.startsWith('blob:')) {
+        URL.revokeObjectURL(inlinePdf.url);
+      }
       setInlinePdf({ url: blobUrl, title, type });
     } catch (err) {
       console.warn('PDF preview error:', err);
-      setInlinePdf({ url, title, type });
+      const fallbackUrl = url.includes('?') ? `${url}&_t=${Date.now()}` : `${url}?_t=${Date.now()}`;
+      setInlinePdf({ url: fallbackUrl, title, type });
     } finally {
       setLoadingPdf(null);
     }

@@ -1835,7 +1835,12 @@ def generate_tpa_claim_pdf(
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'{disp}; filename="{filename}"'},
+        headers={
+            "Content-Disposition": f'{disp}; filename="{filename}"',
+            "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+            "Pragma": "no-cache",
+            "Expires": "0",
+        },
     )
 
 
@@ -1898,6 +1903,9 @@ def generate_irda_claim_pdf(
     disp = "inline" if view else "attachment"
     headers = {
         "Content-Disposition": f'{disp}; filename="{filename}"',
+        "Cache-Control": "no-cache, no-store, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
         "X-IRDA-Renderer": renderer_used,
     }
     if renderer_warning:

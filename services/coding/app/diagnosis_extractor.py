@@ -531,11 +531,32 @@ def _try_azure_openai_extract(text: str, max_terms: int) -> list[str]:
             logger.info("[AZURE OPENAI PROMPT] Input text:\n%s", user)
             logger.info("[AZURE OPENAI RAW RESPONSE]\n%s", raw)
             logger.info("[AZURE OPENAI PARSED DIAGNOSES] %s", parsed)
+            try:
+                from services.parser_v2.semantic_backends import save_llm_debug_dump
+                save_llm_debug_dump(
+                    call_type="azure_openai_coding_diagnosis",
+                    prompt=user,
+                    response=raw,
+                    model=deployment,
+                    parsed_result=parsed
+                )
+            except Exception:
+                pass
             return parsed
         logger.warning("Azure OpenAI returned empty content")
         return []
     except Exception as exc:
         logger.warning("Azure OpenAI diagnosis extraction failed: %s", exc)
+        try:
+            from services.parser_v2.semantic_backends import save_llm_debug_dump
+            save_llm_debug_dump(
+                call_type="azure_openai_coding_diagnosis_error",
+                prompt=user,
+                response=str(exc),
+                model=deployment
+            )
+        except Exception:
+            pass
         return []
 
 

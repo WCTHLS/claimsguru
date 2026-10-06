@@ -76,17 +76,20 @@ def _validate_patient_name(val: str) -> bool:
     if _is_obvious_label(s):
         return False
     parts = [p for p in re.split(r"\s+", s) if p]
-    if len(parts) < 2 or len(parts) > 6:
+    if len(parts) < 1 or len(parts) > 6:
+        return False
+    # If 1 part, require at least 3 chars and not all numbers
+    if len(parts) == 1 and (len(parts[0]) < 3 or not any(ch.isalpha() for ch in parts[0])):
         return False
     # Reject numeric-only or contains digit tokens like '29'
     if any(re.search(r"\d", p) for p in parts):
         return False
-    # Reject when contains medical keywords
-    medical_kw = {"mg", "tablet", "medicine", "dose", "diagnosis", "summary"}
+    # Reject when contains medical keywords or form identifiers
+    medical_kw = {"mg", "tablet", "medicine", "dose", "diagnosis", "summary", "identifier", "patient", "uhid", "opd", "ipd"}
     if any(p.lower() in medical_kw for p in parts):
         return False
-    # Reject if contains ':' or '-' that indicates label
-    if ":" in s or "-" in s and len(parts) <= 2:
+    # Reject if contains ':' that indicates label
+    if ":" in s:
         return False
     return True
 

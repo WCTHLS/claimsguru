@@ -455,15 +455,18 @@ def _infer_table_kind(table_rows: List[Row], columns: List[Dict[str, Any]]) -> t
     numeric_columns = [idx for idx, r in enumerate(numeric_ratios) if r >= 0.5]
     rightmost_numeric = numeric_columns[-1] if numeric_columns else None
 
-    # header keyword detection (common billing headers)
-    header_keywords = {"description", "charges", "total", "qty", "days", "amount", "charges_", "total charges", "medicine", "drug", "medication", "procedure", "service", "fee", "cost", "price", "bill", "invoice"}
+    # header keyword detection (strictly monetary billing headers)
+    header_keywords = {"charges", "total", "amount", "charges_", "total charges", "rate", "fee", "cost", "price", "bill", "invoice", "gross", "payable", "discount", "net amt", "tax"}
+    clinical_rejection_keywords = {"surgery name", "procedure name", "sleep surgery", "investigation name", "test name", "dosage", "frequency", "route"}
     header_found = False
     header_rows_text = []
     for row in table_rows[:3]:
         if row.cells:
             header_rows_text.append(" ".join(c.text.lower() for c in row.cells))
     if header_rows_text:
-        header_found = any(any(k in row_text for k in header_keywords) for row_text in header_rows_text)
+        has_clinical_rejection = any(any(k in row_text for k in clinical_rejection_keywords) for row_text in header_rows_text)
+        if not has_clinical_rejection:
+            header_found = any(any(k in row_text for k in header_keywords) for row_text in header_rows_text)
 
     # Fallback detection for OCR-noisy but valid expense tables:
     # strong rightmost numeric column + at least one header-like row token.
