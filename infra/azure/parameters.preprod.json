@@ -22,6 +22,15 @@
     },
     "sqlAdminPassword": {
       "value": "ClaimsGuruPreProdPass!2026"
+    },
+    "azureOpenAiEndpoint": {
+      "value": "https://cg-preprod-openai.openai.azure.com/openai/v1"
+    },
+    "azureOpenAiApiKey": {
+      "value": ""
+    },
+    "azureOpenAiDeployment": {
+      "value": "gpt-4o"
     }
   }
 }
