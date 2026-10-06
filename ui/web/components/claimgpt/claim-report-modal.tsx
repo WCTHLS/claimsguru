@@ -491,7 +491,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         description: "Please upload the patient's Policy Schedule or Health Card first to generate the TPA audit report.",
         variant: "destructive",
       });
-      policyFileInputRef.current?.click();
       return;
     }
     if (tpaUrl) openInlinePdfViewer(tpaUrl, 'tpa');
@@ -504,7 +503,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         description: "Please upload the patient's Policy Schedule or Health Card first to generate the IRDAI claim form.",
         variant: "destructive",
       });
-      policyFileInputRef.current?.click();
       return;
     }
     if (irdaUrl) openInlinePdfViewer(irdaUrl, 'irdai');
@@ -579,7 +577,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         description: "Please upload the patient's Policy Schedule or Health Card first before submitting the claim.",
         variant: "destructive",
       });
-      policyFileInputRef.current?.click();
       return;
     }
 
@@ -805,7 +802,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
           <button
             type="button"
             onClick={s.closeReportModal}
-            className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+            className="flex h-8 w-8 sm:h-8 sm:w-8 flex-none items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/15 active:scale-95 text-slate-300 hover:text-white transition-all cursor-pointer"
             aria-label="Close Modal"
           >
             <X className="h-4 w-4" />

@@ -709,36 +709,45 @@ class AzureOpenAISemanticBackend(SemanticBackend):
             "Content-Type": "application/json",
         }
 
-        try:
-            logger.info("Calling Azure OpenAI (%s) for semantic extraction of region %s...", self.deployment, request.region_id)
-            resp = httpx.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
-            resp.raise_for_status()
-            data = resp.json()
-            raw = None
-            if isinstance(data, dict) and "choices" in data and data["choices"]:
-                msg = data["choices"][0].get("message", {})
-                raw = msg.get("content") if isinstance(msg, dict) else msg
-            
-            parsed = _parse_semantic_response(str(raw), request, self.name) if raw else None
-            save_llm_debug_dump(
-                call_type="azure_openai_region_semantic",
-                prompt=prompt,
-                response=raw,
-                model=self.deployment,
-                parsed_result=parsed
-            )
-            if not raw:
-                return None
-            return parsed
-        except Exception as exc:
-            logger.warning("Azure OpenAI semantic extraction failed: %s", exc)
-            save_llm_debug_dump(
-                call_type="azure_openai_region_semantic_error",
-                prompt=prompt,
-                response=str(exc),
-                model=self.deployment
-            )
+        raw = None
+        for attempt in range(1, 4):
+            try:
+                logger.info("Calling Azure OpenAI (%s) for semantic extraction of region %s (attempt %d/3)...", self.deployment, request.region_id, attempt)
+                resp = httpx.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
+                if resp.status_code == 429:
+                    retry_after = float(resp.headers.get("retry-after", 2 * attempt))
+                    logger.warning("Azure OpenAI rate limited (429). Retrying in %.1fs (attempt %d/3)...", retry_after, attempt)
+                    time.sleep(retry_after)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                if isinstance(data, dict) and "choices" in data and data["choices"]:
+                    msg = data["choices"][0].get("message", {})
+                    raw = msg.get("content") if isinstance(msg, dict) else msg
+                break
+            except Exception as exc:
+                if attempt == 3:
+                    logger.warning("Azure OpenAI semantic extraction failed after 3 attempts: %s", exc)
+                    save_llm_debug_dump(
+                        call_type="azure_openai_region_semantic_error",
+                        prompt=prompt,
+                        response=str(exc),
+                        model=self.deployment
+                    )
+                    return None
+                time.sleep(1.5 * attempt)
+
+        parsed = _parse_semantic_response(str(raw), request, self.name) if raw else None
+        save_llm_debug_dump(
+            call_type="azure_openai_region_semantic",
+            prompt=prompt,
+            response=raw,
+            model=self.deployment,
+            parsed_result=parsed
+        )
+        if not raw:
             return None
+        return parsed
 
     def extract_document_entities(self, text: str) -> dict[str, Any] | None:
         if not self.available() or not text:
@@ -771,36 +780,45 @@ class AzureOpenAISemanticBackend(SemanticBackend):
             "Content-Type": "application/json",
         }
 
-        try:
-            logger.info("Calling Azure OpenAI (%s) for document clinical entity extraction...", self.deployment)
-            resp = httpx.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
-            resp.raise_for_status()
-            data = resp.json()
-            raw = None
-            if isinstance(data, dict) and "choices" in data and data["choices"]:
-                msg = data["choices"][0].get("message", {})
-                raw = msg.get("content") if isinstance(msg, dict) else msg
-            
-            parsed = _parse_json_dict(str(raw)) if raw else None
-            save_llm_debug_dump(
-                call_type="azure_openai_document_entities",
-                prompt=prompt,
-                response=raw,
-                model=self.deployment,
-                parsed_result=parsed
-            )
-            if not raw:
-                return None
-            return parsed
-        except Exception as exc:
-            logger.warning("Azure OpenAI document entity extraction failed: %s", exc)
-            save_llm_debug_dump(
-                call_type="azure_openai_document_entities_error",
-                prompt=prompt,
-                response=str(exc),
-                model=self.deployment
-            )
+        raw = None
+        for attempt in range(1, 4):
+            try:
+                logger.info("Calling Azure OpenAI (%s) for document clinical entity extraction (attempt %d/3)...", self.deployment, attempt)
+                resp = httpx.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
+                if resp.status_code == 429:
+                    retry_after = float(resp.headers.get("retry-after", 2 * attempt))
+                    logger.warning("Azure OpenAI rate limited (429). Retrying in %.1fs (attempt %d/3)...", retry_after, attempt)
+                    time.sleep(retry_after)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                if isinstance(data, dict) and "choices" in data and data["choices"]:
+                    msg = data["choices"][0].get("message", {})
+                    raw = msg.get("content") if isinstance(msg, dict) else msg
+                break
+            except Exception as exc:
+                if attempt == 3:
+                    logger.warning("Azure OpenAI document entity extraction failed after 3 attempts: %s", exc)
+                    save_llm_debug_dump(
+                        call_type="azure_openai_document_entities_error",
+                        prompt=prompt,
+                        response=str(exc),
+                        model=self.deployment
+                    )
+                    return None
+                time.sleep(1.5 * attempt)
+
+        parsed = _parse_json_dict(str(raw)) if raw else None
+        save_llm_debug_dump(
+            call_type="azure_openai_document_entities",
+            prompt=prompt,
+            response=raw,
+            model=self.deployment,
+            parsed_result=parsed
+        )
+        if not raw:
             return None
+        return parsed
 
 
 class SemanticBackendRegistry:

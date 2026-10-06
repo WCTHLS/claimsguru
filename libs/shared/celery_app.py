@@ -84,7 +84,9 @@ if servicebus_conn and use_servicebus:
 os.environ["CELERY_BROKER_URL"] = broker_url
 os.environ["CELERY_RESULT_BACKEND"] = backend_url
 
-broker_transport_options = {}
+broker_transport_options = {
+    'visibility_timeout': 300,  # 5 minutes: unacknowledged tasks from crashed workers are restored in 5 min instead of 1 hour
+}
 result_backend_transport_options = {}
 
 if broker_url and broker_url.startswith("sentinel://"):
@@ -106,7 +108,8 @@ if broker_url and broker_url.startswith("sentinel://"):
             
     broker_transport_options = {
         'master_name': master_name,
-        'sentinels': sentinels
+        'sentinels': sentinels,
+        'visibility_timeout': 300,
     }
     result_backend_transport_options = {
         'master_name': master_name,

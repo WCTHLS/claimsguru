@@ -280,6 +280,28 @@ async def startup_event():
         except Exception as pe:
             logger.warning("PredictorBase schema init skipped: %s", pe)
         logger.info("Database tables initialized successfully.")
+
+        # Auto-recover interrupted claims on server/worker restart
+        try:
+            with SessionLocal() as db:
+                stuck_states = (
+                    db.query(WorkflowState)
+                    .filter(
+                        WorkflowState.status == "RUNNING",
+                        ~WorkflowState.current_step.in_(["FINISHED", "FAILED", "IDENTITY_MISMATCH"])
+                    )
+                    .all()
+                )
+                if stuck_states:
+                    logger.info("[STARTUP RECOVERY] Found %d interrupted claim(s). Resuming pipeline execution...", len(stuck_states))
+                    for ws in stuck_states:
+                        try:
+                            _enqueue_pipeline(str(ws.claim_id))
+                            logger.info("[STARTUP RECOVERY] Successfully re-enqueued interrupted claim %s", ws.claim_id)
+                        except Exception as re_err:
+                            logger.warning("[STARTUP RECOVERY] Could not re-enqueue claim %s: %s", ws.claim_id, re_err)
+        except Exception as rec_exc:
+            logger.warning("[STARTUP RECOVERY] Startup recovery check encountered an error: %s", rec_exc)
     except Exception as e:
         logger.exception("Failed to initialize database tables on startup: %s", e)
 
@@ -4305,6 +4327,52 @@ def delete_claim(
     except Exception as e:
         logger.error(f"Error deleting claim {claim_id}: {e}", exc_info=True)
     return Response(status_code=204)
+
+
+@router.post("/claims/{claim_id}/reprocess")
+@router.post("/claims/{claim_id}/retry")
+def reprocess_claim_endpoint(
+    claim_id: str,
+    auth_user: AuthUser = Depends(get_current_user_context),
+    db: Session = Depends(get_db),
+):
+    """Reprocess an existing claim from scratch (OCR -> Parser -> Coding -> Risk -> Validator -> Finalize).
+
+    Useful for recovering stuck, interrupted, or failed claims without re-uploading documents.
+    """
+    try:
+        cid = _parse_uuid(claim_id)
+        claim = db.query(Claim).filter(Claim.id == cid).first()
+        if not claim:
+            raise HTTPException(status_code=404, detail="Claim not found")
+
+        # Verify documents exist
+        docs = db.query(Document).filter(Document.claim_id == cid).all()
+        if not docs:
+            raise HTTPException(status_code=400, detail="No documents attached to this claim to process")
+
+        # Reset claim state
+        claim.status = "UPLOADED"
+        claim.canonical_json = None
+        db.commit()
+
+        # Reset workflow state
+        upsert_workflow_state(db, cid, "STARTING", status="RUNNING")
+        db.commit()
+
+        task_id = _enqueue_pipeline(str(cid))
+        logger.info("Claim %s reprocessing queued with task ID %s", claim_id, task_id)
+        return {
+            "success": True,
+            "claim_id": str(cid),
+            "task_id": task_id,
+            "message": "Claim reprocessing triggered successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error reprocessing claim {claim_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to reprocess claim: {str(e)}")
 
 
 class SubmitClaimPayload(BaseModel):

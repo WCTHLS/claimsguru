@@ -692,3 +692,30 @@ export async function submitClaimToPayerApi(
     return { success: false, error: err?.message || "Network error" };
   }
 }
+
+/**
+ * Reprocess / retry a stuck or failed claim from scratch
+ */
+export async function reprocessClaimApi(
+  claimId: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const authSession = getStoredAuthSession();
+    const headers: Record<string, string> = {};
+    if (authSession?.token) {
+      headers["Authorization"] = `Bearer ${authSession.token}`;
+    }
+    const res = await fetch(`${INGRESS_API}/claims/${claimId}/reprocess`, {
+      method: "POST",
+      headers,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { success: true, data };
+    }
+    const errData = await res.json().catch(() => null);
+    return { success: false, error: errData?.detail || "Reprocessing failed" };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Network error" };
+  }
+}

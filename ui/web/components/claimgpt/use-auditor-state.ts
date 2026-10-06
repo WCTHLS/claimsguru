@@ -613,16 +613,7 @@ export function useAuditorState() {
 
     try {
       await deleteClaimApi(idToDelete);
-      let patientId: string | undefined = undefined;
-      const session = getStoredAuthSession();
-      if (session?.user?.name) {
-        patientId = session.user.name;
-      } else {
-        const savedName = localStorage.getItem('claimgpt_user_name');
-        if (savedName) patientId = savedName;
-      }
-      const remainingClaims = await fetchRecentClaims(patientId);
-      setRecentClaims(remainingClaims || []);
+      await reloadRecentClaims();
     } catch (err) {
       console.warn("Backend deletion error:", err);
     }
