@@ -58,6 +58,15 @@ class TestDeterministicFallback:
         assert not any("aspirin" in t for t in terms)
         assert not any("pci" in t for t in terms)
 
+    def test_strips_documented_diagnosis_and_clinical_summary_context(self):
+        text = (
+            "Documented Diagnosis: LOWER OESOPHAGEAL HIATUS HERNIA\n"
+            "Clinical Summary Context: Patient came to hospital with dyspepsia and cough"
+        )
+        with patch.object(dx, "_try_llm_extract", return_value=[]), patch.object(dx, "_try_scispacy_extract", return_value=[]):
+            terms = dx.extract_diagnosis_keywords(text)
+        assert any("hiatus hernia" in t.lower() or "oesophageal" in t.lower() for t in terms)
+
     def test_falls_back_to_vocab_when_no_header(self):
         text = (
             "39 weeks pregnancy in labor full term delivery with episiotomy "
