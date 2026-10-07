@@ -260,7 +260,7 @@ def _build_sections(fields: dict[str, Any], blank: bool) -> dict[str, Any]:
         "d": {
             "title": "Hospitalisation Details",
             "fields": [
-                f("Hospital Name", _clean_hospital_name(_g(fields, "hospital_name", "hospital")), name="d_hospital_name", required=True),
+                f("Hospital Name", _clean_hospital_name(_g(fields, "hospital_name", "hospital")), name="d_hospital_name", required=True, span="full"),
                 f("Hospital City / State", _g(fields, "hospital_city", "city", "hospital_state"), name="d_hospital_city"),
                 f("Hospital Phone", _g(fields, "hospital_phone", "hospital_contact"), name="d_hospital_phone"),
                 f("Date of Admission", _g(fields, "admission_date", "date_of_admission"), name="d_admission_date", required=True),
@@ -294,11 +294,11 @@ def _build_sections(fields: dict[str, Any], blank: bool) -> dict[str, Any]:
         "h_hospital": {
             "title": "Hospital Identification",
             "fields": [
-                f("Hospital Name", _clean_hospital_name(_g(fields, "hospital_name", "hospital")), name="h_hospital_name", required=True),
+                f("Hospital Name", _clean_hospital_name(_g(fields, "hospital_name", "hospital")), name="h_hospital_name", required=True, span="full"),
                 f("Hospital Registration No.", _g(fields, "hospital_registration_no", "hospital_reg_no"), name="h_hospital_reg"),
-                f("Address", _clean_address(_g(fields, "hospital_address")), name="h_hospital_address", span="full", multiline=True),
                 f("Phone", _g(fields, "hospital_phone", "hospital_contact"), name="h_hospital_phone"),
-                f("Email", _g(fields, "hospital_email"), name="h_hospital_email", span=2),
+                f("Email", _g(fields, "hospital_email"), name="h_hospital_email"),
+                f("Address", _clean_address(_g(fields, "hospital_address")), name="h_hospital_address", span="full", multiline=True),
             ],
         },
         "h_clinical": {
@@ -336,38 +336,62 @@ def generate_irda_pdf_modern(claim_data: dict[str, Any], blank: bool = False) ->
     cpt_codes = [c if isinstance(c, dict) else {"code": str(c), "description": "", "confidence": None} for c in cpt_in]
 
     raw_expenses = claim_data.get("expenses") or []
+    computed_sum = 0.0
     if raw_expenses:
         expenses = []
-        total = 0.0
         for exp in raw_expenses:
             cat = exp.get("category") or exp.get("description") or "Expense"
             amt_val = 0.0
             try:
-                amt_val = float(str(exp.get("amount", 0.0)).replace(",", ""))
+                amt_val = float(str(exp.get("amount", 0.0)).replace(",", "").replace("₹", "").strip())
             except (TypeError, ValueError):
                 pass
-            expenses.append({
-                "label": cat,
-                "amount": _money(amt_val)
-            })
-            total += amt_val
+            if amt_val > 0:
+                expenses.append({
+                    "label": cat,
+                    "amount": _money(amt_val)
+                })
+                computed_sum += amt_val
     else:
-        expenses, total = _build_expenses(fields_in)
-    # Allow an explicit total to override the sum if present.
-    explicit_total = fields_in.get("claimed_total") or fields_in.get("total_claim_amount") or fields_in.get("total_amount") or fields_in.get("gross_total")
-    if explicit_total:
-        try:
-            total = float(str(explicit_total).replace(",", "").replace("₹", "").strip())
-        except (TypeError, ValueError):
-            pass
+        expenses, computed_sum = _build_expenses(fields_in)
+
+    # Resolve overall total claimed: prioritize explicit positive total, then expense sum, then claim_data total
+    final_total = 0.0
+    for cand in (
+        claim_data.get("billed_total"),
+        claim_data.get("cost_summary", {}).get("grand_total") if isinstance(claim_data.get("cost_summary"), dict) else None,
+        fields_in.get("total_amount"),
+        fields_in.get("total_claim_amount"),
+        fields_in.get("gross_total"),
+        fields_in.get("net_payable"),
+        fields_in.get("bill_amount"),
+        claim_data.get("claim_amount"),
+        claim_data.get("expense_total"),
+        fields_in.get("claimed_total"),
+    ):
+        if cand not in (None, "", "—", "0", "0.0", "0.00", 0, 0.0):
+            try:
+                num = float(str(cand).replace(",", "").replace("₹", "").strip())
+                if num > 0:
+                    final_total = num
+                    break
+            except Exception:
+                pass
+
+    if final_total <= 0 and computed_sum > 0:
+        final_total = computed_sum
+    if final_total <= 0 and isinstance(claim_data.get("cost_summary"), dict) and claim_data["cost_summary"].get("grand_total", 0) > 0:
+        final_total = float(claim_data["cost_summary"]["grand_total"])
+
+    resolved_hosp = _clean_hospital_name(_g(fields_in, "hospital_name", "hospital", "provider_name") or claim_data.get("hospital_name") or "Treating Healthcare Provider")
 
     summary = {
-        "patient_name": _g(fields_in, "patient_name", "member_name", "insured_name"),
-        "policy_number": _g(fields_in, "policy_number", "policy_no", "policy_id", "insurance_policy_number"),
-        "hospital_name": _g(fields_in, "hospital_name"),
-        "total_claimed": _money_full(total) if total else _money_full(explicit_total),
-        "admission_date": _g(fields_in, "admission_date", "date_of_admission"),
-        "discharge_date": _g(fields_in, "discharge_date", "date_of_discharge"),
+        "patient_name": _g(fields_in, "patient_name", "member_name", "insured_name") or claim_data.get("patient_name") or "Valued Patient",
+        "policy_number": _g(fields_in, "policy_number", "policy_no", "policy_id", "insurance_policy_number") or claim_data.get("policy_id") or "POL-2026-CLAIM",
+        "hospital_name": resolved_hosp,
+        "total_claimed": _money_full(final_total) if final_total > 0 else (_money_full(computed_sum) if computed_sum > 0 else "Under Review"),
+        "admission_date": _g(fields_in, "admission_date", "date_of_admission") or "—",
+        "discharge_date": _g(fields_in, "discharge_date", "date_of_discharge") or "—",
         "doc_id": str(uuid.uuid4())[:8].upper(),
     }
 
@@ -380,7 +404,7 @@ def generate_irda_pdf_modern(claim_data: dict[str, Any], blank: bool = False) ->
         "icd_codes": icd_codes,
         "cpt_codes": cpt_codes,
         "expenses": expenses,
-        "total_claimed_str": _money(total) if total else "—",
+        "total_claimed_str": _money(final_total if final_total > 0 else computed_sum),
     }
 
     try:

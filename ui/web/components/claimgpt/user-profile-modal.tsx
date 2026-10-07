@@ -128,7 +128,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       });
 
       // Always fetch live profile from backend database to ensure 100% sync across devices and Incognito
-      if (currentEmail) {
+      if (currentEmail && currentEmail !== 'user@example.com' && currentEmail !== 'User') {
         const ingressBase = getIngressApiUrl().replace(/\/+$/, '');
         fetch(`${ingressBase}/auth/profile/${encodeURIComponent(currentEmail)}`)
           .then(res => (res.ok ? res.json() : null))

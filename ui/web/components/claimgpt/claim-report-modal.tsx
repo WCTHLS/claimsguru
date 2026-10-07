@@ -196,14 +196,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     const isCleanIns = (v: any) => Boolean(
       v && typeof v === 'string' && v.trim().length >= 3 &&
       v.toUpperCase() !== 'N/A' && v.toLowerCase() !== 'null' &&
-      v !== 'Star Health' && v !== 'Pending Insurer Selection'
+      v.toLowerCase() !== 'no_insurance' && v.toLowerCase() !== 'no insurance' &&
+      v.toLowerCase() !== 'unknown' && v !== 'Pending Insurer Selection'
     );
 
     const parsedFields = (preview?.parsed_fields as any) || {};
     const rawPol = parsedFields.policy_number || parsedFields.policy_id || (summary as any)?.policy_number || '';
     const cleanPol = isCleanPol(rawPol) ? rawPol.trim() : '';
     
-    const rawIns = parsedFields.insurance_company || parsedFields.insurer || (summary as any)?.insurer || (s as any)?.enrolledTpa || '';
+    const rawIns = parsedFields.insurance_company || parsedFields.insurer || parsedFields.tpa_name || (summary as any)?.insurer || (s as any)?.enrolledTpa || '';
     const cleanIns = isCleanIns(rawIns) ? rawIns.trim() : '';
 
     const detectedSI = parsedFields.sum_insured ? Number(parsedFields.sum_insured) : null;
@@ -435,14 +436,21 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const isCleanInsVal = (v: any) => Boolean(
     v && typeof v === 'string' && v.trim().length >= 3 &&
     v.toUpperCase() !== 'N/A' && v.toLowerCase() !== 'null' &&
-    v !== 'Star Health' && v !== 'Pending Insurer Selection'
+    v.toLowerCase() !== 'no_insurance' && v.toLowerCase() !== 'no insurance' &&
+    v.toLowerCase() !== 'unknown' && v !== 'Pending Insurer Selection'
   );
 
-  const hasValidPolicy = Boolean(
-    (policyId && isCleanPolVal(policyId)) ||
+  const hasValidPolicyNumber = Boolean(policyId && isCleanPolVal(policyId));
+  const hasValidInsurer = Boolean(
     (selectedInsurer && isCleanInsVal(selectedInsurer)) ||
-    (policyDetails?.sumInsured && policyDetails.sumInsured > 0)
+    (preview?.parsed_fields as any)?.tpa_name ||
+    (preview?.parsed_fields as any)?.insurance_company ||
+    (summary as any)?.tpa_name ||
+    (summary as any)?.insurer
   );
+
+  // Both Policy Number AND Insurer/TPA must be present for a verified policy
+  const hasValidPolicy = Boolean(hasValidPolicyNumber && hasValidInsurer);
 
   if (!s.showReportModal) return null;
 

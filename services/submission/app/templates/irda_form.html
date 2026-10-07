@@ -272,26 +272,26 @@
   .field input.v,
   .field textarea.v {
     font-family: Helvetica, Arial, sans-serif;
-    font-size: 12pt;
+    font-size: 10pt;
     font-weight: 500;
     color: #0f172a;
-    padding: 3mm 3.5mm;
+    padding: 2.5mm 3.5mm;
     background: #ffffff;
     border: 1px solid #cbd5e1;
     border-bottom: 2px solid #94a3b8;
     border-radius: 3px;
     width: 100%;
-    min-height: 12mm;
+    min-height: 10mm;
     box-sizing: border-box;
     letter-spacing: 0.005em;
     overflow: visible;
     line-height: 1.4;
   }
   .field textarea.v {
-    min-height: 26mm;
+    min-height: 22mm;
     resize: none;
-    line-height: 1.55;
-    padding: 3.5mm 3.5mm;
+    line-height: 1.5;
+    padding: 3mm 3.5mm;
   }
   .field input.v:focus,
   .field textarea.v:focus {
@@ -704,8 +704,9 @@
       <h2>To Be Filled by the Hospital</h2>
     </div>
     <div class="right">
-      Sections A – F<br/>
-      <strong>{{ summary.hospital_name or "Hospital —" }}</strong>
+      <span class="badge" style="background: rgba(255,255,255,0.18); border-color: rgba(255,255,255,0.3); color: white; padding: 4px 12px; font-size: 8.5pt;">
+        Hospital Attestation &amp; Clinical Details
+      </span>
     </div>
   </div>
 

@@ -834,25 +834,33 @@ def extract_semantics(
                             "admission_date": "admission_date",
                             "discharge_date": "discharge_date",
                             "diagnosis": "diagnosis",
+                            "insurance_company": "insurance_company",
+                            "tpa_name": "tpa_name",
                             "policy_number": "insurance_policy_number",
+                            "member_id": "member_id",
+                            "sum_insured": "sum_insured",
+                            "policy_start_date": "policy_start_date",
+                            "policy_end_date": "policy_end_date",
                             "claimed_total": "claimed_total",
                         }
                         for k, v in entities.items():
                             canon = field_map.get(k)
-                            if canon and v and str(v).strip() and str(v).strip().lower() not in {"none", "null", "n/a"}:
+                            if canon and v and str(v).strip():
                                 clean_v = str(v).strip()
-                                semantic_fields.append(SemanticFieldOutput(
-                                    canonical_field=canon,
-                                    value=clean_v,
-                                    confidence=0.96,
-                                    source_region_id="doc_header",
-                                    source_region_type="clinical_summary",
-                                    source_tokens=[],
-                                    model_name=getattr(backend, "name", "llm"),
-                                    extractor_name=getattr(backend, "name", "llm"),
-                                    metadata={"source": "document_level_entity_extractor"}
-                                ))
-                                logger.info(f"[SEMANTIC_ENTITY] Extracted {canon}='{clean_v}' via {getattr(backend, 'name', 'llm')}")
+                                # Strict zero-hallucination guard against placeholders
+                                if clean_v.lower() not in {"none", "null", "n/a", "no_insurance", "no insurance", "unknown", "nil", "-", "--", "undefined"}:
+                                    semantic_fields.append(SemanticFieldOutput(
+                                        canonical_field=canon,
+                                        value=clean_v,
+                                        confidence=0.96,
+                                        source_region_id="doc_header",
+                                        source_region_type="clinical_summary",
+                                        source_tokens=[],
+                                        model_name=getattr(backend, "name", "llm"),
+                                        extractor_name=getattr(backend, "name", "llm"),
+                                        metadata={"source": "document_level_entity_extractor"}
+                                    ))
+                                    logger.info(f"[SEMANTIC_ENTITY] Extracted {canon}='{clean_v}' via {getattr(backend, 'name', 'llm')}")
         except Exception as e:
             logger.warning(f"Failed document entity extraction: {e}")
 

@@ -312,13 +312,13 @@ def _pick_best_field_value(field_name: str, values: list[tuple[str, str]]) -> st
     if field_name in {"insurance_policy_number", "policy_number", "policy_id"}:
         cleaned_pols = []
         for v, _mv in clean:
-            pm = re.search(r"\b([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]{3,8}-[A-Z0-9]{2,6}-[A-Z0-9]{4,12})\b", v)
+            pm = re.search(r"\b([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]+(?:-[A-Z0-9]+){1,4})\b", v)
             if pm:
                 cleaned_pols.append(pm.group(1))
             elif len(v) <= 30 and not any(kw in v.lower() for kw in ["aadhaar", "pan", "sum insured", "tpa", "declare"]):
                 cleaned_pols.append(v.strip())
         if cleaned_pols:
-            return cleaned_pols[0]
+            return sorted(cleaned_pols, key=lambda x: -len(x))[0]
         return ""
 
     if field_name in {"patient_id", "uhid", "ip_number"}:

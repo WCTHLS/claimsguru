@@ -3641,7 +3641,8 @@ def get_claim(
             "hospital_name", "hospital",
             "doctor_name", "doctor", "provider_name", "rendering_provider",
             "diagnosis", "primary_diagnosis", "chief_complaint",
-            "insurance_company", "insurer", "tpa_name", "tpa"
+            "insurance_company", "insurer", "payer", "tpa_name", "tpa", "third_party_administrator",
+            "policy_number", "insurance_policy_number", "member_id", "sum_insured"
         ])
     ).all()
     
@@ -3650,7 +3651,9 @@ def get_claim(
     claim.hospital_name = fields.get("hospital_name") or fields.get("hospital") or None
     claim.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
     claim.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
-    extracted_ins = fields.get("insurance_company") or fields.get("insurer") or fields.get("tpa_name") or None
+    if not getattr(claim, "policy_number", None):
+        claim.policy_number = fields.get("policy_number") or fields.get("insurance_policy_number") or None
+    extracted_ins = fields.get("insurance_company") or fields.get("insurer") or fields.get("payer") or fields.get("tpa_name") or None
     if extracted_ins:
         if not getattr(claim, "insurance_company", None) or getattr(claim, "insurance_company", None) == "Star Health":
             claim.insurance_company = extracted_ins

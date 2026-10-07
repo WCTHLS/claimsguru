@@ -65,7 +65,7 @@ export function useAuditorState() {
 
   /* User Profile & Account Modal State */
   const [userName, setUserName] = useState<string>('User');
-  const [userEmail, setUserEmail] = useState<string>('user@example.com');
+  const [userEmail, setUserEmail] = useState<string>('');
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
   const [showMenuDrawer, setShowMenuDrawer] = useState<boolean>(false);
   const [duplicateClaimId, setDuplicateClaimId] = useState<string | null>(null);
@@ -78,13 +78,13 @@ export function useAuditorState() {
     try {
       const session = getStoredAuthSession();
       if (session?.user) {
-        if (session.user.name) setUserName(session.user.name);
-        if (session.user.email) setUserEmail(session.user.email);
+        if (session.user.name && session.user.name !== 'User') setUserName(session.user.name);
+        if (session.user.email && session.user.email !== 'user@example.com') setUserEmail(session.user.email);
       } else {
         const savedName = localStorage.getItem('claimgpt_user_name');
         const savedEmail = localStorage.getItem('claimgpt_user_email');
-        if (savedName) setUserName(savedName);
-        if (savedEmail) setUserEmail(savedEmail);
+        if (savedName && savedName !== 'User') setUserName(savedName);
+        if (savedEmail && savedEmail !== 'user@example.com') setUserEmail(savedEmail);
       }
     } catch (err) {
       /* ignore */
@@ -272,15 +272,16 @@ export function useAuditorState() {
   /* Helper to fetch list of past claims from backend */
   const reloadRecentClaims = async () => {
     try {
+      syncUserSession();
       let patientId: string | undefined = undefined;
       const session = getStoredAuthSession();
-      if (session?.user?.id) {
+      if (session?.user?.id && session.user.id !== 'User' && session.user.id !== 'user@example.com' && !session.user.id.startsWith('offline-')) {
         patientId = session.user.id;
-      } else if (session?.user?.email) {
+      } else if (session?.user?.email && session.user.email !== 'user@example.com') {
         patientId = session.user.email;
-      } else if (userEmail) {
+      } else if (userEmail && userEmail !== 'user@example.com' && userEmail !== 'User') {
         patientId = userEmail;
-      } else if (session?.user?.sub && session.user.sub !== 'User') {
+      } else if (session?.user?.sub && session.user.sub !== 'User' && !session.user.sub.startsWith('offline-')) {
         patientId = session.user.sub;
       }
       const claims = await fetchRecentClaims(patientId);
@@ -477,13 +478,16 @@ export function useAuditorState() {
   useEffect(() => {
     async function loadInitial() {
       try {
+        syncUserSession();
         let patientId: string | undefined = undefined;
         const session = getStoredAuthSession();
-        if (session?.user?.id) {
+        if (session?.user?.id && session.user.id !== 'User' && session.user.id !== 'user@example.com' && !session.user.id.startsWith('offline-')) {
           patientId = session.user.id;
-        } else if (session?.user?.email) {
+        } else if (session?.user?.email && session.user.email !== 'user@example.com') {
           patientId = session.user.email;
-        } else if (session?.user?.sub && session.user.sub !== 'User') {
+        } else if (userEmail && userEmail !== 'user@example.com' && userEmail !== 'User') {
+          patientId = userEmail;
+        } else if (session?.user?.sub && session.user.sub !== 'User' && !session.user.sub.startsWith('offline-')) {
           patientId = session.user.sub;
         }
         const claims = await fetchRecentClaims(patientId);
