@@ -694,8 +694,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         }
       } else {
         toast({
-          title: "Scan Completed",
-          description: "Could not auto-detect policy number from this document. Please enter it manually.",
+          title: "Policy Details Not Found",
+          description: "Could not detect a valid Policy Number or Insurance Company. Please upload a clear Policy Schedule or Health Card.",
           variant: "destructive",
         });
       }
