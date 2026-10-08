@@ -158,6 +158,7 @@ Return STRICT JSON only adhering exactly to this schema:
   "admission_date": "Date of admission in DD/MM/YYYY or DD-MM-YYYY format",
   "discharge_date": "Date of discharge in DD/MM/YYYY or DD-MM-YYYY format",
   "diagnosis": "Primary clinical diagnosis / condition (e.g. 'LOWER OESOPHAGEAL HIATUS HERNIA', 'BILATERAL PNEUMONITIS / TYPE 2 DM / HTN')",
+  "clinical_diagnosis_summary": "Comprehensive clinical narrative containing the patient's presenting complaint, history of present illness, relevant past medical history and comorbidities, confirmed/provisional diagnoses, significant investigation findings, procedures/interventions, treatment provided, and condition at discharge. Preserve the exact clinical diagnoses, anatomical site, laterality, acuity, severity, complications, and other details relevant for ICD coding. Return null if not present.",
   "insurance_company": "Full official name of the insurance company / payer if explicitly mentioned (e.g. 'Star Health and Allied Insurance', 'Care Health Insurance', 'HDFC ERGO', 'United India Insurance'). Return null if not explicitly mentioned in the text.",
   "tpa_name": "Full official name of the Third Party Administrator (TPA) if explicitly mentioned (e.g. 'Family Health Plan (TPA) Ltd.', 'Medi Assist Insurance TPA', 'Vidal Health TPA', 'MDIndia Health Insurance TPA'). Return null if no TPA is mentioned.",
   "policy_number": "Insurance policy number if explicitly present (do NOT use UHID, MRNO, or IPNO). Return null if not present.",
@@ -660,7 +661,7 @@ class OpenRouterBackend(SemanticBackend):
                     {"role": "system", "content": "You are a professional medical insurance billing and clinical extraction AI. Extract structured JSON adhering strictly to the schema with zero markdown noise."},
                     {"role": "user", "content": prompt}
                 ],
-                "max_tokens": 1000,
+                "max_tokens": 2500,
                 "temperature": 0.0,
                 "response_format": {"type": "json_object"}
             }
@@ -808,7 +809,7 @@ class AzureOpenAISemanticBackend(SemanticBackend):
                 {"role": "system", "content": "You are a professional medical insurance billing and clinical extraction AI. Extract structured JSON adhering strictly to the schema with zero markdown noise."},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 1000,
+            "max_tokens": 2500,
             "temperature": 0.0,
             "response_format": {"type": "json_object"}
         }

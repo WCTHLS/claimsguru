@@ -14,6 +14,7 @@ import {
   Clock,
   DollarSign,
   Download,
+  FolderDown,
   Edit3,
   ExternalLink,
   Eye,
@@ -56,7 +57,7 @@ import { CountUp, SpotlightCard, StaggerContainer, StaggerItem } from '@/compone
 import { formatINR, useAuditorState } from '@/components/claimgpt/use-auditor-state';
 import { cn } from '@/lib/utils';
 
-import { getIngressApiUrl, getSubmissionApiUrl, getChatApiUrl, getApiBaseUrl } from '@/lib/api-client';
+import { getIngressApiUrl, getSubmissionApiUrl, getChatApiUrl, getApiBaseUrl, downloadAllClaimDocumentsZip, downloadSingleClaimDocument } from '@/lib/api-client';
 
 export const INGRESS_API = typeof window !== 'undefined' ? getIngressApiUrl() : 'http://127.0.0.1:8000/ingress';
 export const SUBMISSION_API = typeof window !== 'undefined' ? getSubmissionApiUrl() : 'http://127.0.0.1:8000/submission';
@@ -298,6 +299,8 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedPreview, setExpandedPreview] = useState<ClaimPreviewData | null>(null);
   const [expandedLoading, setExpandedLoading] = useState(false);
+  const [downloadingClaimId, setDownloadingClaimId] = useState<string | null>(null);
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
   const [expandedTab, setExpandedTab] = useState<'overview' | 'documents' | 'chat'>('overview');
 
   /* Quick Actions (Approve / Reject / Send Back) */
@@ -1346,9 +1349,44 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                             {/* Tab Content: Documents */}
                             {expandedTab === 'documents' && (
                               <div className="rounded-lg border border-slate-200 bg-white p-4 space-y-3">
-                                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                                  Claim Documents &amp; Attachments
-                                </h4>
+                                <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+                                  <div>
+                                    <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                      Claim Documents &amp; Attachments
+                                    </h4>
+                                    <p className="text-[11px] text-slate-500">
+                                      {c.documents?.length || 0} file(s) attached for patient {getPatientName(c)}
+                                    </p>
+                                  </div>
+                                  {c.documents && c.documents.length > 0 && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={downloadingClaimId === c.id}
+                                      onClick={async () => {
+                                        try {
+                                          setDownloadingClaimId(c.id);
+                                          await downloadAllClaimDocumentsZip(c.id, getPatientName(c), c.documents || []);
+                                        } catch (err) {
+                                          console.error("Failed to download all documents:", err);
+                                        } finally {
+                                          setDownloadingClaimId(null);
+                                        }
+                                      }}
+                                      className="h-8 gap-1.5 border-teal-600/30 text-teal-700 bg-teal-50/60 hover:bg-teal-100 hover:text-teal-800 text-xs font-semibold cursor-pointer shadow-sm transition-all"
+                                      title={`Download all files inside ${getPatientName(c)}_docs folder`}
+                                    >
+                                      {downloadingClaimId === c.id ? (
+                                        <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-600" />
+                                      ) : (
+                                        <FolderDown className="h-3.5 w-3.5 text-teal-600" />
+                                      )}
+                                      <span>
+                                        {downloadingClaimId === c.id ? 'Downloading All...' : 'Download All Documents'}
+                                      </span>
+                                    </Button>
+                                  )}
+                                </div>
                                 {c.documents && c.documents.length > 0 ? (
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     {c.documents.map((doc) => (
@@ -1362,23 +1400,49 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                                             {doc.file_name}
                                           </span>
                                         </div>
-                                        <Button
-                                          size="sm"
-                                          variant="ghost"
-                                          onClick={() =>
-                                            setDocPreviewModal({
-                                              open: true,
-                                              claimId: c.id,
-                                              initialDocId: doc.id,
-                                              documents: c.documents,
-                                              patientName: getPatientName(c),
-                                            })
-                                          }
-                                          className="h-7 text-xs text-teal-700 hover:text-teal-900"
-                                        >
-                                          <Eye className="h-3.5 w-3.5 mr-1" />
-                                          Preview
-                                        </Button>
+                                        <div className="flex items-center gap-1.5 flex-none">
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            disabled={downloadingDocId === doc.id}
+                                            onClick={async () => {
+                                              try {
+                                                setDownloadingDocId(doc.id);
+                                                await downloadSingleClaimDocument(c.id, doc.id, doc.file_name, getPatientName(c));
+                                              } catch (err) {
+                                                console.error("Failed to download document:", err);
+                                              } finally {
+                                                setDownloadingDocId(null);
+                                              }
+                                            }}
+                                            className="h-7 text-xs text-slate-600 hover:text-slate-900 cursor-pointer"
+                                            title="Download document"
+                                          >
+                                            {downloadingDocId === doc.id ? (
+                                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                            ) : (
+                                              <Download className="h-3.5 w-3.5 mr-1" />
+                                            )}
+                                            Download
+                                          </Button>
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() =>
+                                              setDocPreviewModal({
+                                                open: true,
+                                                claimId: c.id,
+                                                initialDocId: doc.id,
+                                                documents: c.documents,
+                                                patientName: getPatientName(c),
+                                              })
+                                            }
+                                            className="h-7 text-xs text-teal-700 hover:text-teal-900 cursor-pointer"
+                                          >
+                                            <Eye className="h-3.5 w-3.5 mr-1" />
+                                            Preview
+                                          </Button>
+                                        </div>
                                       </div>
                                     ))}
                                   </div>

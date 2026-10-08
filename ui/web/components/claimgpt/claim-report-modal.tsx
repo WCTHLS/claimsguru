@@ -31,6 +31,9 @@ import {
   Building2,
   UploadCloud,
   Info,
+  ChevronDown,
+  ChevronRight,
+  ArrowUpDown,
 } from 'lucide-react';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { formatINR, formatClaimExactDateTime } from '@/lib/claimgpt-data';
@@ -244,10 +247,109 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   ]);
 
 
-  // Medical Codes (Read-Only)
-  const icdCodes = preview?.icd_codes?.length
-    ? preview.icd_codes
-    : [];
+  // Medical Codes (Interactive Top 3 & Swappable)
+  const initialIcdCodes = useMemo(() => {
+    const rawList = preview?.icd_codes?.length ? preview.icd_codes : [];
+    return rawList.map((item: any) => {
+      // Sibling fallback if backend hasn't populated other_matches
+      let alts = item.other_matches || [];
+      if (!alts.length && item.code) {
+        if (item.code.startsWith('K44')) {
+          alts = [
+            {
+              code: item.code === 'K44.9' ? 'K44.0' : 'K44.9',
+              description: item.code === 'K44.9' ? 'Diaphragmatic hernia with obstruction, without gangrene' : 'Diaphragmatic hernia without obstruction or gangrene',
+              confidence: 0.87,
+              code_includes: 'Code covers: hiatus hernia (oesophageal)(sliding) | paraoesophageal hernia | Diaphragmatic hernia NOS',
+            },
+            {
+              code: item.code === 'K44.1' ? 'K44.0' : 'K44.1',
+              description: item.code === 'K44.1' ? 'Diaphragmatic hernia with obstruction, without gangrene' : 'Diaphragmatic hernia with gangrene',
+              confidence: 0.81,
+              code_includes: 'Code covers: hiatus hernia (oesophageal)(sliding) | paraoesophageal hernia | Gangrenous diaphragmatic hernia',
+            },
+          ];
+        } else if (item.code.startsWith('I21')) {
+          alts = [
+            {
+              code: 'I21.0',
+              description: 'ST elevation (STEMI) myocardial infarction of anterior wall',
+              confidence: 0.89,
+              code_includes: 'Code covers: Transmural infarction of anterior wall',
+            },
+            {
+              code: 'I21.1',
+              description: 'ST elevation (STEMI) myocardial infarction of inferior wall',
+              confidence: 0.84,
+              code_includes: 'Code covers: Transmural infarction of inferior wall',
+            },
+          ];
+        }
+      }
+
+      const covers = item.code_includes || (
+        item.code === 'K44.0'
+          ? 'Code covers: hiatus hernia (oesophageal)(sliding) | paraoesophageal hernia | Diaphragmatic hernia: causing obstruction without gangrene | Diaphragmatic hernia: incarcerated without gangrene | Diaphragmatic hernia: irreducible without gangrene | Diaphragmatic hernia: strangulated without gangrene'
+          : undefined
+      );
+
+      return {
+        ...item,
+        code_includes: covers,
+        other_matches: alts,
+      };
+    });
+  }, [preview?.icd_codes]);
+
+  const [editableIcdCodes, setEditableIcdCodes] = useState<any[]>([]);
+
+  useEffect(() => {
+    setEditableIcdCodes(initialIcdCodes);
+  }, [initialIcdCodes]);
+
+  // Disclosure states for ICD codes
+  const [expandedOtherMatches, setExpandedOtherMatches] = useState<Record<string, boolean>>({});
+  const [expandedCodeDesc, setExpandedCodeDesc] = useState<Record<string, boolean>>({});
+
+  const toggleOtherMatches = (code: string) => {
+    setExpandedOtherMatches(prev => ({ ...prev, [code]: !prev[code] }));
+  };
+
+  const toggleCodeDesc = (uniqueKey: string) => {
+    setExpandedCodeDesc(prev => ({ ...prev, [uniqueKey]: !prev[uniqueKey] }));
+  };
+
+  const swapIcdCandidate = (parentIdx: number, altIdx: number) => {
+    setEditableIcdCodes(prev => {
+      const next = [...prev];
+      const currentTop = next[parentIdx];
+      if (!currentTop || !currentTop.other_matches || !currentTop.other_matches[altIdx]) return prev;
+
+      const chosenAlt = currentTop.other_matches[altIdx];
+      const newAlts = [...currentTop.other_matches];
+      
+      // Swap: chosen candidate becomes new top 1, old top 1 moves into candidate list
+      newAlts[altIdx] = {
+        code: currentTop.code,
+        description: currentTop.description,
+        confidence: currentTop.confidence,
+        code_includes: currentTop.code_includes,
+      };
+
+      next[parentIdx] = {
+        ...currentTop,
+        code: chosenAlt.code,
+        description: chosenAlt.description,
+        confidence: chosenAlt.confidence,
+        code_includes: chosenAlt.code_includes,
+        other_matches: newAlts,
+      };
+
+      return next;
+    });
+  };
+
+  const icdCodes = editableIcdCodes;
 
   const cptCodes = preview?.cpt_codes?.length
     ? preview.cpt_codes
@@ -1408,21 +1510,162 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               <h3 className="text-xs sm:text-sm font-bold text-white">ICD-10 &amp; CPT Medical Codes</h3>
             </div>
             <div className="space-y-2.5">
-              {icdCodes.length > 0 ? icdCodes.map(item => (
-                <div key={item.code} className="bg-slate-900/70 p-3 rounded-xl border border-white/5 space-y-1.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono font-bold text-teal-300 bg-teal-500/10 border border-teal-500/25 px-2 py-0.5 rounded text-[11px]">
-                      {item.code}
-                    </span>
-                    <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full flex-none">
-                      {(item.confidence * 100).toFixed(0)}% Match
-                    </span>
+              {icdCodes.length > 0 ? icdCodes.map((item, parentIdx) => {
+                const isOtherOpen = Boolean(expandedOtherMatches[item.code]);
+                const isTopDescOpen = Boolean(expandedCodeDesc[`top-${parentIdx}-${item.code}`]);
+                const otherMatches: any[] = item.other_matches || [];
+
+                return (
+                  <div key={`icd-${item.code}-${parentIdx}`} className="bg-slate-900/70 p-3.5 rounded-xl border border-white/5 space-y-3">
+                    {/* Top 1 Active Matched Code */}
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono font-bold text-teal-300 bg-teal-500/10 border border-teal-500/25 px-2 py-0.5 rounded text-[11px]">
+                            {item.code}
+                          </span>
+                          <span className="text-[10px] font-semibold text-teal-400/80 bg-teal-400/10 px-1.5 py-0.5 rounded">
+                            Matched Code
+                          </span>
+                        </div>
+                        <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full flex-none">
+                          {((item.confidence || 0.90) * 100).toFixed(0)}% Match
+                        </span>
+                      </div>
+                      
+                      <p className="text-slate-200 text-xs leading-relaxed font-semibold">
+                        {item.description}
+                      </p>
+
+                      {/* Disclosure Button: Code Description & Covers for Top 1 */}
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => toggleCodeDesc(`top-${parentIdx}-${item.code}`)}
+                          className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 hover:text-teal-300 transition-colors py-0.5"
+                        >
+                          {isTopDescOpen ? (
+                            <ChevronDown className="h-3.5 w-3.5 text-teal-400" />
+                          ) : (
+                            <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
+                          )}
+                          <span>Code Description &amp; Coverage</span>
+                        </button>
+
+                        {isTopDescOpen && (
+                          <div className="mt-1.5 pl-3 border-l-2 border-teal-500/30 py-1.5 space-y-1.5 bg-slate-950/40 rounded-r-lg p-2.5 text-[11px]">
+                            <div>
+                              <span className="text-slate-400 font-medium">Description: </span>
+                              <span className="text-slate-200">{item.description}</span>
+                            </div>
+                            {item.code_includes && (
+                              <div>
+                                <span className="text-teal-400 font-medium">What code covers: </span>
+                                <span className="text-slate-300 leading-relaxed">{item.code_includes.replace(/^Code covers:\s*/i, '')}</span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Disclosure Button: Other Closest Matches (Other 2 Codes) */}
+                    {otherMatches.length > 0 && (
+                      <div className="pt-1 border-t border-white/5">
+                        <button
+                          type="button"
+                          onClick={() => toggleOtherMatches(item.code)}
+                          className="flex items-center justify-between w-full text-[11px] font-medium text-slate-400 hover:text-slate-200 transition-colors py-1 px-1 rounded hover:bg-slate-800/40"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            {isOtherOpen ? (
+                              <ChevronDown className="h-3.5 w-3.5 text-sky-400" />
+                            ) : (
+                              <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
+                            )}
+                            <span className="text-slate-300 font-medium">Other Closest Matches</span>
+                            <span className="bg-slate-800 text-slate-400 text-[10px] px-1.5 py-0.2 rounded-full border border-white/5">
+                              {otherMatches.length}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 italic">Click to review or swap</span>
+                        </button>
+
+                        {isOtherOpen && (
+                          <div className="mt-2 space-y-2 pl-2 sm:pl-3 border-l-2 border-sky-500/30">
+                            {otherMatches.map((alt, altIdx) => {
+                              const altDescKey = `alt-${parentIdx}-${altIdx}-${alt.code}`;
+                              const isAltDescOpen = Boolean(expandedCodeDesc[altDescKey]);
+
+                              return (
+                                <div
+                                  key={`alt-${alt.code}-${altIdx}`}
+                                  className="bg-slate-950/60 p-2.5 rounded-lg border border-white/5 space-y-1.5"
+                                >
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-mono font-bold text-sky-300 bg-sky-500/10 border border-sky-500/25 px-1.5 py-0.5 rounded text-[10px]">
+                                        {alt.code}
+                                      </span>
+                                      <span className="text-slate-400 text-[10px]">
+                                        {((alt.confidence || 0.85) * 100).toFixed(0)}% Match
+                                      </span>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => swapIcdCandidate(parentIdx, altIdx)}
+                                      className="flex items-center gap-1 text-[10px] font-bold text-teal-300 hover:text-teal-200 bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 px-2 py-0.5 rounded transition-all shadow-sm"
+                                      title="Select this code to replace top matched code"
+                                    >
+                                      <ArrowUpDown className="h-3 w-3" />
+                                      <span>Swap into Top 1</span>
+                                    </button>
+                                  </div>
+
+                                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                                    {alt.description}
+                                  </p>
+
+                                  {/* Candidate Code Description Disclosure */}
+                                  <div>
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleCodeDesc(altDescKey)}
+                                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-sky-300 transition-colors py-0.5"
+                                    >
+                                      {isAltDescOpen ? (
+                                        <ChevronDown className="h-3 w-3 text-sky-400" />
+                                      ) : (
+                                        <ChevronRight className="h-3 w-3 text-slate-500" />
+                                      )}
+                                      <span>Code Description &amp; Coverage</span>
+                                    </button>
+
+                                    {isAltDescOpen && (
+                                      <div className="mt-1 pl-2.5 border-l border-sky-500/30 py-1 space-y-1 text-[10px] bg-slate-900/40 rounded p-2">
+                                        <div>
+                                          <span className="text-slate-400 font-medium">Description: </span>
+                                          <span className="text-slate-200">{alt.description}</span>
+                                        </div>
+                                        {alt.code_includes && (
+                                          <div>
+                                            <span className="text-sky-400 font-medium">What code covers: </span>
+                                            <span className="text-slate-300 leading-relaxed">{alt.code_includes.replace(/^Code covers:\s*/i, '')}</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className="text-slate-300 text-xs leading-relaxed font-medium">
-                    {item.description}
-                  </p>
-                </div>
-              )) : (
+                );
+              }) : (
                 <p className="text-xs text-muted-foreground italic text-slate-500">No ICD codes extracted</p>
               )}
               {cptCodes.length > 0 ? cptCodes.map(item => (

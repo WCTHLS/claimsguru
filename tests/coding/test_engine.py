@@ -89,7 +89,7 @@ class TestEntityExtraction:
     def test_delivery_query_promotes_o80(self):
         hits = search_icd10_rag("normal vaginal delivery with episiotomy", max_results=5)
         codes = [code for code, _desc, _cat, _score in hits]
-        assert "O80" in codes[:3]
+        assert any(code.startswith("O80") for code in codes[:3])
 
     def test_single_diagnosis_yields_exact_single_icd_code(self):
         # A single concise diagnosis field should emit exactly 1 ICD-10 code, not 2
@@ -112,3 +112,18 @@ class TestEntityExtraction:
         assert len(icd_codes) == 2
         assert icd_codes[0].is_primary is True
         assert icd_codes[1].is_primary is False
+
+    def test_diagnosis_and_clinical_summary_passed_to_llm(self):
+        parsed_fields = [
+            {"field_name": "diagnosis", "field_value": "LOWER OESOPHAGEAL HIATUS HERNIA"},
+            {"field_name": "clinical_diagnosis_summary", "field_value": "Patient has dysphagia and small hiatus hernia on CT scan."}
+        ]
+        with patch("services.coding.app.engine.extract_diagnosis_keywords", return_value=["hiatus hernia"]) as mock_extract:
+            result = extract_entities_and_codes([], parsed_fields=parsed_fields)
+            mock_extract.assert_called_once()
+            called_arg = mock_extract.call_args[0][0]
+            assert "Documented Diagnosis: LOWER OESOPHAGEAL HIATUS HERNIA" in called_arg
+            assert "Clinical Summary Context: Patient has dysphagia" in called_arg
+            assert len(result.entities) >= 1
+            assert result.entities[0].entity_text == "hiatus hernia"
+

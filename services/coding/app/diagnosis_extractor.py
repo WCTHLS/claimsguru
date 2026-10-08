@@ -330,13 +330,22 @@ def _extract_cached(text: str, max_terms: int, _key: str) -> tuple[str, ...]:
     # we must strip out the clinical context part so that the simple fallback scanners
     # do not extract random normal screening or history findings as active diagnoses!
     fallback_text = text
-    if "Clinical context" in text:
-        parts = text.split("Clinical context", 1)
-        diag_part = parts[0].strip()
-        if diag_part.startswith("Diagnosis field:"):
-            fallback_text = diag_part[len("Diagnosis field:"):].strip()
-        else:
+    for sep in (
+        "Clinical Diagnosis Summary:",
+        "Clinical diagnosis summary:",
+        "Clinical Diagnosis Summary",
+        "Clinical diagnosis summary",
+        "Clinical context:",
+        "Clinical context",
+    ):
+        if sep in fallback_text:
+            parts = fallback_text.split(sep, 1)
+            diag_part = parts[0].strip()
+            for prefix in ("Diagnosis:", "Diagnosis field:", "Diagnosis"):
+                if diag_part.startswith(prefix):
+                    diag_part = diag_part[len(prefix):].strip()
             fallback_text = diag_part
+            break
 
     try:
         candidates.extend(_try_scispacy_extract(fallback_text, max_terms))
@@ -362,13 +371,14 @@ _LLM_SYSTEM = (
     1. Output EXACTLY ONE clinical diagnosis per line, in lowercase, with NO numbers, bullets, or dashes.
     2. Put the PRIMARY / PRINCIPAL diagnosis on Line 1 (the primary condition treated or main reason for admission).
     3. If secondary diagnoses, comorbidities, or complications are present, list each on a separate subsequent line.
-    4. When a generic phrase (e.g., 'infectious disease', 'viral illness', 'acute respiratory infection', 'post-op care') is given alongside clinical context (medications, ICU consumables, investigations, procedures), synthesize the specific clinical diagnosis supported by the treatments and clinical findings (e.g., Remdesivir / Tocilizumab / COVID ICU items -> 'coronavirus disease 2019' or 'covid-19'; Artesunate -> 'severe malaria'; Trastuzumab -> 'breast cancer').
+    4. When a documented diagnosis is explicitly provided, treat it as the authoritative diagnosis. Use the clinical summary only to clarify terminology, anatomical site, acuity, laterality, or other specificity that is explicitly supported by the documentation. Do NOT replace the documented diagnosis with a diagnosis inferred from symptoms, imaging findings, laboratory values, medications, or planned procedures.
     5. Use standard medical coding terms and expand abbreviations and clinical shorthand to formal WHO ICD-10 clinical diagnosis descriptions (e.g., 'T2DM' -> 'type 2 diabetes mellitus', 'FTND' -> 'single spontaneous delivery', 'LSCS' -> 'delivery by caesarean section', 'HTN' -> 'essential hypertension', 'COPD' -> 'chronic obstructive pulmonary disease', 'CKD' -> 'chronic kidney disease', 'AWMI' / 'STEMI' -> 'acute myocardial infarction', 'Dengue with warning signs' -> 'dengue fever').
     6. Strip administrative and care modality noise (e.g., '- medical management', '- conservative management', 'under evaluation for', 's/p', 'c/o', 'h/o').
-    7. Output AT MOST 5 lines.
-    8. If absolutely no diagnosis or clinical indication can be determined, output:
+    7. Output AT MOST 5 lines. 
+    8. DO NOT infer new diagnosis if documented diagnosis present.
+    9. If absolutely no diagnosis or clinical indication can be determined, output:
     NONE
-    9. Output NOTHING else. No explanations, no introductory or concluding text."""
+    10. Output NOTHING else. No explanations, no introductory or concluding text."""
 )
 
 
@@ -497,7 +507,7 @@ def _try_azure_openai_extract(text: str, max_terms: int) -> list[str]:
         url = f"{endpoint.rstrip('/')}/openai/deployments/{deployment}/chat/completions?api-version={api_version}"
 
     system = _LLM_SYSTEM.format(n=max_terms)
-    user = f"Extract diagnoses from this clinical note:\n\n{text[:1500]}"
+    user = f"Extract diagnoses from this clinical note:\n\n{text[:3500]}"
 
     payload = {
         "model": deployment,
@@ -583,7 +593,7 @@ def _try_openrouter_extract(text: str, max_terms: int) -> list[str]:
         return []
 
     system = _LLM_SYSTEM.format(n=max_terms)
-    user = f"Extract diagnoses from this clinical note:\n\n{text[:1500]}"
+    user = f"Extract diagnoses from this clinical note:\n\n{text[:3500]}"
 
     payload = {
         "model": model,

@@ -58,7 +58,7 @@ chardet==5.2.0
 prometheus-client>=0.20.0
 boto3==1.34.69
 email-validator>=2.0.0
-llama-cpp-python==0.2.90
+# llama-cpp-python==0.2.90
 
 # ── Added automatically from service requirements ──
 email-validator>=2.0.0

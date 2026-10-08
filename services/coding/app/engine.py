@@ -32,6 +32,7 @@ from .icd10_codes import (
 from .icd10_rag import (
     is_rag_available,
     lookup_icd10_rag,
+    lookup_icd10_meta,
     search_cpt_rag,
     search_icd10_rag,
 )
@@ -60,6 +61,8 @@ class Code:
     confidence: float | None = None
     is_primary: bool = False
     entity_index: int | None = None
+    code_includes: str | None = None
+    other_matches: list[dict[str, Any]] | None = None
 
 
 @dataclass
@@ -295,9 +298,19 @@ def _build_clinical_context(
             clinical_lines.append(line)
 
     for pf in (parsed_fields or []):
-        fname = (pf.get("field_name") or pf.get("field") or "").lower().strip()
+        fname = (pf.get("field_name") or pf.get("field") or pf.get("canonical_field") or "").lower().strip()
         fval = str(pf.get("field_value") or pf.get("value") or "").strip()
-        if fname in ("diagnosis", "primary_diagnosis", "clinical_diagnosis", "secondary_diagnosis", "procedure", "primary_procedure", "operative_procedure"):
+        if fname in (
+            "diagnosis",
+            "primary_diagnosis",
+            "clinical_diagnosis",
+            "secondary_diagnosis",
+            "procedure",
+            "primary_procedure",
+            "operative_procedure",
+            "clinical_diagnosis_summary",
+            "clinical_summary",
+        ):
             if fval and len(fval) > 3 and fval.lower() not in {"none", "null", "n/a"}:
                 clinical_lines.append(fval)
 
@@ -444,11 +457,11 @@ def _search_icd10_smart(
     the clinical context (medications, procedures, labs) is supplied to the LLM to isolate
     the precise ICD-10 diagnosis.
     """
-    if not _diagnosis_needs_extraction(text):
+    if not clinical_context and not _diagnosis_needs_extraction(text):
         return _search_icd10_combined(text, max_results=max_results), None
 
     try:
-        input_for_llm = f"Diagnosis field: {text}\nClinical context: {clinical_context}" if clinical_context else text
+        input_for_llm = f"Documented Diagnosis: {text}\nClinical Summary Context: {clinical_context}" if clinical_context else text
         terms = extract_diagnosis_keywords(input_for_llm)
     except Exception:  # never let extraction break coding
         logger.debug("diagnosis keyword extraction failed", exc_info=True)
@@ -549,6 +562,52 @@ def _deduplicate_and_rank_codes(codes: list[Code]) -> list[Code]:
         # If any member in the category was primary, preserve is_primary on best_code
         if any(c.is_primary for c in group):
             best_code.is_primary = True
+
+        # Attach code_includes if missing
+        if not best_code.code_includes and is_rag_available():
+            meta = lookup_icd10_meta(best_code.code)
+            if meta:
+                best_code.code_includes = meta.get("code_includes")
+
+        # If other_matches is missing or has < 2 items, collect from other codes in group or sibling category codes
+        existing_alts = list(best_code.other_matches or [])
+        seen_alt_codes = {best_code.code} | {a.get("code") for a in existing_alts}
+
+        # 1. From other extracted codes in this group
+        for other_c in group_sorted[1:]:
+            if other_c.code not in seen_alt_codes:
+                seen_alt_codes.add(other_c.code)
+                other_meta = lookup_icd10_meta(other_c.code) if is_rag_available() else None
+                existing_alts.append({
+                    "code": other_c.code,
+                    "description": other_c.description or (other_meta.get("description") if other_meta else ""),
+                    "confidence": other_c.confidence,
+                    "code_includes": other_c.code_includes or (other_meta.get("code_includes") if other_meta else None),
+                })
+                if len(existing_alts) >= 2:
+                    break
+
+        # 2. From RAG search or sibling codes in same root category if needed to ensure top 3
+        if len(existing_alts) < 2 and is_rag_available():
+            query_term = best_code.description or best_code.code
+            try:
+                hits = search_icd10_rag(query_term, max_results=6)
+                for h_code, h_desc, _h_cat, h_score in hits:
+                    if h_code not in seen_alt_codes:
+                        seen_alt_codes.add(h_code)
+                        h_meta = lookup_icd10_meta(h_code)
+                        existing_alts.append({
+                            "code": h_code,
+                            "description": h_desc,
+                            "confidence": _icd_confidence_from_score(h_score, rank=len(existing_alts)),
+                            "code_includes": h_meta.get("code_includes") if h_meta else None,
+                        })
+                        if len(existing_alts) >= 2:
+                            break
+            except Exception:
+                pass
+
+        best_code.other_matches = existing_alts[:2] if existing_alts else []
         filtered_icd.append(best_code)
 
     # Re-verify is_primary on filtered ICD codes: exactly 1 primary code
@@ -610,9 +669,20 @@ def _extract_from_parsed_fields(
     # If so, those are authoritative — do NOT use fuzzy text matching on
     # diagnosis description fields to generate new codes (it hallucinates).
     has_explicit_icd_fields = any(
-        pf.get("field_name") == "icd_code" and pf.get("field_value")
+        (pf.get("field_name") or pf.get("field") or pf.get("canonical_field")) == "icd_code"
+        and (pf.get("field_value") or pf.get("value"))
         for pf in parsed_fields
     )
+
+    # Pre-extract clinical_diagnosis_summary across parsed fields if available
+    clinical_summary: str | None = None
+    for pf in parsed_fields:
+        fn = (pf.get("field_name") or pf.get("field") or pf.get("canonical_field") or "").lower().strip()
+        if fn in ("clinical_diagnosis_summary", "clinical_summary"):
+            v = str(pf.get("field_value") or pf.get("value") or "").strip()
+            if v and v.lower() not in ("none", "null", "n/a"):
+                clinical_summary = v
+                break
 
     for pf in parsed_fields:
         fname = pf.get("field_name", "")
@@ -665,9 +735,15 @@ def _extract_from_parsed_fields(
         clinical_ctx = _build_clinical_context(full_text, parsed_fields)
         entity_display = clean_fval
         narrative_terms: list[str] = []
-        if etype == "DIAGNOSIS" and _diagnosis_needs_extraction(clean_fval):
+        should_refine = _diagnosis_needs_extraction(clean_fval) or bool(clinical_summary)
+        if etype == "DIAGNOSIS" and should_refine:
             try:
-                input_for_extraction = f"Diagnosis field: {clean_fval}\nClinical context: {clinical_ctx}" if clinical_ctx else clean_fval
+                if clinical_summary:
+                    input_for_extraction = f"Documented Diagnosis: {clean_fval}\nClinical Summary Context: {clinical_summary}"
+                elif clinical_ctx:
+                    input_for_extraction = f"Documented Diagnosis: {clean_fval}\nClinical Summary Context: {clinical_ctx}"
+                else:
+                    input_for_extraction = clean_fval
                 narrative_terms = extract_diagnosis_keywords(input_for_extraction)
             except Exception:
                 logger.debug("diagnosis extraction failed for entity_display", exc_info=True)
@@ -727,7 +803,9 @@ def _extract_from_parsed_fields(
                     
                     matches = [(code, desc, score, term) for score, code, desc, term in scored[:10]]
                 else:
-                    smart_matches, query_hint = _search_icd10_smart(clean_fval, max_results=1, clinical_context=clinical_ctx)
+                    smart_matches, query_hint = _search_icd10_smart(
+                        clean_fval, max_results=1, clinical_context=clinical_summary or clinical_ctx
+                    )
                     matches = [(code, desc, score, query_hint) for code, desc, score in smart_matches]
 
             match_source = "explicit_code" if (explicit_matches or fname == "icd_code") else "rag_search"
@@ -837,6 +915,34 @@ def _extract_from_parsed_fields(
                         is_primary=is_primary,
                         entity_index=len(entities) - 1,
                     ))
+
+    # Fallback: if no diagnosis entities were extracted from parsed fields,
+    # but clinical_diagnosis_summary is present, extract diagnoses directly from it
+    has_diag_entity = any(e.entity_type == "DIAGNOSIS" for e in entities)
+    if not has_diag_entity and clinical_summary:
+        try:
+            summary_terms = extract_diagnosis_keywords(f"Clinical Summary Context: {clinical_summary}")
+        except Exception:
+            summary_terms = []
+        for term in summary_terms:
+            entities.append(Entity(
+                entity_text=term,
+                entity_type="DIAGNOSIS",
+                confidence=0.88,
+            ))
+            if is_rag_available():
+                hits = search_icd10_rag(term, max_results=1)
+                for code, desc, _cat, score in hits:
+                    if code not in seen_codes:
+                        seen_codes.add(code)
+                        codes.append(Code(
+                            code=code,
+                            code_system="ICD10",
+                            description=term if len(term) > 3 else desc,
+                            confidence=_icd_confidence_from_score(score, rank=0, explicit=False),
+                            is_primary=not any(c.code_system == "ICD10" for c in codes),
+                            entity_index=len(entities) - 1,
+                        ))
 
     # Extract any remaining explicit ICD-10 and CPT codes from the text
     _extract_explicit_codes(full_text, codes, seen_codes)

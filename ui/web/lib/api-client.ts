@@ -5,6 +5,7 @@
  */
 
 import { getStoredAuthSession } from '@/lib/auth';
+import JSZip from 'jszip';
 
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
@@ -140,7 +141,7 @@ export function isMockId(id?: string | null): boolean {
 /**
  * Helper to produce Authorization header if token exists
  */
-function getAuthHeaders(): Record<string, string> {
+export function getAuthHeaders(): Record<string, string> {
   const session = getStoredAuthSession();
   const token = session?.accessToken || session?.idToken;
   const headers: Record<string, string> = {};
@@ -710,17 +711,118 @@ export async function submitClaimToPayerApi(
 }
 
 /**
+ * Downloads a single claim document as a file
+ */
+export async function downloadSingleClaimDocument(
+  claimId: string,
+  docId: string,
+  fileName: string,
+  patientName?: string
+): Promise<void> {
+  const isRealClaimId = claimId && claimId !== 'latest' && !claimId.startsWith('CLM-') && !claimId.startsWith('demo-') && claimId.length > 10;
+  const isRealDoc = docId && docId !== 'doc_default' && docId !== 'doc_uploaded';
+
+  const downloadUrl = isRealDoc
+    ? `${INGRESS_API}/claims/${encodeURIComponent(claimId)}/documents/${encodeURIComponent(docId)}/file?view=false`
+    : `${INGRESS_API}/claims/${encodeURIComponent(claimId)}/file?view=false`;
+
+  const headers = getAuthHeaders();
+  const res = await fetch(downloadUrl, { headers });
+  if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`);
+
+  const blob = await res.blob();
+  const objUrl = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = objUrl;
+  a.download = fileName || 'document';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(objUrl), 2000);
+}
+
+/**
+ * Downloads all documents for a claim inside a folder named `<patientName>_docs` bundled into a ZIP archive.
+ */
+export async function downloadAllClaimDocumentsZip(
+  claimId: string,
+  patientName: string,
+  documents: Array<{ id?: string; document_id?: string; file_name?: string; original_filename?: string }>
+): Promise<void> {
+  const safePatientName = (patientName || 'patient').replace(/[/\\:*?"<>|]/g, '_').trim() || 'patient';
+  const folderName = `${safePatientName}_docs`;
+  const zipFilename = `${folderName}.zip`;
+
+  // 1. Try server-side streaming ZIP first
+  const isRealClaimId = claimId && claimId !== 'latest' && !claimId.startsWith('CLM-') && !claimId.startsWith('demo-') && claimId.length > 10;
+  if (isRealClaimId) {
+    try {
+      const zipUrl = `${INGRESS_API}/claims/${encodeURIComponent(claimId)}/documents/zip?patient_name=${encodeURIComponent(safePatientName)}`;
+      const res = await fetch(zipUrl, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.size > 100) {
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = zipFilename;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          setTimeout(() => URL.revokeObjectURL(url), 2000);
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Backend zip download failed, falling back to client-side JSZip:", err);
+    }
+  }
+
+  // 2. Client-side fallback using JSZip
+  const zip = new JSZip();
+  const folder = zip.folder(folderName) || zip;
+
+  const validDocs = documents.filter((d) => d.id || d.document_id);
+  if (validDocs.length === 0) {
+    throw new Error("No documents available to download.");
+  }
+
+  const fetchPromises = validDocs.map(async (doc, idx) => {
+    const docId = doc.id || doc.document_id;
+    const fileName = doc.original_filename || doc.file_name || `document_${idx + 1}.pdf`;
+    try {
+      const fileUrl = `${INGRESS_API}/claims/${encodeURIComponent(claimId)}/documents/${encodeURIComponent(docId!)}/file?view=false`;
+      const res = await fetch(fileUrl, { headers: getAuthHeaders() });
+      if (res.ok) {
+        const blob = await res.blob();
+        folder.file(fileName, blob);
+      }
+    } catch (e) {
+      console.warn(`Failed to fetch ${fileName}:`, e);
+    }
+  });
+
+  await Promise.all(fetchPromises);
+
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(zipBlob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = zipFilename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/**
  * Reprocess / retry a stuck or failed claim from scratch
  */
 export async function reprocessClaimApi(
   claimId: string
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
-    const authSession = getStoredAuthSession();
-    const headers: Record<string, string> = {};
-    if (authSession?.token) {
-      headers["Authorization"] = `Bearer ${authSession.token}`;
-    }
+    const headers = getAuthHeaders();
     const res = await fetch(`${INGRESS_API}/claims/${claimId}/reprocess`, {
       method: "POST",
       headers,

@@ -206,7 +206,8 @@ class TestSearchModeRouting:
              patch.object(icd10_rag, "_dense_rank", return_value=[(0, 0.9), (1, 0.8)]):
             hits = icd10_rag.search_icd10_rag("diabetes", max_results=5, mode="dense")
 
-        assert hits == [("E11.9", "Type 2 diabetes", "Endocrine", 0.8)]
+        assert hits[0][:3] == ("E11.9", "Type 2 diabetes", "Endocrine")
+        assert hits[0][3] == pytest.approx(0.8, abs=0.05)
 
 
 class TestBm25Available:

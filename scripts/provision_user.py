@@ -17,7 +17,7 @@ Provisions an administrative or organizational user into:
    - staff_profiles
 
 Usage:
-    python scripts/provision_user_native.py \\
+    python scripts/provision.py \\
         --email user@example.com \\
         --password "StrongPassword123!" \\
         --first-name John \\
