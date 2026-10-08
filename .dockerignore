@@ -7,6 +7,7 @@ __pycache__
 .pytest_cache
 # Ignore frontend dependencies
 ui/web/node_modules
+ui/web/.next
 # Ignore editor/project files
 .vscode
 .idea
@@ -26,7 +27,6 @@ __pycache__
 .ruff_cache
 dist
 build
-!ui/web/.next/standalone/**
 *.md
 docs/
 infra/k8s/

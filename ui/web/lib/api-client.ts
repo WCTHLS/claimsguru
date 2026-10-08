@@ -15,7 +15,7 @@ export function getApiBaseUrl(): string {
       return `https://${ingressHost}`;
     }
     if (host === 'localhost' || host === '127.0.0.1') {
-      return 'http://127.0.0.1:8000';
+      return `http://${host}:8000`;
     }
   }
   const raw = process.env.NEXT_PUBLIC_API_BASE || '';
@@ -107,11 +107,14 @@ export interface RecentClaimSummary {
   hospital_name?: string;
   insurance_company?: string;
   payer?: string;
+  insurer?: string;
+  policy_number?: string;
+  document_count?: number;
   diagnosis?: string;
   policy_id?: string;
   patient_id?: string;
-  documents?: Array<{ id: string; file_name: string; doc_type?: string }>;
-  progress?: { percentage: number; step: string };
+  documents?: Array<{ id?: string; document_id?: string; file_name?: string; original_filename?: string; doc_type?: string }>;
+  progress?: { percentage: number; step: string; is_complete?: boolean; status?: string };
   has_action_request?: boolean;
   tpa_message?: string;
   tpa_requested_docs?: string[];

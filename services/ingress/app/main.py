@@ -3299,7 +3299,8 @@ def list_claims(
                     "hospital_name", "hospital",
                     "doctor_name", "doctor", "provider_name", "rendering_provider",
                     "diagnosis", "primary_diagnosis", "chief_complaint",
-                    "insurance_company", "insurer", "tpa_name", "tpa"
+                    "insurance_company", "insurer", "tpa_name", "tpa",
+                    "claimed_total", "total_amount", "net_payable", "gross_total", "billed_total", "billed_amount"
                 ])
             ).all()
             
@@ -3314,6 +3315,24 @@ def list_claims(
                 c.hospital_name = fields.get("hospital_name") or fields.get("hospital") or None
                 c.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
                 c.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
+                
+                raw_total = (
+                    fields.get("claimed_total")
+                    or fields.get("total_amount")
+                    or fields.get("net_payable")
+                    or fields.get("gross_total")
+                    or fields.get("billed_total")
+                    or fields.get("billed_amount")
+                )
+                if raw_total:
+                    try:
+                        clean_num = float(str(raw_total).replace(",", "").replace("₹", "").strip())
+                        c.total_amount = f"₹{clean_num:,.0f}"
+                    except Exception:
+                        c.total_amount = str(raw_total) if str(raw_total).startswith("₹") else f"₹{raw_total}"
+                else:
+                    c.total_amount = None
+
                 extracted_ins = fields.get("insurance_company") or fields.get("insurer") or fields.get("tpa_name") or None
                 if extracted_ins:
                     if not getattr(c, "insurance_company", None) or getattr(c, "insurance_company", None) == "Star Health":
@@ -3424,6 +3443,7 @@ def list_claims(
                 "hospital_name": getattr(c, "hospital_name", None),
                 "doctor_name": getattr(c, "doctor_name", None),
                 "diagnosis": getattr(c, "diagnosis", None),
+                "total_amount": getattr(c, "total_amount", None),
                 "has_action_request": has_action_request,
                 "tpa_message": tpa_message,
                 "tpa_requested_docs": tpa_requested_docs,

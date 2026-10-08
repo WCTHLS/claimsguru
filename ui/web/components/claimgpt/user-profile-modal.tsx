@@ -25,7 +25,7 @@ import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
 import { getStoredAuthSession, clearAuthSession, deleteUserAccount } from '@/lib/auth';
 import { getIngressApiUrl } from '@/lib/api-client';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';
-import { formatDob } from '@/lib/claimgpt-data';
+import { formatDob, formatINR } from '@/lib/claimgpt-data';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -385,7 +385,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                         )}
                       </div>
                       <p className={`text-[9px] truncate mt-0.5 ${themeStyles.labelColor}`}>
-                        ID: {claim.id.slice(0, 8)}... &bull; {claim.total_amount || '₹0'}
+                        ID: {claim.id.slice(0, 8)}... &bull; {claim.total_amount ? (claim.total_amount.startsWith('₹') ? claim.total_amount : formatINR(parseFloat(claim.total_amount) || 0)) : '₹0'}
                       </p>
                     </div>
 
