@@ -57,6 +57,7 @@ from .models import Claim, Document, DocValidation
 from libs.shared.models import ParseJob, ParsedField, WorkflowState, User, Role, UserRoleTable, Organization, PatientProfile, StaffProfile, Invitation, Submission, AuditLog
 from libs.shared.workflow_state import get_latest_workflow_state, upsert_workflow_state
 from libs.auth.passwords import hash_password, password_matches
+from libs.shared.redis_cache import get_claim_progress_cache, set_claim_progress_cache
 from .schemas import ClaimListOut, ClaimOut
 from .rate_limiter import RateLimiter
 
@@ -3724,6 +3725,12 @@ def get_claim_status(claim_id: str, db: Session = Depends(get_db)):
 @router.get("/claims/{claim_id}/progress")
 def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
     cid = _parse_uuid(claim_id)
+
+    # 1. Fast Path: Check in-memory Redis cache (sub-millisecond response, zero DB queries)
+    cached = get_claim_progress_cache(str(cid))
+    if cached:
+        return cached
+
     state = get_latest_workflow_state(db, cid)
 
     # No workflow state yet: distinguish "claim does not exist" from
@@ -3733,13 +3740,15 @@ def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
         if not claim:
             raise HTTPException(status_code=404, detail="Claim not found")
         # Claim exists but no state row — treat as queued, never as silently null.
-        return {
+        queued_res = {
             "status": "QUEUED",
             "step": "Queued (waiting for worker)",
             "percentage": 2,
             "is_complete": False,
             "error": None,
         }
+        set_claim_progress_cache(str(cid), queued_res, ttl=2)
+        return queued_res
 
     step, percentage = _map_progress(state.current_step, state.status)
     is_failed = (state.status == "FAILED") or (state.current_step == "FAILED") or (state.current_step == "IDENTITY_MISMATCH")
@@ -3779,14 +3788,19 @@ def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
             error_message = "Pipeline failed. See server logs for details."
 
     status_str = "IDENTITY_MISMATCH" if state.current_step == "IDENTITY_MISMATCH" else state.status
-    # Mapped from database state directly, naturally monotonic in Celery chain
-    return {
+    result = {
         "status": status_str,
         "step": step,
         "percentage": percentage,
         "is_complete": is_complete,
         "error": error_message,
     }
+
+    # Cache response: 300s TTL for completed/failed terminal claims, 3s for active in-progress claims
+    ttl = 300 if is_complete else 3
+    set_claim_progress_cache(str(cid), result, ttl=ttl)
+
+    return result
 
 
 @router.get("/claims/{claim_id}/file")

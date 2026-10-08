@@ -342,6 +342,7 @@ export function useAuditorState() {
 
     const pollAllActiveClaims = async () => {
       if (isPolling || !active) return;
+      if (typeof document !== "undefined" && document.hidden) return;
       isPolling = true;
       try {
         const TERMINAL_STATUSES = new Set([
@@ -467,7 +468,7 @@ export function useAuditorState() {
       }
     };
 
-    const interval = setInterval(pollAllActiveClaims, 1000);
+    const interval = setInterval(pollAllActiveClaims, 3500);
     return () => {
       active = false;
       clearInterval(interval);
@@ -837,6 +838,11 @@ export function useAuditorState() {
         return;
       }
 
+      // If user minimized or switched away from the browser tab, pause polling to conserve server load
+      if (typeof document !== "undefined" && document.hidden) {
+        return;
+      }
+
       // If user selected another claim, immediately cancel this polling loop
       if (activeClaimIdRef.current && targetClaimId && activeClaimIdRef.current !== targetClaimId) {
         clearInterval(pollInterval);
@@ -953,7 +959,7 @@ export function useAuditorState() {
           updateProgressAndStage(statusInfo.percentage, statusInfo.step ? `${statusInfo.step} - ${statusInfo.percentage}%` : undefined);
         }
       }
-    }, 400);
+    }, 1200);
     activePollRef.current = pollInterval;
   };
 

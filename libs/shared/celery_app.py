@@ -200,8 +200,8 @@ celery_app.conf.update(
     broker_connection_retry=True,
     broker_connection_retry_on_startup=True,
     broker_connection_max_retries=None,
-    worker_max_tasks_per_child=50,
-    worker_max_memory_per_child=2000000, # 2GB limit per process (in KB)
+    worker_max_tasks_per_child=int(os.getenv("CELERY_MAX_TASKS_PER_CHILD", "25")),
+    worker_max_memory_per_child=int(os.getenv("CELERY_MAX_MEM_PER_CHILD", "1500000")), # 1.5GB limit per process (in KB)
     worker_proc_alive_timeout=120.0,
     task_soft_time_limit=180,  # 3 minutes soft timeout (triggers SoftTimeLimitExceeded)
     task_time_limit=240,       # 4 minutes hard timeout (kills child worker process)

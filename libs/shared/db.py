@@ -84,23 +84,33 @@ def compile_uuid_mssql(type_, compiler, **kw):
 
 Base = declarative_base()
 
-# Create write and read engines with production QueuePool headroom
+# Dynamic connection pool sizing based on container role to protect Azure SQL from pool exhaustion
+is_worker = os.getenv("CELERY_WORKER") == "true" or any("worker" in a.lower() for a in sys.argv)
+default_pool_size = 5 if is_worker else 10
+default_max_overflow = 5 if is_worker else 15
+
+db_pool_size = int(os.getenv("DB_POOL_SIZE", str(default_pool_size)))
+db_max_overflow = int(os.getenv("DB_MAX_OVERFLOW", str(default_max_overflow)))
+db_pool_timeout = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+db_pool_recycle = int(os.getenv("DB_POOL_RECYCLE", "300"))
+
+# Create write and read engines with guarded QueuePool headroom
 writer_engine = create_engine(
     settings.database_url,
     pool_pre_ping=True,
-    pool_size=20,
-    max_overflow=30,
-    pool_timeout=30,
-    pool_recycle=300
+    pool_size=db_pool_size,
+    max_overflow=db_max_overflow,
+    pool_timeout=db_pool_timeout,
+    pool_recycle=db_pool_recycle
 )
 
 reader_engine = create_engine(
     settings.database_read_url or settings.database_url,
     pool_pre_ping=True,
-    pool_size=20,
-    max_overflow=30,
-    pool_timeout=30,
-    pool_recycle=300
+    pool_size=db_pool_size,
+    max_overflow=db_max_overflow,
+    pool_timeout=db_pool_timeout,
+    pool_recycle=db_pool_recycle
 )
 
 # For backward compatibility, expose the writer_engine as engine
