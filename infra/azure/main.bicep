@@ -20,6 +20,16 @@ param sqlAdminLogin string = 'claimsguruadmin'
 @description('SQL Administrator Password')
 param sqlAdminPassword string
 
+@description('Azure OpenAI Endpoint')
+param azureOpenAiEndpoint string = ''
+
+@secure()
+@description('Azure OpenAI API Key')
+param azureOpenAiApiKey string = ''
+
+@description('Azure OpenAI Model Deployment Name')
+param azureOpenAiDeployment string = 'gpt-4o'
+
 var locCode = (location == 'centralindia') ? 'cin' : ((location == 'eastus') ? 'eus' : take(location, 4))
 var prefix = 'cg-${environmentName}-${locCode}'
 var uniqueSuffix = uniqueString(resourceGroup().id, location)
@@ -263,14 +273,6 @@ resource emailDomain 'Microsoft.Communication/emailServices/domains@2023-04-01' 
   }
 }
 
-resource linkedDomain 'Microsoft.Communication/communicationServices/domains@2023-04-01' = {
-  parent: communicationService
-  name: emailDomain.name
-  properties: {
-    domainResourceId: emailDomain.id
-  }
-}
-
 var acrName = split(acrLoginServer, '.')[0]
 resource acr 'Microsoft.ContainerRegistry/registries@2023-07-01' existing = {
   name: acrName
@@ -322,8 +324,12 @@ resource ingressApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'CELERY_RESULT_BACKEND', value: redisConnectionString }
             { name: 'AZURE_COMMUNICATION_CONNECTION_STRING', value: communicationService.listKeys().primaryConnectionString }
             { name: 'AZURE_COMMUNICATION_SENDER_EMAIL', value: 'DoNotReply@${emailDomain.properties.fromSenderDomain}' }
-            { name: 'ENABLE_EMAIL_NOTIFICATIONS', value: 'false' }
-            { name: 'ENABLE_NOTIFICATIONS', value: 'false' }
+            { name: 'ENABLE_EMAIL_NOTIFICATIONS', value: 'true' }
+            { name: 'ENABLE_NOTIFICATIONS', value: 'true' }
+            { name: 'AZURE_OPENAI_ENDPOINT', value: azureOpenAiEndpoint }
+            { name: 'AZURE_OPENAI_API_KEY', value: azureOpenAiApiKey }
+            { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAiDeployment }
+            { name: 'AZURE_OPENAI_API_VERSION', value: '2024-11-20' }
           ]
           resources: {
             cpu: json('1.0')
@@ -457,8 +463,12 @@ resource workerDefaultApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'CELERY_RESULT_BACKEND', value: redisConnectionString }
             { name: 'AZURE_COMMUNICATION_CONNECTION_STRING', value: communicationService.listKeys().primaryConnectionString }
             { name: 'AZURE_COMMUNICATION_SENDER_EMAIL', value: 'DoNotReply@${emailDomain.properties.fromSenderDomain}' }
-            { name: 'ENABLE_EMAIL_NOTIFICATIONS', value: 'false' }
-            { name: 'ENABLE_NOTIFICATIONS', value: 'false' }
+            { name: 'ENABLE_EMAIL_NOTIFICATIONS', value: 'true' }
+            { name: 'ENABLE_NOTIFICATIONS', value: 'true' }
+            { name: 'AZURE_OPENAI_ENDPOINT', value: azureOpenAiEndpoint }
+            { name: 'AZURE_OPENAI_API_KEY', value: azureOpenAiApiKey }
+            { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAiDeployment }
+            { name: 'AZURE_OPENAI_API_VERSION', value: '2024-11-20' }
           ]
           resources: {
             cpu: json('1.0')

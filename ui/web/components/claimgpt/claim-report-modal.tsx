@@ -175,16 +175,16 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     if (!isExpensesDirty) {
       const initialExpenses: ExpenseItem[] = preview?.expenses?.length
         ? preview.expenses.map((item, index) => ({
-            id: `exp-${index + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-            category: item.category || `Expense ${index + 1}`,
-            amount: Number(item.amount) || 0,
-          }))
+          id: `exp-${index + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          category: item.category || `Expense ${index + 1}`,
+          amount: Number(item.amount) || 0,
+        }))
         : s.lineItems?.length
           ? s.lineItems.map((item, index) => ({
-              id: item.id ? String(item.id) : `exp-${index + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
-              category: item.category,
-              amount: Number(item.amount) || 0,
-            }))
+            id: item.id ? String(item.id) : `exp-${index + 1}-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+            category: item.category,
+            amount: Number(item.amount) || 0,
+          }))
           : [];
 
       setExpenses(initialExpenses);
@@ -199,14 +199,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     const isCleanIns = (v: any) => Boolean(
       v && typeof v === 'string' && v.trim().length >= 3 &&
       v.toUpperCase() !== 'N/A' && v.toLowerCase() !== 'null' &&
-      v !== 'Star Health' && v !== 'Pending Insurer Selection'
+      v.toLowerCase() !== 'no_insurance' && v.toLowerCase() !== 'no insurance' &&
+      v.toLowerCase() !== 'unknown' && v !== 'Pending Insurer Selection'
     );
 
     const parsedFields = (preview?.parsed_fields as any) || {};
     const rawPol = parsedFields.policy_number || parsedFields.policy_id || (summary as any)?.policy_number || '';
     const cleanPol = isCleanPol(rawPol) ? rawPol.trim() : '';
-    
-    const rawIns = parsedFields.insurance_company || parsedFields.insurer || (summary as any)?.insurer || (s as any)?.enrolledTpa || '';
+
+    const rawIns = parsedFields.insurance_company || parsedFields.insurer || parsedFields.tpa_name || (summary as any)?.insurer || (s as any)?.enrolledTpa || '';
     const cleanIns = isCleanIns(rawIns) ? rawIns.trim() : '';
 
     const detectedSI = parsedFields.sum_insured ? Number(parsedFields.sum_insured) : null;
@@ -362,6 +363,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     ? Math.round(rawRiskScore <= 1 ? rawRiskScore * 100 : rawRiskScore)
     : 12;
 
+  const topRiskReasons = preview?.predictions?.[0]?.top_reasons || [];
+
   // Cross-Document Intelligence: compute from canonical verified fields
   const parsedFieldsObj = (preview?.parsed_fields && typeof preview.parsed_fields === 'object')
     ? (preview.parsed_fields as Record<string, any>)
@@ -423,12 +426,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const totalItemizedExpenses = expenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const grossTotal = preview?.gross_total && preview.gross_total > 0 ? preview.gross_total : billedAmount;
   const deductions = preview?.deductions ?? 0;
-  
+
   // A claim's itemized line items are mathematically valid when they equal Net, Gross, or fall between Net & Gross (due to line-item non-payable deductions)
   const minExpected = Math.min(billedAmount, grossTotal);
   const maxExpected = Math.max(billedAmount, grossTotal);
   const isWithinBillBounds = totalItemizedExpenses >= (minExpected - 100) && totalItemizedExpenses <= (maxExpected + 100);
-  
+
   const varianceToNet = Math.abs(billedAmount - totalItemizedExpenses);
   const varianceToGross = Math.abs(grossTotal - totalItemizedExpenses);
   const varianceAfterDeductions = Math.abs((totalItemizedExpenses - deductions) - billedAmount);
@@ -593,7 +596,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         description: "Please upload the patient's Policy Schedule or Health Card first to generate the TPA audit report.",
         variant: "destructive",
       });
-      policyFileInputRef.current?.click();
       return;
     }
     if (tpaUrl) openInlinePdfViewer(tpaUrl, 'tpa');
@@ -606,7 +608,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         description: "Please upload the patient's Policy Schedule or Health Card first to generate the IRDAI claim form.",
         variant: "destructive",
       });
-      policyFileInputRef.current?.click();
       return;
     }
     if (irdaUrl) openInlinePdfViewer(irdaUrl, 'irdai');
@@ -681,7 +682,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         description: "Please upload the patient's Policy Schedule or Health Card first before submitting the claim.",
         variant: "destructive",
       });
-      policyFileInputRef.current?.click();
       return;
     }
 
@@ -730,10 +730,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       if (list && list.length > 0) {
         setTpaList(list);
         const matched = detectedInsurer
-          ? (list.find(t => 
-              t.name.toLowerCase().includes(detectedInsurer.toLowerCase()) || 
-              detectedInsurer.toLowerCase().includes(t.name.toLowerCase())
-            ) || list[0])
+          ? (list.find(t =>
+            t.name.toLowerCase().includes(detectedInsurer.toLowerCase()) ||
+            detectedInsurer.toLowerCase().includes(t.name.toLowerCase())
+          ) || list[0])
           : list[0];
         setSelectedOrgId(matched.id);
         setSelectedInsurer(matched.name);
@@ -791,15 +791,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         }
       } else {
         toast({
-          title: "Scan Completed",
-          description: "Could not auto-detect policy number from this document. Please enter it manually.",
+          title: "Policy Not Detected",
+          description: "Could not auto-detect policy details from this document. Please upload a clear Policy Schedule or Health Card.",
           variant: "destructive",
         });
       }
     } catch {
       toast({
         title: "Upload Error",
-        description: "Failed to process document with Fast OCR.",
+        description: "Failed to process document. Please upload a clear Policy Schedule or Health Card.",
         variant: "destructive",
       });
     } finally {
@@ -812,8 +812,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     if (!s.claimId || isSubmittingToPayer) return;
     if (!policyId.trim()) {
       toast({
-        title: "Policy ID Required",
-        description: "Please enter your policy number or upload your policy / health card.",
+        title: "Policy Document Required",
+        description: "Please upload your Policy Schedule or Health Card to proceed.",
         variant: "destructive",
       });
       return;
@@ -837,7 +837,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
           if (typeof window !== 'undefined' && s.claimId) {
             localStorage.setItem(`claimgpt_submitted_payer_${s.claimId}`, selectedInsurer);
           }
-        } catch {}
+        } catch { }
         setShowInsurerModal(false);
         toast({
           title: "Claim Submitted Successfully",
@@ -866,7 +866,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-fade-in">
       {/* Main B2C Mobile-Optimized Report Modal */}
       <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl border border-white/10 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden">
-        
+
         {/* Modal Header Bar */}
         <div className="flex-none flex items-center justify-between border-b border-white/10 bg-slate-900/95 px-3.5 sm:px-6 py-3 backdrop-blur-md">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
@@ -907,7 +907,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
           <button
             type="button"
             onClick={s.closeReportModal}
-            className="flex h-8 w-8 flex-none items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+            className="flex h-8 w-8 sm:h-8 sm:w-8 flex-none items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/15 active:scale-95 text-slate-300 hover:text-white transition-all cursor-pointer"
             aria-label="Close Modal"
           >
             <X className="h-4 w-4" />
@@ -916,7 +916,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
         {/* Scrollable Body Content */}
         <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1 scrollbar-thin">
-          
+
           {/* 1. ⚡ 5-KPI METRIC CARDS STRIP */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 px-1 uppercase tracking-wider">
@@ -925,13 +925,28 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             </div>
             <div className="flex sm:grid sm:grid-cols-5 gap-2.5 overflow-x-auto snap-x pb-1 sm:pb-0 scrollbar-none">
               {/* Risk Score */}
-              <div className="flex-none w-[130px] sm:w-auto snap-start rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 sm:p-3">
+              <div 
+                className={`flex-none w-[130px] sm:w-auto snap-start rounded-xl border p-2.5 sm:p-3 transition-colors ${
+                  riskScoreNum <= 25 
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' 
+                    : riskScoreNum <= 50 
+                      ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' 
+                      : 'border-rose-500/30 bg-rose-500/10 text-rose-400'
+                }`}
+                title={topRiskReasons[0]?.reason ? `Top Risk Reason: ${topRiskReasons[0].reason}` : undefined}
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-medium text-slate-400">Risk Score</span>
-                  <Activity className="h-3.5 w-3.5 text-emerald-400" />
+                  <Activity className={`h-3.5 w-3.5 ${
+                    riskScoreNum <= 25 ? 'text-emerald-400' : riskScoreNum <= 50 ? 'text-amber-400' : 'text-rose-400'
+                  }`} />
                 </div>
-                <p className="text-base sm:text-lg font-extrabold text-emerald-400 mt-1">{riskScoreNum}%</p>
-                <span className="text-[9px] font-bold text-emerald-300 uppercase">Low Risk</span>
+                <p className="text-base sm:text-lg font-extrabold mt-1">{riskScoreNum}%</p>
+                <span className={`text-[9px] font-bold uppercase ${
+                  riskScoreNum <= 25 ? 'text-emerald-300' : riskScoreNum <= 50 ? 'text-amber-300' : 'text-rose-300'
+                }`}>
+                  {riskScoreNum <= 25 ? 'Low Risk' : riskScoreNum <= 50 ? 'Moderate Risk' : 'High Risk'}
+                </span>
               </div>
 
               {/* Medical Codes */}
@@ -1801,7 +1816,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 </div>
               </div>
 
-               <div className="flex items-center gap-1.5 sm:gap-2 flex-none ml-2">
+              <div className="flex items-center gap-1.5 sm:gap-2 flex-none ml-2">
                 {/* Download PDF Button */}
                 <a
                   href={inlinePdf.url}
@@ -1843,7 +1858,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       {showInsurerModal && (
         <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
           <div className="relative w-full max-w-lg rounded-2xl border border-white/15 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
-            
+
             {/* Header */}
             <div className="flex items-center justify-between border-b border-white/10 bg-slate-800/80 px-4 sm:px-6 py-4">
               <div className="flex items-center gap-3">
@@ -1870,7 +1885,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
             {/* Scrollable Body */}
             <div className="p-4 sm:p-6 space-y-4 sm:space-y-5 overflow-y-auto">
-              
+
               {/* Insurer Dropdown Section */}
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">

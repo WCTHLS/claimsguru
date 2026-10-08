@@ -189,13 +189,23 @@ def _pick(d: dict[str, Any], *keys: str) -> str:
     return ""
 
 
+def _pick_positive_amount(d: dict[str, Any], *keys: str, fallback: float = 0.0) -> float:
+    for k in keys:
+        v = d.get(k)
+        if v not in (None, "", [], "0", "0.0", "0.00", 0, 0.0):
+            val = _to_float(v)
+            if val > 0:
+                return val
+    return fallback
+
+
 def _to_float(value: Any) -> float:
     if value in (None, "", []):
         return 0.0
     try:
         if isinstance(value, (int, float)):
             return float(value)
-        return float(str(value).replace(",", "").replace("Rs.", "").replace("INR", "").strip() or 0)
+        return float(str(value).replace(",", "").replace("Rs.", "").replace("INR", "").replace("₹", "").strip() or 0)
     except (ValueError, TypeError):
         return 0.0
 
@@ -488,6 +498,7 @@ def _ensure_space(pdf: IRDAClaimPDF, needed: float):
 # ── builders ──────────────────────────────────────────────────────────────
 def _build_part_a(pdf: IRDAClaimPDF, ctx: dict[str, Any]) -> None:
     pf = ctx["fields"]
+    claim_data = ctx.get("claim_data") or {}
 
     pdf.add_page()
     pdf.title_block(
@@ -653,12 +664,13 @@ def _build_part_a(pdf: IRDAClaimPDF, ctx: dict[str, Any]) -> None:
     pdf.section_header("E", "DETAILS OF CLAIM")
 
     pre_h = _to_float(_pick(pf, "pre_hospitalization_expenses", "pre_hosp_amount"))
-    hosp = _to_float(_pick(pf, "hospitalization_expenses", "hospital_expenses", "claimed_total", "total_amount", "billed_amount", "gross_total"))
+    fallback_amt = _to_float(claim_data.get("billed_total") or claim_data.get("expense_total") or 0.0)
+    hosp = _pick_positive_amount(pf, "hospitalization_expenses", "hospital_expenses", "total_amount", "billed_amount", "gross_total", "claimed_total", fallback=fallback_amt)
     post_h = _to_float(_pick(pf, "post_hospitalization_expenses", "post_hosp_amount"))
     health_chk = _to_float(_pick(pf, "health_checkup_cost"))
     amb = _to_float(_pick(pf, "ambulance_charges"))
     others = _to_float(_pick(pf, "other_charges", "misc_charges"))
-    grand_total = pre_h + hosp + post_h + health_chk + amb + others or hosp
+    grand_total = (pre_h + hosp + post_h + health_chk + amb + others) or hosp or fallback_amt
 
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_fill_color(*ACCENT_LIGHT)
@@ -811,6 +823,7 @@ def _build_part_a(pdf: IRDAClaimPDF, ctx: dict[str, Any]) -> None:
 
 def _build_part_b(pdf: IRDAClaimPDF, ctx: dict[str, Any]) -> None:
     pf = ctx["fields"]
+    claim_data = ctx.get("claim_data") or {}
     icd_codes: list[dict[str, Any]] = ctx.get("icd_codes", []) or []
     cpt_codes: list[dict[str, Any]] = ctx.get("cpt_codes", []) or []
 
@@ -885,8 +898,13 @@ def _build_part_b(pdf: IRDAClaimPDF, ctx: dict[str, Any]) -> None:
         ("Transferred to another hospital", "another" in status or "transfer" in status),
         ("Deceased", "decea" in status or "death" in status or "expir" in status),
     ])
+    claimed_val = _pick_positive_amount(
+        pf,
+        "claimed_total", "total_amount", "billed_amount", "claim_amount", "gross_total", "net_payable",
+        fallback=_to_float(claim_data.get("billed_total") or claim_data.get("expense_total") or grand_total or 0.0)
+    )
     pdf.kv_full("Total Claimed Amount",
-                _rupees(_pick(pf, "claimed_total", "total_amount", "billed_amount", "claim_amount", "gross_total")) or "",
+                _rupees(claimed_val) if claimed_val > 0 else "",
                 bold_value=True)
     # additional clinical detail rows
     pdf.kv_row([
@@ -1390,6 +1408,9 @@ def generate_irda_pdf(claim_data: dict[str, Any], blank: bool = False) -> bytes:
         "cpt_codes": cpt_norm,
         "documents": docs,
         "bills": list(bills),
+        "claim_data": claim_data,
+        "billed_total": claim_data.get("billed_total"),
+        "expense_total": claim_data.get("expense_total"),
     }
 
     pdf = IRDAClaimPDF()

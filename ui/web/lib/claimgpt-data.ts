@@ -103,7 +103,7 @@ export function formatINR(amount: number): string {
 }
 
 export function formatDob(rawDob?: string | null): string {
-  if (!rawDob || !rawDob.trim()) return '01 Jan 2000';
+  if (!rawDob || !rawDob.trim()) return 'Not specified';
   const clean = rawDob.trim();
 
   // If already like "19 Aug 1990" or "01 Jan 2000"

@@ -145,8 +145,8 @@ def _parse_json_dict(raw_text: str) -> dict[str, Any] | None:
         return None
 
 
-DOCUMENT_ENTITY_PROMPT_TEMPLATE = """You are a medical insurance document understanding AI.
-Analyze the following medical claim document text and extract structured clinical and patient entities.
+DOCUMENT_ENTITY_PROMPT_TEMPLATE = """You are a professional medical insurance document understanding AI.
+Analyze the following medical claim document text and extract structured clinical, patient, and insurance policy entities.
 
 Return STRICT JSON only adhering exactly to this schema:
 {
@@ -158,15 +158,22 @@ Return STRICT JSON only adhering exactly to this schema:
   "admission_date": "Date of admission in DD/MM/YYYY or DD-MM-YYYY format",
   "discharge_date": "Date of discharge in DD/MM/YYYY or DD-MM-YYYY format",
   "diagnosis": "Primary clinical diagnosis / condition (e.g. 'LOWER OESOPHAGEAL HIATUS HERNIA', 'BILATERAL PNEUMONITIS / TYPE 2 DM / HTN')",
-  "clinical_diagnosis_summary": "Comprehensive clinical narrative containing the patient's presenting complaint, history of present illness, relevant past medical history and comorbidities, confirmed/provisional diagnoses, significant investigation findings, procedures/interventions, treatment provided, and condition at discharge. Preserve the exact clinical diagnoses, anatomical site, laterality, acuity, severity, complications, and other details relevant for ICD coding.",
-  "policy_number": "Insurance policy number if explicitly present (do NOT use UHID, MRNO, or IPNO)",
+  "clinical_diagnosis_summary": "Comprehensive clinical narrative containing the patient's presenting complaint, history of present illness, relevant past medical history and comorbidities, confirmed/provisional diagnoses, significant investigation findings, procedures/interventions, treatment provided, and condition at discharge. Preserve the exact clinical diagnoses, anatomical site, laterality, acuity, severity, complications, and other details relevant for ICD coding. Return null if not present.",
+  "insurance_company": "Full official name of the insurance company / payer if explicitly mentioned (e.g. 'Star Health and Allied Insurance', 'Care Health Insurance', 'HDFC ERGO', 'United India Insurance'). Return null if not explicitly mentioned in the text.",
+  "tpa_name": "Full official name of the Third Party Administrator (TPA) if explicitly mentioned (e.g. 'Family Health Plan (TPA) Ltd.', 'Medi Assist Insurance TPA', 'Vidal Health TPA', 'MDIndia Health Insurance TPA'). Return null if no TPA is mentioned.",
+  "policy_number": "Insurance policy number if explicitly present (do NOT use UHID, MRNO, or IPNO). Return null if not present.",
+  "member_id": "Member ID / Health Card ID / Beneficiary ID if explicitly present (e.g. 'MEM-19943140'). Return null if not present.",
+  "sum_insured": "Total sum insured or policy coverage limit amount as numeric string (e.g. '500000', '1000000'). Return null if not present.",
+  "policy_start_date": "Policy inception / start date in DD/MM/YYYY or DD-MM-YYYY format if explicitly present. Return null if not present.",
+  "policy_end_date": "Policy expiry / end date in DD/MM/YYYY or DD-MM-YYYY format if explicitly present. Return null if not present.",
   "claimed_total": "Final billed total amount as number or string if an invoice/bill is present (null if this is only a discharge summary with no bills)"
 }
 
-Rules:
-1. Do NOT guess or hallucinate. If a field is not present in the document text, return null for that field.
-2. For discharge summaries with NO bills, claimed_total MUST be null.
-3. For patient_name: extract the real patient name, even if listed next to UHID/MRNO or printed as a single name.
+STRICT RULES (Zero Hallucination):
+1. ZERO HALLUCINATION: If a field is not explicitly present in the document text, you MUST return null for that field. Never guess, infer, or invent placeholder values like 'N/A', 'None', 'Unknown', or random company names.
+2. For insurance_company vs tpa_name: Do not confuse insurer and TPA. If text explicitly states 'TPA: Family Health Plan (TPA) Ltd.', extract that into tpa_name. If an insurer is explicitly named, extract it into insurance_company.
+3. For discharge summaries with NO bills, claimed_total MUST be null.
+4. For patient_name: extract the genuine patient name, even if listed next to UHID/MRNO or printed as a single name.
 
 Document Text:
 """
@@ -408,6 +415,37 @@ class OllamaSemanticBackend(SemanticBackend):
             return _parse_semantic_response(str(raw), request, self.name)
         except Exception as exc:
             logger.debug("Ollama semantic backend failed: %s", exc)
+            return None
+
+    def extract_document_entities(self, text: str) -> dict[str, Any] | None:
+        if not self.available() or not text:
+            return None
+        prompt = DOCUMENT_ENTITY_PROMPT_TEMPLATE + "\n" + text[:12000]
+        payload = {
+            "model": self.model,
+            "prompt": prompt,
+            "stream": False,
+            "format": "json",
+            "options": {"temperature": 0.0},
+        }
+        try:
+            response = httpx.post(self.url, json=payload, timeout=self.timeout_seconds)
+            response.raise_for_status()
+            data = response.json()
+            raw = data.get("response") if isinstance(data, dict) else None
+            if not raw:
+                return None
+            parsed = _parse_json_dict(str(raw))
+            save_llm_debug_dump(
+                call_type="ollama_document_entities",
+                prompt=prompt,
+                response=raw,
+                model=self.model,
+                parsed_result=parsed
+            )
+            return parsed
+        except Exception as exc:
+            logger.debug("Ollama document entity extraction failed: %s", exc)
             return None
 
 
@@ -710,36 +748,45 @@ class AzureOpenAISemanticBackend(SemanticBackend):
             "Content-Type": "application/json",
         }
 
-        try:
-            logger.info("Calling Azure OpenAI (%s) for semantic extraction of region %s...", self.deployment, request.region_id)
-            resp = httpx.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
-            resp.raise_for_status()
-            data = resp.json()
-            raw = None
-            if isinstance(data, dict) and "choices" in data and data["choices"]:
-                msg = data["choices"][0].get("message", {})
-                raw = msg.get("content") if isinstance(msg, dict) else msg
-            
-            parsed = _parse_semantic_response(str(raw), request, self.name) if raw else None
-            save_llm_debug_dump(
-                call_type="azure_openai_region_semantic",
-                prompt=prompt,
-                response=raw,
-                model=self.deployment,
-                parsed_result=parsed
-            )
-            if not raw:
-                return None
-            return parsed
-        except Exception as exc:
-            logger.warning("Azure OpenAI semantic extraction failed: %s", exc)
-            save_llm_debug_dump(
-                call_type="azure_openai_region_semantic_error",
-                prompt=prompt,
-                response=str(exc),
-                model=self.deployment
-            )
+        raw = None
+        for attempt in range(1, 4):
+            try:
+                logger.info("Calling Azure OpenAI (%s) for semantic extraction of region %s (attempt %d/3)...", self.deployment, request.region_id, attempt)
+                resp = httpx.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
+                if resp.status_code == 429:
+                    retry_after = float(resp.headers.get("retry-after", 2 * attempt))
+                    logger.warning("Azure OpenAI rate limited (429). Retrying in %.1fs (attempt %d/3)...", retry_after, attempt)
+                    time.sleep(retry_after)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                if isinstance(data, dict) and "choices" in data and data["choices"]:
+                    msg = data["choices"][0].get("message", {})
+                    raw = msg.get("content") if isinstance(msg, dict) else msg
+                break
+            except Exception as exc:
+                if attempt == 3:
+                    logger.warning("Azure OpenAI semantic extraction failed after 3 attempts: %s", exc)
+                    save_llm_debug_dump(
+                        call_type="azure_openai_region_semantic_error",
+                        prompt=prompt,
+                        response=str(exc),
+                        model=self.deployment
+                    )
+                    return None
+                time.sleep(1.5 * attempt)
+
+        parsed = _parse_semantic_response(str(raw), request, self.name) if raw else None
+        save_llm_debug_dump(
+            call_type="azure_openai_region_semantic",
+            prompt=prompt,
+            response=raw,
+            model=self.deployment,
+            parsed_result=parsed
+        )
+        if not raw:
             return None
+        return parsed
 
     def extract_document_entities(self, text: str) -> dict[str, Any] | None:
         if not self.available() or not text:
@@ -772,36 +819,45 @@ class AzureOpenAISemanticBackend(SemanticBackend):
             "Content-Type": "application/json",
         }
 
-        try:
-            logger.info("Calling Azure OpenAI (%s) for document clinical entity extraction...", self.deployment)
-            resp = httpx.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
-            resp.raise_for_status()
-            data = resp.json()
-            raw = None
-            if isinstance(data, dict) and "choices" in data and data["choices"]:
-                msg = data["choices"][0].get("message", {})
-                raw = msg.get("content") if isinstance(msg, dict) else msg
-            
-            parsed = _parse_json_dict(str(raw)) if raw else None
-            save_llm_debug_dump(
-                call_type="azure_openai_document_entities",
-                prompt=prompt,
-                response=raw,
-                model=self.deployment,
-                parsed_result=parsed
-            )
-            if not raw:
-                return None
-            return parsed
-        except Exception as exc:
-            logger.warning("Azure OpenAI document entity extraction failed: %s", exc)
-            save_llm_debug_dump(
-                call_type="azure_openai_document_entities_error",
-                prompt=prompt,
-                response=str(exc),
-                model=self.deployment
-            )
+        raw = None
+        for attempt in range(1, 4):
+            try:
+                logger.info("Calling Azure OpenAI (%s) for document clinical entity extraction (attempt %d/3)...", self.deployment, attempt)
+                resp = httpx.post(url, json=payload, headers=headers, timeout=self.timeout_seconds)
+                if resp.status_code == 429:
+                    retry_after = float(resp.headers.get("retry-after", 2 * attempt))
+                    logger.warning("Azure OpenAI rate limited (429). Retrying in %.1fs (attempt %d/3)...", retry_after, attempt)
+                    time.sleep(retry_after)
+                    continue
+                resp.raise_for_status()
+                data = resp.json()
+                if isinstance(data, dict) and "choices" in data and data["choices"]:
+                    msg = data["choices"][0].get("message", {})
+                    raw = msg.get("content") if isinstance(msg, dict) else msg
+                break
+            except Exception as exc:
+                if attempt == 3:
+                    logger.warning("Azure OpenAI document entity extraction failed after 3 attempts: %s", exc)
+                    save_llm_debug_dump(
+                        call_type="azure_openai_document_entities_error",
+                        prompt=prompt,
+                        response=str(exc),
+                        model=self.deployment
+                    )
+                    return None
+                time.sleep(1.5 * attempt)
+
+        parsed = _parse_json_dict(str(raw)) if raw else None
+        save_llm_debug_dump(
+            call_type="azure_openai_document_entities",
+            prompt=prompt,
+            response=raw,
+            model=self.deployment,
+            parsed_result=parsed
+        )
+        if not raw:
             return None
+        return parsed
 
 
 class SemanticBackendRegistry:

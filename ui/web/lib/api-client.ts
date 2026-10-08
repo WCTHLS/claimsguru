@@ -148,10 +148,22 @@ export function getAuthHeaders(): Record<string, string> {
   if (token) {
     headers.Authorization = `Bearer ${token}`;
   }
-  const uid = session?.user?.id || session?.user?.sub || session?.user?.oid || session?.user?.email;
-  if (uid) {
+  const uid = session?.user?.id || session?.user?.sub || session?.user?.oid;
+  if (uid && uid !== 'User' && uid !== 'user@example.com' && !uid.startsWith('offline-')) {
     headers['X-Patient-Id'] = uid;
     headers['X-User-Id'] = uid;
+  }
+  const userEmail = session?.user?.email || (typeof window !== 'undefined' ? localStorage.getItem('claimgpt_user_email') : null);
+  if (userEmail && userEmail !== 'user@example.com' && userEmail !== 'User') {
+    headers['X-User-Email'] = userEmail;
+    headers['X-Patient-Email'] = userEmail;
+    if (!headers['X-Patient-Id']) {
+      headers['X-Patient-Id'] = userEmail;
+      headers['X-User-Id'] = userEmail;
+    }
+  }
+  if (session?.role) {
+    headers['X-User-Role'] = session.role;
   }
   return headers;
 }
@@ -460,13 +472,17 @@ export async function fetchLatestClaimId(patientId?: string): Promise<string | n
 export async function fetchRecentClaims(patientId?: string): Promise<RecentClaimSummary[] | null> {
   try {
     const params = new URLSearchParams({ limit: "50", t: Date.now().toString() });
+    const session = getStoredAuthSession();
     let effectivePatientId = patientId;
-    if (!effectivePatientId) {
-      const session = getStoredAuthSession();
-      effectivePatientId = session?.user?.id || session?.user?.email || undefined;
+    if (!effectivePatientId || effectivePatientId === 'User' || effectivePatientId === 'user@example.com' || effectivePatientId.startsWith('offline-')) {
+      effectivePatientId = session?.user?.id || session?.user?.email || (typeof window !== 'undefined' ? localStorage.getItem('claimgpt_user_email') : undefined) || undefined;
     }
-    if (effectivePatientId) {
+    if (effectivePatientId && effectivePatientId !== 'User' && effectivePatientId !== 'user@example.com' && !effectivePatientId.startsWith('offline-')) {
       params.append("patient_id", effectivePatientId);
+    }
+    const userEmail = session?.user?.email || (typeof window !== 'undefined' ? localStorage.getItem('claimgpt_user_email') : undefined);
+    if (userEmail && userEmail !== 'user@example.com' && userEmail !== 'User') {
+      params.append("email", userEmail);
     }
     const url = `${INGRESS_API}/claims?${params.toString()}`;
     const res = await safeFetch(url, { cache: "no-store", headers: getAuthHeaders() }, 8000);
@@ -797,4 +813,27 @@ export async function downloadAllClaimDocumentsZip(
   a.click();
   document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/**
+ * Reprocess / retry a stuck or failed claim from scratch
+ */
+export async function reprocessClaimApi(
+  claimId: string
+): Promise<{ success: boolean; data?: any; error?: string }> {
+  try {
+    const headers = getAuthHeaders();
+    const res = await fetch(`${INGRESS_API}/claims/${claimId}/reprocess`, {
+      method: "POST",
+      headers,
+    });
+    if (res.ok) {
+      const data = await res.json();
+      return { success: true, data };
+    }
+    const errData = await res.json().catch(() => null);
+    return { success: false, error: errData?.detail || "Reprocessing failed" };
+  } catch (err: any) {
+    return { success: false, error: err?.message || "Network error" };
+  }
 }
