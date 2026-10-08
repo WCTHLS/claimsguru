@@ -24,12 +24,8 @@ import json
 import csv
 import logging
 import os
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
-os.environ['OMP_NUM_THREADS'] = '1'
-os.environ['MKL_NUM_THREADS'] = '1'
-os.environ['OPENBLAS_NUM_THREADS'] = '1'
-os.environ['VECLIB_MAXIMUM_THREADS'] = '1'
-os.environ['NUMEXPR_NUM_THREADS'] = '1'
+os.environ.setdefault('TOKENIZERS_PARALLELISM', 'false')
+
 import pathlib
 import pickle
 import re
@@ -510,10 +506,11 @@ def _emit_progress(message: str) -> None:
 
 
 def _meta_is_pdf_index() -> bool:
-    if not _ICD10_META_PATH.exists():
+    meta_path = _ICD10_META_PATH if _ICD10_META_PATH.exists() else (_DATA_DIR / "icd10_meta_.json")
+    if not meta_path.exists():
         return False
     try:
-        with open(_ICD10_META_PATH, "r", encoding="utf-8") as f:
+        with open(meta_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
     except Exception:
         return False
@@ -524,95 +521,121 @@ def _meta_is_pdf_index() -> bool:
     return all(isinstance(entry, dict) and isinstance(entry.get("source"), str) and entry.get("source").startswith("icd10_") for entry in sample)
 
 
+def _combine_pipe_terms(parent_terms: str, child_terms: str) -> str:
+    """Combine pipe-separated terms with parent category terms first, followed by child specific terms."""
+    parts: list[str] = []
+    seen: set[str] = set()
+    for raw in (parent_terms, child_terms):
+        if not raw:
+            continue
+        for term in raw.split("|"):
+            cleaned = term.strip()
+            if cleaned and cleaned.lower() not in seen:
+                seen.add(cleaned.lower())
+                parts.append(cleaned)
+    return " | ".join(parts)
+
+
 def _extract_icd10_csv_entries(csv_path: str) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     if not os.path.exists(csv_path):
         return entries
     with open(csv_path, "r", encoding="utf-8") as f:
         try:
-            reader = csv.DictReader(f)
+            rows = list(csv.DictReader(f))
         except Exception:
             return entries
 
-        for row in reader:
-            code = (
-                row.get("icd10_code")
-                or row.get("code")
-                or row.get("ICD10_CODE")
-                or ""
-            ).strip()
+    # Pass 1: Collect category-level definitions (codes without decimal points, e.g. K44, A00)
+    category_map: dict[str, dict[str, str]] = {}
+    for row in rows:
+        code = (
+            row.get("icd10_code")
+            or row.get("code")
+            or row.get("ICD10_CODE")
+            or ""
+        ).strip().upper()
+        if not code:
+            continue
+        if "." not in code:
+            category_map[code] = {
+                "code_includes": (row.get("code_includes") or "").strip(),
+                "block_description": (row.get("block_description") or "").strip(),
+                "chapter_description": (row.get("chapter_description") or "").strip(),
+            }
 
-            if not code:
-                continue
+    # Pass 2: Process only specific subcodes (codes with decimal points, e.g. K44.0, K44.9)
+    for row in rows:
+        code = (
+            row.get("icd10_code")
+            or row.get("code")
+            or row.get("ICD10_CODE")
+            or ""
+        ).strip()
 
-            desc = (
-                row.get("code_description")
-                or row.get("description")
-                or ""
-            ).strip()
+        if not code or "." not in code:
+            # Skip non-specific category-level codes so only specific billable codes are indexed
+            continue
 
-            if not desc:
-                desc = code
+        desc = (
+            row.get("code_description")
+            or row.get("description")
+            or ""
+        ).strip()
 
-            # Optional fields
-            code_includes = (row.get("code_includes") or "").strip()
-            code_excludes = (row.get("code_excludes") or "").strip()
+        if not desc:
+            desc = code
 
-            chapter_description = (row.get("chapter_description") or "").strip()
-            chapter_includes = (row.get("chapter_includes") or "").strip()
-            chapter_excludes = (row.get("chapter_excludes") or "").strip()
+        # Inherit category-level includes from parent category
+        cat_key = code.split(".")[0].upper()
+        cat_data = category_map.get(cat_key, {})
 
-            block_range = (row.get("block_range") or "").strip()
-            block_description = (row.get("block_description") or "").strip()
+        cat_includes = cat_data.get("code_includes", "")
+        child_includes = (row.get("code_includes") or "").strip()
 
-            # -----------------------------
-            # Build rich embedding text
-            # -----------------------------
-            text_parts = [
-                f"ICD Code: {code}",
-                f"Description: {desc}",
-            ]
-            extra_metadata= {}
-            # Priority logic: do NOT append code_excludes to text_parts so excluded conditions
-            # do not act as false positive semantic attractors in vector embeddings.
-            if code_includes:
-                text_parts.append(f"Code covers: {code_includes}")
-                extra_metadata["code_includes"] = f"Code covers: {code_includes}"
+        # Append category includes first along with existing specific code includes
+        merged_includes = _combine_pipe_terms(cat_includes, child_includes)
 
-            if code_excludes:
-                extra_metadata["code_excludes"] = f"Code does not cover: {code_excludes}"
+        chapter_description = (row.get("chapter_description") or "").strip() or cat_data.get("chapter_description", "")
+        block_description = (row.get("block_description") or "").strip() or cat_data.get("block_description", "")
 
-            if block_description:
-                text_parts.append(f"Code Block description: {block_description}")
-                extra_metadata["block_description"] = f"Code Block description: {block_description}"
+        # -----------------------------
+        # Build rich embedding text
+        # -----------------------------
+        text_parts = [
+            f"ICD Code: {code}",
+            f"Description: {desc}",
+        ]
+        extra_metadata: dict[str, str] = {}
+        if merged_includes:
+            text_parts.append(f"Code covers: {merged_includes}")
+            extra_metadata["code_includes"] = f"Code covers: {merged_includes}"
 
-            elif chapter_description:
-                text_parts.append(
-                    f"Chapter: {chapter_description}"
-                )
-                extra_metadata["chapter_description"] = f"Chapter: {chapter_description}"
-
-            rich_text = "\n".join(text_parts)
-
-            metadata = {
-                    "code": code,
-                    "description": desc,
-                    "category": _code_to_category(code),
-                    # metadata
-                    **extra_metadata,
-
-                    "synonyms": [],
-
-                    "source": _CSV_INDEX_SOURCE,
-                }
-            entries.append(
-                {
-                    # embedding text
-                    "text": rich_text,
-                    "metadata": metadata,
-                    
-                }
+        if block_description:
+            text_parts.append(f"Code Block description: {block_description}")
+            extra_metadata["block_description"] = f"Code Block description: {block_description}"
+        elif chapter_description:
+            text_parts.append(
+                f"Chapter: {chapter_description}"
             )
+            extra_metadata["chapter_description"] = f"Chapter: {chapter_description}"
+
+        rich_text = "\n".join(text_parts)
+
+        metadata = {
+            "code": code,
+            "description": desc,
+            "category": _code_to_category(code),
+            **extra_metadata,
+            "synonyms": [],
+            "source": _CSV_INDEX_SOURCE,
+        }
+        entries.append(
+            {
+                "text": rich_text,
+                "metadata": metadata,
+            }
+        )
     return entries
 
 
@@ -654,7 +677,7 @@ def _extract_icd10_pdf_entries(pdf_path: str) -> list[dict[str, Any]]:
     return list(entries_by_code.values())
 
 
-def _encode_texts_with_progress(model, texts: list[str], label: str, batch_size: int = 256) -> np.ndarray:
+def _encode_texts_with_progress(model, texts: list[str], label: str, batch_size: int = 48) -> np.ndarray:
     vectors: list[np.ndarray] = []
     total = len(texts)
     if total == 0:
@@ -680,6 +703,20 @@ def _encode_texts_with_progress(model, texts: list[str], label: str, batch_size:
 def build_index(force: bool = False, load_after: bool = True) -> bool:
     """Build the FAISS ICD-10 + CPT index from the bundled ICD-10 PDF."""
     import faiss
+
+    # Configure balanced multi-threading for offline index building (uses 50% of cores, leaves rest free so laptop never hangs)
+    try:
+        import torch
+        if torch.cuda.is_available():
+            _emit_progress(f"CUDA available! Accelerating index build on GPU: {torch.cuda.get_device_name(0)}")
+        else:
+            total_cores = os.cpu_count() or 4
+            num_threads = min(6, max(1, total_cores // 2))
+            torch.set_num_threads(num_threads)
+            _emit_progress(f"Configured PyTorch with {num_threads} CPU threads (out of {total_cores} available; {total_cores - num_threads} threads left free for system responsiveness)")
+    except Exception:
+        pass
+
 
     model = _load_model()
     if model is None:
@@ -713,14 +750,24 @@ def build_index(force: bool = False, load_after: bool = True) -> bool:
     icd10_texts = [e["text"] for e in icd10_entries]
     icd10_meta_data = [e["metadata"] for e in icd10_entries]
 
-    icd10_vectors = _encode_texts_with_progress(model, icd10_texts, "ICD-10 codes", batch_size=256)
+    icd10_vectors = _encode_texts_with_progress(model, icd10_texts, "ICD-10 codes", batch_size=48)
+
 
     icd10_index = faiss.IndexFlatIP(icd10_vectors.shape[1])
     icd10_index.add(icd10_vectors)
 
     faiss.write_index(icd10_index, str(_ICD10_INDEX_PATH))
+    try:
+        faiss.write_index(icd10_index, str(_DATA_DIR / "icd10_index_.faiss"))
+    except Exception:
+        pass
     with open(_ICD10_META_PATH, "w", encoding="utf-8") as f:
         json.dump(icd10_meta_data, f, ensure_ascii=False, indent=2)
+    try:
+        with open(_DATA_DIR / "icd10_meta_.json", "w", encoding="utf-8") as f:
+            json.dump(icd10_meta_data, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
 
     _emit_progress(
         f"ICD-10 FAISS index saved: {icd10_index.ntotal} vectors, dim={icd10_vectors.shape[1]}, file={_ICD10_INDEX_PATH}"
@@ -754,7 +801,7 @@ def build_index(force: bool = False, load_after: bool = True) -> bool:
     ]
 
     _emit_progress(f"Embedding {len(cpt_texts)} CPT codes...")
-    cpt_vectors = _encode_texts_with_progress(model, cpt_texts, "CPT codes", batch_size=256)
+    cpt_vectors = _encode_texts_with_progress(model, cpt_texts, "CPT codes", batch_size=48)
 
     cpt_index = faiss.IndexFlatIP(cpt_vectors.shape[1])
     cpt_index.add(cpt_vectors)
@@ -789,13 +836,16 @@ def _load_indices():
         logger.warning("faiss-cpu not installed — RAG search unavailable")
         return
 
-    if _ICD10_INDEX_PATH.exists() and _ICD10_META_PATH.exists():
+    icd10_index_path = _ICD10_INDEX_PATH if _ICD10_INDEX_PATH.exists() else (_DATA_DIR / "icd10_index_.faiss")
+    icd10_meta_path = _ICD10_META_PATH if _ICD10_META_PATH.exists() else (_DATA_DIR / "icd10_meta_.json")
+
+    if icd10_index_path.exists() and icd10_meta_path.exists():
         if not _meta_is_pdf_index():
-            logger.warning("Existing ICD-10 index is not PDF-based; rebuilding from the PDF source")
+            logger.warning("Existing ICD-10 index is not valid; rebuilding from the source")
             if not build_index(force=True, load_after=False):
                 return
-        _icd10_index = faiss.read_index(str(_ICD10_INDEX_PATH))
-        with open(_ICD10_META_PATH, "r", encoding="utf-8") as f:
+        _icd10_index = faiss.read_index(str(icd10_index_path))
+        with open(icd10_meta_path, "r", encoding="utf-8") as f:
             _icd10_meta = json.load(f)
         logger.info("Loaded ICD-10 FAISS index: %d codes", _icd10_index.ntotal)
 
@@ -1259,7 +1309,6 @@ def _rerank_icd_results(query: str, results: list[tuple[str, str, str, float]]) 
     if _ENABLE_LOCAL_CLINICAL_RERANK:
         try:
             cross_results = _try_crossencoder_rerank(query, results)
-            logger.info(f"----------Cross-encoder reranker results for query----------{query}")
         except Exception:
             cross_results = None
         if cross_results:
@@ -1471,7 +1520,9 @@ def _try_crossencoder_rerank(query: str, candidates: list[tuple[str, str, str, f
 
         # Check if the best candidate is below cross-encoder confidence threshold (Bug C fallback)
         if best_score < 2.0:
+            top3_rejected = [(str(row[0]), str(row[1]), str(row[2]), float(row[4])) for row in scored_candidates[:3]]
             logger.info("Cross-encoder best score %s for query '%s' is below threshold 2.0. Falling back to S-PubMedBert.", best_score, query)
+            logger.info(f"----------Cross-encoder reranker results for query----------{query}\n{top3_rejected}")
             return None
 
         cand_dict = {row[0]: (row[0], row[1], row[2], float(row[4])) for row in scored_candidates}
@@ -1502,6 +1553,7 @@ def _try_crossencoder_rerank(query: str, candidates: list[tuple[str, str, str, f
 
         # Normalize to 4-tuples for downstream rerank compatibility
         normalized = [(str(code), str(desc), str(cat), float(score)) for code, desc, cat, _extra, score in scored_candidates]
+        logger.info(f"----------Cross-encoder reranker results for query----------{query}\n{normalized[:3]}")
         return normalized
     except Exception:
         logger.debug("Cross-encoder reranker failed", exc_info=True)
@@ -1595,6 +1647,33 @@ def lookup_icd10_rag(code: str) -> tuple[str, str, str] | None:
     return _ALIASES.get(norm_key) or _ALIASES.get(raw_clean)
 
 
+_icd10_meta_dict_index: dict[str, dict[str, Any]] = {}
+
+def lookup_icd10_meta(code: str) -> dict[str, Any] | None:
+    """Return the complete metadata dict for an ICD-10 code including code_includes and block_description."""
+    if not code:
+        return None
+    if not is_rag_available():
+        return None
+
+    global _icd10_meta_dict_index
+    if not _icd10_meta_dict_index and _icd10_meta:
+        idx: dict[str, dict[str, Any]] = {}
+        for entry in _icd10_meta:
+            if not isinstance(entry, dict):
+                continue
+            c = str(entry.get("code") or "").strip().upper()
+            if c:
+                norm = re.sub(r"[^A-Z0-9]", "", c)
+                idx[norm] = entry
+                idx[c] = entry
+        _icd10_meta_dict_index = idx
+
+    raw_clean = str(code).strip().upper()
+    norm_key = re.sub(r"[^A-Z0-9]", "", raw_clean)
+    return _icd10_meta_dict_index.get(norm_key) or _icd10_meta_dict_index.get(raw_clean)
+
+
 @functools.lru_cache(maxsize=_RAG_CACHE_SIZE)
 def _search_icd10_rag_cached(
     query: str,
@@ -1672,3 +1751,23 @@ def _search_cpt_rag_cached(
     sparse = _bm25_rank(query, _cpt_bm25, pool)
     res = _to_results(_rrf_fuse([dense, sparse]), _cpt_meta, max_results)
     return tuple((str(r[0]), str(r[1]), str(r[2]), float(r[-1])) for r in res)
+
+
+if __name__ == "__main__":
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Build ICD-10 and CPT vector/BM25 indices.")
+    parser.add_argument("--force", action="store_true", default=False, help="Force rebuild even if indices already exist.")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+    print(f"Starting index build (force={args.force})...", flush=True)
+    success = build_index(force=args.force)
+    if success:
+        print("Indexing completed successfully!", flush=True)
+        sys.exit(0)
+    else:
+        print("Indexing failed!", flush=True)
+        sys.exit(1)
+

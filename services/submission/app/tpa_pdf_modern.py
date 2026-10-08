@@ -192,17 +192,45 @@ def generate_tpa_pdf_modern(claim_data: dict[str, Any]) -> bytes:
                     "amount_formatted": _money(amt),
                 })
         
-        billed_raw = claim_data.get("billed_total") or fields.get("claimed_total") or fields.get("total_amount") or fields.get("billed_amount") or fields.get("net_payable") or expense_total
-        try:
-            billed_num = float(str(billed_raw).replace(",", "").replace("₹", "").strip())
-        except Exception:
+        billed_num = 0.0
+        for cand in (
+            claim_data.get("billed_total"),
+            claim_data.get("cost_summary", {}).get("grand_total") if isinstance(claim_data.get("cost_summary"), dict) else None,
+            fields.get("total_amount"),
+            fields.get("total_claim_amount"),
+            fields.get("gross_total"),
+            fields.get("net_payable"),
+            fields.get("billed_amount"),
+            expense_total,
+            fields.get("claimed_total"),
+        ):
+            if cand not in (None, "", "—", "0", "0.0", "0.00", 0, 0.0):
+                try:
+                    num = float(str(cand).replace(",", "").replace("₹", "").strip())
+                    if num > 0:
+                        billed_num = num
+                        break
+                except Exception:
+                    pass
+        if billed_num <= 0 and expense_total > 0:
             billed_num = expense_total
 
-        gross_raw = claim_data.get("gross_total") or fields.get("gross_total") or fields.get("total_amount") or (billed_num if billed_num > 0 else expense_total)
-        try:
-            gross_num = float(str(gross_raw).replace(",", "").replace("₹", "").strip())
-        except Exception:
-            gross_num = billed_num
+        gross_num = billed_num
+        for cand in (
+            claim_data.get("gross_total"),
+            fields.get("gross_total"),
+            fields.get("total_amount"),
+            billed_num,
+            expense_total,
+        ):
+            if cand not in (None, "", "—", "0", "0.0", "0.00", 0, 0.0):
+                try:
+                    num = float(str(cand).replace(",", "").replace("₹", "").strip())
+                    if num > 0:
+                        gross_num = num
+                        break
+                except Exception:
+                    pass
 
         net_payable_num = billed_num if billed_num > 0 else expense_total
         deductions_raw = claim_data.get("deductions") or fields.get("deductions") or 0.0

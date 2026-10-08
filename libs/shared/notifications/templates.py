@@ -13,125 +13,88 @@ def render_welcome_email(user_name: str, user_email: str, dashboard_url: str) ->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{subject}</title>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f8fafc;
-            color: #1e293b;
-            margin: 0;
-            padding: 0;
-            line-height: 1.6;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 30px auto;
-            background: #ffffff;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-            border: 1px solid #e2e8f0;
-        }}
-        .header {{
-            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-            padding: 32px 24px;
-            text-align: center;
-            color: #ffffff;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 24px;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }}
-        .header p {{
-            margin: 8px 0 0 0;
-            font-size: 14px;
-            opacity: 0.9;
-        }}
-        .content {{
-            padding: 32px 24px;
-        }}
-        .greeting {{
-            font-size: 18px;
-            font-weight: 600;
-            color: #0f172a;
-            margin-bottom: 16px;
-        }}
-        .feature-box {{
-            background-color: #f0fdf4;
-            border-left: 4px solid #16a34a;
-            padding: 16px;
-            border-radius: 6px;
-            margin: 20px 0;
-        }}
-        .feature-box h3 {{
-            margin: 0 0 8px 0;
-            color: #15803d;
-            font-size: 16px;
-        }}
-        .feature-box ul {{
-            margin: 0;
-            padding-left: 20px;
-            color: #334155;
-            font-size: 14px;
-        }}
-        .cta-container {{
-            text-align: center;
-            margin: 32px 0;
-        }}
-        .cta-button {{
-            display: inline-block;
-            background: #0284c7;
-            color: #ffffff !important;
-            padding: 14px 28px;
-            font-size: 16px;
-            font-weight: 600;
-            text-decoration: none;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(2, 132, 199, 0.3);
-        }}
-        .footer {{
-            background-color: #f1f5f9;
-            padding: 20px;
-            text-align: center;
-            font-size: 12px;
-            color: #64748b;
-            border-top: 1px solid #e2e8f0;
-        }}
-    </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>ClaimsGuru AI Platform</h1>
-            <p>Next-Generation Health Insurance Adjudication</p>
-        </div>
-        <div class="content">
-            <div class="greeting">Welcome aboard, {user_name}! 👋</div>
-            <p>Your account on ClaimsGuru has been successfully initialized and verified for <strong>{user_email}</strong>.</p>
-            
-            <div class="feature-box">
-                <h3>What You Can Do:</h3>
-                <ul>
-                    <li><strong>Upload Claims Instantly:</strong> Submit medical bills, discharge summaries, and diagnostic receipts with 1-click.</li>
-                    <li><strong>AI Document Processing:</strong> Real-time OCR, clinical entity extraction, and automated policy verification.</li>
-                    <li><strong>Live Claim Tracking:</strong> Receive instant progress updates at each stage of the review workflow.</li>
-                </ul>
-            </div>
+<body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f172a;padding:30px 10px;">
+        <tr>
+            <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;background-color:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 20px 40px -15px rgba(0,0,0,0.5);border:1px solid #334155;">
+                    <tr>
+                        <td style="background:linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #38bdf8 100%);padding:36px 32px 30px 32px;text-align:center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td align="center" style="padding-bottom:14px;">
+                                        <div style="display:inline-block;background:#ffffff;padding:8px 22px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.12);">
+                                            <img src="https://cg-preprod-cin-frontend.purpleocean-4441f644.centralindia.azurecontainerapps.io/image.png" alt="ClaimsGuru" width="190" style="display:block;width:190px;max-width:190px;height:auto;" />
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center">
+                                        <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:800;letter-spacing:-0.5px;">
+                                            Welcome to ClaimsGuru
+                                        </h1>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:32px 28px 24px 28px;">
+                            <p style="margin:0 0 16px 0;color:#0f172a;font-size:16px;font-weight:700;">
+                                Welcome aboard, {user_name}! 👋
+                            </p>
+                            <p style="margin:0 0 20px 0;color:#475569;font-size:14px;line-height:1.6;">
+                                Your ClaimsGuru account has been successfully initialized and linked to <strong>{user_email}</strong>. You now have full access to automated health claim processing and tracking.
+                            </p>
 
-            <div class="cta-container">
-                <a href="{dashboard_url}" class="cta-button" target="_blank">Access Your Dashboard &rarr;</a>
-            </div>
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px 20px;margin-bottom:24px;">
+                                <tr>
+                                    <td>
+                                        <div style="color:#166534;font-size:14px;font-weight:700;margin-bottom:10px;">What You Can Do:</div>
+                                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                            <tr>
+                                                <td style="padding:4px 0;font-size:13px;color:#334155;line-height:1.5;">⚡ <strong>1-Click Claim Uploads:</strong> Submit medical bills and discharge records instantly.</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding:4px 0;font-size:13px;color:#334155;line-height:1.5;">🤖 <strong>AI Verification:</strong> Automated OCR, clinical entity coding (ICD-10/CPT), and fraud scoring.</td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding:4px 0;font-size:13px;color:#334155;line-height:1.5;">📊 <strong>Live Adjudication Tracking:</strong> Real-time progress updates and downloadable audit packs.</td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
 
-            <p style="font-size: 13px; color: #64748b;">
-                Need help? Simply reply to this email or reach out to our dedicated support desk.
-            </p>
-        </div>
-        <div class="footer">
-            &copy; 2026 ClaimsGuru AI Platform. All rights reserved.<br>
-            Secure Health Information Management System.
-        </div>
-    </div>
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td align="center" style="padding:10px 0 20px 0;">
+                                        <table border="0" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td align="center" style="border-radius:12px;background:linear-gradient(135deg,#0284c7 0%,#0369a1 100%);box-shadow:0 10px 20px -5px rgba(2,132,199,0.4);">
+                                                    <a href="{dashboard_url}" target="_blank" style="display:inline-block;padding:15px 36px;font-size:15px;font-weight:800;color:#ffffff !important;text-decoration:none;letter-spacing:0.3px;border-radius:12px;">
+                                                        Access Your Dashboard &rarr;
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 28px;text-align:center;">
+                            <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5;">
+                                &copy; 2026 ClaimsGuru AI Platform &bull; ISO 27001 Certified &bull; HIPAA Compliant
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>"""
 
@@ -173,7 +136,7 @@ def render_claim_received_email(
     tracking_url: str,
 ) -> dict[str, str]:
     """Generate HTML and plain text for claim upload/intake email."""
-    subject = f"[ClaimsGuru] Claim Received – #{claim_id} is Under Processing ⏳"
+    subject = f"[ClaimsGuru] Claim Received – #{claim_id[:8]} is Under Processing ⏳"
     
     display_hospital = hospital_name if (hospital_name and "treating" not in hospital_name.lower()) else "⏳ Extracting from medical documents..."
     display_amount = claim_amount if (claim_amount and "under" not in claim_amount.lower()) else "⏳ Calculating from itemized hospital bills..."
@@ -184,200 +147,104 @@ def render_claim_received_email(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{subject}</title>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f8fafc;
-            color: #1e293b;
-            margin: 0;
-            padding: 0;
-            line-height: 1.6;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 30px auto;
-            background: #ffffff;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-            border: 1px solid #e2e8f0;
-        }}
-        .header {{
-            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
-            padding: 28px 24px;
-            text-align: center;
-            color: #ffffff;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 22px;
-            font-weight: 700;
-        }}
-        .status-badge {{
-            display: inline-block;
-            background: #fef08a;
-            color: #854d0e;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 700;
-            margin-top: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-        .content {{
-            padding: 32px 24px;
-        }}
-        .card {{
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }}
-        .card-row {{
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid #edf2f7;
-            font-size: 14px;
-        }}
-        .card-row:last-child {{
-            border-bottom: none;
-        }}
-        .card-label {{
-            color: #64748b;
-            font-weight: 500;
-        }}
-        .card-value {{
-            color: #0f172a;
-            font-weight: 600;
-            text-align: right;
-        }}
-        .pipeline-steps {{
-            margin: 24px 0;
-        }}
-        .pipeline-title {{
-            font-size: 14px;
-            font-weight: 700;
-            color: #334155;
-            margin-bottom: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-        .step-item {{
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-            font-size: 14px;
-        }}
-        .step-icon {{
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-right: 12px;
-            font-size: 12px;
-            font-weight: bold;
-        }}
-        .step-done {{
-            background-color: #dcfce7;
-            color: #15803d;
-        }}
-        .step-active {{
-            background-color: #e0f2fe;
-            color: #0284c7;
-            animation: pulse 2s infinite;
-        }}
-        .step-pending {{
-            background-color: #f1f5f9;
-            color: #94a3b8;
-        }}
-        .cta-container {{
-            text-align: center;
-            margin: 32px 0 16px 0;
-        }}
-        .cta-button {{
-            display: inline-block;
-            background: #0284c7;
-            color: #ffffff !important;
-            padding: 14px 28px;
-            font-size: 16px;
-            font-weight: 600;
-            text-decoration: none;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(2, 132, 199, 0.3);
-        }}
-        .footer {{
-            background-color: #f1f5f9;
-            padding: 20px;
-            text-align: center;
-            font-size: 12px;
-            color: #64748b;
-            border-top: 1px solid #e2e8f0;
-        }}
-    </style>
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Claim Submission Acknowledgment</h1>
-            <div class="status-badge">⏳ Under AI Processing</div>
-        </div>
-        <div class="content">
-            <p>Dear <strong>{patient_name}</strong>,</p>
-            <p>We have successfully received your medical claim documents on the ClaimsGuru platform. Our automated adjudication pipeline is actively analyzing your files.</p>
-            
-            <div class="card">
-                <div class="card-row">
-                    <span class="card-label">Claim Reference ID</span>
-                    <span class="card-value" style="color: #0284c7; font-family: monospace; font-size: 15px;">#{claim_id}</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Submitted On</span>
-                    <span class="card-value">{submitted_date}</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Provider / Hospital</span>
-                    <span class="card-value">{display_hospital}</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Claim Amount</span>
-                    <span class="card-value">{display_amount}</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Files Uploaded</span>
-                    <span class="card-value">{file_count} document(s)</span>
-                </div>
-            </div>
+<body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f172a;padding:30px 10px;">
+        <tr>
+            <td align="center">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;background-color:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 20px 40px -15px rgba(0,0,0,0.5);border:1px solid #334155;">
+                    <tr>
+                        <td style="background:linear-gradient(135deg, #0369a1 0%, #0284c7 50%, #38bdf8 100%);padding:36px 32px 30px 32px;text-align:center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td align="center" style="padding-bottom:14px;">
+                                        <div style="display:inline-block;background:#ffffff;padding:8px 22px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.12);">
+                                            <img src="https://cg-preprod-cin-frontend.purpleocean-4441f644.centralindia.azurecontainerapps.io/image.png" alt="ClaimsGuru" width="190" style="display:block;width:190px;max-width:190px;height:auto;" />
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center">
+                                        <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:800;letter-spacing:-0.5px;">
+                                            Claim Submission Acknowledged
+                                        </h1>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="padding-top:10px;">
+                                        <div style="display:inline-block;background:#fef08a;color:#854d0e;border:1px solid #fde047;padding:5px 14px;border-radius:100px;font-size:12px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">
+                                            ⏳ Under AI Adjudication
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding:32px 28px 24px 28px;">
+                            <p style="margin:0 0 16px 0;color:#0f172a;font-size:15px;line-height:1.6;">
+                                Dear <strong>{patient_name}</strong>,
+                            </p>
+                            <p style="margin:0 0 24px 0;color:#475569;font-size:14px;line-height:1.6;">
+                                We have successfully received your medical claim documents on the ClaimsGuru platform. Our automated AI adjudication pipeline has begun processing your submission.
+                            </p>
 
-            <div class="pipeline-steps">
-                <div class="pipeline-title">Live Processing Stages:</div>
-                <div class="step-item">
-                    <div class="step-icon step-done">✓</div>
-                    <div><strong>Document Intake:</strong> Files securely stored and indexed.</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-icon step-active">⚡</div>
-                    <div><strong>Optical Character Recognition (OCR):</strong> High-precision text & table extraction.</div>
-                </div>
-                <div class="step-item">
-                    <div class="step-icon step-pending">3</div>
-                    <div><strong>Clinical Coding & Rules:</strong> ICD-10 mapping, tariff validation, and fraud screening.</div>
-                </div>
-            </div>
+                            <!-- Key-Value Grid -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 20px;margin-bottom:24px;">
+                                <tr>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px;font-weight:600;width:38%;">Claim Reference</td>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;text-align:right;width:62%;">
+                                        <span style="background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;padding:2px 8px;border-radius:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,monospace;font-size:12px;font-weight:700;">
+                                            #{claim_id[:18]}...
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px;font-weight:600;width:38%;">Submitted On</td>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-size:13px;font-weight:700;text-align:right;width:62%;">{submitted_date}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px;font-weight:600;width:38%;">Provider / Hospital</td>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-size:13px;font-weight:700;text-align:right;width:62%;">{display_hospital}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px;font-weight:600;width:38%;">Claim Amount</td>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-size:13px;font-weight:700;text-align:right;width:62%;">{display_amount}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:10px 0;color:#64748b;font-size:13px;font-weight:600;width:38%;">Files Uploaded</td>
+                                    <td style="padding:10px 0;color:#0f172a;font-size:13px;font-weight:700;text-align:right;width:62%;">{file_count} document(s)</td>
+                                </tr>
+                            </table>
 
-            <div class="cta-container">
-                <a href="{tracking_url}" class="cta-button" target="_blank">Track Live Claim Status &rarr;</a>
-            </div>
-        </div>
-        <div class="footer">
-            &copy; 2026 ClaimsGuru AI Platform. All rights reserved.<br>
-            Secure Health Information Management System.
-        </div>
-    </div>
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td align="center" style="padding:10px 0 20px 0;">
+                                        <table border="0" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td align="center" style="border-radius:12px;background:linear-gradient(135deg,#0284c7 0%,#0369a1 100%);box-shadow:0 10px 20px -5px rgba(2,132,199,0.4);">
+                                                    <a href="{tracking_url}" target="_blank" style="display:inline-block;padding:15px 36px;font-size:15px;font-weight:800;color:#ffffff !important;text-decoration:none;letter-spacing:0.3px;border-radius:12px;">
+                                                        Track Live Claim Status &rarr;
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:20px 28px;text-align:center;">
+                            <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5;">
+                                &copy; 2026 ClaimsGuru AI Platform &bull; ISO 27001 Certified &bull; HIPAA Compliant
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>"""
 
@@ -445,31 +312,60 @@ def render_claim_processed_email(
     display_amount = claim_amount or "₹0.00"
     display_diagnosis = diagnosis or "Clinical Review Completed"
     
-    code_badges = ""
+    formatted_codes = ""
     if icd_codes:
-        formatted_codes = "".join([f'<span style="display:inline-block;background:#e0f2fe;color:#0369a1;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600;margin-right:4px;">{c}</span>' for c in icd_codes[:5]])
-        code_badges = f'<div class="card-row"><span class="card-label">ICD-10 / CPT Codes</span><span class="card-value">{formatted_codes}</span></div>'
+        formatted_codes = "".join([
+            f'<span style="display:inline-block;background:#ecfdf5;color:#047857;border:1px solid #a7f3d0;padding:3px 9px;border-radius:6px;font-size:12px;font-weight:700;margin:2px 4px 2px 0;font-family:\'SF Pro Display\',-apple-system,BlinkMacSystemFont,sans-serif;">{c}</span>'
+            for c in icd_codes[:5]
+        ])
 
     risk_display = "Low Risk (Admissible)"
-    risk_color = "#15803d"
-    risk_bg = "#dcfce7"
+    risk_color = "#047857"
+    risk_bg = "#ecfdf5"
+    risk_border = "#a7f3d0"
+    risk_icon = "✓"
     if risk_score is not None:
         try:
             val = float(str(risk_score).replace("%", ""))
             if val > 0.5:
-                risk_display = f"Elevated Risk ({val*100:.0f}%)" if val <= 1 else f"Elevated Risk ({val:.0f}%)"
+                pct = f"{val*100:.0f}%" if val <= 1 else f"{val:.0f}%"
+                risk_display = f"Elevated Risk ({pct})"
                 risk_color = "#b91c1c"
-                risk_bg = "#fee2e2"
+                risk_bg = "#fef2f2"
+                risk_border = "#fecaca"
+                risk_icon = "▲"
             else:
-                risk_display = f"Low Risk ({val*100:.0f}%)" if val <= 1 else f"Low Risk ({val:.0f}%)"
+                pct = f"{val*100:.0f}%" if val <= 1 else f"{val:.0f}%"
+                risk_display = f"Low Risk ({pct})"
+                risk_color = "#047857"
+                risk_bg = "#ecfdf5"
+                risk_border = "#a7f3d0"
+                risk_icon = "✓"
         except Exception:
             risk_display = str(risk_score)
 
-    stay_info = ""
+    stay_row = ""
     if admission_date or discharge_date:
         adm = admission_date or "N/A"
         dis = discharge_date or "N/A"
-        stay_info = f'<div class="card-row"><span class="card-label">Treatment Period</span><span class="card-value">{adm} &rarr; {dis}</span></div>'
+        stay_row = f"""
+        <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px;font-weight:600;width:38%;">Treatment Period</td>
+            <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-size:13px;font-weight:700;text-align:right;width:62%;">{adm} &rarr; {dis}</td>
+        </tr>
+        """
+
+    code_row = ""
+    if formatted_codes:
+        code_row = f"""
+        <tr>
+            <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px;font-weight:600;width:38%;vertical-align:middle;">ICD-10 / CPT Codes</td>
+            <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;text-align:right;width:62%;vertical-align:middle;">{formatted_codes}</td>
+        </tr>
+        """
+
+    tpa_pdf_name = f"TPA_Claim_Audit_{claim_id[:8]}.pdf"
+    irda_pdf_name = f"IRDAI_Adjudication_Sheet_{claim_id[:8]}.pdf"
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -477,172 +373,194 @@ def render_claim_processed_email(
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{subject}</title>
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: #f8fafc;
-            color: #1e293b;
-            margin: 0;
-            padding: 0;
-            line-height: 1.6;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 30px auto;
-            background: #ffffff;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-            border: 1px solid #e2e8f0;
-        }}
-        .header {{
-            background: linear-gradient(135deg, #059669 0%, #047857 100%);
-            padding: 28px 24px;
-            text-align: center;
-            color: #ffffff;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 22px;
-            font-weight: 700;
-        }}
-        .status-badge {{
-            display: inline-block;
-            background: #dcfce7;
-            color: #15803d;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 13px;
-            font-weight: 700;
-            margin-top: 10px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }}
-        .content {{
-            padding: 32px 24px;
-        }}
-        .card {{
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 20px;
-            margin: 20px 0;
-        }}
-        .card-row {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 0;
-            border-bottom: 1px solid #edf2f7;
-            font-size: 14px;
-        }}
-        .card-row:last-child {{
-            border-bottom: none;
-        }}
-        .card-label {{
-            color: #64748b;
-            font-weight: 500;
-        }}
-        .card-value {{
-            color: #0f172a;
-            font-weight: 600;
-            text-align: right;
-        }}
-        .attachments-box {{
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            border-radius: 8px;
-            padding: 16px;
-            margin: 24px 0;
-        }}
-        .attachments-title {{
-            font-size: 14px;
-            font-weight: 700;
-            color: #166534;
-            margin-bottom: 8px;
-        }}
-        .attachment-item {{
-            display: flex;
-            align-items: center;
-            font-size: 13px;
-            color: #14532d;
-            margin-top: 6px;
-        }}
-        .cta-container {{
-            text-align: center;
-            margin: 32px 0 16px 0;
-        }}
-        .cta-button {{
-            display: inline-block;
-            background: #059669;
-            color: #ffffff !important;
-            padding: 14px 28px;
-            font-size: 16px;
-            font-weight: 600;
-            text-decoration: none;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(5, 150, 105, 0.3);
-        }}
-        .footer {{
-            background-color: #f1f5f9;
-            padding: 20px;
-            text-align: center;
-            font-size: 12px;
-            color: #64748b;
-            border-top: 1px solid #e2e8f0;
-        }}
+    <!--[if mso]>
+    <style type="text/css">
+        body, table, td {{font-family: Arial, Helvetica, sans-serif !important;}}
     </style>
+    <![endif]-->
 </head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>Claim Adjudication Complete</h1>
-            <div class="status-badge">✓ 100% Processed & Verified</div>
-        </div>
-        <div class="content">
-            <p>Dear <strong>{patient_name}</strong>,</p>
-            <p>Your hospital reimbursement claim has completed full AI parsing, clinical coding, tariff auditing, and policy validation.</p>
-            
-            <div class="card">
-                <div class="card-row">
-                    <span class="card-label">Claim Reference ID</span>
-                    <span class="card-value" style="color: #059669; font-family: monospace; font-size: 15px;">#{claim_id}</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Provider / Hospital</span>
-                    <span class="card-value">{display_hospital}</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Claim Amount</span>
-                    <span class="card-value" style="font-size: 16px; color: #0f172a;">{display_amount}</span>
-                </div>
-                <div class="card-row">
-                    <span class="card-label">Primary Diagnosis</span>
-                    <span class="card-value">{display_diagnosis}</span>
-                </div>
-                {stay_info}
-                {code_badges}
-                <div class="card-row">
-                    <span class="card-label">AI Risk Assessment</span>
-                    <span class="card-value" style="color: {risk_color}; background: {risk_bg}; padding: 2px 8px; border-radius: 4px; font-size: 12px;">{risk_display}</span>
-                </div>
-            </div>
+<body style="margin:0;padding:0;background-color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+    <!-- Background Wrapper -->
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color:#0f172a;padding:30px 10px;">
+        <tr>
+            <td align="center">
+                <!-- Main Container Card -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:600px;background-color:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 20px 40px -15px rgba(0,0,0,0.5);border:1px solid #334155;">
+                    
+                    <!-- Header Banner -->
+                    <tr>
+                        <td style="background:linear-gradient(135deg, #064e3b 0%, #047857 50%, #059669 100%);padding:36px 32px 30px 32px;text-align:center;">
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td align="center" style="padding-bottom:16px;">
+                                        <!-- Logo Brand Header -->
+                                        <div style="display:inline-block;background:#ffffff;padding:8px 22px;border-radius:12px;box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+                                            <img src="https://cg-preprod-cin-frontend.purpleocean-4441f644.centralindia.azurecontainerapps.io/image.png" alt="ClaimsGuru" width="190" style="display:block;width:190px;max-width:190px;height:auto;" />
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center">
+                                        <h1 style="margin:0;color:#ffffff;font-size:24px;font-weight:800;letter-spacing:-0.5px;line-height:1.3;">
+                                            Claim Adjudication Complete
+                                        </h1>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center" style="padding-top:10px;">
+                                        <div style="display:inline-block;background:#ecfdf5;color:#065f46;border:1px solid #6ee7b7;padding:5px 14px;border-radius:100px;font-size:12px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;">
+                                            ✓ 100% Processed & Verified
+                                        </div>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
 
-            <div class="attachments-box">
-                <div class="attachments-title">📎 Attached Reports for Insurer / TPA Submission:</div>
-                <div class="attachment-item">📄 <strong>TPA_Claim_Audit_Report.pdf</strong> &mdash; Comprehensive clinical audit & tariff breakdown</div>
-                <div class="attachment-item">📋 <strong>IRDAI_Adjudication_Summary.pdf</strong> &mdash; Standardized IRDAI settlement worksheet</div>
-            </div>
+                    <!-- Body Content -->
+                    <tr>
+                        <td style="padding:32px 28px 24px 28px;">
+                            <p style="margin:0 0 16px 0;color:#0f172a;font-size:15px;line-height:1.6;">
+                                Dear <strong>{patient_name}</strong>,
+                            </p>
+                            <p style="margin:0 0 24px 0;color:#475569;font-size:14px;line-height:1.6;">
+                                Your health insurance reimbursement claim has successfully completed end-to-end automated clinical audit, OCR document parsing, ICD-10/CPT coding, and tariff compliance validation.
+                            </p>
 
-            <div class="cta-container">
-                <a href="{report_url}" class="cta-button" target="_blank">View Live Interactive Audit &rarr;</a>
-            </div>
-        </div>
-        <div class="footer">
-            &copy; 2026 ClaimsGuru AI Platform. All rights reserved.<br>
-            Secure Health Information Management System.
-        </div>
-    </div>
+                            <!-- Financial Hero Box -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;margin-bottom:24px;">
+                                <tr>
+                                    <td style="padding:20px 24px;">
+                                        <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                            <tr>
+                                                <td style="color:#64748b;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;">
+                                                    Total Claimed Amount
+                                                </td>
+                                                <td style="text-align:right;">
+                                                    <span style="display:inline-block;background:{risk_bg};color:{risk_color};border:1px solid {risk_border};padding:3px 10px;border-radius:100px;font-size:11px;font-weight:800;">
+                                                        {risk_icon} {risk_display}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td colspan="2" style="padding-top:6px;">
+                                                    <span style="color:#0f172a;font-size:28px;font-weight:800;letter-spacing:-0.5px;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;">
+                                                        {display_amount}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Detailed Adjudication Key-Value Table -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#ffffff;border:1px solid #e2e8f0;border-radius:14px;padding:12px 20px;margin-bottom:24px;">
+                                <tr>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px;font-weight:600;width:38%;">Claim Reference</td>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;text-align:right;width:62%;">
+                                        <span style="background:#f1f5f9;color:#0f172a;border:1px solid #cbd5e1;padding:2px 8px;border-radius:6px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,monospace;font-size:12px;font-weight:700;">
+                                            #{claim_id[:18]}...
+                                        </span>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px;font-weight:600;width:38%;">Provider / Hospital</td>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-size:13px;font-weight:700;text-align:right;width:62%;">{display_hospital}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#64748b;font-size:13px;font-weight:600;width:38%;">Primary Diagnosis</td>
+                                    <td style="padding:10px 0;border-bottom:1px solid #f1f5f9;color:#0f172a;font-size:13px;font-weight:700;text-align:right;width:62%;">{display_diagnosis}</td>
+                                </tr>
+                                {stay_row}
+                                {code_row}
+                            </table>
+
+                            <!-- Included PDF Attachments Section -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;margin-bottom:28px;">
+                                <tr>
+                                    <td style="padding:18px 20px;">
+                                        <div style="color:#166534;font-size:13px;font-weight:800;letter-spacing:0.5px;text-transform:uppercase;margin-bottom:10px;">
+                                            📎 Attached Reports (Included in this Email):
+                                        </div>
+                                        
+                                        <!-- Report 1 -->
+                                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#ffffff;border:1px solid #86efac;border-radius:10px;margin-bottom:8px;">
+                                            <tr>
+                                                <td style="padding:10px 14px;width:32px;vertical-align:middle;text-align:center;font-size:20px;">
+                                                    📄
+                                                </td>
+                                                <td style="padding:10px 14px 10px 0;vertical-align:middle;">
+                                                    <div style="color:#0f172a;font-size:13px;font-weight:700;">{tpa_pdf_name}</div>
+                                                    <div style="color:#64748b;font-size:11px;margin-top:2px;">Itemized clinical audit, tariff justifications, room rent ceilings & validation rules</div>
+                                                </td>
+                                                <td style="padding:10px 14px;text-align:right;vertical-align:middle;">
+                                                    <span style="display:inline-block;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;">PDF Attached</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+
+                                        <!-- Report 2 -->
+                                        <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background:#ffffff;border:1px solid #86efac;border-radius:10px;">
+                                            <tr>
+                                                <td style="padding:10px 14px;width:32px;vertical-align:middle;text-align:center;font-size:20px;">
+                                                    📋
+                                                </td>
+                                                <td style="padding:10px 14px 10px 0;vertical-align:middle;">
+                                                    <div style="color:#0f172a;font-size:13px;font-weight:700;">{irda_pdf_name}</div>
+                                                    <div style="color:#64748b;font-size:11px;margin-top:2px;">Standardized Indian regulatory settlement worksheet with breakdown</div>
+                                                </td>
+                                                <td style="padding:10px 14px;text-align:right;vertical-align:middle;">
+                                                    <span style="display:inline-block;background:#dcfce7;color:#15803d;border:1px solid #86efac;padding:3px 8px;border-radius:6px;font-size:11px;font-weight:700;">PDF Attached</span>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- Primary CTA Button -->
+                            <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                                <tr>
+                                    <td align="center" style="padding-bottom:12px;">
+                                        <table border="0" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td align="center" style="border-radius:12px;background:linear-gradient(135deg,#059669 0%,#047857 100%);box-shadow:0 10px 20px -5px rgba(5,150,105,0.4);">
+                                                    <a href="{report_url}" target="_blank" style="display:inline-block;padding:16px 36px;font-size:15px;font-weight:800;color:#ffffff !important;text-decoration:none;letter-spacing:0.3px;border-radius:12px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;">
+                                                        Access Live Interactive Audit &rarr;
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td align="center">
+                                        <p style="margin:0;color:#94a3b8;font-size:11px;">
+                                            Link: <a href="{report_url}" style="color:#059669;text-decoration:underline;">{report_url}</a>
+                                        </p>
+                                    </td>
+                                </tr>
+                            </table>
+                        </td>
+                    </tr>
+
+                    <!-- Institutional Footer -->
+                    <tr>
+                        <td style="background-color:#f8fafc;border-top:1px solid #e2e8f0;padding:24px 28px;text-align:center;">
+                            <p style="margin:0 0 6px 0;color:#64748b;font-size:12px;font-weight:700;">
+                                ClaimsGuru Healthcare AI Platform &bull; Intelligent Claim Adjudication
+                            </p>
+                            <p style="margin:0;color:#94a3b8;font-size:11px;line-height:1.5;">
+                                IRDAI Aligned &bull; ISO 27001 Certified &bull; HIPAA Compliant Security<br>
+                                This automated verification email was securely dispatched on behalf of your treating hospital and insurance provider.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
 </body>
 </html>"""
 
@@ -658,8 +576,8 @@ Diagnosis: {display_diagnosis}
 Risk Assessment: {risk_display}
 
 Attached Reports:
-- TPA_Claim_Audit_Report.pdf
-- IRDAI_Adjudication_Summary.pdf
+- {tpa_pdf_name}
+- {irda_pdf_name}
 
 View Interactive Audit:
 {report_url}

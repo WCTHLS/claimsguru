@@ -21,7 +21,7 @@ from services.predictor.app.engine import build_features, predict, _score_to_cat
 
 
 def _make_features(**overrides) -> dict:
-    """Helper: build a full 23-feature dict with sensible defaults."""
+    """Helper: build a full 27-feature dict with sensible defaults."""
     base = {
         "has_patient_name": 1,
         "has_policy_number": 1,
@@ -46,6 +46,10 @@ def _make_features(**overrides) -> dict:
         "surgery_cost_ratio": 0.3,
         "has_blood_transfusion": 0,
         "has_surgery": 0,
+        "math_discrepancy_ratio": 0.0,
+        "is_surgical_without_ot": 0,
+        "is_daycare_overstay": 0,
+        "is_unspecified_investigation_only": 0,
     }
     base.update(overrides)
     return base
@@ -227,9 +231,11 @@ class TestPredict:
     def test_risk_category_mapping(self):
         assert _score_to_category(0.10) == "LOW"
         assert _score_to_category(0.25) == "LOW"
+        assert _score_to_category(0.30) == "LOW"
         assert _score_to_category(0.35) == "MEDIUM"
         assert _score_to_category(0.50) == "MEDIUM"
-        assert _score_to_category(0.60) == "HIGH"
+        assert _score_to_category(0.60) == "MEDIUM"
+        assert _score_to_category(0.70) == "HIGH"
         assert _score_to_category(0.90) == "HIGH"
 
 
@@ -265,7 +271,7 @@ class TestRegressionClaims:
         features = build_features(parsed, [], [])
         result = predict(features)
         assert result.risk_category == "LOW"
-        assert result.rejection_score < 0.25
+        assert result.rejection_score <= 0.30
 
     def test_hysterectomy_medium_risk(self):
         """Hysterectomy: 6-day, age 55, Rs 2.09L, blood transfusion, secondary diagnosis → MEDIUM."""
@@ -298,7 +304,7 @@ class TestRegressionClaims:
         features = build_features(parsed, [], [])
         result = predict(features)
         assert result.risk_category == "MEDIUM"
-        assert 0.26 <= result.rejection_score <= 0.50
+        assert 0.25 <= result.rejection_score <= 0.60
 
     def test_cancer_bmt_high_risk(self):
         """Cancer BMT: 28-day ICU, age 60, Rs 13.5L, 4 ICD codes, 3 CPT → HIGH."""

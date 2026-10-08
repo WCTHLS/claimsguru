@@ -357,7 +357,16 @@ function buildSession(
 }
 
 export function saveSession(session: AuthSession) {
-  sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+  try {
+    sessionStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+    if (session.user?.email) {
+      localStorage.setItem('claimgpt_user_email', session.user.email);
+    }
+    if (session.user?.name) {
+      localStorage.setItem('claimgpt_user_name', session.user.name);
+    }
+  } catch {}
 }
 
 export function getStoredAuthSession(): AuthSession | null {
@@ -365,7 +374,10 @@ export function getStoredAuthSession(): AuthSession | null {
     return null;
   }
 
-  const stored = sessionStorage.getItem(AUTH_SESSION_KEY);
+  let stored = sessionStorage.getItem(AUTH_SESSION_KEY);
+  if (!stored) {
+    stored = localStorage.getItem(AUTH_SESSION_KEY);
+  }
   if (!stored) {
     return null;
   }
@@ -385,12 +397,15 @@ export function getStoredAuthSession(): AuthSession | null {
 }
 
 export function clearAuthSession() {
-  sessionStorage.removeItem(AUTH_SESSION_KEY);
-  sessionStorage.removeItem(PKCE_STATE_KEY);
-  sessionStorage.removeItem(PKCE_VERIFIER_KEY);
-  sessionStorage.removeItem(ROLE_HINT_KEY);
-  sessionStorage.removeItem(AUTH_ACTION_KEY);
-  sessionStorage.removeItem(AUTH_PROVIDER_KEY);
+  try {
+    sessionStorage.removeItem(AUTH_SESSION_KEY);
+    sessionStorage.removeItem(PKCE_STATE_KEY);
+    sessionStorage.removeItem(PKCE_VERIFIER_KEY);
+    sessionStorage.removeItem(ROLE_HINT_KEY);
+    sessionStorage.removeItem(AUTH_ACTION_KEY);
+    sessionStorage.removeItem(AUTH_PROVIDER_KEY);
+    localStorage.removeItem(AUTH_SESSION_KEY);
+  } catch {}
 }
 
 /**

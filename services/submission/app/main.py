@@ -312,13 +312,13 @@ def _pick_best_field_value(field_name: str, values: list[tuple[str, str]]) -> st
     if field_name in {"insurance_policy_number", "policy_number", "policy_id"}:
         cleaned_pols = []
         for v, _mv in clean:
-            pm = re.search(r"\b([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]{3,8}-[A-Z0-9]{2,6}-[A-Z0-9]{4,12})\b", v)
+            pm = re.search(r"\b([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]+(?:-[A-Z0-9]+){1,4})\b", v)
             if pm:
                 cleaned_pols.append(pm.group(1))
             elif len(v) <= 30 and not any(kw in v.lower() for kw in ["aadhaar", "pan", "sum insured", "tpa", "declare"]):
                 cleaned_pols.append(v.strip())
         if cleaned_pols:
-            return cleaned_pols[0]
+            return sorted(cleaned_pols, key=lambda x: -len(x))[0]
         return ""
 
     if field_name in {"patient_id", "uhid", "ip_number"}:
@@ -545,11 +545,12 @@ def _sort_icd_codes(codes: list[Any]) -> list[Any]:
 
 
 def _recalculate_prediction_for_claim(cid: uuid.UUID, db: Session) -> None:
-    """Recompute feature vector and AI prediction when policy/insurer details change."""
+    """Recompute feature vector and AI prediction when policy/insurer/expenses change."""
     try:
         from services.predictor.app.engine import build_features, predict
-        from libs.shared.models import MedicalEntity, MedicalCode
+        from libs.shared.models import Claim, MedicalEntity, MedicalCode
         from services.ingress.app.models import Feature
+        claim_obj = db.query(Claim).filter(Claim.id == cid).first()
         pf_rows = db.query(ParsedField).filter(ParsedField.claim_id == cid).all()
         ent_rows = db.query(MedicalEntity).filter(MedicalEntity.claim_id == cid).all()
         code_rows = db.query(MedicalCode).filter(MedicalCode.claim_id == cid).all()
@@ -558,7 +559,21 @@ def _recalculate_prediction_for_claim(cid: uuid.UUID, db: Session) -> None:
         entities = [{"entity_type": r.entity_type, "entity_text": r.entity_text} for r in ent_rows]
         codes = [{"code": r.code, "code_system": r.code_system, "is_primary": r.is_primary} for r in code_rows]
 
-        features = build_features(parsed, entities, codes)
+        expenses = []
+        if claim_obj and claim_obj.canonical_json and isinstance(claim_obj.canonical_json, dict):
+            raw_exp = claim_obj.canonical_json.get("expenses") or claim_obj.canonical_json.get("bill", {}).get("items", [])
+            if isinstance(raw_exp, list):
+                for e in raw_exp:
+                    if isinstance(e, dict):
+                        cat = e.get("category") or e.get("description") or e.get("name") or "General"
+                        amt = e.get("amount") or e.get("total") or e.get("cost") or 0.0
+                        try:
+                            amt = float(amt)
+                        except (ValueError, TypeError):
+                            amt = 0.0
+                        expenses.append({"category": str(cat), "amount": amt})
+
+        features = build_features(parsed, entities, codes, expenses=expenses)
         result = predict(features)
 
         # Upsert Feature
@@ -785,7 +800,48 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
     validations = [{"rule_id": r.rule_id, "rule_name": r.rule_name, "severity": r.severity, "message": r.message, "passed": r.passed} for r in _rule_results]
 
     icd_codes_sorted = _sort_icd_codes([c for c in codes if c.code_system == "ICD10"])
-    icd_list = [{"code": c.code, "description": c.description or "", "confidence": c.confidence, "estimated_cost": getattr(c, "estimated_cost", None)} for c in icd_codes_sorted]
+    
+    # Try importing lookup_icd10_meta for enriching code_includes / sibling alts
+    _lookup_meta = None
+    _search_rag = None
+    try:
+        from services.coding.app.icd10_rag import lookup_icd10_meta as _lookup_meta, search_icd10_rag as _search_rag
+    except Exception:
+        pass
+
+    icd_list = []
+    for c in icd_codes_sorted:
+        c_meta = _lookup_meta(c.code) if _lookup_meta else None
+        c_includes = getattr(c, "code_includes", None) or (c_meta.get("code_includes") if c_meta else None)
+        c_other = getattr(c, "other_matches", None)
+        if not c_other and _search_rag:
+            try:
+                raw_hits = _search_rag(c.description or c.code, max_results=5)
+                alts = []
+                for h_code, h_desc, _h_cat, h_score in raw_hits:
+                    if h_code != c.code:
+                        h_meta = _lookup_meta(h_code) if _lookup_meta else None
+                        alts.append({
+                            "code": h_code,
+                            "description": h_desc,
+                            "confidence": round(float(h_score), 2) if h_score <= 1 else 0.85,
+                            "code_includes": h_meta.get("code_includes") if h_meta else None,
+                        })
+                        if len(alts) >= 2:
+                            break
+                c_other = alts
+            except Exception:
+                c_other = []
+
+        icd_list.append({
+            "code": c.code,
+            "description": c.description or (c_meta.get("description") if c_meta else ""),
+            "confidence": c.confidence,
+            "estimated_cost": getattr(c, "estimated_cost", None),
+            "code_includes": c_includes,
+            "other_matches": c_other or [],
+        })
+
     cpt_list = [{"code": c.code, "description": c.description or "", "confidence": c.confidence, "estimated_cost": getattr(c, "estimated_cost", None)} for c in codes if c.code_system == "CPT"]
 
     icd_total = sum(x["estimated_cost"] or 0 for x in icd_list)

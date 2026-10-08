@@ -317,6 +317,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
 )
 
 # ------------------------------------------------------------------ observability
@@ -3641,7 +3642,8 @@ def get_claim(
             "hospital_name", "hospital",
             "doctor_name", "doctor", "provider_name", "rendering_provider",
             "diagnosis", "primary_diagnosis", "chief_complaint",
-            "insurance_company", "insurer", "tpa_name", "tpa"
+            "insurance_company", "insurer", "payer", "tpa_name", "tpa", "third_party_administrator",
+            "policy_number", "insurance_policy_number", "member_id", "sum_insured"
         ])
     ).all()
     
@@ -3650,7 +3652,9 @@ def get_claim(
     claim.hospital_name = fields.get("hospital_name") or fields.get("hospital") or None
     claim.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
     claim.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
-    extracted_ins = fields.get("insurance_company") or fields.get("insurer") or fields.get("tpa_name") or None
+    if not getattr(claim, "policy_number", None):
+        claim.policy_number = fields.get("policy_number") or fields.get("insurance_policy_number") or None
+    extracted_ins = fields.get("insurance_company") or fields.get("insurer") or fields.get("payer") or fields.get("tpa_name") or None
     if extracted_ins:
         if not getattr(claim, "insurance_company", None) or getattr(claim, "insurance_company", None) == "Star Health":
             claim.insurance_company = extracted_ins
@@ -3877,6 +3881,74 @@ def download_document_file(claim_id: str, doc_id: str, view: bool = False, db: S
         str(file_path),
         media_type=doc.file_type or "application/pdf",
         headers={"Content-Disposition": f'{disp}; filename="{doc.file_name}"'}
+    )
+
+
+@router.get("/claims/{claim_id}/documents/zip")
+def download_all_claim_documents_zip(
+    claim_id: str,
+    patient_name: str | None = None,
+    db: Session = Depends(get_db)
+):
+    cid = _parse_uuid(claim_id)
+    docs = db.query(Document).filter(Document.claim_id == cid).order_by(Document.uploaded_at.asc()).all()
+    if not docs:
+        raise HTTPException(status_code=404, detail="No documents found for this claim")
+
+    resolved_patient_name = patient_name
+    if not resolved_patient_name:
+        claim = db.query(Claim).filter(Claim.id == cid).first()
+        if claim:
+            if getattr(claim, "canonical_json", None) and isinstance(claim.canonical_json, dict):
+                resolved_patient_name = claim.canonical_json.get("patient_name") or claim.canonical_json.get("name")
+            if not resolved_patient_name and getattr(claim, "patient_id", None):
+                resolved_patient_name = str(claim.patient_id)
+    if not resolved_patient_name:
+        resolved_patient_name = "patient"
+
+    import re
+    import io
+    import zipfile
+    from libs.shared.storage import MinioStorage
+    from fastapi.responses import StreamingResponse
+
+    safe_patient_name = re.sub(r'[\/\\:\*\?"<>|]', '_', resolved_patient_name).strip() or "patient"
+    folder_name = f"{safe_patient_name}_docs"
+    zip_filename = f"{folder_name}.zip"
+
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        for idx, doc in enumerate(docs):
+            file_name = doc.file_name or f"document_{idx + 1}.pdf"
+            file_bytes = None
+            if doc.minio_path and doc.minio_path.startswith("s3://"):
+                try:
+                    file_bytes = MinioStorage.download_file_bytes(doc.minio_path)
+                except Exception as e:
+                    logger.warning("Could not download MinIO file %s for zip: %s", doc.minio_path, e)
+            elif doc.minio_path:
+                file_path = Path(doc.minio_path).resolve()
+                if not file_path.exists():
+                    file_path = (RAW_STORAGE / Path(doc.minio_path).name).resolve()
+                if file_path.exists():
+                    try:
+                        with open(file_path, "rb") as f:
+                            file_bytes = f.read()
+                    except Exception as e:
+                        logger.warning("Could not read local file %s for zip: %s", file_path, e)
+
+            if file_bytes:
+                archive_path = f"{folder_name}/{file_name}"
+                zf.writestr(archive_path, file_bytes)
+
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{zip_filename}"',
+            "Access-Control-Expose-Headers": "Content-Disposition"
+        }
     )
 
 

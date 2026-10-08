@@ -15,13 +15,22 @@
       "value": "preprod-latest"
     },
     "acrLoginServer": {
-      "value": "claimsgurucr.azurecr.io"
+      "value": "acrclaimsgurupreprod.azurecr.io"
     },
     "sqlAdminLogin": {
       "value": "claimsgurupreprodadmin"
     },
     "sqlAdminPassword": {
       "value": "ClaimsGuruPreProdPass!2026"
+    },
+    "azureOpenAiEndpoint": {
+      "value": "https://cg-preprod-openai.openai.azure.com/openai/v1"
+    },
+    "azureOpenAiApiKey": {
+      "value": ""
+    },
+    "azureOpenAiDeployment": {
+      "value": "gpt-4o"
     }
   }
 }

@@ -633,6 +633,13 @@ def generate_tpa_pdf(claim_data: dict[str, Any]) -> bytes:
     Returns:
         PDF bytes
     """
+    fields = claim_data.get("parsed_fields", {})
+    claim_id = claim_data.get("claim_id", "N/A")
+    icd_codes = claim_data.get("icd_codes", [])
+    cpt_codes = claim_data.get("cpt_codes", [])
+    predictions = claim_data.get("predictions", [])
+    claim_data.get("validations", [])
+
     pdf = TPAClaimPDF()
     pdf.tpa_name = (
         claim_data.get("tpa_name") or
@@ -645,13 +652,6 @@ def generate_tpa_pdf(claim_data: dict[str, Any]) -> bytes:
     ).strip()
     pdf.alias_nb_pages()
     pdf.add_page()
-
-    fields = claim_data.get("parsed_fields", {})
-    claim_id = claim_data.get("claim_id", "N/A")
-    icd_codes = claim_data.get("icd_codes", [])
-    cpt_codes = claim_data.get("cpt_codes", [])
-    predictions = claim_data.get("predictions", [])
-    claim_data.get("validations", [])
 
     # ── Section 1: Claim Information ──
     pdf.section_title("1. CLAIM INFORMATION")
@@ -768,8 +768,30 @@ def generate_tpa_pdf(claim_data: dict[str, Any]) -> bytes:
         pdf.set_font("Helvetica", "I", 9)
         pdf.cell(0, 6, "No itemised expenses extracted from documents", ln=1)
     pdf.ln(1)
-    anchored_amount = f"{billed_total:,.2f}" if isinstance(billed_total, (int, float)) and billed_total > 0 else ""
-    amount = anchored_amount or fields.get("net_payable") or fields.get("net_amount") or fields.get("billed_amount") or fields.get("claimed_total") or fields.get("total_amount") or fields.get("amount") or fields.get("gross_total")
+    resolved_num = 0.0
+    for cand in (
+        billed_total,
+        expense_total,
+        fields.get("net_payable"),
+        fields.get("net_amount"),
+        fields.get("billed_amount"),
+        fields.get("total_amount"),
+        fields.get("claimed_total"),
+        fields.get("gross_total"),
+        fields.get("amount"),
+    ):
+        if cand not in (None, "", "—", "0", "0.0", "0.00", 0, 0.0):
+            try:
+                cand_clean = str(cand).replace(",", "").replace("Rs.", "").replace("INR", "").replace("₹", "").strip()
+                c_num = float(cand_clean)
+                if c_num > 0:
+                    resolved_num = c_num
+                    break
+            except Exception:
+                pass
+    if resolved_num <= 0 and expense_total > 0:
+        resolved_num = expense_total
+    amount = f"{resolved_num:,.2f}" if resolved_num > 0 else ""
     pdf.set_font("Helvetica", "B", 10)
     pdf.cell(55, 7, _sanitize("  BILLED TOTAL:"), ln=0)
     pdf.set_font("Helvetica", "B", 11)
@@ -868,7 +890,7 @@ def generate_tpa_pdf(claim_data: dict[str, Any]) -> bytes:
     pdf.set_font("Helvetica", "B", 10)
     pdf.cell(0, 7, _sanitize("  C. Claim Amount Reconciliation"), ln=1)
     pdf.set_font("Helvetica", "", 9)
-    billed_amount = anchored_amount or fields.get("net_payable") or fields.get("net_amount") or fields.get("billed_amount") or fields.get("claimed_total") or fields.get("total_amount") or fields.get("amount") or fields.get("gross_total")
+    billed_amount = amount or (f"{expense_total:,.2f}" if expense_total > 0 else "")
     pdf.field_row("Total Amount Claimed:", f"Rs. {billed_amount}" if billed_amount else "N/A")
     pdf.field_row("Itemised Expense Total:", f"Rs. {expense_total:,.0f}" if expense_total > 0 else "N/A")
     if expense_total > 0 and billed_total > 0:

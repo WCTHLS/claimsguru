@@ -192,9 +192,7 @@ celery_app.conf.update(
     ),
     task_default_queue="default",
     task_default_exchange="default",
-    task_default_routing_key="default",
-    worker_prefetch_multiplier=1,
-    task_create_missing_queues=False,
+    task_create_missing_queues=True,
     broker_pool_limit=10,
     task_acks_late=True,
     task_reject_on_worker_lost=True,
@@ -241,9 +239,9 @@ def run_prewarm():
     args_str = " ".join(sys.argv)
     
     # Detect worker role from command line queues
-    is_ocr = "ocr_queue" in args_str
-    is_parser = "parser_queue" in args_str
-    is_coding = "default" in args_str or not any(q in args_str for q in ["ocr_queue", "parser_queue"])
+    is_ocr = any(q in args_str for q in ["ocr_queue", " -Q ocr", ",ocr", "ocr,"])
+    is_parser = any(q in args_str for q in ["parser_queue", " -Q parser", ",parser", "parser,"])
+    is_coding = "default" in args_str or (not is_ocr and not is_parser)
 
     print(f"[CELERY PREWARM] Starting worker pre-fork initialization. Role: OCR={is_ocr}, Parser={is_parser}, Coding={is_coding}")
 
