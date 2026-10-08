@@ -261,6 +261,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     ? Math.round(rawRiskScore <= 1 ? rawRiskScore * 100 : rawRiskScore)
     : 12;
 
+  const topRiskReasons = preview?.predictions?.[0]?.top_reasons || [];
+
   // Cross-Document Intelligence: compute from canonical verified fields
   const parsedFieldsObj = (preview?.parsed_fields && typeof preview.parsed_fields === 'object')
     ? (preview.parsed_fields as Record<string, any>)
@@ -821,13 +823,28 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             </div>
             <div className="flex sm:grid sm:grid-cols-5 gap-2.5 overflow-x-auto snap-x pb-1 sm:pb-0 scrollbar-none">
               {/* Risk Score */}
-              <div className="flex-none w-[130px] sm:w-auto snap-start rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-2.5 sm:p-3">
+              <div 
+                className={`flex-none w-[130px] sm:w-auto snap-start rounded-xl border p-2.5 sm:p-3 transition-colors ${
+                  riskScoreNum <= 25 
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' 
+                    : riskScoreNum <= 50 
+                      ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' 
+                      : 'border-rose-500/30 bg-rose-500/10 text-rose-400'
+                }`}
+                title={topRiskReasons[0]?.reason ? `Top Risk Reason: ${topRiskReasons[0].reason}` : undefined}
+              >
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-medium text-slate-400">Risk Score</span>
-                  <Activity className="h-3.5 w-3.5 text-emerald-400" />
+                  <Activity className={`h-3.5 w-3.5 ${
+                    riskScoreNum <= 25 ? 'text-emerald-400' : riskScoreNum <= 50 ? 'text-amber-400' : 'text-rose-400'
+                  }`} />
                 </div>
-                <p className="text-base sm:text-lg font-extrabold text-emerald-400 mt-1">{riskScoreNum}%</p>
-                <span className="text-[9px] font-bold text-emerald-300 uppercase">Low Risk</span>
+                <p className="text-base sm:text-lg font-extrabold mt-1">{riskScoreNum}%</p>
+                <span className={`text-[9px] font-bold uppercase ${
+                  riskScoreNum <= 25 ? 'text-emerald-300' : riskScoreNum <= 50 ? 'text-amber-300' : 'text-rose-300'
+                }`}>
+                  {riskScoreNum <= 25 ? 'Low Risk' : riskScoreNum <= 50 ? 'Moderate Risk' : 'High Risk'}
+                </span>
               </div>
 
               {/* Medical Codes */}

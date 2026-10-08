@@ -127,6 +127,7 @@ def _parse_date(raw: str | None) -> date | None:
 # Extended from 14 → 21 features with medical-context signals.
 
 FEATURE_NAMES = [
+    # Axis 1: Core Document Completeness
     "has_patient_name",
     "has_policy_number",
     "has_diagnosis",
@@ -134,6 +135,7 @@ FEATURE_NAMES = [
     "has_total_amount",
     "has_provider",
 
+    # Document & Coding Stats
     "num_parsed_fields",
     "num_entities",
     "num_icd_codes",
@@ -141,9 +143,11 @@ FEATURE_NAMES = [
     "has_primary_icd",
     "num_diagnosis_types",
 
+    # Financial Scale
     "total_amount_log",
     "amount_per_cpt_log",
 
+    # Clinical & Stay Severity
     "patient_age_norm",
     "length_of_stay",
     "claim_to_insured_ratio",
@@ -153,21 +157,35 @@ FEATURE_NAMES = [
     "surgery_cost_ratio",
     "has_blood_transfusion",
     "has_surgery",
+
+    # True Insurance Audit & Adjudication Signals
+    "math_discrepancy_ratio",
+    "is_surgical_without_ot",
+    "is_daycare_overstay",
+    "is_unspecified_investigation_only",
 ]
+
+# Daycare ICD prefixes that typically require <= 1 day inpatient stay
+_DAYCARE_ICD_PREFIXES = ("H25", "H26", "Z49", "Z51", "K29", "K63.5", "L72", "D23", "N18.5", "N18.6")
+
+# Unspecified symptom ICD codes (R00-R99) prone to "investigation only" TPA queries
+_SYMPTOM_ONLY_ICD_PREFIXES = ("R50", "R10", "R51", "R53", "R68", "R05", "R06", "R07", "R11", "R42")
+
+_SURGICAL_KEYWORDS = (
+    "surgery", "operation", "surgical", "laparoscopy", "appendectomy", "caesarean",
+    "c-section", "delivery", "excision", "repair", "resection", "hernia", "cholecystectomy",
+    "cataract", "arthroscopy", "hysterectomy", "angioplasty", "cabg", "amputation", "biopsy"
+)
+
 
 def build_features(
     parsed_fields: list[dict[str, Any]],
     entities: list[dict[str, Any]],
     codes: list[dict[str, Any]],
+    expenses: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     logger.info(f"Building features from {len(parsed_fields)} parsed fields")
-    """Build a feature vector from upstream pipeline data.
-
-    Uses canonical field-alias mapping so that parser field names
-    (e.g. ``admission_date``, ``hospital_name``) are correctly resolved
-    to the predictor's expected features (``has_service_date``,
-    ``has_provider``).
-    """
+    """Build a feature vector from upstream pipeline data with true insurance audit checks."""
     field_map: dict[str, str | None] = {
         f["field_name"]: f.get("field_value") for f in parsed_fields
     }
@@ -176,25 +194,30 @@ def build_features(
     has_service_date = int(bool(resolve_field(field_map, "service_date", normalize_keys=True)))
     has_total_amount_raw = resolve_field(field_map, "total_amount", normalize_keys=True)
     has_provider = int(bool(resolve_field(field_map, "provider_name", normalize_keys=True)))
-    logger.info(f"Total amount raw: {has_total_amount_raw}")
-  
-    # --- Compute total amount (explicit or summed from categories) ---
-    amount_val = _parse_amount(has_total_amount_raw)
-    logger.info(f"Parsed total amount: {amount_val}")
- 
-    if amount_val <= 0.0:
-        # Fallback: sum all expense categories if explicit total not found
-        amount_val = _compute_total_from_expenses(field_map)
-    logger.info(f"Final total amount used for features: {amount_val}")
-    has_total_amount = int(amount_val > 0.0)
-    logger.info(f"Has total amount: {has_total_amount}")
-  
 
-    # --- ICD/CPT: use coding service data, fall back to parsed fields ---
+    # --- Compute total billed amount ---
+    amount_val = _parse_amount(has_total_amount_raw)
+    if amount_val <= 0.0:
+        amount_val = _compute_total_from_expenses(field_map)
+    has_total_amount = int(amount_val > 0.0)
+
+    # --- Compute itemized expenses sum & mathematical reconciliation ---
+    if expenses and len(expenses) > 0:
+        itemized_sum = sum(float(e.get("amount") or 0) for e in expenses)
+    else:
+        itemized_sum = _compute_total_from_expenses(field_map)
+
+    if amount_val > 0 and itemized_sum > 0:
+        math_discrepancy_ratio = min(abs(amount_val - itemized_sum) / max(amount_val, 1.0), 1.0)
+    elif amount_val > 0 and itemized_sum <= 0:
+        math_discrepancy_ratio = 0.05
+    else:
+        math_discrepancy_ratio = 0.0
+
+    # --- ICD/CPT coding & clinical signals ---
     num_icd_from_codes = sum(1 for c in codes if c.get("code_system") == "ICD10")
     num_cpt_from_codes = sum(1 for c in codes if c.get("code_system") == "CPT")
 
-    # Fallback: count ICD/CPT from parser's own extracted fields
     if num_icd_from_codes == 0:
         num_icd_from_codes = sum(
             1 for f in parsed_fields if f.get("field_name") == "icd_code" and f.get("field_value")
@@ -207,9 +230,24 @@ def build_features(
     has_primary_icd = int(any(
         c.get("is_primary") and c.get("code_system") == "ICD10" for c in codes
     ))
-    # If coding service didn't mark a primary but ICD codes exist, treat first as primary
     if not has_primary_icd and num_icd_from_codes > 0:
         has_primary_icd = 1
+
+    # Primary ICD code string
+    primary_icd_str = ""
+    for c in codes:
+        if c.get("code_system") == "ICD10":
+            primary_icd_str = str(c.get("code") or "").upper().strip()
+            if c.get("is_primary"):
+                break
+    if not primary_icd_str:
+        for f in parsed_fields:
+            if f.get("field_name") == "icd_code" and f.get("field_value"):
+                primary_icd_str = str(f.get("field_value")).upper().strip()
+                break
+
+    # Clinical diagnosis text
+    raw_diag = str(resolve_field(field_map, "diagnosis", normalize_keys=True) or "").lower()
 
     # --- Medical context features ---
     age_raw = resolve_field(field_map, "patient_age", normalize_keys=True)
@@ -228,7 +266,6 @@ def build_features(
 
     sum_insured_raw = resolve_field(field_map, "sum_insured", normalize_keys=True)
     sum_insured_val = _parse_amount(sum_insured_raw)
-    # Fallback: scan all parsed field values for "Sum Insured: Rs. X" pattern
     if sum_insured_val <= 0:
         for f in parsed_fields:
             val = f.get("field_value") or ""
@@ -246,12 +283,13 @@ def build_features(
         1 for fn in EXPENSE_FIELDS.keys() 
         if _parse_amount(resolve_field(field_map, fn, normalize_keys=True)) > 0
     )
+    if expenses and len(expenses) > 0:
+        num_expense_cats = max(num_expense_cats, len(expenses))
 
     icu_charges = _parse_amount(resolve_field(field_map, "icu_charges", normalize_keys=True))
     ward_type = (resolve_field(field_map, "ward_type", normalize_keys=True) or "").lower()
     is_icu = int(icu_charges > 0 or "icu" in ward_type)
 
-    # Count ALL secondary diagnosis entries (parser can emit multiple)
     num_secondary = sum(
         1 for f in parsed_fields
         if f.get("field_name") == "secondary_diagnosis" and f.get("field_value")
@@ -260,15 +298,42 @@ def build_features(
 
     surgery_charges = _parse_amount(resolve_field(field_map, "surgery_charges", normalize_keys=True))
     ot_charges = _parse_amount(resolve_field(field_map, "ot_charges", normalize_keys=True))
-    surgery_cost_ratio = min(surgery_charges / max(amount_val, 1.0), 1.0)
+    if expenses:
+        for exp in expenses:
+            cat_lower = str(exp.get("category") or "").lower()
+            amt = float(exp.get("amount") or 0)
+            if any(k in cat_lower for k in ("surgery", "operation", "ot charges", "theatre", "surgeon", "delivery")) and amt > 0:
+                surgery_charges = max(surgery_charges, amt)
+
     has_surgery = int(surgery_charges > 0 or ot_charges > 0)
+    surgery_cost_ratio = min(surgery_charges / max(amount_val, 1.0), 1.0) if amount_val > 0 else 0.0
 
     blood_charges = _parse_amount(resolve_field(field_map, "blood_charges", normalize_keys=True))
     has_blood_transfusion = int(blood_charges > 0)
 
+    # --- TRUE INSURANCE AUDIT SIGNALS ---
+    # 1. Surgical condition indicated but zero OT/Surgery charges found in bill
+    is_surgical_indicated = any(k in raw_diag for k in _SURGICAL_KEYWORDS) or any(
+        c.get("code_system") == "CPT" and str(c.get("code", "")).isdigit() and 10000 <= int(str(c.get("code", "0"))) <= 69999
+        for c in codes
+    )
+    is_surgical_without_ot = int(bool(is_surgical_indicated and not has_surgery))
+
+    # 2. Daycare procedure with extended inpatient hospital stay (>1 day)
+    is_daycare_icd = any(primary_icd_str.startswith(p) for p in _DAYCARE_ICD_PREFIXES) or any(
+        k in raw_diag for k in ("cataract", "dialysis", "chemotherapy", "endoscopy", "colonoscopy")
+    )
+    is_daycare_overstay = int(bool(is_daycare_icd and length_of_stay > 1))
+
+    # 3. Unspecified symptom-only code (R00-R99) with no surgery or ICU (investigation-only risk)
+    is_symptom_code = any(primary_icd_str.startswith(p) for p in _SYMPTOM_ONLY_ICD_PREFIXES) or (
+        primary_icd_str.startswith("R") and len(primary_icd_str) >= 3
+    ) or any(k in raw_diag for k in ("fever unspecified", "body ache", "generalized weakness", "for observation"))
+    is_unspecified_investigation_only = int(bool(is_symptom_code and not has_surgery and not is_icu and length_of_stay <= 2))
+
     num_cpt_total = max(num_cpt_from_codes, 1)
 
-    features =  {
+    features = {
         # Document completeness
         "has_patient_name":  int(bool(resolve_field(field_map, "patient_name", normalize_keys=True))),
         "has_policy_number": int(bool(resolve_field(field_map, "policy_number", normalize_keys=True))),
@@ -300,6 +365,11 @@ def build_features(
         "surgery_cost_ratio":       surgery_cost_ratio,
         "has_blood_transfusion":    has_blood_transfusion,
         "has_surgery":              has_surgery,
+        # Real Insurance Audit Signals
+        "math_discrepancy_ratio":            float(math_discrepancy_ratio),
+        "is_surgical_without_ot":            is_surgical_without_ot,
+        "is_daycare_overstay":               is_daycare_overstay,
+        "is_unspecified_investigation_only": is_unspecified_investigation_only,
     }
     logger.info(f"---------Features for rejection prediction---------\n{chr(10).join(f'{k}: {v}' for k, v in features.items())}")
     return features
@@ -311,10 +381,10 @@ def _features_to_array(features: dict[str, Any]) -> np.ndarray:
 
 
 def _score_to_category(score: float) -> str:
-    """Map a 0–1 rejection score to a human-readable risk category."""
-    if score <= 0.25:
+    """Map a 0–1 rejection score to a human-readable risk category (aligned with TPA standard)."""
+    if score <= 0.30:
         return "LOW"
-    elif score <= 0.50:
+    elif score <= 0.60:
         return "MEDIUM"
     else:
         return "HIGH"
@@ -381,24 +451,26 @@ def _generate_synthetic_data(n_samples: int = 3000, seed: int = 42):
         # --- Document completeness (6 binary) ---
         has_name     = rng.choice([0, 1], p=[0.03, 0.97])
         has_policy   = rng.choice([0, 1], p=[0.05, 0.95])
-        has_diag     = rng.choice([0, 1], p=[0.06, 0.94])
+        has_diag     = rng.choice([0, 1], p=[0.05, 0.95])
         has_date     = rng.choice([0, 1], p=[0.04, 0.96])
-        has_amount   = rng.choice([0, 1], p=[0.05, 0.95])
-        has_provider = rng.choice([0, 1], p=[0.06, 0.94])
+        has_amount   = rng.choice([0, 1], p=[0.04, 0.96])
+        has_provider = rng.choice([0, 1], p=[0.05, 0.95])
 
         # --- Counts (Dependent on parsing flags) ---
-        n_fields     = rng.randint(3, 40)  # Lowered minimum to allow < 5 logic to trigger
+        n_fields     = rng.randint(3, 40)
         base_ents = rng.randint(2, 8)
         if has_diag:
             base_ents += rng.randint(1, 5)
 
         n_ents = base_ents
         if has_diag:
-            n_icd = rng.choice([0,1,2,3,4], p=[0.1,0.3,0.3,0.2,0.1])
+            n_icd = rng.choice([0, 1, 2, 3, 4], p=[0.08, 0.35, 0.30, 0.17, 0.10])
+        else:
+            n_icd = 0
         n_cpt        = rng.randint(1, 4) if has_amount else 0
-        has_pri      = int(n_icd > 0 and rng.random() > 0.15)
-        n_diag_entities = rng.randint(0, n_ents+1)
-        n_diag_types = min(n_diag_entities, rng.randint(1,4))
+        has_pri      = int(n_icd > 0 and rng.random() > 0.10)
+        n_diag_entities = rng.randint(0, n_ents + 1)
+        n_diag_types = min(n_diag_entities, rng.randint(1, 4))
 
         # --- Financial ---
         if has_amount:
@@ -415,88 +487,105 @@ def _generate_synthetic_data(n_samples: int = 3000, seed: int = 42):
         age          = max(0, min(100, rng.normal(42, 18)))
         age_norm     = age / 100.0
         los          = float(rng.choice([1, 2, 3, 5, 7, 10, 14, 21, 30],
-                                        p=[0.15, 0.25, 0.20, 0.15, 0.10, 0.06, 0.04, 0.03, 0.02]))
+                                        p=[0.18, 0.25, 0.20, 0.14, 0.09, 0.06, 0.04, 0.02, 0.02]))
         
         sum_insured  = rng.choice([100000, 200000, 300000, 400000, 500000, 1000000],
                                   p=[0.10, 0.15, 0.20, 0.25, 0.20, 0.10])
         
         claim_ratio  = min(amount / max(sum_insured, 1.0), 1.0) if has_amount else 0.0
         n_exp_cats   = float(rng.randint(3, 12)) if has_amount else 0.0
-        is_icu       = rng.choice([0, 1], p=[0.80, 0.20])
+        is_icu       = rng.choice([0, 1], p=[0.82, 0.18])
         has_sec_diag = rng.choice([0, 1], p=[0.60, 0.40]) if n_icd > 1 else 0
         
-        # Fixed Dependency: Surgery ratio requires surgery to exist
         has_surg     = rng.choice([0, 1], p=[0.60, 0.40])
         surg_ratio   = rng.beta(2, 5) if (has_surg and has_amount) else 0.0
-        has_blood    = rng.choice([0, 1], p=[0.85, 0.15])
+        has_blood    = rng.choice([0, 1], p=[0.88, 0.12])
 
-        # --- Array Assignment (Strictly matching 23 elements) ---
+        # --- Real Insurance Audit Signals (4 new) ---
+        has_math_gap = rng.choice([0, 1], p=[0.85, 0.15]) if has_amount else 0
+        math_disc    = float(rng.uniform(0.06, 0.40)) if has_math_gap else 0.0
+
+        is_surg_no_ot = int(has_surg and rng.random() < 0.12)
+        is_daycare_case = int(rng.random() < 0.15)
+        is_dc_overstay = int(is_daycare_case and los > 1)
+        is_unspec_investigation = int((not has_surg) and (not is_icu) and los <= 2 and rng.random() < 0.12)
+
+        # --- Array Assignment (Strictly matching 27 elements) ---
         X[i] = [
             has_name, has_policy, has_diag, has_date, has_amount, has_provider,
             n_fields, n_ents, n_icd, n_cpt, has_pri, n_diag_types,
             amount_log, amt_per_cpt,
             age_norm, los, claim_ratio, n_exp_cats,
-            is_icu, has_sec_diag, surg_ratio, has_blood, has_surg
+            is_icu, has_sec_diag, surg_ratio, has_blood, has_surg,
+            math_disc, is_surg_no_ot, is_dc_overstay, is_unspec_investigation
         ]
 
-        # --- Rejection probability logic ---
-        reject_prob = 0.05  # clean baseline
+        # --- Rejection probability logic grounded in true insurance rules ---
+        reject_prob = 0.04  # clean baseline
 
         # AXIS 1: Missing critical fields
         missing = sum(1 for v in [has_name, has_policy, has_diag, has_date, has_amount, has_provider] if v == 0)
-        reject_prob += missing * 0.15
+        reject_prob += missing * 0.16
 
         if n_icd == 0:
-            reject_prob += 0.10
+            reject_prob += 0.08
         if not has_pri and n_icd > 0:
-            reject_prob += 0.05
+            reject_prob += 0.04
         if n_fields < 5:
-            reject_prob += 0.10
+            reject_prob += 0.08
 
-        # AXIS 2: Medical & financial severity
-        if amount > 1200000:       # > 12 lakh
-            reject_prob += 0.25
-        elif amount > 440000:      # > 4.4 lakh
-            reject_prob += 0.15
-        elif amount > 100000:      # > 1 lakh
-            reject_prob += 0.05
+        # AXIS 2: True Insurance Audit Anomalies
+        if math_disc > 0.10:
+            reject_prob += 0.28
+        elif math_disc > 0.03:
+            reject_prob += 0.16
 
-        if claim_ratio > 0.80:
+        if is_surg_no_ot:
+            reject_prob += 0.26
+
+        if is_dc_overstay:
             reject_prob += 0.20
-        elif claim_ratio > 0.50:
+
+        if is_unspec_investigation:
+            reject_prob += 0.22
+
+        # AXIS 3: Medical & Financial Severity
+        if amount > 1200000:       # > 12 lakh
+            reject_prob += 0.20
+        elif amount > 440000:      # > 4.4 lakh
             reject_prob += 0.10
+        elif amount > 100000:      # > 1 lakh
+            reject_prob += 0.04
+
+        if claim_ratio > 0.85:
+            reject_prob += 0.18
+        elif claim_ratio > 0.50:
+            reject_prob += 0.08
 
         if los > 21:
-            reject_prob += 0.18
+            reject_prob += 0.15
         elif los > 14:
-            reject_prob += 0.12
+            reject_prob += 0.08
 
         if is_icu:
-            reject_prob += 0.10
+            reject_prob += 0.08
         if has_surg and surg_ratio > 0.50:
-            reject_prob += 0.14
+            reject_prob += 0.10
         elif has_surg:
-            reject_prob += 0.08
-
-        if has_blood:
-            reject_prob += 0.08
-
-        if has_sec_diag:
-            reject_prob += 0.08
-
-        if n_exp_cats >= 8:
             reject_prob += 0.05
 
-        # Check for absolute clean claims to reduce risk
-        severity = sum([
-            int(amount > 100000), int(los > 7), int(is_icu),
-            int(has_sec_diag), int(claim_ratio > 0.50), int(age > 65)
-        ])
-        if missing == 0 and severity == 0 and n_fields >= 15:
-            reject_prob *= 0.4
+        if has_blood:
+            reject_prob += 0.06
+
+        if has_sec_diag:
+            reject_prob += 0.06
+
+        # Check for truly clean, mathematically reconciled claims
+        if missing == 0 and math_disc < 0.02 and not is_surg_no_ot and not is_dc_overstay and not is_unspec_investigation and amount <= 150000 and los <= 5 and not is_icu:
+            reject_prob = 0.05
 
         # Bounds safety and sampling
-        reject_prob = min(max(reject_prob, 0.02), 0.95)
+        reject_prob = min(max(reject_prob, 0.03), 0.95)
         y[i] = int(rng.random() < reject_prob)
 
     return X, y
@@ -676,27 +765,31 @@ def _load_models():
 _FEATURE_REASON_MAP = {
     "has_patient_name": "Missing patient name",
     "has_policy_number": "Missing policy number",
-    "has_diagnosis": "Missing diagnosis",
-    "has_service_date": "Missing date of service / admission date",
-    "has_total_amount": "Missing total amount (no charges found)",
-    "has_provider": "Missing provider / hospital information",
+    "has_diagnosis": "Missing primary clinical diagnosis",
+    "has_service_date": "Missing admission / service date",
+    "has_total_amount": "Missing billed total amount",
+    "has_provider": "Missing hospital / medical provider name",
     "num_parsed_fields": "Very few parsed fields — possible poor scan quality",
     "num_entities": "Few medical entities detected",
-    "num_icd_codes": "No ICD-10 codes found",
-    "num_cpt_codes": "No CPT codes found",
+    "num_icd_codes": "No ICD-10 medical codes designated",
+    "num_cpt_codes": "No CPT procedure codes found",
     "has_primary_icd": "No primary ICD code designated",
     "num_diagnosis_types": "Limited diagnosis diversity detected",
-    "total_amount_log": "Unusual claim amount",
-    "amount_per_cpt_log": "Billed amount is high relative to procedures (possible overbilling)",
-    "patient_age_norm": "Patient age is in a high-risk band",
-    "length_of_stay": "Extended hospital stay",
+    "total_amount_log": "High claim amount requiring senior TPA scrutiny",
+    "amount_per_cpt_log": "Billed amount is high relative to procedures performed",
+    "patient_age_norm": "Patient age in high-risk bracket",
+    "length_of_stay": "Extended hospital stay requires clinical justification",
     "claim_to_insured_ratio": "Claim amount is a large portion of sum insured",
     "num_expense_categories": "Many diverse expense categories",
-    "is_icu_admission": "ICU admission detected",
-    "has_secondary_diagnosis": "Multiple diagnoses / comorbidities present",
+    "is_icu_admission": "ICU admission requires intensive care vitals chart",
+    "has_secondary_diagnosis": "Multiple comorbidities present",
     "surgery_cost_ratio": "Surgery cost dominates total bill",
     "has_blood_transfusion": "Blood transfusion required",
     "has_surgery": "Surgical procedure performed",
+    "math_discrepancy_ratio": "Itemized bill line items do not reconcile with the final billed amount",
+    "is_surgical_without_ot": "Surgical diagnosis indicated without documented Operation Theatre (OT) or surgeon charges",
+    "is_daycare_overstay": "Daycare procedure (cataract/dialysis/endoscopy) has extended inpatient stay (>1 day)",
+    "is_unspecified_investigation_only": "Unspecified symptom code without active surgical or ICU intervention (risk of investigation-only query)",
 }
 
 # Features that are severity indicators, NOT document-completeness flags.
@@ -707,9 +800,40 @@ _SEVERITY_FEATURES = {"has_secondary_diagnosis", "has_blood_transfusion", "has_s
 def _explain_prediction(features: dict[str, Any], score: float) -> list[dict[str, Any]]:
     """Generate human-readable reasons sorted by contribution."""
     reasons: list[dict[str, Any]] = []
+
+    # Priority 1: Real Insurance Audit Anomalies
+    math_disc = features.get("math_discrepancy_ratio", 0.0)
+    if math_disc > 0.03:
+        reasons.append({
+            "reason": f"Itemized bill expenses differ from final total ({math_disc*100:.0f}% variance)",
+            "feature": "math_discrepancy_ratio",
+            "weight": 0.28 if math_disc > 0.10 else 0.16,
+        })
+
+    if features.get("is_surgical_without_ot"):
+        reasons.append({
+            "reason": "Surgical procedure indicated without documented Operation Theatre (OT) or surgeon charges",
+            "feature": "is_surgical_without_ot",
+            "weight": 0.25,
+        })
+
+    if features.get("is_daycare_overstay"):
+        reasons.append({
+            "reason": "Daycare procedure (cataract/dialysis/endoscopy) has extended inpatient stay (>1 day)",
+            "feature": "is_daycare_overstay",
+            "weight": 0.20,
+        })
+
+    if features.get("is_unspecified_investigation_only"):
+        reasons.append({
+            "reason": "Primary diagnosis is an unspecified symptom code without active surgical or ICU intervention",
+            "feature": "is_unspecified_investigation_only",
+            "weight": 0.22,
+        })
+
+    # Priority 2: Missing Core Booleans
     for fname in FEATURE_NAMES:
         val = features.get(fname, 0)
-        # Flag missing critical booleans (but NOT severity indicators)
         if fname.startswith("has_") and fname not in _SEVERITY_FEATURES and not val:
             reasons.append({
                 "reason": _FEATURE_REASON_MAP.get(fname, fname),
@@ -722,13 +846,7 @@ def _explain_prediction(features: dict[str, Any], score: float) -> list[dict[str
                 "feature": fname,
                 "weight": 0.08,
             })
-        elif fname == "num_parsed_fields" and val < 5:
-            reasons.append({
-                "reason": _FEATURE_REASON_MAP[fname],
-                "feature": fname,
-                "weight": 0.10,
-            })
-        elif fname == "claim_to_insured_ratio" and val > 0.80:
+        elif fname == "claim_to_insured_ratio" and val > 0.85:
             reasons.append({
                 "reason": _FEATURE_REASON_MAP[fname],
                 "feature": fname,
@@ -740,18 +858,14 @@ def _explain_prediction(features: dict[str, Any], score: float) -> list[dict[str
                 "feature": fname,
                 "weight": 0.08,
             })
-        elif fname == "patient_age_norm" and (val < 0.05 or val > 0.75):
-            reasons.append({
-                "reason": _FEATURE_REASON_MAP[fname],
-                "feature": fname,
-                "weight": 0.05,
-            })
-        elif fname == "is_icu_admission" and val:
-            reasons.append({
-                "reason": _FEATURE_REASON_MAP[fname],
-                "feature": fname,
-                "weight": 0.04,
-            })
+
+    if not reasons and score <= 0.20:
+        reasons.append({
+            "reason": "Complete documentation with mathematically verified line items and consistent clinical coding",
+            "feature": "clean_claim",
+            "weight": 0.01,
+        })
+
     reasons.sort(key=lambda r: r["weight"], reverse=True)
     return reasons[:5]
 
@@ -795,9 +909,7 @@ def predict(features: dict[str, Any]) -> PredictionResult:
 
             # ------------------------------------------------------------------
             # Catastrophic completeness override
-            # Prevent ensemble from under-scoring obviously broken claims
             # ------------------------------------------------------------------
-
             missing_critical = sum([
                 not features.get("has_patient_name"),
                 not features.get("has_policy_number"),
@@ -807,19 +919,15 @@ def predict(features: dict[str, Any]) -> PredictionResult:
                 not features.get("has_provider"),
             ])
 
-            if missing_critical >= 5:
-                score = max(score, 0.55)
+            if missing_critical >= 4:
+                score = max(score, 0.65)
 
-            # Heuristic severity override: ensure extremely severe/complex claims
-            # are not under-scored by the ML model
+            # Heuristic audit & severity verification
             heur_result = _predict_heuristic(features)
-            if heur_result.rejection_score >= 0.55:
-                score = max(score, 0.55)
+            score = max(score, heur_result.rejection_score)
 
-            score = round(min(max(score, 0.0), 1.0), 4)
-
-
-            reasons = _explain_prediction(features, score)
+            score = round(min(max(score, 0.04), 0.95), 4)
+            reasons = heur_result.top_reasons if heur_result.top_reasons else _explain_prediction(features, score)
 
             return PredictionResult(
                 rejection_score=score,
@@ -837,27 +945,20 @@ def predict(features: dict[str, Any]) -> PredictionResult:
 
 
 def _predict_heuristic(features: dict[str, Any]) -> PredictionResult:
-    """Two-axis scorer: document completeness + medical/financial severity.
-
-    The final score is the combination of:
-      * **Completeness risk** (0-0.60): missing fields, codes, etc.
-      * **Severity risk** (0-0.60): ICU, long stay, high amount, age, diagnoses
-
-    Both axes contribute additively. A well-documented but medically
-    complex claim (e.g. bone marrow transplant) should score HIGH,
-    while a well-documented simple claim (e.g. hernia repair) scores LOW.
-    """
+    """True insurance adjudication rule-based risk scorer."""
     completeness_score = 0.0
+    audit_risk_score = 0.0
     severity_score = 0.0
     reasons: list[dict[str, Any]] = []
 
-    # ========== AXIS 1: Document Completeness ==========
+    # AXIS 1: Document Completeness
     critical = [
-        ("has_patient_name", "Missing patient name", 0.08),
-        ("has_policy_number", "Missing policy number", 0.08),
-        ("has_diagnosis", "Missing diagnosis", 0.12),
-        ("has_service_date", "Missing date of service / admission date", 0.08),
-        ("has_total_amount", "Missing total amount (no charges found)", 0.10),
+        ("has_patient_name", "Missing patient name", 0.12),
+        ("has_policy_number", "Missing policy number", 0.10),
+        ("has_diagnosis", "Missing primary clinical diagnosis", 0.15),
+        ("has_service_date", "Missing date of service / admission date", 0.10),
+        ("has_total_amount", "Missing total billed amount", 0.15),
+        ("has_provider", "Missing hospital / medical provider name", 0.08),
     ]
     for key, reason, weight in critical:
         if not features.get(key):
@@ -865,129 +966,68 @@ def _predict_heuristic(features: dict[str, Any]) -> PredictionResult:
             reasons.append({"reason": reason, "weight": weight})
 
     if features.get("num_icd_codes", 0) == 0:
-        completeness_score += 0.05
-        reasons.append({"reason": "No ICD-10 codes found", "weight": 0.05})
-    if not features.get("has_primary_icd"):
-        completeness_score += 0.03
-        reasons.append({"reason": "No primary ICD code designated", "weight": 0.03})
-    if features.get("num_parsed_fields", 0) < 5:
         completeness_score += 0.06
-        reasons.append({"reason": "Very few parsed fields", "weight": 0.06})
+        reasons.append({"reason": "No standardized ICD-10 medical codes mapped", "weight": 0.06})
 
-    # ========== AXIS 2: Medical & Financial Severity ==========
+    # AXIS 2: True Insurance Audit Anomalies
+    math_disc = features.get("math_discrepancy_ratio", 0.0)
+    if math_disc > 0.10:
+        audit_risk_score += 0.28
+        reasons.append({"reason": f"Itemized bill line items differ significantly from billed total ({math_disc*100:.0f}% variance)", "weight": 0.28})
+    elif math_disc > 0.03:
+        audit_risk_score += 0.16
+        reasons.append({"reason": f"Itemized bill expenses do not fully reconcile with total billed amount ({math_disc*100:.0f}% variance)", "weight": 0.16})
 
-    # --- Claim amount magnitude ---
+    if features.get("is_surgical_without_ot"):
+        audit_risk_score += 0.25
+        reasons.append({"reason": "Surgical procedure indicated without documented Operation Theatre (OT) or surgeon charges", "weight": 0.25})
+
+    if features.get("is_daycare_overstay"):
+        audit_risk_score += 0.20
+        reasons.append({"reason": "Daycare procedure (cataract/dialysis/endoscopy) has extended inpatient stay (>1 day)", "weight": 0.20})
+
+    if features.get("is_unspecified_investigation_only"):
+        audit_risk_score += 0.22
+        reasons.append({"reason": "Primary diagnosis is an unspecified symptom code without active surgical or ICU intervention (risk of investigation-only query)", "weight": 0.22})
+
+    # AXIS 3: Financial & Medical Severity Signals
     amount_log = features.get("total_amount_log", 0)
-    # log1p(500000) ~ 13.1, log1p(200000) ~ 12.2, log1p(100000) ~ 11.5
     if amount_log > 14.0:       # > ~12 lakh
-        severity_score += 0.20
-        reasons.append({"reason": "Very high claim amount", "weight": 0.20})
+        severity_score += 0.18
+        reasons.append({"reason": "High-value claim (> ₹12 Lakh) attracts mandatory senior TPA scrutiny", "weight": 0.18})
     elif amount_log > 13.0:     # > ~4.4 lakh
-        severity_score += 0.12
-        reasons.append({"reason": "High claim amount", "weight": 0.12})
-    elif amount_log > 11.5:     # > ~1 lakh
-        severity_score += 0.08
-        reasons.append({"reason": "Significant claim amount", "weight": 0.08})
+        severity_score += 0.10
+        reasons.append({"reason": "Substantial claim amount (> ₹4.4 Lakh)", "weight": 0.10})
 
-    # --- Claim-to-insured ratio ---
-    claim_ratio = features.get("claim_to_insured_ratio", 0)
-    if claim_ratio > 0.80:
-        severity_score += 0.20
-        reasons.append({"reason": "Claim exceeds 80% of sum insured", "weight": 0.20})
-    elif claim_ratio > 0.50:
-        severity_score += 0.12
-        reasons.append({"reason": "Claim exceeds 50% of sum insured", "weight": 0.12})
-    elif claim_ratio > 0.30:
-        severity_score += 0.05
-        reasons.append({"reason": "Notable sum insured utilization", "weight": 0.05})
-
-    # --- Length of stay ---
     los = features.get("length_of_stay", 0)
     if los > 21:
-        severity_score += 0.18
-        reasons.append({"reason": f"Very long hospital stay ({int(los)} days)", "weight": 0.18})
-    elif los > 14:
-        severity_score += 0.12
-        reasons.append({"reason": f"Extended hospital stay ({int(los)} days)", "weight": 0.12})
-    elif los > 7:
-        severity_score += 0.08
-        reasons.append({"reason": f"Notable hospital stay ({int(los)} days)", "weight": 0.08})
-    elif los >= 4:
-        severity_score += 0.05
-        reasons.append({"reason": f"Multi-day hospital stay ({int(los)} days)", "weight": 0.05})
-
-    # --- ICU admission ---
-    if features.get("is_icu_admission"):
         severity_score += 0.15
-        reasons.append({"reason": "ICU admission detected", "weight": 0.15})
+        reasons.append({"reason": f"Extended hospital stay ({int(los)} days) requires clinical justification", "weight": 0.15})
+    elif los > 14:
+        severity_score += 0.08
+        reasons.append({"reason": f"Hospital stay ({int(los)} days) exceeds standard duration", "weight": 0.08})
 
-    # --- Surgical case ---
-    if features.get("has_surgery"):
-        surg_ratio = features.get("surgery_cost_ratio", 0)
-        if surg_ratio > 0.50:
-            severity_score += 0.10
-            reasons.append({"reason": "Major surgical procedure (surgery-dominant bill)", "weight": 0.10})
-        elif surg_ratio > 0.25:
-            severity_score += 0.06
-            reasons.append({"reason": "Surgical procedure performed", "weight": 0.06})
-        else:
-            severity_score += 0.03
-            reasons.append({"reason": "Minor surgical/OT component", "weight": 0.03})
-
-    # --- Blood transfusion ---
-    if features.get("has_blood_transfusion"):
-        severity_score += 0.06
-        reasons.append({"reason": "Blood transfusion required", "weight": 0.06})
-
-    # --- Multiple diagnoses / comorbidities ---
-    if features.get("has_secondary_diagnosis"):
+    if features.get("is_icu_admission"):
         severity_score += 0.10
-        reasons.append({"reason": "Multiple diagnoses / comorbidities present", "weight": 0.10})
+        reasons.append({"reason": "ICU admission requires intensive care vitals chart", "weight": 0.10})
 
-    # --- Multiple ICD codes (complexity) ---
-    n_icd = features.get("num_icd_codes", 0)
-    if n_icd >= 4:
-        severity_score += 0.08
-        reasons.append({"reason": f"Complex case: {n_icd} ICD codes", "weight": 0.08})
-    elif n_icd >= 2:
-        severity_score += 0.04
-        reasons.append({"reason": f"Multiple ICD codes ({n_icd})", "weight": 0.04})
+    if features.get("claim_to_insured_ratio", 0) > 0.85:
+        severity_score += 0.15
+        reasons.append({"reason": "Claim amount utilizes >85% of total policy Sum Insured", "weight": 0.15})
 
-    # --- Age risk ---
-    age_norm = features.get("patient_age_norm", 0)
-    if age_norm > 0.65:
-        severity_score += 0.08
-        reasons.append({"reason": "Elderly patient (higher complication risk)", "weight": 0.08})
-    elif age_norm > 0.50:
-        severity_score += 0.04
-        reasons.append({"reason": "Middle-aged patient (moderate risk band)", "weight": 0.04})
-    elif 0 < age_norm < 0.05:
-        severity_score += 0.06
-        reasons.append({"reason": "Very young patient (paediatric risk)", "weight": 0.06})
+    raw_score = completeness_score + audit_risk_score + severity_score
 
-    # --- Multiple procedures ---
-    n_cpt = features.get("num_cpt_codes", 0)
-    if n_cpt >= 3:
-        severity_score += 0.06
-        reasons.append({"reason": f"Multiple procedures ({n_cpt} CPT codes)", "weight": 0.06})
-    elif n_cpt >= 2:
-        severity_score += 0.03
-        reasons.append({"reason": f"Two procedures performed", "weight": 0.03})
+    if completeness_score == 0 and audit_risk_score == 0 and severity_score < 0.10:
+        final_score = max(0.04, min(raw_score, 0.14))
+        if not reasons:
+            reasons.append({"reason": "Complete documentation with mathematically verified line items and consistent clinical coding", "weight": 0.01})
+    else:
+        final_score = min(max(raw_score, 0.04), 0.95)
 
-    # ========== COMBINE AXES ==========
-    score = completeness_score + severity_score
-
-    # Only reduce for truly simple, complete claims (no severity signals)
-    missing_count = sum(1 for k, _, _ in critical if not features.get(k))
-    if missing_count == 0 and severity_score < 0.10:
-        score *= 0.5
-
-    score = round(min(max(score, 0.0), 1.0), 4)
     reasons.sort(key=lambda r: r["weight"], reverse=True)
-
     return PredictionResult(
-        rejection_score=score,
-        risk_category=_score_to_category(score),
+        rejection_score=round(final_score, 4),
+        risk_category=_score_to_category(final_score),
         top_reasons=reasons[:5],
         feature_vector=features,
         model_name="heuristic",

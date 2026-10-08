@@ -545,11 +545,12 @@ def _sort_icd_codes(codes: list[Any]) -> list[Any]:
 
 
 def _recalculate_prediction_for_claim(cid: uuid.UUID, db: Session) -> None:
-    """Recompute feature vector and AI prediction when policy/insurer details change."""
+    """Recompute feature vector and AI prediction when policy/insurer/expenses change."""
     try:
         from services.predictor.app.engine import build_features, predict
-        from libs.shared.models import MedicalEntity, MedicalCode
+        from libs.shared.models import Claim, MedicalEntity, MedicalCode
         from services.ingress.app.models import Feature
+        claim_obj = db.query(Claim).filter(Claim.id == cid).first()
         pf_rows = db.query(ParsedField).filter(ParsedField.claim_id == cid).all()
         ent_rows = db.query(MedicalEntity).filter(MedicalEntity.claim_id == cid).all()
         code_rows = db.query(MedicalCode).filter(MedicalCode.claim_id == cid).all()
@@ -558,7 +559,21 @@ def _recalculate_prediction_for_claim(cid: uuid.UUID, db: Session) -> None:
         entities = [{"entity_type": r.entity_type, "entity_text": r.entity_text} for r in ent_rows]
         codes = [{"code": r.code, "code_system": r.code_system, "is_primary": r.is_primary} for r in code_rows]
 
-        features = build_features(parsed, entities, codes)
+        expenses = []
+        if claim_obj and claim_obj.canonical_json and isinstance(claim_obj.canonical_json, dict):
+            raw_exp = claim_obj.canonical_json.get("expenses") or claim_obj.canonical_json.get("bill", {}).get("items", [])
+            if isinstance(raw_exp, list):
+                for e in raw_exp:
+                    if isinstance(e, dict):
+                        cat = e.get("category") or e.get("description") or e.get("name") or "General"
+                        amt = e.get("amount") or e.get("total") or e.get("cost") or 0.0
+                        try:
+                            amt = float(amt)
+                        except (ValueError, TypeError):
+                            amt = 0.0
+                        expenses.append({"category": str(cat), "amount": amt})
+
+        features = build_features(parsed, entities, codes, expenses=expenses)
         result = predict(features)
 
         # Upsert Feature

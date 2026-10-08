@@ -120,7 +120,21 @@ def run_prediction(claim_id: str, db: Session = Depends(get_db)):
         for r in code_rows
     ]
 
-    features = build_features(parsed, entities, codes)
+    expenses: list[dict[str, Any]] = []
+    if claim and claim.canonical_json and isinstance(claim.canonical_json, dict):
+        raw_exp = claim.canonical_json.get("expenses") or claim.canonical_json.get("bill", {}).get("items", [])
+        if isinstance(raw_exp, list):
+            for e in raw_exp:
+                if isinstance(e, dict):
+                    cat = e.get("category") or e.get("description") or e.get("name") or "General"
+                    amt = e.get("amount") or e.get("total") or e.get("cost") or 0.0
+                    try:
+                        amt = float(amt)
+                    except (ValueError, TypeError):
+                        amt = 0.0
+                    expenses.append({"category": str(cat), "amount": amt})
+
+    features = build_features(parsed, entities, codes, expenses=expenses)
     result = predict(features)
 
     # Persist feature vector (upsert)
