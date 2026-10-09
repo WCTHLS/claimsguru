@@ -3522,6 +3522,15 @@ def get_user_notifications(
 
         notifications = []
         if all_target_cids:
+            claim_payer_map = {c.id: (c.insurance_company or None) for c in matched_claims}
+            try:
+                subs = db.query(Submission).filter(Submission.claim_id.in_(all_target_cids)).all()
+                for s in subs:
+                    if s.payer:
+                        claim_payer_map[s.claim_id] = s.payer
+            except Exception:
+                pass
+
             logs = (
                 db.query(AuditLog)
                 .filter(AuditLog.claim_id.in_(all_target_cids))
@@ -3534,6 +3543,7 @@ def get_user_notifications(
                 action = log.action or ""
                 claim_str = str(log.claim_id)
                 short_id = claim_str[:8]
+                cid_payer = claim_payer_map.get(log.claim_id) or "your insurance provider"
                 
                 if "REQUEST_DOCS" in action or action == "CLAIM_DOCUMENTS_REQUESTED":
                     notifications.append({
@@ -3541,7 +3551,7 @@ def get_user_notifications(
                         "claim_id": claim_str,
                         "type": "warning",
                         "title": f"Document Requested · Claim #{short_id}",
-                        "message": meta.get("reason") or "Star Health requested additional document clarification.",
+                        "message": meta.get("reason") or f"{cid_payer} requested additional document clarification.",
                         "created_at": log.created_at.isoformat() if log.created_at else datetime.now(timezone.utc).isoformat(),
                         "unread": True,
                     })
@@ -3551,7 +3561,7 @@ def get_user_notifications(
                         "claim_id": claim_str,
                         "type": "success",
                         "title": f"Claim Approved · #{short_id}",
-                        "message": meta.get("reason") or "Your claim has been audited and approved by Star Health.",
+                        "message": meta.get("reason") or f"Your claim has been audited and approved by {cid_payer}.",
                         "created_at": log.created_at.isoformat() if log.created_at else datetime.now(timezone.utc).isoformat(),
                         "unread": True,
                     })
@@ -3580,6 +3590,133 @@ def get_user_notifications(
     except Exception as exc:
         logger.exception("Failed to fetch notifications: %s", exc)
         return {"notifications": [], "total": 0}
+
+
+class RegisterDeviceTokenIn(BaseModel):
+    device_token: str
+    fcm_token: str | None = None
+    expo_token: str | None = None
+    platform: str | None = "android"
+    user_id: str | None = None
+    email: str | None = None
+
+
+# In-memory device token registry for push notifications
+_registered_device_tokens: dict[str, dict[str, Any]] = {}
+_all_registered_devices: list[dict[str, Any]] = []
+_notifications_history: list[dict[str, Any]] = []
+
+
+@router.post("/claims/notifications/register-token")
+@router.post("/notifications/register-token")
+def register_device_token(payload: RegisterDeviceTokenIn):
+    """Register mobile device token (FCM / Expo) for push notifications."""
+    token_record = {
+        "device_token": payload.device_token,
+        "fcm_token": payload.fcm_token or payload.device_token,
+        "expo_token": payload.expo_token,
+        "platform": payload.platform or "android",
+        "user_id": payload.user_id,
+        "email": payload.email,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    # Index by all possible identifier keys so any look up succeeds
+    keys = []
+    if payload.email:
+        keys.append(payload.email.lower().strip())
+    if payload.user_id:
+        keys.append(payload.user_id.lower().strip())
+    if payload.device_token:
+        keys.append(payload.device_token.strip())
+    if payload.expo_token:
+        keys.append(payload.expo_token.strip())
+
+    for k in keys:
+        _registered_device_tokens[k] = token_record
+
+    # Update global device list (avoid duplicates by device_token / expo_token)
+    global _all_registered_devices
+    _all_registered_devices = [
+        d for d in _all_registered_devices
+        if d.get("device_token") != payload.device_token and d.get("expo_token") != payload.expo_token
+    ]
+    _all_registered_devices.append(token_record)
+
+    logger.info(f"[Push] Registered device token for keys {keys} (platform: {payload.platform}). Total registered: {len(_all_registered_devices)}")
+    return {"success": True, "registered": True, "keys": keys, "total_devices": len(_all_registered_devices)}
+
+
+class SendPushNotificationIn(BaseModel):
+    user_id_or_email: str | None = None
+    title: str
+    body: str
+    data: dict[str, Any] | None = None
+
+
+@router.post("/claims/notifications/send-push")
+@router.post("/notifications/send-push")
+def send_push_notification(payload: SendPushNotificationIn):
+    """Dispatch push notification to registered device(s) via Expo Push API / FCM."""
+    import requests
+    target = (payload.user_id_or_email or "").lower().strip()
+    tokens_to_send = []
+
+    if target and target in _registered_device_tokens:
+        tokens_to_send.append(_registered_device_tokens[target])
+    else:
+        # If specific target not matched by key, search in records or broadcast to registered devices
+        matched = False
+        if target:
+            for d in _all_registered_devices:
+                if (d.get("email") and d.get("email", "").lower().strip() == target) or \
+                   (d.get("user_id") and d.get("user_id", "").lower().strip() == target):
+                    tokens_to_send.append(d)
+                    matched = True
+        
+        # In single-user / test environments or when target is unknown, dispatch to all registered devices
+        if not matched and _all_registered_devices:
+            tokens_to_send.extend(_all_registered_devices)
+        elif not matched and _registered_device_tokens:
+            tokens_to_send.extend(list(_registered_device_tokens.values()))
+
+    # Deduplicate tokens
+    seen_tokens = set()
+    unique_tokens = []
+    for item in tokens_to_send:
+        t = item.get("expo_token") or item.get("device_token")
+        if t and t not in seen_tokens:
+            seen_tokens.add(t)
+            unique_tokens.append(item)
+
+    results = []
+    for item in unique_tokens:
+        expo_token = item.get("expo_token") or (item.get("device_token") if str(item.get("device_token", "")).startswith("ExponentPushToken") else None)
+        if expo_token:
+            try:
+                resp = requests.post(
+                    "https://exp.host/--/api/v2/push/send",
+                    json={
+                        "to": expo_token,
+                        "title": payload.title,
+                        "body": payload.body,
+                        "data": payload.data or {},
+                        "sound": "default",
+                        "priority": "high",
+                        "channelId": "claimsguru_alerts",
+                    },
+                    timeout=5,
+                )
+                results.append({"token": expo_token, "status": resp.status_code, "response": resp.json() if resp.ok else resp.text})
+            except Exception as e:
+                results.append({"token": expo_token, "error": str(e)})
+
+    logger.info(f"[Push] Dispatched push notification '{payload.title}' to {len(results)} device(s): {results}")
+    return {
+        "success": True,
+        "dispatched_count": len(results),
+        "results": results,
+    }
 
 
 @router.get("/claims/{claim_id}", response_model=ClaimOut)
@@ -4662,6 +4799,58 @@ def tpa_action_endpoint(
         except Exception as log_err:
             logger.warning("Could not persist audit log for tpa action: %s", log_err)
             _audit(db, f"CLAIM_{action.upper()}", claim_id=cid, metadata=audit_meta)
+
+        # Trigger push notification to patient's mobile app
+        try:
+            short_cid = str(cid)[:8].upper()
+
+            # Resolve actual insurer/payer dynamically
+            payer_name = getattr(claim, 'insurance_company', None)
+            if not payer_name:
+                try:
+                    sub = db.query(Submission).filter(Submission.claim_id == cid).order_by(Submission.created_at.desc()).first()
+                    if sub and sub.payer:
+                        payer_name = sub.payer
+                except Exception:
+                    pass
+            if not payer_name and getattr(claim, 'canonical_json', None) and isinstance(claim.canonical_json, dict):
+                ins = claim.canonical_json.get("insurance") or {}
+                if isinstance(ins, dict):
+                    payer_name = ins.get("company") or ins.get("insurance_company") or ins.get("payer") or ins.get("tpa")
+                if not payer_name:
+                    payer_name = claim.canonical_json.get("insurance_company") or claim.canonical_json.get("payer") or claim.canonical_json.get("tpa")
+            payer_name = payer_name or "your insurance provider"
+
+            amt = None
+            if getattr(claim, 'canonical_json', None) and isinstance(claim.canonical_json, dict):
+                amt = claim.canonical_json.get("total_amount") or claim.canonical_json.get("claimed_amount") or claim.canonical_json.get("total_claim_amount")
+            amt_str = f" for ₹{int(float(amt)):,}" if amt else ""
+
+            action_titles = {
+                "approve": "ClaimsGuru: Claim Approved ✅",
+                "reject": "ClaimsGuru: Claim Update ⚠️",
+                "request_docs": "ClaimsGuru: Additional Documents Requested 📄",
+                "send_back": "ClaimsGuru: Modification Requested 📝",
+                "send_money": "ClaimsGuru: Claim Settled 💰",
+            }
+            action_bodies = {
+                "approve": f"Your cashless hospital claim (#{short_cid}){amt_str} has been approved by {payer_name}.",
+                "reject": f"Your claim (#{short_cid}) status was updated to Rejected by {payer_name}. Reason: {payload.reason or 'Not specified'}",
+                "request_docs": f"{payer_name} requested documents for claim #{short_cid}: {payload.reason or 'Please review requirements.'}",
+                "send_back": f"{payer_name} requested modifications for claim #{short_cid}: {payload.reason or 'Please review details.'}",
+                "send_money": f"Claim #{short_cid} settlement amount has been disbursed by {payer_name}.",
+            }
+            push_title = action_titles.get(action, "ClaimsGuru: Claim Status Update")
+            push_body = action_bodies.get(action, f"Claim status updated to {new_status}")
+
+            send_push_notification(SendPushNotificationIn(
+                user_id_or_email=claim.patient_id or auth_user.email or None,
+                title=push_title,
+                body=push_body,
+                data={"claimId": str(cid), "status": new_status, "action": action},
+            ))
+        except Exception as _push_err:
+            logger.warning("Failed to dispatch push notification for TPA action: %s", _push_err)
             
         logger.info("TPA action '%s' on claim %s: %s -> %s | reason=%s", action, cid, old_status, new_status, payload.reason)
 

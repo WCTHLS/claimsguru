@@ -2680,6 +2680,70 @@ def tpa_claim_action(
     logger.info("TPA action '%s' on claim %s: %s → %s | reason=%s",
                 action, str(cid)[:8], old_status, new_status, reason[:80] if reason else "(none)")
 
+    # Trigger push notification to patient's mobile app
+    try:
+        from services.ingress.app.main import send_push_notification, SendPushNotificationIn, _notifications_history
+        import uuid
+
+        short_cid = str(cid)[:8].upper()
+        amt = None
+        if claim.canonical_json and isinstance(claim.canonical_json, dict):
+            amt = claim.canonical_json.get("total_amount") or claim.canonical_json.get("claimed_amount") or claim.canonical_json.get("total_claim_amount")
+        amt_str = f" for ₹{int(float(amt)):,}" if amt else ""
+        payer_name = getattr(claim, 'insurance_company', None)
+        if not payer_name:
+            try:
+                sub = db.query(Submission).filter(Submission.claim_id == cid).order_by(Submission.created_at.desc()).first()
+                if sub and sub.payer:
+                    payer_name = sub.payer
+            except Exception:
+                pass
+        if not payer_name and getattr(claim, 'canonical_json', None) and isinstance(claim.canonical_json, dict):
+            ins = claim.canonical_json.get("insurance") or {}
+            if isinstance(ins, dict):
+                payer_name = ins.get("company") or ins.get("insurance_company") or ins.get("payer") or ins.get("tpa")
+            if not payer_name:
+                payer_name = claim.canonical_json.get("insurance_company") or claim.canonical_json.get("payer") or claim.canonical_json.get("tpa")
+        payer_name = payer_name or "your insurance provider"
+
+        action_titles = {
+            "approve": "ClaimsGuru: Claim Approved ✅",
+            "reject": "ClaimsGuru: Claim Update ⚠️",
+            "request_docs": "ClaimsGuru: Additional Documents Requested 📄",
+            "send_back": "ClaimsGuru: Modification Requested 📝",
+            "send_money": "ClaimsGuru: Claim Settled 💰",
+        }
+        action_bodies = {
+            "approve": f"Your cashless hospital claim (#{short_cid}){amt_str} has been approved by {payer_name}.",
+            "reject": f"Your claim (#{short_cid}) status was updated to Rejected by {payer_name}. Reason: {reason or 'Not specified'}",
+            "request_docs": f"{payer_name} requested documents for claim #{short_cid}: {', '.join(requested_docs) if requested_docs else (reason or 'Please review requirements.')}",
+            "send_back": f"{payer_name} requested modifications for claim #{short_cid}: {reason or 'Please review details.'}",
+            "send_money": f"Claim #{short_cid} settlement amount has been disbursed by {payer_name}.",
+        }
+        push_title = action_titles.get(action, "ClaimsGuru: Claim Status Update")
+        push_body = action_bodies.get(action, f"Claim status updated to {new_status}")
+
+        send_push_notification(SendPushNotificationIn(
+            user_id_or_email=claim.patient_id or None,
+            title=push_title,
+            body=push_body,
+            data={"claimId": str(cid), "status": new_status, "action": action},
+        ))
+
+        # Record in notifications history for real-time app poller
+        _notifications_history.append({
+            "id": str(uuid.uuid4()),
+            "claim_id": str(cid),
+            "title": push_title,
+            "message": push_body,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "status": new_status,
+            "action": action,
+        })
+        logger.info("[Push] Triggered push notification for TPA action '%s' on claim %s", action, short_cid)
+    except Exception as _push_err:
+        logger.warning("Failed to dispatch push notification for submission TPA action: %s", _push_err)
+
     return {
         "status": "success",
         "action": action,
