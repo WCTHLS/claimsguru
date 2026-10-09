@@ -3,8 +3,7 @@
 > **Target Platform**: Microsoft Azure  
 > **Resource Group**: `claimsGuru`  
 > **Primary Regions**: Central India (`centralindia`), East US (`eastus`), Global  
-> **Architecture Style**: Cloud-Native Event-Driven Microservices on Azure Container Apps (ACA)  
-> **Author**: Senior Cloud Architect & DevOps Lead  
+> **Architecture Style**: Cloud-Native Event-Driven Microservices on Azure Container Apps (ACA)
 > **Last Updated**: October 2026  
 
 ---
