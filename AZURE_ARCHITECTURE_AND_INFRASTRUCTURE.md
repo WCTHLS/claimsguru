@@ -212,7 +212,109 @@ Below is the comprehensive technical, operational, and financial analysis:
 
 ---
 
-## 6. Summary
+## 6. How We Deploy Code from Local Development to Azure
+
+Deploying code from local development to the live Azure environment is executed using a **two-tier release pipeline** combining **Docker & Azure Container Registry (ACR)** for application packaging with **Azure Bicep** for cloud infrastructure and container orchestration:
+
+```mermaid
+flowchart LR
+    subgraph LocalDev["1. Local Machine"]
+        Code["Source Code\n(Python & Next.js)"]
+        DockerBuild["Docker Build\n(Dockerfile.core & Dockerfile.web)"]
+    end
+
+    subgraph AzureRegistry["2. Azure Container Registry"]
+        ACR["acrclaimsgurupreprod.azurecr.io\n- claimsguru-core:preprod-latest\n- claimsguru-frontend:preprod-latest"]
+    end
+
+    subgraph AzureIaC["3. Azure Bicep (IaC)"]
+        Bicep["infra/azure/main.bicep\n- Configures 22 PaaS Resources\n- Injects DB & Redis URLs\n- Deploys Container Revisions"]
+    end
+
+    subgraph AzureRuntime["4. Live Container Apps (ACA)"]
+        IngressApp["cg-preprod-cin-ingress"]
+        FrontendApp["cg-preprod-cin-frontend"]
+        OcrWorker["cg-preprod-cin-worker-ocr"]
+        DefaultWorker["cg-preprod-cin-worker-default"]
+    end
+
+    Code --> DockerBuild
+    DockerBuild -->|docker push| ACR
+    Bicep -->|Provisions / Updates| AzureRuntime
+    ACR -->|Pulls Image Revisions| AzureRuntime
+```
+
+### 6.1 The Two-Tier Release Model
+
+1. **Application Packaging (Docker + ACR)**:
+   * **Bicep does not compile your Python or Next.js code**; Bicep only declares infrastructure.
+   * Your code is compiled and packaged into two immutable, production-hardened Linux container images:
+     - **`claimsguru-core`** (built from [`infra/docker/Dockerfile.core`](file:///c:/Project/claimsguru/infra/docker/Dockerfile.core)): Contains FastAPI Gateway, Ingress, Celery workers, WeasyPrint, and pre-cached clinical RAG models.
+     - **`claimsguru-frontend`** (built from [`infra/docker/Dockerfile.web`](file:///c:/Project/claimsguru/infra/docker/Dockerfile.web)): Contains the optimized Next.js 14 production standalone bundle.
+   * These images are pushed to **Azure Container Registry (ACR)** (`acrclaimsgurupreprod.azurecr.io`).
+
+2. **Infrastructure & Service Wiring (Azure Bicep)**:
+   * [`infra/azure/main.bicep`](file:///c:/Project/claimsguru/infra/azure/main.bicep) declares all 22 managed cloud resources.
+   * When Bicep is applied, it reads the image tags in ACR, spins up new **Container App Revisions**, injects secure connection strings (Key Vault secrets, SQL, Service Bus, Redis), and routes traffic with **zero downtime**.
+
+---
+
+### 6.2 Step-by-Step Deployment Commands
+
+If deploying manually or from a CI/CD runner, the workflow is:
+
+#### Step 1: Authenticate with Azure & ACR
+```powershell
+az login
+az account set --subscription "<subscription-id>"
+az acr login --name acrclaimsgurupreprod
+```
+
+#### Step 2: Build & Push Container Images to ACR
+```powershell
+# Core image (API Gateway, Ingress, Celery OCR & Parser Workers)
+docker build -t acrclaimsgurupreprod.azurecr.io/claimsguru-core:preprod-latest -f infra/docker/Dockerfile.core .
+docker push acrclaimsgurupreprod.azurecr.io/claimsguru-core:preprod-latest
+
+# Frontend UI image (Next.js 14)
+docker build -t acrclaimsgurupreprod.azurecr.io/claimsguru-frontend:preprod-latest -f infra/docker/Dockerfile.web .
+docker push acrclaimsgurupreprod.azurecr.io/claimsguru-frontend:preprod-latest
+```
+
+#### Step 3: Trigger Cloud Infrastructure & Revision Deployment via Bicep
+```powershell
+az deployment group create `
+    --resource-group claimsGuru `
+    --template-file infra/azure/main.bicep `
+    --parameters location=centralindia `
+                 acrLoginServer=acrclaimsgurupreprod.azurecr.io `
+                 imageTag=preprod-latest
+```
+
+---
+
+### 6.3 Automated 1-Command Deployment Script
+
+To eliminate manual typing and ensure reproducibility across environments (`stage`, `preprod`, `prod`), the entire 3-step pipeline is encapsulated into automated scripts:
+* **PowerShell**: [`deploy_claimsguru_azure.ps1`](file:///c:/Project/claimsguru/deploy_claimsguru_azure.ps1)
+* **Bash**: [`deploy_claimsguru_azure.sh`](file:///c:/Project/claimsguru/deploy_claimsguru_azure.sh)
+
+To deploy current local code directly to the live Pre-Prod cloud environment:
+```powershell
+.\deploy_claimsguru_azure.ps1 -Environment preprod
+```
+
+**What the script executes automatically:**
+1. Validates Azure CLI login and subscription permissions.
+2. Registers required resource providers (`Microsoft.App`, `Microsoft.ContainerService`, etc.).
+3. Authenticates Docker to `acrclaimsgurupreprod`.
+4. Builds and pushes both container images (`claimsguru-core` and `claimsguru-frontend`).
+5. Executes `main.bicep` with the environment parameter file.
+6. Runs an automated smoke test (`Invoke-RestMethod https://<ingress-url>/health`) to verify system health before completing.
+
+---
+
+## 7. Summary
 
 The present architecture on **Azure Container Apps** delivers an enterprise-ready, HIPAA/IRDAI-compliant cloud platform specifically tailored for high-concurrency healthcare processing:
 
