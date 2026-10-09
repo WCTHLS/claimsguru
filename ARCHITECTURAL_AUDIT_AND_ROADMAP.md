@@ -172,14 +172,16 @@ graph TD
 
 ## 6. Priority Implementation Roadmap
 
-1. **Phase 1: Resilience & Connection Stability**
-   * Implement Redis caching for claim progress queries to protect the MSSQL pool.
-   * Deploy the 5-minute Celery Reaper Cron to eradicate stranded zombie claims.
+1. **Phase 1: Resilience & Connection Stability [COMPLETED]**
+   * [x] **Redis Caching**: Active pipeline queries cached with 3–5s TTL, completed/failed claims cached with 300s TTL.
+   * [x] **Zombie / Stalled Detection**: $>5$ min worker inactivity automatically transitions `WorkflowState` to `status: "STALLED"`, `is_stalled: true`, `can_retry: true`.
+   * [x] **Graceful UI Recovery**: Polling halts endless spinner; displays amber **"Pipeline Stalled"** badge with a one-click **"Restart AI Analysis"** button (`RotateCcw`).
+   * [x] **Seamless Reprocessing**: `POST /claims/{claim_id}/retry` and `/reprocess` invalidates Redis cache and immediately re-enqueues OCR and downstream stages without requiring document re-upload.
 2. **Phase 2: API Contract Hardening**
    * Refactor `/submission/claims/{id}/preview` to return a strictly validated Pydantic model.
    * Eliminate defensive multi-alias chains across the frontend codebase.
 3. **Phase 3: Codebase Modularization**
-   * Refactor `services/ingress/app/main.py` (4,628 lines) into domain routers.
+   * Refactor `services/ingress/app/main.py` into domain routers (`routers/auth.py`, `routers/claims.py`, `routers/documents.py`).
    * Wrap high-complexity UI modals in React Error Boundaries with graceful fallbacks.
 4. **Phase 4: Real-Time Event Streaming**
    * Implement Server-Sent Events (SSE) to replace 1-second polling completely.

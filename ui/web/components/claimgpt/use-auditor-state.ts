@@ -14,6 +14,7 @@ import {
   fetchLatestClaimId,
   fetchRecentClaims,
   fetchClaimProgress,
+  retryClaimProcessing,
   deleteClaimApi,
   deleteClaimDocumentApi,
   isMockId,
@@ -147,6 +148,11 @@ export function useAuditorState() {
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [realPreview, setRealPreview] = useState<RealClaimPreview | null>(null);
+
+  /* Stalled / Zombie pipeline state */
+  const [isStalled, setIsStalled] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [stalledMessage, setStalledMessage] = useState<string | null>(null);
 
   /* Incremented each time realPreview is set with real data — used as key for MetaField remount */
   const [previewVersion, setPreviewVersion] = useState(0);
@@ -355,6 +361,7 @@ export function useAuditorState() {
           "IDENTITY_MISMATCH",
           "FAILED",
           "WORKFLOW_FAILED",
+          "STALLED",
         ]);
 
         // Find all background active claims that need progress polling (the current active claim is dedicatedly managed)
@@ -364,7 +371,7 @@ export function useAuditorState() {
           const st = (c.status || "").toUpperCase();
           if (TERMINAL_STATUSES.has(st)) return false;
           const curMap = claimProgressMap[c.id];
-          if (curMap && curMap.percentage >= 100) return false;
+          if (curMap && (curMap.percentage >= 100 || curMap.status === "STALLED")) return false;
           return true;
         });
 
@@ -403,6 +410,22 @@ export function useAuditorState() {
               setClaimProgressMap((prev) => ({
                 ...prev,
                 [c.id]: { percentage: 0, step: "Identity Mismatch", status: "IDENTITY_MISMATCH" }
+              }));
+              continue;
+            }
+
+            if (statusInfo.status === "STALLED" || statusInfo.is_stalled || (statusInfo.status === "FAILED" && !statusInfo.is_complete)) {
+              if (isSelected) {
+                setAnalyzing(false);
+                isAnalyzingRef.current = false;
+                setIsStalled(true);
+                const errMsg = statusInfo.error || "Analysis was interrupted or stalled. Please restart analysis.";
+                setStalledMessage(errMsg);
+                setStepDescription(errMsg);
+              }
+              setClaimProgressMap((prev) => ({
+                ...prev,
+                [c.id]: { percentage: statusInfo.percentage || 30, step: statusInfo.step || "Processing Stalled", status: "STALLED" }
               }));
               continue;
             }
@@ -538,6 +561,18 @@ export function useAuditorState() {
             return;
           }
 
+          if (statusInfo?.status === "STALLED" || statusInfo?.is_stalled) {
+            setAnalyzing(false);
+            isAnalyzingRef.current = false;
+            setIsLiveSessionCompleted(false);
+            setIsStalled(true);
+            const errMsg = statusInfo.error || "Analysis was interrupted or stalled. Click 'Restart AI Analysis' to resume.";
+            setStalledMessage(errMsg);
+            setStepDescription(errMsg);
+            setProgress(statusInfo.percentage || 30);
+            return;
+          }
+
           const isComplete = isKnownTerminal || Boolean(prevData) || (!statusInfo?.not_found && statusInfo?.status !== "NOT_FOUND" && Boolean(
             statusInfo?.is_complete ||
             (statusInfo?.percentage ?? 0) >= 100 ||
@@ -651,6 +686,22 @@ export function useAuditorState() {
     setIsUploadOpen(false); // Auto-collapse upload dropdown when selecting claims
     setEdited({}); // Reset edit badges from previous claim
     setRealPreview(null); // Reset preview to prevent state bleeding
+    setIsStalled(false);
+    setStalledMessage(null);
+
+    if (rawStatus === "STALLED" || liveProgress?.status === "STALLED") {
+      setAnalyzing(false);
+      isAnalyzingRef.current = false;
+      setIsLiveSessionCompleted(false);
+      setIsStalled(true);
+      const errMsg = (liveProgress as any)?.error || "Analysis was interrupted or stalled. Click 'Restart AI Analysis' to resume.";
+      setStalledMessage(errMsg);
+      setStepDescription(errMsg);
+      const stalledPct = liveProgress?.percentage || 30;
+      progressRef.current = stalledPct;
+      setProgress(stalledPct);
+      return;
+    }
 
     if (isKnownActive) {
       setAnalyzing(true);
@@ -900,13 +951,33 @@ export function useAuditorState() {
           return;
         }
 
+        if (statusInfo.status === "STALLED" || statusInfo.is_stalled) {
+          setAnalyzing(false);
+          isAnalyzingRef.current = false;
+          setIsLiveSessionCompleted(false);
+          setIsStalled(true);
+          const errorDetail = statusInfo.error || "Analysis stalled due to worker timeout or interruption. Click 'Restart AI Analysis' to resume.";
+          setStalledMessage(errorDetail);
+          setStepDescription(errorDetail);
+          dataArrived = true;
+          clearInterval(pollInterval);
+          if (activePollRef.current === pollInterval) activePollRef.current = null;
+          toast({
+            title: "Pipeline Stalled",
+            description: errorDetail,
+            variant: "destructive",
+          });
+          reloadRecentClaims();
+          return;
+        }
+
         if (statusInfo.status === "FAILED") {
           setAnalyzing(false);
           isAnalyzingRef.current = false;
           setIsLiveSessionCompleted(false);
-          setProgress(0);
-          setActiveStage('staged');
+          setIsStalled(true);
           const errorDetail = (statusInfo as any).error || statusInfo.step || "Processing failed in the backend pipeline. Please check the logs or retry.";
+          setStalledMessage(errorDetail);
           setStepDescription(errorDetail);
           dataArrived = true;
           clearInterval(pollInterval);
@@ -989,6 +1060,9 @@ export function useAuditorState() {
     }
     setIsDocumentsRequested(false);
     setMissingGroups([]);
+    setIsStalled(false);
+    setIsRetrying(false);
+    setStalledMessage(null);
 
     setAnalyzing(true);
     isAnalyzingRef.current = true;
@@ -1121,6 +1195,9 @@ export function useAuditorState() {
     activeClaimIdRef.current = null;
     setIsDocumentsRequested(false);
     setMissingGroups([]);
+    setIsStalled(false);
+    setIsRetrying(false);
+    setStalledMessage(null);
 
     setAnalyzing(true);
     isAnalyzingRef.current = true;
@@ -1188,6 +1265,57 @@ export function useAuditorState() {
       setProgress(0);
       setActiveStage('staged');
       setStepDescription("Upload failed. Please retry.");
+    }
+  };
+
+  /* Restart AI Analysis for stalled or failed claims without re-uploading documents */
+  const retryClaimAnalysis = async (targetId?: string) => {
+    const claimToRetry = targetId || claimId || activeClaimIdRef.current;
+    if (!claimToRetry) return;
+
+    if (activePollRef.current) {
+      clearInterval(activePollRef.current);
+      activePollRef.current = null;
+    }
+
+    setIsRetrying(true);
+    setIsStalled(false);
+    setStalledMessage(null);
+    setAnalyzing(true);
+    isAnalyzingRef.current = true;
+    updateProgressAndStage(10, "Restarting AI analysis pipeline...");
+
+    try {
+      const res = await retryClaimProcessing(claimToRetry);
+      if (res.success) {
+        toast({
+          title: "AI Analysis Restarted",
+          description: "Claim has been re-queued for processing.",
+        });
+        runProgressSequence(claimToRetry);
+      } else {
+        setIsStalled(true);
+        setStalledMessage(res.message || "Failed to restart analysis. Please try again.");
+        setAnalyzing(false);
+        isAnalyzingRef.current = false;
+        toast({
+          title: "Restart Failed",
+          description: res.message || "Failed to re-enqueue claim.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      setIsStalled(true);
+      setStalledMessage(err?.message || "Failed to restart analysis.");
+      setAnalyzing(false);
+      isAnalyzingRef.current = false;
+      toast({
+        title: "Restart Failed",
+        description: err?.message || "Unexpected error restarting analysis.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -1448,6 +1576,11 @@ export function useAuditorState() {
     saveDetails,
     refreshClaim,
     claimProgressMap,
+    /* Stalled pipeline recovery */
+    isStalled,
+    isRetrying,
+    stalledMessage,
+    retryClaimAnalysis,
   };
 }
 

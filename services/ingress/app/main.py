@@ -3778,8 +3778,29 @@ def get_claim_progress(claim_id: str):
         is_failed = (state.status == "FAILED") or (state.current_step == "FAILED") or (state.current_step == "IDENTITY_MISMATCH")
         is_complete = bool(percentage == 100 or (is_failed and state.current_step != "IDENTITY_MISMATCH"))
 
+        # Stalled Pipeline Detection: If claim is in RUNNING state but has had no worker updates for > 5 minutes
+        is_stalled = False
         error_message: str | None = None
-        if is_failed:
+
+        if not is_complete and not is_failed and getattr(state, "updated_at", None):
+            try:
+                from datetime import datetime, timezone, timedelta
+                now_utc = datetime.now(timezone.utc)
+                state_updated_utc = state.updated_at if state.updated_at.tzinfo else state.updated_at.replace(tzinfo=timezone.utc)
+                if (now_utc - state_updated_utc) > timedelta(minutes=5):
+                    is_stalled = True
+                    is_failed = True
+                    step = "Processing Stalled"
+                    error_message = "Analysis stalled due to worker timeout or interruption. You can restart analysis."
+                    try:
+                        state.status = "STALLED"
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+            except Exception:
+                pass
+
+        if is_failed and not is_stalled:
             # Surface the claim notes or most recent job error message so the UI can show *why*
             # the upload stopped, instead of polling forever on 0%.
             try:
@@ -3811,17 +3832,25 @@ def get_claim_progress(claim_id: str):
             if not error_message:
                 error_message = "Pipeline failed. See server logs for details."
 
-        status_str = "IDENTITY_MISMATCH" if state.current_step == "IDENTITY_MISMATCH" else state.status
+        if is_stalled:
+            status_str = "STALLED"
+        elif state.current_step == "IDENTITY_MISMATCH":
+            status_str = "IDENTITY_MISMATCH"
+        else:
+            status_str = state.status
+
         result = {
             "status": status_str,
             "step": step,
             "percentage": percentage,
             "is_complete": is_complete,
+            "is_stalled": is_stalled,
+            "can_retry": bool(is_stalled or is_failed),
             "error": error_message,
         }
 
-        # Cache response: 300s TTL for completed/failed terminal claims, 3s for active in-progress claims
-        ttl = 300 if is_complete else 3
+        # Cache response: 300s TTL for completed/failed terminal claims, 5s for stalled, 3s for active in-progress claims
+        ttl = 300 if (is_complete and not is_stalled) else (5 if is_stalled else 3)
         set_claim_progress_cache(str(cid), result, ttl=ttl)
 
         return result
@@ -4470,6 +4499,13 @@ def reprocess_claim_endpoint(
         # Reset workflow state
         upsert_workflow_state(db, cid, "STARTING", status="RUNNING")
         db.commit()
+
+        # Invalidate progress cache so next client poll immediately sees fresh STARTING status
+        try:
+            from libs.shared.redis_cache import invalidate_claim_progress_cache
+            invalidate_claim_progress_cache(str(cid))
+        except Exception:
+            pass
 
         task_id = _enqueue_pipeline(str(cid))
         logger.info("Claim %s reprocessing queued with task ID %s", claim_id, task_id)

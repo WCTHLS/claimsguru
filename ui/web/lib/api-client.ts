@@ -316,7 +316,16 @@ export async function uploadClaimDocument(
 /**
  * Poll processing progress safely — checks both ingress progress & submission preview readiness
  */
-export async function fetchClaimProgress(claimId: string): Promise<{ percentage: number; step: string; status: string; is_complete: boolean; not_found?: boolean; error?: string }> {
+export async function fetchClaimProgress(claimId: string): Promise<{
+  percentage: number;
+  step: string;
+  status: string;
+  is_complete: boolean;
+  not_found?: boolean;
+  is_stalled?: boolean;
+  can_retry?: boolean;
+  error?: string;
+}> {
   if (isMockId(claimId)) {
     return { percentage: 100, step: "COMPLETED", status: "COMPLETED", is_complete: true };
   }
@@ -347,12 +356,25 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
           };
         }
 
+        if (statusStr === "STALLED" || data.is_stalled) {
+          return {
+            percentage: pct || 30,
+            step: stepStr || "Processing Stalled",
+            status: "STALLED",
+            is_complete: false,
+            is_stalled: true,
+            can_retry: true,
+            error: data.error || "Analysis was interrupted or worker timed out. Click 'Restart AI Analysis' to resume.",
+          };
+        }
+
         if (statusStr === "FAILED") {
           return {
             percentage: 0,
             step: stepStr || "Processing Failed",
             status: "FAILED",
             is_complete: false,
+            can_retry: true,
             error: data.error || "Claim processing failed. Please retry.",
           };
         }
@@ -424,6 +446,36 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
     /* safe catch */
   }
   return { percentage: 20, step: "OCR (extracting text)", status: "UPLOADED", is_complete: false };
+}
+
+/**
+ * Trigger reprocessing / retry for a stalled, failed, or interrupted claim
+ */
+export async function retryClaimProcessing(claimId: string): Promise<{ success: boolean; message?: string; task_id?: string }> {
+  if (isMockId(claimId)) {
+    return { success: true, message: "Claim analysis restarted" };
+  }
+  try {
+    const res = await safeFetch(`${INGRESS_API}/claims/${claimId}/retry`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    }, 15000);
+    if (res && res.ok) {
+      const data = await res.json();
+      return { success: true, message: data.message || "Claim reprocessing triggered", task_id: data.task_id };
+    }
+    const fallbackRes = await safeFetch(`${INGRESS_API}/claims/${claimId}/reprocess`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    }, 15000);
+    if (fallbackRes && fallbackRes.ok) {
+      const data = await fallbackRes.json();
+      return { success: true, message: data.message || "Claim reprocessing triggered", task_id: data.task_id };
+    }
+  } catch (err) {
+    console.warn("Failed to retry claim processing:", err);
+  }
+  return { success: false, message: "Could not trigger claim retry. Please try again." };
 }
 
 /**
