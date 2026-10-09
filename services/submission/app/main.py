@@ -811,27 +811,19 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
 
     icd_list = []
     for c in icd_codes_sorted:
+        is_explicit = (c.confidence or 0.0) >= 0.99
         c_meta = _lookup_meta(c.code) if _lookup_meta else None
         c_includes = getattr(c, "code_includes", None) or (c_meta.get("code_includes") if c_meta else None)
-        c_other = getattr(c, "other_matches", None)
-        if not c_other and _search_rag:
-            try:
-                raw_hits = _search_rag(c.description or c.code, max_results=5)
-                alts = []
-                for h_code, h_desc, _h_cat, h_score in raw_hits:
-                    if h_code != c.code:
-                        h_meta = _lookup_meta(h_code) if _lookup_meta else None
-                        alts.append({
-                            "code": h_code,
-                            "description": h_desc,
-                            "confidence": round(float(h_score), 2) if h_score <= 1 else 0.85,
-                            "code_includes": h_meta.get("code_includes") if h_meta else None,
-                        })
-                        if len(alts) >= 2:
-                            break
-                c_other = alts
-            except Exception:
-                c_other = []
+        
+        if is_explicit:
+            doc_mention = "ICD-10 code explicitly present in document"
+            if not c_includes:
+                c_includes = doc_mention
+            elif doc_mention not in c_includes:
+                c_includes = f"{doc_mention} | {c_includes}"
+            c_other = []
+        else:
+            c_other = getattr(c, "other_matches", None) or []
 
         icd_list.append({
             "code": c.code,

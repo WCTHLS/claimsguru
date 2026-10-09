@@ -251,9 +251,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const initialIcdCodes = useMemo(() => {
     const rawList = preview?.icd_codes?.length ? preview.icd_codes : [];
     return rawList.map((item: any) => {
-      // Sibling fallback if backend hasn't populated other_matches
-      let alts = item.other_matches || [];
-      if (!alts.length && item.code) {
+      const isExplicit = Boolean(
+        item.is_explicit ||
+        (item.confidence || 0) >= 0.99 ||
+        (typeof item.code_includes === 'string' && item.code_includes.toLowerCase().includes('explicitly present'))
+      );
+
+      // Sibling fallback ONLY if backend hasn't populated other_matches and code is NOT explicit
+      let alts = isExplicit ? [] : (item.other_matches || []);
+      if (!isExplicit && !alts.length && item.code) {
         if (item.code.startsWith('K44')) {
           alts = [
             {
@@ -287,16 +293,19 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         }
       }
 
-      const covers = item.code_includes || (
-        item.code === 'K44.0'
-          ? 'Code covers: hiatus hernia (oesophageal)(sliding) | paraoesophageal hernia | Diaphragmatic hernia: causing obstruction without gangrene | Diaphragmatic hernia: incarcerated without gangrene | Diaphragmatic hernia: irreducible without gangrene | Diaphragmatic hernia: strangulated without gangrene'
-          : undefined
-      );
+      const covers = isExplicit
+        ? (item.code_includes || 'ICD-10 code explicitly present in document')
+        : (item.code_includes || (
+          item.code === 'K44.0'
+            ? 'Code covers: hiatus hernia (oesophageal)(sliding) | paraoesophageal hernia | Diaphragmatic hernia: causing obstruction without gangrene | Diaphragmatic hernia: incarcerated without gangrene | Diaphragmatic hernia: irreducible without gangrene | Diaphragmatic hernia: strangulated without gangrene'
+            : undefined
+        ));
 
       return {
         ...item,
+        is_explicit: isExplicit,
         code_includes: covers,
-        other_matches: alts,
+        other_matches: isExplicit ? [] : alts,
       };
     });
   }, [preview?.icd_codes]);
@@ -1513,7 +1522,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               {icdCodes.length > 0 ? icdCodes.map((item, parentIdx) => {
                 const isOtherOpen = Boolean(expandedOtherMatches[item.code]);
                 const isTopDescOpen = Boolean(expandedCodeDesc[`top-${parentIdx}-${item.code}`]);
-                const otherMatches: any[] = item.other_matches || [];
+                const isExplicit = Boolean(
+                  item.is_explicit ||
+                  (item.confidence || 0) >= 0.99 ||
+                  (typeof item.code_includes === 'string' && item.code_includes.toLowerCase().includes('explicitly present'))
+                );
+                const otherMatches: any[] = isExplicit ? [] : (item.other_matches || []);
 
                 return (
                   <div key={`icd-${item.code}-${parentIdx}`} className="bg-slate-900/70 p-3.5 rounded-xl border border-white/5 space-y-3">
@@ -1524,18 +1538,32 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                           <span className="font-mono font-bold text-teal-300 bg-teal-500/10 border border-teal-500/25 px-2 py-0.5 rounded text-[11px]">
                             {item.code}
                           </span>
-                          <span className="text-[10px] font-semibold text-teal-400/80 bg-teal-400/10 px-1.5 py-0.5 rounded">
-                            Matched Code
-                          </span>
+                          {isExplicit ? (
+                            <span className="text-[10px] font-semibold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                              ICD code present in document
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-semibold text-teal-400/80 bg-teal-400/10 px-1.5 py-0.5 rounded">
+                              Matched Code
+                            </span>
+                          )}
                         </div>
                         <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full flex-none">
-                          {((item.confidence || 0.90) * 100).toFixed(0)}% Match
+                          {isExplicit ? '100% Match' : `${((item.confidence || 0.90) * 100).toFixed(0)}% Match`}
                         </span>
                       </div>
                       
                       <p className="text-slate-200 text-xs leading-relaxed font-semibold">
                         {item.description}
                       </p>
+
+                      {isExplicit && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-400/90 bg-emerald-950/30 border border-emerald-500/20 px-2.5 py-1.5 rounded-md mt-1">
+                          <CheckCircle2 className="h-3.5 w-3.5 flex-none text-emerald-400" />
+                          <span>ICD-10 code explicitly present in document</span>
+                        </div>
+                      )}
 
                       {/* Disclosure Button: Code Description & Covers for Top 1 */}
                       <div className="pt-1">
@@ -1570,7 +1598,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     </div>
 
                     {/* Disclosure Button: Other Closest Matches (Other 2 Codes) */}
-                    {otherMatches.length > 0 && (
+                    {!isExplicit && otherMatches.length > 0 && (
                       <div className="pt-1 border-t border-white/5">
                         <button
                           type="button"
