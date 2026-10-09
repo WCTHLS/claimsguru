@@ -745,7 +745,7 @@ export function DashboardClinical() {
                             </p>
                           </div>
                           <div className="pt-2 w-full max-w-sm space-y-2">
-                            <Button onClick={s.openReportModal} className="teal-gradient w-full h-11 text-sm font-semibold text-white shadow-lg cursor-pointer">
+                            <Button onClick={() => s.openReportModal()} className="teal-gradient w-full h-11 text-sm font-semibold text-white shadow-lg cursor-pointer">
                               <FileText className="mr-2 h-4 w-4" /> View AI Post-Processing Audit Report
                             </Button>
                             <button
@@ -1186,7 +1186,7 @@ export function DashboardClinical() {
 
                           {s.progress >= 100 && !s.analyzing && !s.isDocumentsRequested && !s.nameMismatchWarning ? (
                             <Button
-                              onClick={s.openReportModal}
+                              onClick={() => s.openReportModal()}
                               size="sm"
                               className="teal-gradient text-[11px] sm:text-xs font-semibold text-white shadow-md animate-scale-in h-7 sm:h-8 px-2 sm:px-3 rounded-lg cursor-pointer flex items-center gap-1"
                             >
@@ -1424,7 +1424,7 @@ export function DashboardClinical() {
                           <p className="text-xs text-muted-foreground">Hover a table row to highlight its source on the document.</p>
                         </div>
                         {s.progress >= 100 && !s.analyzing && !s.isDocumentsRequested && (
-                          <Button onClick={s.openReportModal} size="sm" className="teal-gradient text-xs font-semibold text-white cursor-pointer">
+                          <Button onClick={() => s.openReportModal()} size="sm" className="teal-gradient text-xs font-semibold text-white cursor-pointer">
                             <FileText className="mr-1.5 h-3.5 w-3.5" /> Full Audit Report
                           </Button>
                         )}

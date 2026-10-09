@@ -342,6 +342,7 @@ export function useAuditorState() {
 
     const pollAllActiveClaims = async () => {
       if (isPolling || !active) return;
+      if (typeof document !== "undefined" && document.hidden) return;
       isPolling = true;
       try {
         const TERMINAL_STATUSES = new Set([
@@ -467,7 +468,7 @@ export function useAuditorState() {
       }
     };
 
-    const interval = setInterval(pollAllActiveClaims, 1000);
+    const interval = setInterval(pollAllActiveClaims, 3500);
     return () => {
       active = false;
       clearInterval(interval);
@@ -641,7 +642,7 @@ export function useAuditorState() {
     const targetClaimMeta = recentClaims.find((c) => c.id === targetId);
     const rawStatus = (targetClaimMeta?.status || "").toUpperCase();
     const liveProgress = claimProgressMap[targetId] || targetClaimMeta?.progress;
-    const isLiveActive = Boolean(liveProgress && liveProgress.percentage > 0 && liveProgress.percentage < 100 && !liveProgress.is_complete);
+    const isLiveActive = Boolean(liveProgress && liveProgress.percentage > 0 && liveProgress.percentage < 100 && !(liveProgress as any).is_complete);
     const isTerminal = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "SUBMITTED" || rawStatus === "DOCUMENTS_REQUESTED" || rawStatus === "DOCUMENTS_UPLOADED" || rawStatus === "MODIFICATION_REQUESTED";
     const isKnownActive = !isTerminal && (isLiveActive || PIPELINE_ACTIVE_STATUSES.has(rawStatus));
 
@@ -837,6 +838,11 @@ export function useAuditorState() {
         return;
       }
 
+      // If user minimized or switched away from the browser tab, pause polling to conserve server load
+      if (typeof document !== "undefined" && document.hidden) {
+        return;
+      }
+
       // If user selected another claim, immediately cancel this polling loop
       if (activeClaimIdRef.current && targetClaimId && activeClaimIdRef.current !== targetClaimId) {
         clearInterval(pollInterval);
@@ -953,7 +959,7 @@ export function useAuditorState() {
           updateProgressAndStage(statusInfo.percentage, statusInfo.step ? `${statusInfo.step} - ${statusInfo.percentage}%` : undefined);
         }
       }
-    }, 400);
+    }, 1200);
     activePollRef.current = pollInterval;
   };
 
@@ -1318,8 +1324,8 @@ export function useAuditorState() {
           prev.map((c) => {
             if (c.id === idToSync) {
               const pf = (prevData.parsed_fields as Record<string, string>) || {};
-              const pol = pf.policy_number || pf.policy_id || prevData.policy_id || c.policy_number;
-              const ins = prevData.insurance_company || pf.insurance_company || pf.insurer || c.insurer;
+              const pol = pf.policy_number || pf.policy_id || prevData.policy_id || c.policy_number || c.policy_id;
+              const ins = (prevData as any).insurance_company || (prevData.summary as any)?.insurance_company || pf.insurance_company || pf.insurer || c.insurer || c.insurance_company;
               return {
                 ...c,
                 policy_number: pol,

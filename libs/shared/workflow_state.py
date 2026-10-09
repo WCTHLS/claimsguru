@@ -63,6 +63,12 @@ def upsert_workflow_state(
             state.status = status or state.status or "RUNNING"
         db.flush()
 
+    try:
+        from libs.shared.redis_cache import invalidate_claim_progress_cache
+        invalidate_claim_progress_cache(str(cid))
+    except Exception:
+        pass
+
     return (
         db.query(WorkflowState)
         .filter(WorkflowState.claim_id == cid)
