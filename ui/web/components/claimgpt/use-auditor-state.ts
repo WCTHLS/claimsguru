@@ -510,15 +510,19 @@ export function useAuditorState() {
           setClaimId(latestId);
           setIsUploadOpen(false); // Collapse upload panel when existing claim is loaded
 
-          const statusInfo = await fetchClaimProgress(latestId);
-          if (statusInfo?.not_found || statusInfo?.status === "NOT_FOUND") {
-            setClaimId(null);
-            setRealPreview(null);
-            setFiles([]);
-            setProgress(0);
-            setActiveStage('staged');
-            setIsUploadOpen(true);
-            return;
+          const targetClaimMeta = claimsList.find((c) => c.id === latestId);
+          const rawStatus = (targetClaimMeta?.status || "").toUpperCase();
+          const isKnownTerminal = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "SUBMITTED" || rawStatus === "DOCUMENTS_REQUESTED" || rawStatus === "DOCUMENTS_UPLOADED";
+
+          // Fetch progress and preview concurrently to prevent waterfall and 2.5s false timeouts
+          const [statusInfo, prevData] = await Promise.all([
+            fetchClaimProgress(latestId),
+            fetchClaimPreview(latestId),
+          ]);
+
+          if (prevData) {
+            setRealPreview(prevData);
+            setPreviewVersion((v) => v + 1);
           }
 
           if (statusInfo?.status === "IDENTITY_MISMATCH" || statusInfo?.step?.includes("Identity Mismatch")) {
@@ -534,7 +538,7 @@ export function useAuditorState() {
             return;
           }
 
-          const isComplete = !statusInfo?.not_found && statusInfo?.status !== "NOT_FOUND" && statusInfo?.status !== "IDENTITY_MISMATCH" && Boolean(
+          const isComplete = isKnownTerminal || Boolean(prevData) || (!statusInfo?.not_found && statusInfo?.status !== "NOT_FOUND" && Boolean(
             statusInfo?.is_complete ||
             (statusInfo?.percentage ?? 0) >= 100 ||
             statusInfo?.status === "COMPLETED" ||
@@ -544,7 +548,7 @@ export function useAuditorState() {
             statusInfo?.status === "APPROVED" ||
             statusInfo?.status === "SETTLED" ||
             statusInfo?.status === "REJECTED"
-          );
+          ));
 
           if (!isComplete) {
             setAnalyzing(true);
@@ -553,12 +557,7 @@ export function useAuditorState() {
             updateProgressAndStage(livePct, statusInfo?.step ? `${statusInfo.step} - ${livePct}%` : undefined);
             runProgressSequence(latestId);
           } else {
-            const prevData = await fetchClaimPreview(latestId);
-            if (prevData) {
-              setRealPreview(prevData);
-              setPreviewVersion((v) => v + 1);
-            }
-            const statusUpper = (prevData?.status || statusInfo?.status || "").toUpperCase();
+            const statusUpper = (prevData?.status || rawStatus || statusInfo?.status || "").toUpperCase();
             if (statusUpper === "DOCUMENTS_REQUESTED" || statusUpper === "MANUAL_REVIEW_REQUIRED") {
               setAnalyzing(false);
               setIsLiveSessionCompleted(false);
@@ -693,13 +692,15 @@ export function useAuditorState() {
   }, [analyzing]);
 
   /* Dynamically extracted metadata fields from backend preview */
+  const selectedClaimMeta = recentClaims.find((c) => c.id === (claimId || activeClaimIdRef.current));
+
   const extractedPatient = realPreview?.summary?.patient_name && realPreview.summary.patient_name !== "N/A"
     ? realPreview.summary.patient_name
-    : realPreview?.parsed_fields?.patient_name || realPreview?.parsed_fields?.member_name || realPreview?.parsed_fields?.insured_name;
+    : realPreview?.parsed_fields?.patient_name || realPreview?.parsed_fields?.member_name || realPreview?.parsed_fields?.insured_name || selectedClaimMeta?.patient_name;
 
   const extractedHospital = realPreview?.summary?.hospital && realPreview.summary.hospital !== "N/A"
     ? realPreview.summary.hospital
-    : realPreview?.parsed_fields?.hospital_name || realPreview?.parsed_fields?.hospital;
+    : realPreview?.parsed_fields?.hospital_name || realPreview?.parsed_fields?.hospital || selectedClaimMeta?.hospital_name;
 
   const extractedAdmission = realPreview?.summary?.admission_date && realPreview.summary.admission_date !== "N/A"
     ? realPreview.summary.admission_date
@@ -711,7 +712,7 @@ export function useAuditorState() {
 
   const extractedDiagnosis = realPreview?.summary?.diagnosis && realPreview.summary.diagnosis !== "N/A"
     ? realPreview.summary.diagnosis
-    : realPreview?.parsed_fields?.diagnosis || realPreview?.parsed_fields?.primary_diagnosis;
+    : realPreview?.parsed_fields?.diagnosis || realPreview?.parsed_fields?.primary_diagnosis || selectedClaimMeta?.diagnosis;
 
   const hasClaim = Boolean(claimId || realPreview);
   const patientName = extractedPatient || (analyzing ? "Processing..." : "");

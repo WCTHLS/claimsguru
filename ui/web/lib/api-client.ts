@@ -326,7 +326,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
     const res = await safeFetch(`${INGRESS_API}/claims/${claimId}/progress?t=${Date.now()}`, {
       cache: "no-store",
       headers: getAuthHeaders(),
-    }, 2500);
+    }, 6000);
     if (res) {
       if (res.status === 404) {
         return { percentage: 0, step: "Claim not found", status: "NOT_FOUND", is_complete: false, not_found: true };
@@ -377,7 +377,7 @@ export async function fetchClaimProgress(claimId: string): Promise<{ percentage:
     const statusRes = await safeFetch(`${INGRESS_API}/claims/${claimId}/status?t=${Date.now()}`, {
       cache: "no-store",
       headers: getAuthHeaders(),
-    }, 2500);
+    }, 6000);
     if (statusRes) {
       if (statusRes.status === 404) {
         return { percentage: 0, step: "Claim not found", status: "NOT_FOUND", is_complete: false, not_found: true };

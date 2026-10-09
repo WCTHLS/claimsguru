@@ -31,8 +31,8 @@ _DOC_TYPE_PATTERNS: list[tuple[str, str, re.Pattern]] = [
         r"(?=.*?\b(?:reference\s+range|ref\s+range|ref\.\s+range|biological\s+reference|observed\s+value|normal\s+range|result\s+unit|units?\s+result|interpretation|flag)\b)"
         r"(?=.*?\b(?:lab(?:oratory)?\s+(?:report|test|result|investigation)|blood\s+(?:test|report)|CBC|LFT|KFT|RFT|urine|pathology|hematology|biochemistry|culture|serology|biopsy|histopath)\b)", re.I | re.S)),
     ("BILL_INVOICE", "Hospital Bill / Invoice", re.compile(
-        r"\b(?:hospital\s+bill|bill\s+(?:summary|detail|no|number|date)|invoice|receipt|payment|"
-        r"itemized\s+bill|final\s+bill|interim\s+bill|estimated\s+cost)\b", re.I)),
+        r"\b(?:hospital\s+bill|patient\s+bill|inpatient\s+(?:hospital\s+)?bill|bill\s+(?:summary|detail|no|number|date|of\s+supply)|invoice|receipt|payment|"
+        r"itemized\s+bill|final\s+bill|interim\s+bill|estimated\s+cost|ward\s+charges|nursing\s+charges|room\s+charges|doctor\s+fees)\b", re.I)),
     ("PRESCRIPTION", "Prescription / Medication", re.compile(
         r"\b(?:prescription|Rx|medication\s+(?:list|order|chart)|drug\s+chart|treatment\s+sheet)\b", re.I)),
     ("RADIOLOGY_REPORT", "Radiology / Imaging Report", re.compile(
@@ -44,9 +44,9 @@ _DOC_TYPE_PATTERNS: list[tuple[str, str, re.Pattern]] = [
     ("CONSULTATION", "Consultation Note", re.compile(
         r"\b(?:consultation|consult\s+note|specialist\s+(?:opinion|report)|referral\s+letter)\b", re.I)),
     ("INSURANCE_FORM", "Insurance / Claim Form", re.compile(
-        r"\b(?:claim\s+form|insurance\s+(?:form|card|policy)|pre[\-\s]?auth|cashless|"
-        r"TPA|third\s+party|reimbursement\s+(?:form|claim)|bank\s+details|neft\s+settlement|"
-        r"cancelled\s+cheque|declaration|policy\s+(?:number|document))\b", re.I)),
+        r"\b(?:policy\s+schedule|member\s+schedule|e[\-\s]?health\s+card|claim\s+form|pre[\-\s]?auth(?:orization)?|cashless\s+request|"
+        r"reimbursement\s+(?:form|claim)|bank\s+details|neft\s+settlement|"
+        r"cancelled\s+cheque|policy\s+wording|policy\s+document)\b", re.I)),
     ("ID_DOCUMENT", "Identity Document", re.compile(
         r"\b(?:unique\s+identification|mera\s+aadhaar|government\s+of\s+india|"
         r"income\s+tax\s+department|election\s+commission|driving\s+licen[sc]e|passport|"
@@ -209,7 +209,7 @@ def classify_document(text: str, file_name: str) -> tuple[str, str]:
         if pattern.search(text):
             return code, label
 
-    return "UNKNOWN", "Unclassified Document"
+    return "UNKNOWN", "Unknown Document"
 
 
 def is_medical_document(text: str, file_name: str) -> tuple[bool, float, list[str]]:

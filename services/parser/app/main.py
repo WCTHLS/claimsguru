@@ -967,7 +967,7 @@ def _run_parse_job(job_id: uuid.UUID) -> None:
                         doc_pages = [p for p in combined_ocr_pages if str(p.get("document_id")) == str(c_doc.id)]
                         doc_text = " ".join(str(p.get("text", "")) for p in doc_pages)
                         
-                        d_type = classify_document(doc_pages) if doc_pages else "medical_document"
+                        d_type = classify_document(doc_pages) if doc_pages else "unknown_document"
                         
                         doc_hospital = ""
                         doc_insurer = ""
@@ -981,15 +981,18 @@ def _run_parse_job(job_id: uuid.UUID) -> None:
                             doc_hospital = RobustFieldExtractor.extract_field("hospital_name", doc_text) or ""
                             doc_total = RobustFieldExtractor.extract_field("total_amount", doc_text) or ""
 
+                        if doc_hospital and doc_hospital.lower() in ("inpatient hospital", "hospital bill", "patient bill", "hospital", "patient", "inpatient"):
+                            doc_hospital = ""
+
                         fields_map = {
-                            "hospital_name": doc_hospital or (global_hospital if d_type == "hospital_bill" else ""),
+                            "hospital_name": doc_hospital or (global_hospital if d_type in ("hospital_bill", "lab_report", "pharmacy_bill") else ""),
                             "patient_name": doc_patient or global_patient,
                             "claimed_total": doc_total or (global_total if d_type == "hospital_bill" else ""),
                             "insurance_company": doc_insurer or global_insurer,
                             "insurer": doc_insurer or global_insurer,
                             "tpa_name": doc_insurer or global_insurer,
                         }
-                        d_title = generate_smart_display_title(d_type, fields_map, c_doc.file_name)
+                        d_title = generate_smart_display_title(d_type, fields_map, c_doc.file_name, doc_pages)
                         c_doc.doc_type = d_type
                         c_doc.display_title = d_title
                         c_doc.page_count = len(doc_pages) if doc_pages else 1

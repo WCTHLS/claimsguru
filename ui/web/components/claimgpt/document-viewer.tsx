@@ -10,6 +10,7 @@ import {
   FileCheck,
   Stethoscope,
   FileSearch,
+  HelpCircle,
   Upload,
   Eye,
   EyeOff,
@@ -41,10 +42,13 @@ const cleanFallback = 'original_claim_document.pdf';
 
 const getDocIcon = (docType?: string | null) => {
   if (!docType) return FileText;
-  if (docType.includes('discharge')) return ShieldCheck;
-  if (docType.includes('bill')) return FileCheck;
-  if (docType.includes('diagnostic') || docType.includes('lab')) return Stethoscope;
-  return FileSearch;
+  const lower = docType.toLowerCase();
+  if (lower.includes('unknown')) return HelpCircle;
+  if (lower.includes('discharge')) return ShieldCheck;
+  if (lower.includes('bill')) return FileCheck;
+  if (lower.includes('diagnostic') || lower.includes('lab')) return Stethoscope;
+  if (lower.includes('policy') || lower.includes('insurance')) return FileSearch;
+  return FileText;
 };
 
 function createClaimPdfBlob(title: string): Blob {

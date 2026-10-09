@@ -3744,84 +3744,89 @@ def get_claim_status(claim_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/claims/{claim_id}/progress")
-def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
+def get_claim_progress(claim_id: str):
     cid = _parse_uuid(claim_id)
 
-    # 1. Fast Path: Check in-memory Redis cache (sub-millisecond response, zero DB queries)
+    # 1. Fast Path: Check in-memory Redis cache (sub-millisecond response, zero DB queries, zero DB connection checkout)
     cached = get_claim_progress_cache(str(cid))
     if cached:
         return cached
 
-    state = get_latest_workflow_state(db, cid)
+    # 2. Cache Miss: Open DB session lazily
+    db = SessionLocal()
+    try:
+        state = get_latest_workflow_state(db, cid)
 
-    # No workflow state yet: distinguish "claim does not exist" from
-    # "claim was created but the pipeline hasn't recorded any progress yet".
-    if not state:
-        claim = db.query(Claim).filter(Claim.id == cid).first()
-        if not claim:
-            raise HTTPException(status_code=404, detail="Claim not found")
-        # Claim exists but no state row — treat as queued, never as silently null.
-        queued_res = {
-            "status": "QUEUED",
-            "step": "Queued (waiting for worker)",
-            "percentage": 2,
-            "is_complete": False,
-            "error": None,
+        # No workflow state yet: distinguish "claim does not exist" from
+        # "claim was created but the pipeline hasn't recorded any progress yet".
+        if not state:
+            claim = db.query(Claim).filter(Claim.id == cid).first()
+            if not claim:
+                raise HTTPException(status_code=404, detail="Claim not found")
+            # Claim exists but no state row — treat as queued, never as silently null.
+            queued_res = {
+                "status": "QUEUED",
+                "step": "Queued (waiting for worker)",
+                "percentage": 2,
+                "is_complete": False,
+                "error": None,
+            }
+            set_claim_progress_cache(str(cid), queued_res, ttl=2)
+            return queued_res
+
+        step, percentage = _map_progress(state.current_step, state.status)
+        is_failed = (state.status == "FAILED") or (state.current_step == "FAILED") or (state.current_step == "IDENTITY_MISMATCH")
+        is_complete = bool(percentage == 100 or (is_failed and state.current_step != "IDENTITY_MISMATCH"))
+
+        error_message: str | None = None
+        if is_failed:
+            # Surface the claim notes or most recent job error message so the UI can show *why*
+            # the upload stopped, instead of polling forever on 0%.
+            try:
+                claim_rec = db.query(Claim).filter(Claim.id == cid).first()
+                if claim_rec and hasattr(claim_rec, "notes") and getattr(claim_rec, "notes", None):
+                    error_message = getattr(claim_rec, "notes")
+                
+                if not error_message:
+                    latest_parse = (
+                        db.query(ParseJob)
+                        .filter(ParseJob.claim_id == cid)
+                        .order_by(ParseJob.created_at.desc())
+                        .first()
+                    )
+                    if latest_parse and latest_parse.error_message:
+                        error_message = latest_parse.error_message
+                if not error_message:
+                    from libs.shared.models import OcrJob as _OcrJob
+                    latest_ocr = (
+                        db.query(_OcrJob)
+                        .filter(_OcrJob.claim_id == cid)
+                        .order_by(_OcrJob.created_at.desc())
+                        .first()
+                    )
+                    if latest_ocr and latest_ocr.error_message:
+                        error_message = latest_ocr.error_message
+            except Exception:
+                logger.exception("Failed to read latest job error for claim %s", cid)
+            if not error_message:
+                error_message = "Pipeline failed. See server logs for details."
+
+        status_str = "IDENTITY_MISMATCH" if state.current_step == "IDENTITY_MISMATCH" else state.status
+        result = {
+            "status": status_str,
+            "step": step,
+            "percentage": percentage,
+            "is_complete": is_complete,
+            "error": error_message,
         }
-        set_claim_progress_cache(str(cid), queued_res, ttl=2)
-        return queued_res
 
-    step, percentage = _map_progress(state.current_step, state.status)
-    is_failed = (state.status == "FAILED") or (state.current_step == "FAILED") or (state.current_step == "IDENTITY_MISMATCH")
-    is_complete = bool(percentage == 100 or (is_failed and state.current_step != "IDENTITY_MISMATCH"))
+        # Cache response: 300s TTL for completed/failed terminal claims, 3s for active in-progress claims
+        ttl = 300 if is_complete else 3
+        set_claim_progress_cache(str(cid), result, ttl=ttl)
 
-    error_message: str | None = None
-    if is_failed:
-        # Surface the claim notes or most recent job error message so the UI can show *why*
-        # the upload stopped, instead of polling forever on 0%.
-        try:
-            claim_rec = db.query(Claim).filter(Claim.id == cid).first()
-            if claim_rec and hasattr(claim_rec, "notes") and getattr(claim_rec, "notes", None):
-                error_message = getattr(claim_rec, "notes")
-            
-            if not error_message:
-                latest_parse = (
-                    db.query(ParseJob)
-                    .filter(ParseJob.claim_id == cid)
-                    .order_by(ParseJob.created_at.desc())
-                    .first()
-                )
-                if latest_parse and latest_parse.error_message:
-                    error_message = latest_parse.error_message
-            if not error_message:
-                from libs.shared.models import OcrJob as _OcrJob
-                latest_ocr = (
-                    db.query(_OcrJob)
-                    .filter(_OcrJob.claim_id == cid)
-                    .order_by(_OcrJob.created_at.desc())
-                    .first()
-                )
-                if latest_ocr and latest_ocr.error_message:
-                    error_message = latest_ocr.error_message
-        except Exception:
-            logger.exception("Failed to read latest job error for claim %s", cid)
-        if not error_message:
-            error_message = "Pipeline failed. See server logs for details."
-
-    status_str = "IDENTITY_MISMATCH" if state.current_step == "IDENTITY_MISMATCH" else state.status
-    result = {
-        "status": status_str,
-        "step": step,
-        "percentage": percentage,
-        "is_complete": is_complete,
-        "error": error_message,
-    }
-
-    # Cache response: 300s TTL for completed/failed terminal claims, 3s for active in-progress claims
-    ttl = 300 if is_complete else 3
-    set_claim_progress_cache(str(cid), result, ttl=ttl)
-
-    return result
+        return result
+    finally:
+        db.close()
 
 
 @router.get("/claims/{claim_id}/file")
