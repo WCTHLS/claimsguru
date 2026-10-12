@@ -57,6 +57,7 @@ from .models import Claim, Document, DocValidation
 from libs.shared.models import ParseJob, ParsedField, WorkflowState, User, Role, UserRoleTable, Organization, PatientProfile, StaffProfile, Invitation, Submission, AuditLog
 from libs.shared.workflow_state import get_latest_workflow_state, upsert_workflow_state
 from libs.auth.passwords import hash_password, password_matches
+from libs.shared.redis_cache import get_claim_progress_cache, set_claim_progress_cache
 from .schemas import ClaimListOut, ClaimOut
 from .rate_limiter import RateLimiter
 
@@ -3298,7 +3299,8 @@ def list_claims(
                     "hospital_name", "hospital",
                     "doctor_name", "doctor", "provider_name", "rendering_provider",
                     "diagnosis", "primary_diagnosis", "chief_complaint",
-                    "insurance_company", "insurer", "tpa_name", "tpa"
+                    "insurance_company", "insurer", "tpa_name", "tpa",
+                    "claimed_total", "total_amount", "net_payable", "gross_total", "billed_total", "billed_amount"
                 ])
             ).all()
             
@@ -3313,6 +3315,24 @@ def list_claims(
                 c.hospital_name = fields.get("hospital_name") or fields.get("hospital") or None
                 c.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
                 c.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
+                
+                raw_total = (
+                    fields.get("claimed_total")
+                    or fields.get("total_amount")
+                    or fields.get("net_payable")
+                    or fields.get("gross_total")
+                    or fields.get("billed_total")
+                    or fields.get("billed_amount")
+                )
+                if raw_total:
+                    try:
+                        clean_num = float(str(raw_total).replace(",", "").replace("₹", "").strip())
+                        c.total_amount = f"₹{clean_num:,.0f}"
+                    except Exception:
+                        c.total_amount = str(raw_total) if str(raw_total).startswith("₹") else f"₹{raw_total}"
+                else:
+                    c.total_amount = None
+
                 extracted_ins = fields.get("insurance_company") or fields.get("insurer") or fields.get("tpa_name") or None
                 if extracted_ins:
                     if not getattr(c, "insurance_company", None) or getattr(c, "insurance_company", None) == "Star Health":
@@ -3423,6 +3443,7 @@ def list_claims(
                 "hospital_name": getattr(c, "hospital_name", None),
                 "doctor_name": getattr(c, "doctor_name", None),
                 "diagnosis": getattr(c, "diagnosis", None),
+                "total_amount": getattr(c, "total_amount", None),
                 "has_action_request": has_action_request,
                 "tpa_message": tpa_message,
                 "tpa_requested_docs": tpa_requested_docs,
@@ -3723,71 +3744,118 @@ def get_claim_status(claim_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/claims/{claim_id}/progress")
-def get_claim_progress(claim_id: str, db: Session = Depends(get_db)):
+def get_claim_progress(claim_id: str):
     cid = _parse_uuid(claim_id)
-    state = get_latest_workflow_state(db, cid)
 
-    # No workflow state yet: distinguish "claim does not exist" from
-    # "claim was created but the pipeline hasn't recorded any progress yet".
-    if not state:
-        claim = db.query(Claim).filter(Claim.id == cid).first()
-        if not claim:
-            raise HTTPException(status_code=404, detail="Claim not found")
-        # Claim exists but no state row — treat as queued, never as silently null.
-        return {
-            "status": "QUEUED",
-            "step": "Queued (waiting for worker)",
-            "percentage": 2,
-            "is_complete": False,
-            "error": None,
+    # 1. Fast Path: Check in-memory Redis cache (sub-millisecond response, zero DB queries, zero DB connection checkout)
+    cached = get_claim_progress_cache(str(cid))
+    if cached:
+        return cached
+
+    # 2. Cache Miss: Open DB session lazily
+    db = SessionLocal()
+    try:
+        state = get_latest_workflow_state(db, cid)
+
+        # No workflow state yet: distinguish "claim does not exist" from
+        # "claim was created but the pipeline hasn't recorded any progress yet".
+        if not state:
+            claim = db.query(Claim).filter(Claim.id == cid).first()
+            if not claim:
+                raise HTTPException(status_code=404, detail="Claim not found")
+            # Claim exists but no state row — treat as queued, never as silently null.
+            queued_res = {
+                "status": "QUEUED",
+                "step": "Queued (waiting for worker)",
+                "percentage": 2,
+                "is_complete": False,
+                "error": None,
+            }
+            set_claim_progress_cache(str(cid), queued_res, ttl=2)
+            return queued_res
+
+        step, percentage = _map_progress(state.current_step, state.status)
+        is_failed = (state.status == "FAILED") or (state.current_step == "FAILED") or (state.current_step == "IDENTITY_MISMATCH")
+        is_complete = bool(percentage == 100 or (is_failed and state.current_step != "IDENTITY_MISMATCH"))
+
+        # Stalled Pipeline Detection: If claim is in RUNNING state but has had no worker updates for > 5 minutes
+        is_stalled = False
+        error_message: str | None = None
+
+        if not is_complete and not is_failed and getattr(state, "updated_at", None):
+            try:
+                from datetime import datetime, timezone, timedelta
+                now_utc = datetime.now(timezone.utc)
+                state_updated_utc = state.updated_at if state.updated_at.tzinfo else state.updated_at.replace(tzinfo=timezone.utc)
+                if (now_utc - state_updated_utc) > timedelta(minutes=5):
+                    is_stalled = True
+                    is_failed = True
+                    step = "Processing Stalled"
+                    error_message = "Analysis stalled due to worker timeout or interruption. You can restart analysis."
+                    try:
+                        state.status = "STALLED"
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+            except Exception:
+                pass
+
+        if is_failed and not is_stalled:
+            # Surface the claim notes or most recent job error message so the UI can show *why*
+            # the upload stopped, instead of polling forever on 0%.
+            try:
+                claim_rec = db.query(Claim).filter(Claim.id == cid).first()
+                if claim_rec and hasattr(claim_rec, "notes") and getattr(claim_rec, "notes", None):
+                    error_message = getattr(claim_rec, "notes")
+                
+                if not error_message:
+                    latest_parse = (
+                        db.query(ParseJob)
+                        .filter(ParseJob.claim_id == cid)
+                        .order_by(ParseJob.created_at.desc())
+                        .first()
+                    )
+                    if latest_parse and latest_parse.error_message:
+                        error_message = latest_parse.error_message
+                if not error_message:
+                    from libs.shared.models import OcrJob as _OcrJob
+                    latest_ocr = (
+                        db.query(_OcrJob)
+                        .filter(_OcrJob.claim_id == cid)
+                        .order_by(_OcrJob.created_at.desc())
+                        .first()
+                    )
+                    if latest_ocr and latest_ocr.error_message:
+                        error_message = latest_ocr.error_message
+            except Exception:
+                logger.exception("Failed to read latest job error for claim %s", cid)
+            if not error_message:
+                error_message = "Pipeline failed. See server logs for details."
+
+        if is_stalled:
+            status_str = "STALLED"
+        elif state.current_step == "IDENTITY_MISMATCH":
+            status_str = "IDENTITY_MISMATCH"
+        else:
+            status_str = state.status
+
+        result = {
+            "status": status_str,
+            "step": step,
+            "percentage": percentage,
+            "is_complete": is_complete,
+            "is_stalled": is_stalled,
+            "can_retry": bool(is_stalled or is_failed),
+            "error": error_message,
         }
 
-    step, percentage = _map_progress(state.current_step, state.status)
-    is_failed = (state.status == "FAILED") or (state.current_step == "FAILED") or (state.current_step == "IDENTITY_MISMATCH")
-    is_complete = bool(percentage == 100 or (is_failed and state.current_step != "IDENTITY_MISMATCH"))
+        # Cache response: 300s TTL for completed/failed terminal claims, 5s for stalled, 3s for active in-progress claims
+        ttl = 300 if (is_complete and not is_stalled) else (5 if is_stalled else 3)
+        set_claim_progress_cache(str(cid), result, ttl=ttl)
 
-    error_message: str | None = None
-    if is_failed:
-        # Surface the claim notes or most recent job error message so the UI can show *why*
-        # the upload stopped, instead of polling forever on 0%.
-        try:
-            claim_rec = db.query(Claim).filter(Claim.id == cid).first()
-            if claim_rec and hasattr(claim_rec, "notes") and getattr(claim_rec, "notes", None):
-                error_message = getattr(claim_rec, "notes")
-            
-            if not error_message:
-                latest_parse = (
-                    db.query(ParseJob)
-                    .filter(ParseJob.claim_id == cid)
-                    .order_by(ParseJob.created_at.desc())
-                    .first()
-                )
-                if latest_parse and latest_parse.error_message:
-                    error_message = latest_parse.error_message
-            if not error_message:
-                from libs.shared.models import OcrJob as _OcrJob
-                latest_ocr = (
-                    db.query(_OcrJob)
-                    .filter(_OcrJob.claim_id == cid)
-                    .order_by(_OcrJob.created_at.desc())
-                    .first()
-                )
-                if latest_ocr and latest_ocr.error_message:
-                    error_message = latest_ocr.error_message
-        except Exception:
-            logger.exception("Failed to read latest job error for claim %s", cid)
-        if not error_message:
-            error_message = "Pipeline failed. See server logs for details."
-
-    status_str = "IDENTITY_MISMATCH" if state.current_step == "IDENTITY_MISMATCH" else state.status
-    # Mapped from database state directly, naturally monotonic in Celery chain
-    return {
-        "status": status_str,
-        "step": step,
-        "percentage": percentage,
-        "is_complete": is_complete,
-        "error": error_message,
-    }
+        return result
+    finally:
+        db.close()
 
 
 @router.get("/claims/{claim_id}/file")
@@ -4431,6 +4499,13 @@ def reprocess_claim_endpoint(
         # Reset workflow state
         upsert_workflow_state(db, cid, "STARTING", status="RUNNING")
         db.commit()
+
+        # Invalidate progress cache so next client poll immediately sees fresh STARTING status
+        try:
+            from libs.shared.redis_cache import invalidate_claim_progress_cache
+            invalidate_claim_progress_cache(str(cid))
+        except Exception:
+            pass
 
         task_id = _enqueue_pipeline(str(cid))
         logger.info("Claim %s reprocessing queued with task ID %s", claim_id, task_id)

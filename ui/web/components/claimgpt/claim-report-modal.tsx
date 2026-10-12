@@ -991,6 +991,64 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             </div>
           </div>
 
+          {/* AI REJECTION RISK & AUDIT DRIVERS SECTION */}
+          {topRiskReasons && topRiskReasons.length > 0 && (
+            <div className={cn(
+              "rounded-2xl border p-3.5 sm:p-4 space-y-2.5 transition-all shadow-md",
+              riskScoreNum <= 25
+                ? "border-emerald-500/30 bg-gradient-to-r from-emerald-950/30 via-slate-900/50 to-slate-900/30 shadow-emerald-950/10"
+                : riskScoreNum <= 50
+                  ? "border-amber-500/30 bg-gradient-to-r from-amber-950/30 via-slate-900/50 to-slate-900/30 shadow-amber-950/10"
+                  : "border-rose-500/30 bg-gradient-to-r from-rose-950/30 via-slate-900/50 to-slate-900/30 shadow-rose-950/10"
+            )}>
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <Activity className={cn(
+                    "h-4 w-4",
+                    riskScoreNum <= 25 ? "text-emerald-400" : riskScoreNum <= 50 ? "text-amber-400" : "text-rose-400"
+                  )} />
+                  <h4 className="text-xs sm:text-sm font-bold text-white">
+                    AI Rejection Prediction &amp; Audit Drivers
+                  </h4>
+                </div>
+                <span className={cn(
+                  "rounded-full px-2.5 py-0.5 text-[10px] font-bold border",
+                  riskScoreNum <= 25
+                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                    : riskScoreNum <= 50
+                      ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                      : "bg-rose-500/15 border-rose-500/30 text-rose-300"
+                )}>
+                  {riskScoreNum}% Rejection Risk • {riskScoreNum <= 25 ? 'Low Risk' : riskScoreNum <= 50 ? 'Moderate Risk' : 'High Risk'}
+                </span>
+              </div>
+
+              <div className="space-y-1.5 pt-1">
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                  Key Risk Drivers Identified ({topRiskReasons.length}):
+                </p>
+                <div className="space-y-1.5">
+                  {topRiskReasons.map((r: any, idx: number) => {
+                    const text = typeof r === 'string' ? r : r?.reason || '';
+                    if (!text) return null;
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-start gap-2 rounded-xl bg-slate-900/70 border border-white/5 p-2 text-xs text-slate-200"
+                      >
+                        <AlertTriangle className={cn(
+                          "h-3.5 w-3.5 flex-none mt-0.5",
+                          riskScoreNum <= 25 ? "text-emerald-400" : riskScoreNum <= 50 ? "text-amber-400" : "text-rose-400"
+                        )} />
+                        <span className="leading-snug">{text}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ⚡ POLICY COVERAGE & CLAUSE INTELLIGENCE */}
           {hasValidPolicy ? (
             <div className="rounded-2xl border border-teal-500/30 bg-gradient-to-r from-teal-950/40 via-slate-900/60 to-slate-900/40 p-3.5 sm:p-5 space-y-3 shadow-lg shadow-teal-950/20">

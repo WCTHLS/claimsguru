@@ -25,6 +25,8 @@ import {
   X,
   Menu,
   Loader2,
+  RotateCcw,
+  AlertCircle,
 } from 'lucide-react';
 import { LanguageSwitcher } from '@/components/claimgpt/language-switcher';
 import { DuplicateClaimModal } from '@/components/claimgpt/duplicate-modal';
@@ -377,8 +379,10 @@ export function DashboardClinical() {
                         : (isSelected && s.analyzing && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
                       const liveProgress = (s as any).claimProgressMap?.[claim.id] || claim.progress;
                       const rawStatus = (claim.status || "").toUpperCase();
+                      const isStalledClaim = (isSelected && s.isStalled) || liveProgress?.status === "STALLED" || rawStatus === "STALLED";
                       const isCompletedStatus = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "FINISHED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "IDENTITY_MISMATCH" || rawStatus === "DOCUMENTS_UPLOADED" || rawStatus === "SUBMITTED";
                       const isLiveActive = Boolean(
+                        !isStalledClaim &&
                         liveProgress &&
                         !liveProgress.is_complete &&
                         typeof liveProgress.percentage === "number" &&
@@ -386,7 +390,7 @@ export function DashboardClinical() {
                         liveProgress.percentage < 100 &&
                         (liveProgress.status === "RUNNING" || (!isCompletedStatus && PIPELINE_ACTIVE_STATUSES.has(rawStatus)))
                       );
-                      const isClaimProcessing = (isSelected && s.analyzing && s.progress < 100) || (!isCompletedStatus && isLiveActive);
+                      const isClaimProcessing = ((isSelected && s.analyzing && s.progress < 100) || (!isCompletedStatus && isLiveActive)) && !isStalledClaim;
 
                       const currentProgress = (isSelected && s.analyzing)
                         ? s.progress
@@ -475,7 +479,11 @@ export function DashboardClinical() {
 
                           {/* Status Badge Row */}
                           <div className="flex items-center">
-                            {isClaimProcessing ? (
+                            {isStalledClaim ? (
+                              <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 font-bold px-2 py-0.5 text-[9px]">
+                                ⏸️ Stalled
+                              </span>
+                            ) : isClaimProcessing ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 border border-amber-300 text-amber-800 font-bold px-2 py-0.5 text-[9px]">
                                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
                                 {stageBadgeText()}
@@ -745,7 +753,7 @@ export function DashboardClinical() {
                             </p>
                           </div>
                           <div className="pt-2 w-full max-w-sm space-y-2">
-                            <Button onClick={s.openReportModal} className="teal-gradient w-full h-11 text-sm font-semibold text-white shadow-lg cursor-pointer">
+                            <Button onClick={() => s.openReportModal()} className="teal-gradient w-full h-11 text-sm font-semibold text-white shadow-lg cursor-pointer">
                               <FileText className="mr-2 h-4 w-4" /> View AI Post-Processing Audit Report
                             </Button>
                             <button
@@ -902,8 +910,10 @@ export function DashboardClinical() {
                         const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
                         const liveProgress = (s as any).claimProgressMap?.[claim.id] || claim.progress;
                         const rawStatus = (claim.status || "").toUpperCase();
+                        const isStalledClaim = (isSelected && s.isStalled) || liveProgress?.status === "STALLED" || rawStatus === "STALLED";
                         const isCompletedStatus = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "FINISHED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "IDENTITY_MISMATCH" || rawStatus === "DOCUMENTS_UPLOADED" || rawStatus === "SUBMITTED";
                         const isLiveActive = Boolean(
+                          !isStalledClaim &&
                           liveProgress &&
                           !liveProgress.is_complete &&
                           typeof liveProgress.percentage === "number" &&
@@ -911,7 +921,7 @@ export function DashboardClinical() {
                           liveProgress.percentage < 100 &&
                           (liveProgress.status === "RUNNING" || (!isCompletedStatus && PIPELINE_ACTIVE_STATUSES.has(rawStatus)))
                         );
-                        const isClaimProcessing = (isSelected && s.analyzing && s.progress < 100) || (!isCompletedStatus && isLiveActive);
+                        const isClaimProcessing = ((isSelected && s.analyzing && s.progress < 100) || (!isCompletedStatus && isLiveActive)) && !isStalledClaim;
 
                         const currentProgress = (isSelected && s.analyzing)
                           ? s.progress
@@ -990,7 +1000,11 @@ export function DashboardClinical() {
 
                             {/* Status Badge */}
                             <div className="flex items-center">
-                              {isClaimProcessing ? (
+                              {isStalledClaim ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300">
+                                  ⏸️ Stalled
+                                </span>
+                              ) : isClaimProcessing ? (
                                 <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300">
                                   <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-ping" />
                                   {stageBadgeText()}
@@ -1167,6 +1181,11 @@ export function DashboardClinical() {
                                 })()}
                               </span>
                             </span>
+                          ) : s.isStalled ? (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold text-amber-700 border border-amber-500/30">
+                              <AlertCircle className="h-3 w-3 text-amber-600" />
+                              Pipeline Stalled
+                            </span>
                           ) : s.progress >= 100 ? (
                             <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-emerald-700 border border-emerald-500/20">
                               <CheckCircle2 className="h-2.5 w-2.5 text-emerald-600" />
@@ -1184,9 +1203,21 @@ export function DashboardClinical() {
                             </span>
                           )}
 
-                          {s.progress >= 100 && !s.analyzing && !s.isDocumentsRequested && !s.nameMismatchWarning ? (
+                          {s.isStalled ? (
                             <Button
-                              onClick={s.openReportModal}
+                              onClick={() => s.retryClaimAnalysis()}
+                              disabled={s.isRetrying}
+                              size="sm"
+                              className="bg-amber-600 hover:bg-amber-700 text-[11px] sm:text-xs font-semibold text-white shadow-md animate-scale-in h-7 sm:h-8 px-2 sm:px-3 rounded-lg cursor-pointer flex items-center gap-1.5 transition-all"
+                            >
+                              <RotateCcw className={cn("h-3 w-3 sm:h-3.5 sm:w-3.5", s.isRetrying && "animate-spin")} />
+                              <span>{s.isRetrying ? "Restarting..." : "Restart AI Analysis"}</span>
+                            </Button>
+                          ) : null}
+
+                          {s.progress >= 100 && !s.analyzing && !s.isDocumentsRequested && !s.nameMismatchWarning && !s.isStalled ? (
+                            <Button
+                              onClick={() => s.openReportModal()}
                               size="sm"
                               className="teal-gradient text-[11px] sm:text-xs font-semibold text-white shadow-md animate-scale-in h-7 sm:h-8 px-2 sm:px-3 rounded-lg cursor-pointer flex items-center gap-1"
                             >
@@ -1203,7 +1234,9 @@ export function DashboardClinical() {
                           <div
                             className={cn(
                               "h-full rounded-full transition-all duration-500",
-                              s.progress === 0 && !s.analyzing
+                              s.isStalled
+                                ? "bg-gradient-to-r from-amber-500 to-amber-600 shadow-[0_0_10px_rgba(245,158,11,0.4)]"
+                                : s.progress === 0 && !s.analyzing
                                 ? "bg-slate-200"
                                 : s.isDocumentsRequested
                                 ? "bg-gradient-to-r from-amber-500 to-orange-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]"
@@ -1214,18 +1247,27 @@ export function DashboardClinical() {
                         </div>
                         <div className="mt-1.5 flex items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5 min-w-0">
-                            {s.analyzing && s.progress < 100 && !s.isDocumentsRequested && (
+                            {s.isStalled ? (
+                              <span className="h-1.5 w-1.5 rounded-full bg-amber-500 flex-none animate-pulse" />
+                            ) : s.analyzing && s.progress < 100 && !s.isDocumentsRequested ? (
                               <span className="h-1.5 w-1.5 rounded-full bg-teal-500 flex-none" />
-                            )}
+                            ) : null}
                             <span className="text-[11px] font-semibold text-slate-700 truncate">
-                              {s.progress >= 100
+                              {s.isStalled
+                                ? (s.stalledMessage || "Processing stalled due to worker timeout. Click 'Restart AI Analysis' to resume.")
+                                : s.progress >= 100
                                 ? "AI Verification Complete"
                                 : (s.analyzing || s.progress > 0)
                                 ? (s.stepDescription?.replace(/\s*[-·]\s*\d+%\s*$/, '') || (s.progress < 50 ? "OCR (extracting text)" : s.progress < 75 ? "Parsing (LLM agent reading document)" : "Analyzing documents..."))
                                 : "Ready for Document Upload"}
                             </span>
                           </div>
-                          <span className="font-mono font-extrabold text-[11px] text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.2 rounded-full flex-none">
+                          <span className={cn(
+                            "font-mono font-extrabold text-[11px] px-2 py-0.2 rounded-full flex-none",
+                            s.isStalled
+                              ? "text-amber-800 bg-amber-50 border border-amber-300"
+                              : "text-teal-700 bg-teal-50 border border-teal-200"
+                          )}>
                             {s.progress}%
                           </span>
                         </div>
@@ -1424,7 +1466,7 @@ export function DashboardClinical() {
                           <p className="text-xs text-muted-foreground">Hover a table row to highlight its source on the document.</p>
                         </div>
                         {s.progress >= 100 && !s.analyzing && !s.isDocumentsRequested && (
-                          <Button onClick={s.openReportModal} size="sm" className="teal-gradient text-xs font-semibold text-white cursor-pointer">
+                          <Button onClick={() => s.openReportModal()} size="sm" className="teal-gradient text-xs font-semibold text-white cursor-pointer">
                             <FileText className="mr-1.5 h-3.5 w-3.5" /> Full Audit Report
                           </Button>
                         )}

@@ -90,6 +90,7 @@ docker run -d --name claimsguru-api-test -p 8000:8000 `
   --network claimgpt-feature_default `
   --dns 8.8.8.8 --dns 1.1.1.1 `
   -v "$ProjectRoot/tmp:/app/tmp" `
+  -v claimsguru-hf-cache:/root/.cache/huggingface `
   -e DATABASE_URL="mssql+pymssql://sa:YourStrong!Password@claimgpt-feature-mssql-db-1:1433/claimgpt" `
   -e REDIS_URL="redis://claimgpt-feature-redis-1:6379/4" `
   --env-file "$ProjectRoot/.env" `
@@ -115,6 +116,7 @@ docker run -d --name claimsguru-worker-default `
   --network claimgpt-feature_default `
   --dns 8.8.8.8 --dns 1.1.1.1 `
   -v "$ProjectRoot/tmp:/app/tmp" `
+  -v claimsguru-hf-cache:/root/.cache/huggingface `
   -e CELERY_WORKER="true" `
   -e DATABASE_URL="mssql+pymssql://sa:YourStrong!Password@claimgpt-feature-mssql-db-1:1433/claimgpt" `
   -e REDIS_URL="redis://claimgpt-feature-redis-1:6379/4" `

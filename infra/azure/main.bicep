@@ -330,6 +330,8 @@ resource ingressApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'AZURE_OPENAI_API_KEY', value: azureOpenAiApiKey }
             { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAiDeployment }
             { name: 'AZURE_OPENAI_API_VERSION', value: '2024-11-20' }
+            { name: 'DB_POOL_SIZE', value: '10' }
+            { name: 'DB_MAX_OVERFLOW', value: '15' }
           ]
           resources: {
             cpu: json('1.0')
@@ -396,6 +398,9 @@ resource workerOcrApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'CELERY_BROKER_URL', value: redisConnectionString }
             { name: 'CELERY_RESULT_BACKEND', value: redisConnectionString }
             { name: 'OCR_USE_AZURE_OCR', value: 'True' }
+            { name: 'DB_POOL_SIZE', value: '5' }
+            { name: 'DB_MAX_OVERFLOW', value: '5' }
+            { name: 'CELERY_MAX_TASKS_PER_CHILD', value: '25' }
           ]
           resources: {
             cpu: json('2.0')
@@ -469,6 +474,9 @@ resource workerDefaultApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'AZURE_OPENAI_API_KEY', value: azureOpenAiApiKey }
             { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAiDeployment }
             { name: 'AZURE_OPENAI_API_VERSION', value: '2024-11-20' }
+            { name: 'DB_POOL_SIZE', value: '5' }
+            { name: 'DB_MAX_OVERFLOW', value: '5' }
+            { name: 'CELERY_MAX_TASKS_PER_CHILD', value: '25' }
           ]
           resources: {
             cpu: json('1.0')

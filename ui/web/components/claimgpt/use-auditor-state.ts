@@ -14,6 +14,7 @@ import {
   fetchLatestClaimId,
   fetchRecentClaims,
   fetchClaimProgress,
+  retryClaimProcessing,
   deleteClaimApi,
   deleteClaimDocumentApi,
   isMockId,
@@ -147,6 +148,11 @@ export function useAuditorState() {
   const [uploading, setUploading] = useState(false);
   const [analyzing, setAnalyzing] = useState(false);
   const [realPreview, setRealPreview] = useState<RealClaimPreview | null>(null);
+
+  /* Stalled / Zombie pipeline state */
+  const [isStalled, setIsStalled] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [stalledMessage, setStalledMessage] = useState<string | null>(null);
 
   /* Incremented each time realPreview is set with real data — used as key for MetaField remount */
   const [previewVersion, setPreviewVersion] = useState(0);
@@ -342,6 +348,7 @@ export function useAuditorState() {
 
     const pollAllActiveClaims = async () => {
       if (isPolling || !active) return;
+      if (typeof document !== "undefined" && document.hidden) return;
       isPolling = true;
       try {
         const TERMINAL_STATUSES = new Set([
@@ -354,6 +361,7 @@ export function useAuditorState() {
           "IDENTITY_MISMATCH",
           "FAILED",
           "WORKFLOW_FAILED",
+          "STALLED",
         ]);
 
         // Find all background active claims that need progress polling (the current active claim is dedicatedly managed)
@@ -363,7 +371,7 @@ export function useAuditorState() {
           const st = (c.status || "").toUpperCase();
           if (TERMINAL_STATUSES.has(st)) return false;
           const curMap = claimProgressMap[c.id];
-          if (curMap && curMap.percentage >= 100) return false;
+          if (curMap && (curMap.percentage >= 100 || curMap.status === "STALLED")) return false;
           return true;
         });
 
@@ -402,6 +410,22 @@ export function useAuditorState() {
               setClaimProgressMap((prev) => ({
                 ...prev,
                 [c.id]: { percentage: 0, step: "Identity Mismatch", status: "IDENTITY_MISMATCH" }
+              }));
+              continue;
+            }
+
+            if (statusInfo.status === "STALLED" || statusInfo.is_stalled || (statusInfo.status === "FAILED" && !statusInfo.is_complete)) {
+              if (isSelected) {
+                setAnalyzing(false);
+                isAnalyzingRef.current = false;
+                setIsStalled(true);
+                const errMsg = statusInfo.error || "Analysis was interrupted or stalled. Please restart analysis.";
+                setStalledMessage(errMsg);
+                setStepDescription(errMsg);
+              }
+              setClaimProgressMap((prev) => ({
+                ...prev,
+                [c.id]: { percentage: statusInfo.percentage || 30, step: statusInfo.step || "Processing Stalled", status: "STALLED" }
               }));
               continue;
             }
@@ -467,7 +491,7 @@ export function useAuditorState() {
       }
     };
 
-    const interval = setInterval(pollAllActiveClaims, 1000);
+    const interval = setInterval(pollAllActiveClaims, 3500);
     return () => {
       active = false;
       clearInterval(interval);
@@ -509,15 +533,19 @@ export function useAuditorState() {
           setClaimId(latestId);
           setIsUploadOpen(false); // Collapse upload panel when existing claim is loaded
 
-          const statusInfo = await fetchClaimProgress(latestId);
-          if (statusInfo?.not_found || statusInfo?.status === "NOT_FOUND") {
-            setClaimId(null);
-            setRealPreview(null);
-            setFiles([]);
-            setProgress(0);
-            setActiveStage('staged');
-            setIsUploadOpen(true);
-            return;
+          const targetClaimMeta = claimsList.find((c) => c.id === latestId);
+          const rawStatus = (targetClaimMeta?.status || "").toUpperCase();
+          const isKnownTerminal = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "SUBMITTED" || rawStatus === "DOCUMENTS_REQUESTED" || rawStatus === "DOCUMENTS_UPLOADED";
+
+          // Fetch progress and preview concurrently to prevent waterfall and 2.5s false timeouts
+          const [statusInfo, prevData] = await Promise.all([
+            fetchClaimProgress(latestId),
+            fetchClaimPreview(latestId),
+          ]);
+
+          if (prevData) {
+            setRealPreview(prevData);
+            setPreviewVersion((v) => v + 1);
           }
 
           if (statusInfo?.status === "IDENTITY_MISMATCH" || statusInfo?.step?.includes("Identity Mismatch")) {
@@ -533,7 +561,19 @@ export function useAuditorState() {
             return;
           }
 
-          const isComplete = !statusInfo?.not_found && statusInfo?.status !== "NOT_FOUND" && statusInfo?.status !== "IDENTITY_MISMATCH" && Boolean(
+          if (statusInfo?.status === "STALLED" || statusInfo?.is_stalled) {
+            setAnalyzing(false);
+            isAnalyzingRef.current = false;
+            setIsLiveSessionCompleted(false);
+            setIsStalled(true);
+            const errMsg = statusInfo.error || "Analysis was interrupted or stalled. Click 'Restart AI Analysis' to resume.";
+            setStalledMessage(errMsg);
+            setStepDescription(errMsg);
+            setProgress(statusInfo.percentage || 30);
+            return;
+          }
+
+          const isComplete = isKnownTerminal || Boolean(prevData) || (!statusInfo?.not_found && statusInfo?.status !== "NOT_FOUND" && Boolean(
             statusInfo?.is_complete ||
             (statusInfo?.percentage ?? 0) >= 100 ||
             statusInfo?.status === "COMPLETED" ||
@@ -543,7 +583,7 @@ export function useAuditorState() {
             statusInfo?.status === "APPROVED" ||
             statusInfo?.status === "SETTLED" ||
             statusInfo?.status === "REJECTED"
-          );
+          ));
 
           if (!isComplete) {
             setAnalyzing(true);
@@ -552,12 +592,7 @@ export function useAuditorState() {
             updateProgressAndStage(livePct, statusInfo?.step ? `${statusInfo.step} - ${livePct}%` : undefined);
             runProgressSequence(latestId);
           } else {
-            const prevData = await fetchClaimPreview(latestId);
-            if (prevData) {
-              setRealPreview(prevData);
-              setPreviewVersion((v) => v + 1);
-            }
-            const statusUpper = (prevData?.status || statusInfo?.status || "").toUpperCase();
+            const statusUpper = (prevData?.status || rawStatus || statusInfo?.status || "").toUpperCase();
             if (statusUpper === "DOCUMENTS_REQUESTED" || statusUpper === "MANUAL_REVIEW_REQUIRED") {
               setAnalyzing(false);
               setIsLiveSessionCompleted(false);
@@ -641,7 +676,7 @@ export function useAuditorState() {
     const targetClaimMeta = recentClaims.find((c) => c.id === targetId);
     const rawStatus = (targetClaimMeta?.status || "").toUpperCase();
     const liveProgress = claimProgressMap[targetId] || targetClaimMeta?.progress;
-    const isLiveActive = Boolean(liveProgress && liveProgress.percentage > 0 && liveProgress.percentage < 100 && !liveProgress.is_complete);
+    const isLiveActive = Boolean(liveProgress && liveProgress.percentage > 0 && liveProgress.percentage < 100 && !(liveProgress as any).is_complete);
     const isTerminal = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "SUBMITTED" || rawStatus === "DOCUMENTS_REQUESTED" || rawStatus === "DOCUMENTS_UPLOADED" || rawStatus === "MODIFICATION_REQUESTED";
     const isKnownActive = !isTerminal && (isLiveActive || PIPELINE_ACTIVE_STATUSES.has(rawStatus));
 
@@ -651,6 +686,22 @@ export function useAuditorState() {
     setIsUploadOpen(false); // Auto-collapse upload dropdown when selecting claims
     setEdited({}); // Reset edit badges from previous claim
     setRealPreview(null); // Reset preview to prevent state bleeding
+    setIsStalled(false);
+    setStalledMessage(null);
+
+    if (rawStatus === "STALLED" || liveProgress?.status === "STALLED") {
+      setAnalyzing(false);
+      isAnalyzingRef.current = false;
+      setIsLiveSessionCompleted(false);
+      setIsStalled(true);
+      const errMsg = (liveProgress as any)?.error || "Analysis was interrupted or stalled. Click 'Restart AI Analysis' to resume.";
+      setStalledMessage(errMsg);
+      setStepDescription(errMsg);
+      const stalledPct = liveProgress?.percentage || 30;
+      progressRef.current = stalledPct;
+      setProgress(stalledPct);
+      return;
+    }
 
     if (isKnownActive) {
       setAnalyzing(true);
@@ -692,13 +743,15 @@ export function useAuditorState() {
   }, [analyzing]);
 
   /* Dynamically extracted metadata fields from backend preview */
+  const selectedClaimMeta = recentClaims.find((c) => c.id === (claimId || activeClaimIdRef.current));
+
   const extractedPatient = realPreview?.summary?.patient_name && realPreview.summary.patient_name !== "N/A"
     ? realPreview.summary.patient_name
-    : realPreview?.parsed_fields?.patient_name || realPreview?.parsed_fields?.member_name || realPreview?.parsed_fields?.insured_name;
+    : realPreview?.parsed_fields?.patient_name || realPreview?.parsed_fields?.member_name || realPreview?.parsed_fields?.insured_name || selectedClaimMeta?.patient_name;
 
   const extractedHospital = realPreview?.summary?.hospital && realPreview.summary.hospital !== "N/A"
     ? realPreview.summary.hospital
-    : realPreview?.parsed_fields?.hospital_name || realPreview?.parsed_fields?.hospital;
+    : realPreview?.parsed_fields?.hospital_name || realPreview?.parsed_fields?.hospital || selectedClaimMeta?.hospital_name;
 
   const extractedAdmission = realPreview?.summary?.admission_date && realPreview.summary.admission_date !== "N/A"
     ? realPreview.summary.admission_date
@@ -710,7 +763,7 @@ export function useAuditorState() {
 
   const extractedDiagnosis = realPreview?.summary?.diagnosis && realPreview.summary.diagnosis !== "N/A"
     ? realPreview.summary.diagnosis
-    : realPreview?.parsed_fields?.diagnosis || realPreview?.parsed_fields?.primary_diagnosis;
+    : realPreview?.parsed_fields?.diagnosis || realPreview?.parsed_fields?.primary_diagnosis || selectedClaimMeta?.diagnosis;
 
   const hasClaim = Boolean(claimId || realPreview);
   const patientName = extractedPatient || (analyzing ? "Processing..." : "");
@@ -837,6 +890,11 @@ export function useAuditorState() {
         return;
       }
 
+      // If user minimized or switched away from the browser tab, pause polling to conserve server load
+      if (typeof document !== "undefined" && document.hidden) {
+        return;
+      }
+
       // If user selected another claim, immediately cancel this polling loop
       if (activeClaimIdRef.current && targetClaimId && activeClaimIdRef.current !== targetClaimId) {
         clearInterval(pollInterval);
@@ -893,13 +951,33 @@ export function useAuditorState() {
           return;
         }
 
+        if (statusInfo.status === "STALLED" || statusInfo.is_stalled) {
+          setAnalyzing(false);
+          isAnalyzingRef.current = false;
+          setIsLiveSessionCompleted(false);
+          setIsStalled(true);
+          const errorDetail = statusInfo.error || "Analysis stalled due to worker timeout or interruption. Click 'Restart AI Analysis' to resume.";
+          setStalledMessage(errorDetail);
+          setStepDescription(errorDetail);
+          dataArrived = true;
+          clearInterval(pollInterval);
+          if (activePollRef.current === pollInterval) activePollRef.current = null;
+          toast({
+            title: "Pipeline Stalled",
+            description: errorDetail,
+            variant: "destructive",
+          });
+          reloadRecentClaims();
+          return;
+        }
+
         if (statusInfo.status === "FAILED") {
           setAnalyzing(false);
           isAnalyzingRef.current = false;
           setIsLiveSessionCompleted(false);
-          setProgress(0);
-          setActiveStage('staged');
+          setIsStalled(true);
           const errorDetail = (statusInfo as any).error || statusInfo.step || "Processing failed in the backend pipeline. Please check the logs or retry.";
+          setStalledMessage(errorDetail);
           setStepDescription(errorDetail);
           dataArrived = true;
           clearInterval(pollInterval);
@@ -953,7 +1031,7 @@ export function useAuditorState() {
           updateProgressAndStage(statusInfo.percentage, statusInfo.step ? `${statusInfo.step} - ${statusInfo.percentage}%` : undefined);
         }
       }
-    }, 400);
+    }, 1200);
     activePollRef.current = pollInterval;
   };
 
@@ -982,6 +1060,9 @@ export function useAuditorState() {
     }
     setIsDocumentsRequested(false);
     setMissingGroups([]);
+    setIsStalled(false);
+    setIsRetrying(false);
+    setStalledMessage(null);
 
     setAnalyzing(true);
     isAnalyzingRef.current = true;
@@ -1114,6 +1195,9 @@ export function useAuditorState() {
     activeClaimIdRef.current = null;
     setIsDocumentsRequested(false);
     setMissingGroups([]);
+    setIsStalled(false);
+    setIsRetrying(false);
+    setStalledMessage(null);
 
     setAnalyzing(true);
     isAnalyzingRef.current = true;
@@ -1181,6 +1265,57 @@ export function useAuditorState() {
       setProgress(0);
       setActiveStage('staged');
       setStepDescription("Upload failed. Please retry.");
+    }
+  };
+
+  /* Restart AI Analysis for stalled or failed claims without re-uploading documents */
+  const retryClaimAnalysis = async (targetId?: string) => {
+    const claimToRetry = targetId || claimId || activeClaimIdRef.current;
+    if (!claimToRetry) return;
+
+    if (activePollRef.current) {
+      clearInterval(activePollRef.current);
+      activePollRef.current = null;
+    }
+
+    setIsRetrying(true);
+    setIsStalled(false);
+    setStalledMessage(null);
+    setAnalyzing(true);
+    isAnalyzingRef.current = true;
+    updateProgressAndStage(10, "Restarting AI analysis pipeline...");
+
+    try {
+      const res = await retryClaimProcessing(claimToRetry);
+      if (res.success) {
+        toast({
+          title: "AI Analysis Restarted",
+          description: "Claim has been re-queued for processing.",
+        });
+        runProgressSequence(claimToRetry);
+      } else {
+        setIsStalled(true);
+        setStalledMessage(res.message || "Failed to restart analysis. Please try again.");
+        setAnalyzing(false);
+        isAnalyzingRef.current = false;
+        toast({
+          title: "Restart Failed",
+          description: res.message || "Failed to re-enqueue claim.",
+          variant: "destructive",
+        });
+      }
+    } catch (err: any) {
+      setIsStalled(true);
+      setStalledMessage(err?.message || "Failed to restart analysis.");
+      setAnalyzing(false);
+      isAnalyzingRef.current = false;
+      toast({
+        title: "Restart Failed",
+        description: err?.message || "Unexpected error restarting analysis.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRetrying(false);
     }
   };
 
@@ -1318,8 +1453,8 @@ export function useAuditorState() {
           prev.map((c) => {
             if (c.id === idToSync) {
               const pf = (prevData.parsed_fields as Record<string, string>) || {};
-              const pol = pf.policy_number || pf.policy_id || prevData.policy_id || c.policy_number;
-              const ins = prevData.insurance_company || pf.insurance_company || pf.insurer || c.insurer;
+              const pol = pf.policy_number || pf.policy_id || prevData.policy_id || c.policy_number || c.policy_id;
+              const ins = (prevData as any).insurance_company || (prevData.summary as any)?.insurance_company || pf.insurance_company || pf.insurer || c.insurer || c.insurance_company;
               return {
                 ...c,
                 policy_number: pol,
@@ -1441,6 +1576,11 @@ export function useAuditorState() {
     saveDetails,
     refreshClaim,
     claimProgressMap,
+    /* Stalled pipeline recovery */
+    isStalled,
+    isRetrying,
+    stalledMessage,
+    retryClaimAnalysis,
   };
 }
 
