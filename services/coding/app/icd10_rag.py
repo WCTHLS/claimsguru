@@ -36,7 +36,11 @@ from typing import Any
 import numpy as np
 from math import sqrt
 
-from .build_icd10_rag import INPUT_PDF, extract_chunks_from_pdf
+try:
+    from .build_icd10_rag import INPUT_PDF, extract_chunks_from_pdf
+except Exception:
+    INPUT_PDF = None
+    extract_chunks_from_pdf = None
 
 try:
     from services.chat.app.llm import scrub_phi  # type: ignore
@@ -1605,21 +1609,24 @@ def _try_local_clinical_rerank(query: str, candidates: list[tuple[str, str, str,
 
 
 _icd10_code_index: dict[str, tuple[str, str, str]] = {}
+_icd10_meta_dict_index: dict[str, dict[str, Any]] = {}
 
-def lookup_icd10_rag(code: str) -> tuple[str, str, str] | None:
-    """Return the exact ICD-10 entry from the loaded RAG metadata, if present.
 
-    Supports exact format (e.g. 'K35.80') and dot-stripped format ('K3580').
-    O(1) indexed lookup over the ~74,000 code catalog.
-    """
-    if not code:
-        return None
-    if not is_rag_available():
-        return None
+def _ensure_meta_loaded() -> None:
+    """Ensure _icd10_meta is loaded from disk into memory for O(1) lookups."""
+    global _icd10_meta, _icd10_code_index, _icd10_meta_dict_index
+    if not _icd10_meta:
+        meta_path = _ICD10_META_PATH if _ICD10_META_PATH.exists() else (_DATA_DIR / "icd10_meta_.json")
+        if meta_path.exists():
+            try:
+                with open(meta_path, "r", encoding="utf-8") as f:
+                    _icd10_meta = json.load(f)
+            except Exception:
+                logger.warning("Failed to load icd10_meta.json", exc_info=True)
 
-    global _icd10_code_index
-    if not _icd10_code_index and _icd10_meta:
+    if _icd10_meta and not _icd10_code_index:
         idx: dict[str, tuple[str, str, str]] = {}
+        meta_idx: dict[str, dict[str, Any]] = {}
         for entry in _icd10_meta:
             if not isinstance(entry, dict):
                 continue
@@ -1630,48 +1637,103 @@ def lookup_icd10_rag(code: str) -> tuple[str, str, str] | None:
                 norm = re.sub(r"[^A-Z0-9]", "", c)
                 idx[norm] = (c, d, cat)
                 idx[c] = (c, d, cat)
+                meta_idx[norm] = entry
+                meta_idx[c] = entry
         _icd10_code_index = idx
+        _icd10_meta_dict_index = meta_idx
+
+
+def lookup_icd10_rag(code: str) -> tuple[str, str, str] | None:
+    """Return the exact ICD-10 entry from the loaded RAG metadata, if present.
+
+    icd10_meta.json is the single source of truth.
+    Supports exact format (e.g. 'J18.1', 'K35.80') and dot-stripped format ('J181', 'K3580').
+    For clinical subcodes (e.g. 'E11.65'), resolves to the parent entry in icd10_meta.json
+    (e.g. 'E11.6') to return the authoritative, clean ICD-10 description.
+    Invalid non-ICD codes (e.g. 'X10', 'X50', 'X25') return None.
+    """
+    if not code:
+        return None
+
+    _ensure_meta_loaded()
+    if not _icd10_code_index:
+        return None
 
     raw_clean = str(code).strip().upper()
     norm_key = re.sub(r"[^A-Z0-9]", "", raw_clean)
 
+    # 1. Exact match in catalog
     match = _icd10_code_index.get(norm_key) or _icd10_code_index.get(raw_clean)
     if match:
         return match
 
-    # Direct WHO legacy alias fallback for restructured blocks (e.g. Dengue A90 -> A97.9)
+    # 2. Direct WHO legacy alias fallback for restructured blocks (e.g. Dengue A90 -> A97.9)
     _ALIASES = {
         "A90": ("A90", "Dengue fever [classical dengue]", "Infectious"),
         "A91": ("A91", "Dengue haemorrhagic fever", "Infectious"),
     }
-    return _ALIASES.get(norm_key) or _ALIASES.get(raw_clean)
+    alias_match = _ALIASES.get(norm_key) or _ALIASES.get(raw_clean)
+    if alias_match:
+        return alias_match
 
+    # 3. Validation up to 1 decimal point in icd10_meta.json:
+    # e.g., E11.65 is valid if E11.6 is present in icd10_meta.json
+    if "." in raw_clean:
+        parts = raw_clean.split(".")
+        base = parts[0]
+        dec = parts[1]
+        if len(dec) >= 1:
+            one_dec = f"{base}.{dec[0]}"
+            parent = _icd10_code_index.get(one_dec) or _icd10_code_index.get(re.sub(r"[^A-Z0-9]", "", one_dec))
+            if parent:
+                return (raw_clean, parent[1], parent[2])
+    elif len(norm_key) >= 4:
+        one_dec = f"{norm_key[:3]}.{norm_key[3]}"
+        parent = _icd10_code_index.get(one_dec) or _icd10_code_index.get(norm_key[:4])
+        if parent:
+            return (raw_clean, parent[1], parent[2])
 
-_icd10_meta_dict_index: dict[str, dict[str, Any]] = {}
+    return None
+
 
 def lookup_icd10_meta(code: str) -> dict[str, Any] | None:
     """Return the complete metadata dict for an ICD-10 code including code_includes and block_description."""
     if not code:
         return None
-    if not is_rag_available():
-        return None
 
-    global _icd10_meta_dict_index
-    if not _icd10_meta_dict_index and _icd10_meta:
-        idx: dict[str, dict[str, Any]] = {}
-        for entry in _icd10_meta:
-            if not isinstance(entry, dict):
-                continue
-            c = str(entry.get("code") or "").strip().upper()
-            if c:
-                norm = re.sub(r"[^A-Z0-9]", "", c)
-                idx[norm] = entry
-                idx[c] = entry
-        _icd10_meta_dict_index = idx
+    _ensure_meta_loaded()
+    if not _icd10_meta_dict_index:
+        return None
 
     raw_clean = str(code).strip().upper()
     norm_key = re.sub(r"[^A-Z0-9]", "", raw_clean)
-    return _icd10_meta_dict_index.get(norm_key) or _icd10_meta_dict_index.get(raw_clean)
+
+    meta = _icd10_meta_dict_index.get(norm_key) or _icd10_meta_dict_index.get(raw_clean)
+    if meta:
+        return meta
+
+    # Subcode parent metadata fallback up to 1 decimal point
+    if "." in raw_clean:
+        parts = raw_clean.split(".")
+        base = parts[0]
+        dec = parts[1]
+        if len(dec) >= 1:
+            one_dec = f"{base}.{dec[0]}"
+            parent_meta = _icd10_meta_dict_index.get(one_dec) or _icd10_meta_dict_index.get(re.sub(r"[^A-Z0-9]", "", one_dec))
+            if parent_meta:
+                return parent_meta
+    elif len(norm_key) >= 4:
+        one_dec = f"{norm_key[:3]}.{norm_key[3]}"
+        parent_meta = _icd10_meta_dict_index.get(one_dec) or _icd10_meta_dict_index.get(norm_key[:4])
+        if parent_meta:
+            return parent_meta
+
+    return None
+
+
+def is_valid_icd10(code: str) -> bool:
+    """Validate whether a code string is a genuine ICD-10 code or subcode against icd10_meta.json."""
+    return lookup_icd10_rag(code) is not None
 
 
 @functools.lru_cache(maxsize=_RAG_CACHE_SIZE)

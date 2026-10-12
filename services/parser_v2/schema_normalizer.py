@@ -3,6 +3,11 @@ import re
 from typing import List, Dict, Any
 from .models import FormField, TableRegion, Region
 
+try:
+    from services.coding.app.icd10_rag import is_valid_icd10 as _is_valid_icd10
+except Exception:
+    _is_valid_icd10 = None
+
 logger = logging.getLogger("parser-debug")
 
 CANONICAL_MAPPING = {
@@ -136,6 +141,13 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
             icd_matches = re.finditer(r"\b(?:ICD(?:-?10|-?9)?\s*[:\-]?\s*)?([A-TV-Z]\d{2}(?:\.\d{1,4})?)\b", val_str, re.IGNORECASE)
             for m in icd_matches:
                 icd_candidate = m.group(1).upper()
+                has_label = bool(re.search(r"\bICD", m.group(0), re.IGNORECASE))
+                if _is_valid_icd10 is not None:
+                    if not _is_valid_icd10(icd_candidate):
+                        continue
+                elif not has_label:
+                    continue
+
                 if not any(f.get("canonical_field") == "icd_code" and f.get("value") == icd_candidate for f in normalized):
                     normalized.append({
                         "field": "icd_code",
@@ -174,6 +186,8 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
                 cleaned_diag = re.sub(r"[\s\(\[\:\-–—,|]+$", "", cleaned_diag).strip()
             val_str = cleaned_diag
             if not val_str or val_str.lower() in {"none", "none procedure", "n/a", "null"}:
+                continue
+            if len(val_str) <= 4 and _is_valid_icd10 is not None and not _is_valid_icd10(val_str):
                 continue
 
         # Clean patient_name (strip leading DOB/date/age/gender prefix and form label suffixes)
