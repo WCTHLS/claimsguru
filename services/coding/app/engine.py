@@ -31,6 +31,7 @@ from .icd10_codes import (
 )
 from .icd10_rag import (
     is_rag_available,
+    is_valid_icd10,
     lookup_icd10_rag,
     lookup_icd10_meta,
     search_cpt_rag,
@@ -448,7 +449,7 @@ def _search_cpt_combined(
 
 
 def _search_icd10_smart(
-    text: str, max_results: int = 1, clinical_context: str | None = None
+    text: str, max_results: int = 3, clinical_context: str | None = None
 ) -> tuple[list[tuple[str, str, float]], str | None]:
     """Search ICD-10 with diagnosis-keyword extraction for long narratives or generic terms.
 
@@ -569,45 +570,38 @@ def _deduplicate_and_rank_codes(codes: list[Code]) -> list[Code]:
             if meta:
                 best_code.code_includes = meta.get("code_includes")
 
-        # If other_matches is missing or has < 2 items, collect from other codes in group or sibling category codes
-        existing_alts = list(best_code.other_matches or [])
-        seen_alt_codes = {best_code.code} | {a.get("code") for a in existing_alts}
+        is_explicit_code = best_code.confidence >= 0.99
+        if is_explicit_code:
+            # When explicit code is present in document:
+            # 1. No need to show closest matches (do NOT run RAG search)
+            best_code.other_matches = []
+            # 2. Explicitly mention ICD code already present in document
+            doc_mention = "ICD-10 code explicitly present in document"
+            if not best_code.code_includes:
+                best_code.code_includes = doc_mention
+            elif doc_mention not in best_code.code_includes:
+                best_code.code_includes = f"{doc_mention} | {best_code.code_includes}"
+        else:
+            # Only for non-explicit/fuzzy codes: preserve alternative matches derived
+            # directly from the raw clinical query, plus any other codes in this category group
+            existing_alts = list(best_code.other_matches or [])
+            seen_alt_codes = {best_code.code} | {a.get("code") for a in existing_alts}
 
-        # 1. From other extracted codes in this group
-        for other_c in group_sorted[1:]:
-            if other_c.code not in seen_alt_codes:
-                seen_alt_codes.add(other_c.code)
-                other_meta = lookup_icd10_meta(other_c.code) if is_rag_available() else None
-                existing_alts.append({
-                    "code": other_c.code,
-                    "description": other_c.description or (other_meta.get("description") if other_meta else ""),
-                    "confidence": other_c.confidence,
-                    "code_includes": other_c.code_includes or (other_meta.get("code_includes") if other_meta else None),
-                })
-                if len(existing_alts) >= 2:
-                    break
+            # 1. From other extracted codes in this group
+            for other_c in group_sorted[1:]:
+                if other_c.code not in seen_alt_codes:
+                    seen_alt_codes.add(other_c.code)
+                    other_meta = lookup_icd10_meta(other_c.code) if is_rag_available() else None
+                    existing_alts.append({
+                        "code": other_c.code,
+                        "description": other_c.description or (other_meta.get("description") if other_meta else ""),
+                        "confidence": other_c.confidence,
+                        "code_includes": other_c.code_includes or (other_meta.get("code_includes") if other_meta else None),
+                    })
+                    if len(existing_alts) >= 2:
+                        break
 
-        # 2. From RAG search or sibling codes in same root category if needed to ensure top 3
-        if len(existing_alts) < 2 and is_rag_available():
-            query_term = best_code.description or best_code.code
-            try:
-                hits = search_icd10_rag(query_term, max_results=6)
-                for h_code, h_desc, _h_cat, h_score in hits:
-                    if h_code not in seen_alt_codes:
-                        seen_alt_codes.add(h_code)
-                        h_meta = lookup_icd10_meta(h_code)
-                        existing_alts.append({
-                            "code": h_code,
-                            "description": h_desc,
-                            "confidence": _icd_confidence_from_score(h_score, rank=len(existing_alts)),
-                            "code_includes": h_meta.get("code_includes") if h_meta else None,
-                        })
-                        if len(existing_alts) >= 2:
-                            break
-            except Exception:
-                pass
-
-        best_code.other_matches = existing_alts[:2] if existing_alts else []
+            best_code.other_matches = existing_alts[:2] if existing_alts else []
         filtered_icd.append(best_code)
 
     # Re-verify is_primary on filtered ICD codes: exactly 1 primary code
@@ -666,13 +660,37 @@ def _extract_from_parsed_fields(
     primary_proc_code: str | None = None
 
     # Check if the parser provided explicit icd_code fields.
-    # If so, those are authoritative — do NOT use fuzzy text matching on
-    # diagnosis description fields to generate new codes (it hallucinates).
     has_explicit_icd_fields = any(
         (pf.get("field_name") or pf.get("field") or pf.get("canonical_field")) == "icd_code"
         and (pf.get("field_value") or pf.get("value"))
         for pf in parsed_fields
     )
+
+    # 1. Pre-scan for ALL explicit valid ICD codes present across parsed fields and document text
+    explicit_code_map: dict[str, tuple[str, str, str]] = {}
+    for pf in parsed_fields:
+        fval = str(pf.get("field_value") or pf.get("value") or "").strip()
+        if not fval:
+            continue
+        for em in _ICD_CODE_RE.finditer(fval):
+            info = lookup_icd10_rag(em.group(1))
+            if info:
+                explicit_code_map[info[0]] = info
+        fn = (pf.get("field_name") or pf.get("field") or pf.get("canonical_field") or "").lower().strip()
+        if fn == "icd_code":
+            clean_c = re.sub(r"^(\d+[\:\.]\s*)?\|?\s*", "", fval).strip()
+            info = lookup_icd10_rag(clean_c)
+            if info:
+                explicit_code_map[info[0]] = info
+
+    for em in _ICD_CODE_RE.finditer(full_text):
+        info = lookup_icd10_rag(em.group(1))
+        if info:
+            prefix = full_text[max(0, em.start() - 40):em.start()].lower()
+            if any(k in prefix for k in ("icd", "diagnosis", "dx", "code")):
+                explicit_code_map[info[0]] = info
+
+    claim_has_explicit_codes = len(explicit_code_map) > 0
 
     # Pre-extract clinical_diagnosis_summary across parsed fields if available
     clinical_summary: str | None = None
@@ -722,6 +740,10 @@ def _extract_from_parsed_fields(
         min_len = 3 if fname in ("icd_code", "cpt_code") else 4
         if len(clean_fval) < min_len or lower_fval in ["none", "n/a", "null"]:
             continue
+
+        # If a short 2-4 char token is NOT a valid ICD/CPT code, it is billing noise (e.g. X10, X50, X25) -> skip
+        if len(clean_fval) <= 4 and not lookup_icd10_rag(clean_fval) and not lookup_cpt(clean_fval):
+            continue
             
         # Blacklist conversational / billing noise phrases
         blacklist = ["medically necessary", "first claim", "% of sum", "payment", "balance", "total", "amount"]
@@ -735,21 +757,52 @@ def _extract_from_parsed_fields(
         clinical_ctx = _build_clinical_context(full_text, parsed_fields)
         entity_display = clean_fval
         narrative_terms: list[str] = []
-        should_refine = _diagnosis_needs_extraction(clean_fval) or bool(clinical_summary)
-        if etype == "DIAGNOSIS" and should_refine:
-            try:
-                if clinical_summary:
-                    input_for_extraction = f"Documented Diagnosis: {clean_fval}\nClinical Summary Context: {clinical_summary}"
-                elif clinical_ctx:
-                    input_for_extraction = f"Documented Diagnosis: {clean_fval}\nClinical Summary Context: {clinical_ctx}"
-                else:
-                    input_for_extraction = clean_fval
-                narrative_terms = extract_diagnosis_keywords(input_for_extraction)
-            except Exception:
-                logger.debug("diagnosis extraction failed for entity_display", exc_info=True)
-                narrative_terms = []
-            if narrative_terms:
-                entity_display = narrative_terms[0]
+        matches: list[tuple] = []
+        query_hint: str | None = None
+        has_explicit_valid_code = False
+
+        if etype == "DIAGNOSIS":
+            # 1. First, check for explicit valid ICD-10 codes in the field text or if field is icd_code
+            explicit_matches = list(_ICD_CODE_RE.finditer(clean_fval))
+            if explicit_matches:
+                for em in explicit_matches:
+                    raw_code = em.group(1)
+                    info = lookup_icd10_rag(raw_code)
+                    if info is not None:
+                        matches.append((info[0], info[1], 1.0, info[1]))
+                        has_explicit_valid_code = True
+
+            if not matches and fname == "icd_code":
+                info = lookup_icd10_rag(clean_fval)
+                if info is not None:
+                    matches.append((info[0], info[1], 1.0, info[1]))
+                    has_explicit_valid_code = True
+
+            # 2. When explicit valid ICD codes are present, SKIP LLM extraction completely!
+            if has_explicit_valid_code:
+                # Prefer the clean catalog description from icd10_meta.json
+                if matches and matches[0][1]:
+                    entity_display = matches[0][1]
+            elif claim_has_explicit_codes:
+                # Document ALREADY has explicit ICD codes: do NOT call LLM on residual narrative text
+                pass
+            else:
+                # No explicit valid codes anywhere in claim: only then run LLM keyword extraction
+                should_refine = _diagnosis_needs_extraction(clean_fval)
+                if should_refine:
+                    try:
+                        if clinical_summary:
+                            input_for_extraction = f"Documented Diagnosis: {clean_fval}\nClinical Summary Context: {clinical_summary}"
+                        elif clinical_ctx:
+                            input_for_extraction = f"Documented Diagnosis: {clean_fval}\nClinical Summary Context: {clinical_ctx}"
+                        else:
+                            input_for_extraction = clean_fval
+                        narrative_terms = extract_diagnosis_keywords(input_for_extraction)
+                    except Exception:
+                        logger.debug("diagnosis extraction failed for entity_display", exc_info=True)
+                        narrative_terms = []
+                    if narrative_terms:
+                        entity_display = narrative_terms[0]
 
         entities.append(Entity(
             entity_text=entity_display,
@@ -760,31 +813,11 @@ def _extract_from_parsed_fields(
         ))
 
         if etype == "DIAGNOSIS":
-            matches: list[tuple] = []
-            query_hint: str | None = None
-            
-            # Scenario 1: Check for explicit ICD-10 codes in the field text
-            explicit_matches = list(_ICD_CODE_RE.finditer(clean_fval))
-            if explicit_matches:
-                for em in explicit_matches:
-                    raw_code = em.group(1)
-                    info = lookup_icd10_rag(raw_code)
-                    if info is not None:
-                        matches.append((info[0], info[1], 1.0, info[1]))
-                    else:
-                        matches.append((raw_code, clean_fval, 1.0, clean_fval))
-            
-            # If field name is explicitly icd_code and wasn't matched above, check directly
-            if not matches and fname == "icd_code":
-                info = lookup_icd10_rag(clean_fval)
-                if info is not None:
-                    matches.append((info[0], info[1], 1.0, info[1]))
-                else:
-                    matches.append((clean_fval, clean_fval, 1.0, clean_fval))
-
-            # Only do text-to-code RAG matching if no explicit ICD code was found in THIS field
-            # AND no explicit icd_code fields were provided across parsed fields (which are authoritative)
-            if not matches and not has_explicit_icd_fields:
+            # Only do text-to-code RAG matching if:
+            # 1. No explicit ICD code in THIS field
+            # 2. Document does NOT already have explicit ICD codes (authoritative)
+            # 3. No explicit icd_code fields were provided across parsed fields
+            if not matches and not claim_has_explicit_codes and not has_explicit_icd_fields:
                 if narrative_terms:
                     scored: list[tuple[float, str, str, str]] = []
                     seen_local: set[str] = set()
@@ -792,7 +825,7 @@ def _extract_from_parsed_fields(
                     for idx, term in enumerate(narrative_terms):
                         if not is_rag_available():
                             break
-                        rag_hits = search_icd10_rag(term, max_results=1)
+                        rag_hits = search_icd10_rag(term, max_results=3)
                         for code, desc, _cat, score in rag_hits:
                             if code in seen_local:
                                 continue
@@ -802,66 +835,94 @@ def _extract_from_parsed_fields(
                                 query_hint = term
                     
                     matches = [(code, desc, score, term) for score, code, desc, term in scored[:10]]
-                else:
+                elif len(clean_fval) >= 4 and not _ICD_CODE_RE.fullmatch(clean_fval):
                     smart_matches, query_hint = _search_icd10_smart(
-                        clean_fval, max_results=1, clinical_context=clinical_summary or clinical_ctx
+                        clean_fval, max_results=3, clinical_context=clinical_summary or clinical_ctx
                     )
                     matches = [(code, desc, score, query_hint) for code, desc, score in smart_matches]
 
-            match_source = "explicit_code" if (explicit_matches or fname == "icd_code") else "rag_search"
+            match_source = "explicit_code" if has_explicit_valid_code else "rag_search"
 
-            for rank, code_tuple in enumerate(matches):
-                if len(code_tuple) == 4:
-                    code, desc, match_score, matching_term = code_tuple
-                else:
-                    code, desc, match_score = code_tuple
-                    matching_term = query_hint
+            if has_explicit_valid_code:
+                for rank, code_tuple in enumerate(matches):
+                    code = code_tuple[0]
+                    desc = code_tuple[1]
+                    if code in seen_codes:
+                        continue
+                    seen_codes.add(code)
+                    meta_lookup = lookup_icd10_rag(code)
+                    catalog_desc = meta_lookup[1] if meta_lookup else desc
+                    final_desc = catalog_desc.strip() if catalog_desc else desc
+                    is_primary = False
+                    if not primary_diag_code:
+                        is_primary = True
+                        primary_diag_code = code
+                    codes.append(Code(
+                        code=code,
+                        code_system="ICD10",
+                        description=final_desc,
+                        confidence=1.0,
+                        is_primary=is_primary,
+                        entity_index=len(entities) - 1,
+                        code_includes="ICD-10 code explicitly present in document",
+                        other_matches=[],
+                    ))
+            elif matches:
+                top_tuple = matches[0]
+                code, desc, match_score = top_tuple[0], top_tuple[1], top_tuple[2]
+                matching_term = top_tuple[3] if len(top_tuple) == 4 else query_hint
 
-                if code in seen_codes:
-                    continue
-                seen_codes.add(code)
+                if code not in seen_codes:
+                    seen_codes.add(code)
+                    meta_lookup = lookup_icd10_rag(code)
+                    catalog_desc = meta_lookup[1] if meta_lookup else desc
+                    if catalog_desc and len(catalog_desc.strip()) > 3:
+                        final_desc = catalog_desc.strip()
+                    elif desc and desc.strip() and len(desc.strip()) < 120 and "\n" not in desc:
+                        final_desc = desc.strip()
+                    elif matching_term and len(matching_term) < 120 and "\n" not in matching_term:
+                        final_desc = matching_term
+                    else:
+                        final_desc = catalog_desc or code
 
-                # 1. Try to get description from the field value first
-                orig_text = re.sub(r"(?i)\b(?:icd-10|icd10)?\s*[:\-]?\s*" + re.escape(code) + r"\b", "", clean_fval).strip()
-                orig_text = re.sub(r"[\:\|\-]\s*$", "", orig_text).strip()
+                    # Directly take other closest matches from the raw clinical query (ranks 1 and 2)
+                    raw_alts = []
+                    for alt_rank, alt_tuple in enumerate(matches[1:3], start=1):
+                        alt_code = alt_tuple[0]
+                        alt_desc = alt_tuple[1]
+                        alt_score = alt_tuple[2]
+                        alt_meta = lookup_icd10_meta(alt_code) if is_rag_available() else None
+                        alt_desc_clean = (alt_meta.get("description") if alt_meta else alt_desc) or alt_desc
+                        alt_conf = _icd_confidence_from_score(alt_score, rank=alt_rank)
+                        raw_alts.append({
+                            "code": alt_code,
+                            "description": alt_desc_clean,
+                            "confidence": alt_conf,
+                            "code_includes": alt_meta.get("code_includes") if alt_meta else None,
+                        })
 
-                # 2. Fallback to nearby OCR context in the full document if field text is weak
-                final_desc = None
-                if desc and desc.strip():
-                    final_desc = desc.strip()
-                elif matching_term and _diagnosis_needs_extraction(clean_fval):
-                    final_desc = matching_term
-                elif len(orig_text) > 4 and not _diagnosis_needs_extraction(orig_text):
-                    final_desc = orig_text
-                else:
-                    final_desc = _find_description_in_context(full_text, code, "ICD10") or desc or code
+                    is_primary = False
+                    if not primary_diag_code:
+                        is_primary = True
+                        primary_diag_code = code
+                    elif fname in ("primary_diagnosis", "diagnosis") and len(codes) == 0:
+                        for c in codes:
+                            if c.code_system == "ICD10":
+                                c.is_primary = False
+                        is_primary = True
+                        primary_diag_code = code
 
-                is_primary = False
-                if not primary_diag_code:
-                    is_primary = True
-                    primary_diag_code = code
-                elif fname in ("primary_diagnosis", "diagnosis") and len(codes) == 0:
-                    for c in codes:
-                        if c.code_system == "ICD10":
-                            c.is_primary = False
-                    is_primary = True
-                    primary_diag_code = code
-
-                is_explicit = bool(explicit_matches or fname == "icd_code" or match_score >= 1.0)
-                conf = _icd_confidence_from_score(
-                    match_score,
-                    rank=0 if (narrative_terms or is_explicit) else rank,
-                    explicit=is_explicit,
-                )
-
-                codes.append(Code(
-                    code=code,
-                    code_system="ICD10",
-                    description=final_desc,
-                    confidence=conf,
-                    is_primary=is_primary,
-                    entity_index=len(entities) - 1,
-                ))
+                    conf = _icd_confidence_from_score(match_score, rank=0)
+                    codes.append(Code(
+                        code=code,
+                        code_system="ICD10",
+                        description=final_desc,
+                        confidence=conf,
+                        is_primary=is_primary,
+                        entity_index=len(entities) - 1,
+                        code_includes=meta_lookup[3] if (meta_lookup and len(meta_lookup) > 3) else None,
+                        other_matches=raw_alts,
+                    ))
             logger.info(f"--------------------------Recieved codes from : {match_source}-------------------------------------------")
                     
         elif etype == "PROCEDURE":
@@ -919,7 +980,7 @@ def _extract_from_parsed_fields(
     # Fallback: if no diagnosis entities were extracted from parsed fields,
     # but clinical_diagnosis_summary is present, extract diagnoses directly from it
     has_diag_entity = any(e.entity_type == "DIAGNOSIS" for e in entities)
-    if not has_diag_entity and clinical_summary:
+    if not has_diag_entity and not claim_has_explicit_codes and clinical_summary:
         try:
             summary_terms = extract_diagnosis_keywords(f"Clinical Summary Context: {clinical_summary}")
         except Exception:
@@ -1265,11 +1326,13 @@ def _extract_explicit_codes(
         raw_code = m.group(1)
         if raw_code in seen:
             continue
-        seen.add(raw_code)
         info = lookup_icd10_rag(raw_code)
-        
+        if not info:
+            continue
+        seen.add(raw_code)
+
         desc = _get_description_for_match(text, m.start(), m.end(), "ICD10")
-        if not desc and info:
+        if not desc or len(desc) > 120 or "\n" in desc:
             desc = info[1]
 
         # Check if this explicit occurrence was marked as primary diagnosis in the line prefix
@@ -1284,7 +1347,7 @@ def _extract_explicit_codes(
             code=raw_code,
             code_system="ICD10",
             description=desc,
-            confidence=1.0 if info else 0.70,
+            confidence=1.0,
             is_primary=is_primary,
         ))
 
