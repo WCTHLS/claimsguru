@@ -34,11 +34,16 @@ jobs:
         run: |
           ENV_NAME="${{ github.event.inputs.environment || 'preprod' }}"
           echo "ENV_NAME=$ENV_NAME" >> $GITHUB_OUTPUT
-          ACR_NAME="${{ secrets.ACR_NAME || 'claimsgurucr' }}"
+          if [ "$ENV_NAME" = "preprod" ]; then
+            ACR_NAME="acrclaimsgurupreprod"
+            RG_NAME="claimsGuru"
+          else
+            ACR_NAME="${{ secrets.ACR_NAME || 'claimsgurucr' }}"
+            RG_NAME="claimsguru-$ENV_NAME-centralindia-rg"
+          fi
           echo "ACR_NAME=$ACR_NAME" >> $GITHUB_OUTPUT
           ACR_SERVER="$ACR_NAME.azurecr.io"
           echo "ACR_SERVER=$ACR_SERVER" >> $GITHUB_OUTPUT
-          RG_NAME="claimsguru-$ENV_NAME-centralindia-rg"
           echo "RG_NAME=$RG_NAME" >> $GITHUB_OUTPUT
 
       - name: Log in to Azure Container Registry
