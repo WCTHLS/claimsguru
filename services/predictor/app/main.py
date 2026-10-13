@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from .config import settings
 from .db import SessionLocal, check_db_health, engine
-from .engine import build_features, predict, _score_to_category
+from .engine import _parse_amount, _score_to_category, build_features, predict
 from .models import (
     Claim,
     Feature,
@@ -123,6 +123,8 @@ def run_prediction(claim_id: str, db: Session = Depends(get_db)):
     expenses: list[dict[str, Any]] = []
     if claim and claim.canonical_json and isinstance(claim.canonical_json, dict):
         raw_exp = claim.canonical_json.get("expenses") or claim.canonical_json.get("bill", {}).get("items", [])
+        if isinstance(raw_exp, dict):
+            raw_exp = raw_exp.get("line_items") or raw_exp.get("items") or []
         if isinstance(raw_exp, list):
             for e in raw_exp:
                 if isinstance(e, dict):
@@ -133,6 +135,31 @@ def run_prediction(claim_id: str, db: Session = Depends(get_db)):
                     except (ValueError, TypeError):
                         amt = 0.0
                     expenses.append({"category": str(cat), "amount": amt})
+
+        # Reconcile historical previous claims bleed into claimed_total
+        canon_claims = claim.canonical_json.get("claims", {})
+        canon_total = (
+            canon_claims.get("total_amount")
+            or canon_claims.get("calculated_total")
+            or claim.canonical_json.get("billed_total")
+            or claim.canonical_json.get("gross_total")
+        )
+        if canon_total and expenses:
+            exp_sum = sum(e.get("amount", 0.0) for e in expenses)
+            if exp_sum > 0:
+                curr_total = next((_parse_amount(p["field_value"]) for p in parsed if p.get("field_name") in ("claimed_total", "total_amount", "billed_total")), 0.0)
+                if curr_total > 0 and abs(curr_total - exp_sum) / max(curr_total, 1.0) > 0.08:
+                    try:
+                        c_val = float(canon_total)
+                        if abs(c_val - exp_sum) / max(exp_sum, 1.0) <= 0.02:
+                            for p in parsed:
+                                if p.get("field_name") in ("claimed_total", "total_amount"):
+                                    p["field_value"] = str(round(c_val, 2))
+                            for pf in pf_rows:
+                                if pf.field_name in ("claimed_total", "total_amount"):
+                                    pf.field_value = str(round(c_val, 2))
+                    except (ValueError, TypeError):
+                        pass
 
     features = build_features(parsed, entities, codes, expenses=expenses)
     result = predict(features)

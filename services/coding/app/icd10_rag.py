@@ -1643,6 +1643,23 @@ def _ensure_meta_loaded() -> None:
         _icd10_meta_dict_index = meta_idx
 
 
+_WHO_ALIASES: dict[str, tuple[str, str, str]] = {
+    "A90": ("A90", "Dengue fever [classical dengue]", "Infectious"),
+    "A91": ("A91", "Dengue haemorrhagic fever", "Infectious"),
+    "I10": ("I10", "Essential (primary) hypertension", "Circulatory"),
+}
+
+
+def is_exact_icd10(code: str) -> bool:
+    """Check if a code is an exact catalog code or standard WHO alias (not a derived subcode)."""
+    if not code:
+        return False
+    _ensure_meta_loaded()
+    raw = str(code).strip().upper()
+    norm = re.sub(r"[^A-Z0-9]", "", raw)
+    return norm in _icd10_code_index or raw in _icd10_code_index or norm in _WHO_ALIASES or raw in _WHO_ALIASES
+
+
 def lookup_icd10_rag(code: str) -> tuple[str, str, str] | None:
     """Return the exact ICD-10 entry from the loaded RAG metadata, if present.
 
@@ -1667,12 +1684,8 @@ def lookup_icd10_rag(code: str) -> tuple[str, str, str] | None:
     if match:
         return match
 
-    # 2. Direct WHO legacy alias fallback for restructured blocks (e.g. Dengue A90 -> A97.9)
-    _ALIASES = {
-        "A90": ("A90", "Dengue fever [classical dengue]", "Infectious"),
-        "A91": ("A91", "Dengue haemorrhagic fever", "Infectious"),
-    }
-    alias_match = _ALIASES.get(norm_key) or _ALIASES.get(raw_clean)
+    # 2. Direct WHO legacy alias fallback for restructured blocks (e.g. Dengue A90 -> A97.9, Hypertension I10)
+    alias_match = _WHO_ALIASES.get(norm_key) or _WHO_ALIASES.get(raw_clean)
     if alias_match:
         return alias_match
 

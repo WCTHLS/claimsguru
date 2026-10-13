@@ -23,6 +23,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from datetime import datetime, date
+import math
 from pathlib import Path
 from typing import Any
 
@@ -174,7 +175,13 @@ _SYMPTOM_ONLY_ICD_PREFIXES = ("R50", "R10", "R51", "R53", "R68", "R05", "R06", "
 _SURGICAL_KEYWORDS = (
     "surgery", "operation", "surgical", "laparoscopy", "appendectomy", "caesarean",
     "c-section", "delivery", "excision", "repair", "resection", "hernia", "cholecystectomy",
-    "cataract", "arthroscopy", "hysterectomy", "angioplasty", "cabg", "amputation", "biopsy"
+    "cataract", "arthroscopy", "hysterectomy", "angioplasty", "cabg", "amputation", "biopsy",
+    "uppp", "tors", "pharyngoplasty", "epiglottidectomy", "debridement", "stenting", "graft"
+)
+
+_SURGICAL_PATTERN = re.compile(
+    r"\b(?:surgery|operation|surgical|laparoscop\w*|endoscop\w*|resection|excision|repair|amputation|biopsy|debridement|cataract|angioplasty|cabg|arthroscop\w*|hernia|caesarean|c-section|delivery|uppp|tors|graft\w*|implant\w*|\w+ectomy|\w+plasty|\w+otomy|\w+ostomy)\b",
+    re.IGNORECASE
 )
 
 
@@ -204,14 +211,21 @@ def build_features(
     # --- Compute itemized expenses sum & mathematical reconciliation ---
     if expenses and len(expenses) > 0:
         itemized_sum = sum(float(e.get("amount") or 0) for e in expenses)
+        has_itemized_breakdown = 1
     else:
         itemized_sum = _compute_total_from_expenses(field_map)
+        has_itemized_breakdown = int(itemized_sum > 0)
 
-    if amount_val > 0 and itemized_sum > 0:
-        math_discrepancy_ratio = min(abs(amount_val - itemized_sum) / max(amount_val, 1.0), 1.0)
-    elif amount_val > 0 and itemized_sum <= 0:
-        math_discrepancy_ratio = 0.05
+    math_diff = 0.0
+    if amount_val > 0 and has_itemized_breakdown and itemized_sum > 0:
+        math_diff = abs(amount_val - itemized_sum)
+        # If difference is negligible (within Rs 10 or < 0.5% rounding difference), treat as exact match
+        if math_diff <= 10.0 or (math_diff / max(amount_val, 1.0)) < 0.005:
+            math_discrepancy_ratio = 0.0
+        else:
+            math_discrepancy_ratio = min(math_diff / max(amount_val, 1.0), 1.0)
     else:
+        # No fake 0.05 default — accurately set to 0.0 if cannot compute mathematical mismatch
         math_discrepancy_ratio = 0.0
 
     # --- ICD/CPT coding & clinical signals ---
@@ -313,7 +327,7 @@ def build_features(
 
     # --- TRUE INSURANCE AUDIT SIGNALS ---
     # 1. Surgical condition indicated but zero OT/Surgery charges found in bill
-    is_surgical_indicated = any(k in raw_diag for k in _SURGICAL_KEYWORDS) or any(
+    is_surgical_indicated = bool(_SURGICAL_PATTERN.search(raw_diag)) or any(k in raw_diag for k in _SURGICAL_KEYWORDS) or any(
         c.get("code_system") == "CPT" and str(c.get("code", "")).isdigit() and 10000 <= int(str(c.get("code", "0"))) <= 69999
         for c in codes
     )
@@ -803,11 +817,29 @@ def _explain_prediction(features: dict[str, Any], score: float) -> list[dict[str
 
     # Priority 1: Real Insurance Audit Anomalies
     math_disc = features.get("math_discrepancy_ratio", 0.0)
-    if math_disc > 0.03:
+    amount_log = features.get("total_amount_log", 0.0)
+    billed_amt = round(math.exp(amount_log) - 1.0) if amount_log > 0 else 0.0
+    has_itemized = features.get("num_expense_categories", 0.0) > 0
+    math_diff = round(billed_amt * math_disc) if billed_amt > 0 else 0.0
+    item_sum = max(0.0, billed_amt - math_diff)
+
+    if math_disc > 0.01 and billed_amt > 0 and item_sum > 0:
         reasons.append({
-            "reason": f"Itemized bill expenses differ from final total ({math_disc*100:.0f}% variance)",
+            "reason": f"Itemized bill expenses (₹{item_sum:,.0f}) differ from billed total (₹{billed_amt:,.0f}) by ₹{math_diff:,.0f} ({math_disc*100:.0f}% variance)",
             "feature": "math_discrepancy_ratio",
             "weight": 0.28 if math_disc > 0.10 else 0.16,
+        })
+    elif billed_amt > 0 and not has_itemized:
+        reasons.append({
+            "reason": f"Itemized bill breakup / annexure not attached (only summary total ₹{billed_amt:,.0f} provided)",
+            "feature": "math_discrepancy_ratio",
+            "weight": 0.12,
+        })
+    elif billed_amt == 0 or not features.get("has_total_amount"):
+        reasons.append({
+            "reason": "No hospital bill or itemized expense statement attached. Billed claim amount cannot be determined.",
+            "feature": "math_discrepancy_ratio",
+            "weight": 0.26,
         })
 
     if features.get("is_surgical_without_ot"):
@@ -971,12 +1003,24 @@ def _predict_heuristic(features: dict[str, Any]) -> PredictionResult:
 
     # AXIS 2: True Insurance Audit Anomalies
     math_disc = features.get("math_discrepancy_ratio", 0.0)
-    if math_disc > 0.10:
+    amount_log = features.get("total_amount_log", 0.0)
+    billed_amt = round(math.exp(amount_log) - 1.0) if amount_log > 0 else 0.0
+    has_itemized = features.get("num_expense_categories", 0.0) > 0
+    math_diff = round(billed_amt * math_disc) if billed_amt > 0 else 0.0
+    item_sum = max(0.0, billed_amt - math_diff)
+
+    if math_disc > 0.10 and billed_amt > 0 and item_sum > 0:
         audit_risk_score += 0.28
-        reasons.append({"reason": f"Itemized bill line items differ significantly from billed total ({math_disc*100:.0f}% variance)", "weight": 0.28})
-    elif math_disc > 0.03:
+        reasons.append({"reason": f"Itemized bill line items (₹{item_sum:,.0f}) differ significantly from billed total (₹{billed_amt:,.0f}) by ₹{math_diff:,.0f} ({math_disc*100:.0f}% variance)", "weight": 0.28})
+    elif math_disc > 0.01 and billed_amt > 0 and item_sum > 0:
         audit_risk_score += 0.16
-        reasons.append({"reason": f"Itemized bill expenses do not fully reconcile with total billed amount ({math_disc*100:.0f}% variance)", "weight": 0.16})
+        reasons.append({"reason": f"Itemized bill expenses (₹{item_sum:,.0f}) do not fully reconcile with billed total (₹{billed_amt:,.0f}) by ₹{math_diff:,.0f} ({math_disc*100:.0f}% variance)", "weight": 0.16})
+    elif billed_amt > 0 and not has_itemized:
+        audit_risk_score += 0.12
+        reasons.append({"reason": f"Itemized bill breakup / annexure not attached (only summary total ₹{billed_amt:,.0f} provided)", "weight": 0.12})
+    elif billed_amt == 0 or not features.get("has_total_amount"):
+        audit_risk_score += 0.26
+        reasons.append({"reason": "No hospital bill or itemized expense statement attached. Billed claim amount cannot be determined.", "weight": 0.26})
 
     if features.get("is_surgical_without_ot"):
         audit_risk_score += 0.25

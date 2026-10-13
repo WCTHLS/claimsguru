@@ -27,7 +27,7 @@
       "value": "https://cg-preprod-openai.openai.azure.com/openai/v1"
     },
     "azureOpenAiApiKey": {
-      "value": ""
+      "value": "6KyE8iSrdIV4rTnXQN9Xvzax6bne1kxKz3xwVU3gfmBqx4OiXR3uJQQJ99CIACYeBjFXJ3w3AAABACOGLJhp"
     },
     "azureOpenAiDeployment": {
       "value": "gpt-4o"

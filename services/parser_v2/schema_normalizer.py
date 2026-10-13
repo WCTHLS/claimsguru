@@ -256,6 +256,8 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
         if canonical_key == "claimed_total":
             if any(term in key_norm for term in ["previous", "prior", "past", "history", "risk"]):
                 canonical_key = "previous_claims_amount"
+            elif any(term in val_lower for term in ["prior claim", "previous claim"]):
+                canonical_key = "previous_claims_amount"
 
         if canonical_key and canonical_key != "signature" and val_str:
             normalized.append({

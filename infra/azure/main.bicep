@@ -130,6 +130,7 @@ resource queueDefault 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview
   parent: serviceBus
   name: 'default'
   properties: {
+    lockDuration: 'PT5M'
     maxDeliveryCount: 10
     deadLetteringOnMessageExpiration: true
   }
@@ -139,6 +140,7 @@ resource queueOcr 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview' = 
   parent: serviceBus
   name: 'ocr_queue'
   properties: {
+    lockDuration: 'PT5M'
     maxDeliveryCount: 10
     deadLetteringOnMessageExpiration: true
   }
@@ -148,6 +150,7 @@ resource queueParser 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-preview'
   parent: serviceBus
   name: 'parser_queue'
   properties: {
+    lockDuration: 'PT5M'
     maxDeliveryCount: 10
     deadLetteringOnMessageExpiration: true
   }
@@ -157,6 +160,7 @@ resource queueDeadLetter 'Microsoft.ServiceBus/namespaces/queues@2022-10-01-prev
   parent: serviceBus
   name: 'dead_letter'
   properties: {
+    lockDuration: 'PT5M'
     maxDeliveryCount: 10
     deadLetteringOnMessageExpiration: true
   }
@@ -186,6 +190,26 @@ resource redisApp 'Microsoft.App/containerApps@2023-05-01' = {
             cpu: json('0.5')
             memory: '1.0Gi'
           }
+          probes: [
+            {
+              type: 'Liveness'
+              tcpSocket: {
+                port: 6379
+              }
+              initialDelaySeconds: 10
+              periodSeconds: 15
+              failureThreshold: 3
+            }
+            {
+              type: 'Readiness'
+              tcpSocket: {
+                port: 6379
+              }
+              initialDelaySeconds: 5
+              periodSeconds: 10
+              failureThreshold: 2
+            }
+          ]
         }
       ]
       scale: {
@@ -316,6 +340,7 @@ resource ingressApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'DATABASE_URL', value: dbConnectionString }
             { name: 'REDIS_URL', value: redisConnectionString }
             { name: 'AZURE_SERVICEBUS_CONNECTION_STRING', value: serviceBusConnectionString }
+            { name: 'CELERY_USE_AZURE_SERVICEBUS', value: 'true' }
             { name: 'AZURE_STORAGE_CONNECTION_STRING', value: storageConnectionString }
             { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storageAccount.properties.primaryEndpoints.blob }
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', value: docIntelligence.properties.endpoint }
@@ -337,6 +362,30 @@ resource ingressApp 'Microsoft.App/containerApps@2023-05-01' = {
             cpu: json('1.0')
             memory: '2.0Gi'
           }
+          probes: [
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/health'
+                port: 8000
+              }
+              initialDelaySeconds: 15
+              periodSeconds: 20
+              timeoutSeconds: 3
+              failureThreshold: 3
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/health'
+                port: 8000
+              }
+              initialDelaySeconds: 10
+              periodSeconds: 10
+              timeoutSeconds: 3
+              failureThreshold: 2
+            }
+          ]
         }
       ]
       scale: {
@@ -391,6 +440,7 @@ resource workerOcrApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'DATABASE_URL', value: dbConnectionString }
             { name: 'REDIS_URL', value: redisConnectionString }
             { name: 'AZURE_SERVICEBUS_CONNECTION_STRING', value: serviceBusConnectionString }
+            { name: 'CELERY_USE_AZURE_SERVICEBUS', value: 'true' }
             { name: 'AZURE_STORAGE_CONNECTION_STRING', value: storageConnectionString }
             { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storageAccount.properties.primaryEndpoints.blob }
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', value: docIntelligence.properties.endpoint }
@@ -403,8 +453,8 @@ resource workerOcrApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'CELERY_MAX_TASKS_PER_CHILD', value: '25' }
           ]
           resources: {
-            cpu: json('2.0')
-            memory: '4.0Gi'
+            cpu: json('1.0')
+            memory: '2.0Gi'
           }
         }
       ]
@@ -460,6 +510,7 @@ resource workerDefaultApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'DATABASE_URL', value: dbConnectionString }
             { name: 'REDIS_URL', value: redisConnectionString }
             { name: 'AZURE_SERVICEBUS_CONNECTION_STRING', value: serviceBusConnectionString }
+            { name: 'CELERY_USE_AZURE_SERVICEBUS', value: 'true' }
             { name: 'AZURE_STORAGE_CONNECTION_STRING', value: storageConnectionString }
             { name: 'AZURE_STORAGE_ACCOUNT_URL', value: storageAccount.properties.primaryEndpoints.blob }
             { name: 'AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT', value: docIntelligence.properties.endpoint }
@@ -534,6 +585,30 @@ resource frontendApp 'Microsoft.App/containerApps@2023-05-01' = {
             cpu: json('0.5')
             memory: '1.0Gi'
           }
+          probes: [
+            {
+              type: 'Liveness'
+              httpGet: {
+                path: '/api/health'
+                port: 3000
+              }
+              initialDelaySeconds: 15
+              periodSeconds: 20
+              timeoutSeconds: 3
+              failureThreshold: 3
+            }
+            {
+              type: 'Readiness'
+              httpGet: {
+                path: '/api/health'
+                port: 3000
+              }
+              initialDelaySeconds: 10
+              periodSeconds: 10
+              timeoutSeconds: 3
+              failureThreshold: 2
+            }
+          ]
         }
       ]
       scale: {

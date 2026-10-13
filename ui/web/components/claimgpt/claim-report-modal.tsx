@@ -168,7 +168,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       setDischargeDate(summary?.discharge_date || s.dischargeDate || '');
       setDiagnosis(summary?.diagnosis || s.diagnosis || '');
 
-      const billed = preview?.net_payable ?? preview?.billed_total ?? Number(summary?.total_amount ?? NaN);
+      const billed = preview?.gross_total ?? preview?.billed_total ?? preview?.net_payable ?? Number(summary?.total_amount ?? NaN);
       setBilledAmount(Number.isFinite(billed) && Number(billed) > 0 ? Number(billed) : s.total || 0);
     }
 

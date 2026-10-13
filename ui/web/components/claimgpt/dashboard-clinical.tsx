@@ -373,7 +373,6 @@ export function DashboardClinical() {
                   ) : (
                     filteredClaims.map((claim) => {
                       const isSelected = claim.id === s.claimId;
-                      const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                       const docs = (claim.documents && claim.documents.length > 0)
                         ? claim.documents
                         : (isSelected && s.analyzing && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
@@ -391,6 +390,13 @@ export function DashboardClinical() {
                         (liveProgress.status === "RUNNING" || (!isCompletedStatus && PIPELINE_ACTIVE_STATUSES.has(rawStatus)))
                       );
                       const isClaimProcessing = ((isSelected && s.analyzing && s.progress < 100) || (!isCompletedStatus && isLiveActive)) && !isStalledClaim;
+                      const isDocFile = (val?: string | null) => Boolean(val && /\.(pdf|png|jpe?g|tiff?|docx?)$/i.test(val.trim()));
+                      const hasRealPatientName = Boolean(claim.patient_name && claim.patient_name !== "N/A" && claim.patient_name !== "Processing..." && !isDocFile(claim.patient_name));
+                      const claimName = hasRealPatientName
+                        ? claim.patient_name
+                        : (claim.status || "").toUpperCase() === "UPLOADED" || isClaimProcessing
+                          ? "Processing..."
+                          : `Claim #${claim.id.slice(0, 6)}`;
 
                       const currentProgress = (isSelected && s.analyzing)
                         ? s.progress
@@ -529,7 +535,7 @@ export function DashboardClinical() {
 
                           {/* Person / Policy Info & Age */}
                           <div className="flex items-center justify-between gap-2 text-[10px] text-slate-500 font-medium">
-                            <span className="truncate">👤 {claim.patient_name || "mattanivas"}</span>
+                            <span className="truncate">👤 {hasRealPatientName ? claim.patient_name : (isClaimProcessing ? "Processing..." : "Patient")}</span>
                             <span
                               className="text-[10px] text-slate-400 whitespace-nowrap flex-none font-medium"
                               title={formatClaimTime(claim.created_at)}
@@ -541,7 +547,7 @@ export function DashboardClinical() {
                           {/* Group Name Header */}
                           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800 pt-0.5">
                             <FileText className="h-3.5 w-3.5 text-slate-400 flex-none" />
-                            <span className="truncate">{claimName}&apos;s - {docs.length} document{docs.length !== 1 ? "s" : ""}</span>
+                            <span className="truncate">{hasRealPatientName ? `${claim.patient_name}'s - ${docs.length} document${docs.length !== 1 ? "s" : ""}` : (isClaimProcessing ? `Processing - ${docs.length} document${docs.length !== 1 ? "s" : ""}` : `Claim #${shortId || claim.id.slice(0, 6)} - ${docs.length} document${docs.length !== 1 ? "s" : ""}`)}</span>
                           </div>
 
                           {/* Document Rows */}
@@ -906,7 +912,6 @@ export function DashboardClinical() {
                       ) : (
                       filteredClaims.map((claim) => {
                         const isSelected = claim.id === s.claimId;
-                        const claimName = claim.patient_name && claim.patient_name !== "N/A" ? claim.patient_name : `Claim #${claim.id.slice(0, 6)}`;
                         const docs = claim.documents || (isSelected && s.files.length > 0 ? s.files.map((f, i) => ({ id: `f-${i}`, file_name: f.name })) : []);
                         const liveProgress = (s as any).claimProgressMap?.[claim.id] || claim.progress;
                         const rawStatus = (claim.status || "").toUpperCase();
@@ -922,6 +927,13 @@ export function DashboardClinical() {
                           (liveProgress.status === "RUNNING" || (!isCompletedStatus && PIPELINE_ACTIVE_STATUSES.has(rawStatus)))
                         );
                         const isClaimProcessing = ((isSelected && s.analyzing && s.progress < 100) || (!isCompletedStatus && isLiveActive)) && !isStalledClaim;
+                        const isDocFile = (val?: string | null) => Boolean(val && /\.(pdf|png|jpe?g|tiff?|docx?)$/i.test(val.trim()));
+                        const hasRealPatientName = Boolean(claim.patient_name && claim.patient_name !== "N/A" && claim.patient_name !== "Processing..." && !isDocFile(claim.patient_name));
+                        const claimName = hasRealPatientName
+                          ? claim.patient_name
+                          : (claim.status || "").toUpperCase() === "UPLOADED" || isClaimProcessing
+                            ? "Processing..."
+                            : `Claim #${claim.id.slice(0, 6)}`;
 
                         const currentProgress = (isSelected && s.analyzing)
                           ? s.progress

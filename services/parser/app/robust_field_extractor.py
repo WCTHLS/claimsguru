@@ -818,6 +818,12 @@ class RobustFieldExtractor:
                     valid_candidates.append((p_idx, start_pos, value))
             
             elif field_name == "claimed_total":
+                # Check surrounding context to reject previous/prior claims history
+                ctx_start = max(0, start_pos - 80)
+                ctx_end = min(len(full_text), start_pos + len(value) + 40)
+                context_window = full_text[ctx_start:ctx_end].lower()
+                if "previous claim" in context_window or "prior claim" in context_window or "past claim" in context_window:
+                    continue
                 # clean total amount (remove rs, spaces, commas, non-numeric except dot)
                 cleaned = re.sub(r"[^\d.]", "", value)
                 if cleaned:
