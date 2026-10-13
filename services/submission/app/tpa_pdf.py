@@ -229,8 +229,8 @@ def _generate_brain_insights(claim_data: dict[str, Any]) -> list[str]:
     # Completeness check
     critical_aliases = {
         "patient_name": ("patient_name", "member_name", "insured_name"),
-        "diagnosis": ("diagnosis", "primary_diagnosis", "chief_complaint"),
-        "total_amount": ("total_amount", "amount", "billed_amount"),
+        "diagnosis": ("diagnosis", "primary_diagnosis", "chief_complaint", "clinical_diagnosis_summary"),
+        "total_amount": ("total_amount", "claimed_total", "billed_total", "total_billed_amount", "amount", "billed_amount", "total_charge"),
         "policy_number": ("policy_number", "policy_id", "policy_no", "member_id"),
         "service_date": ("service_date", "admission_date", "date_of_service"),
     }
@@ -462,17 +462,17 @@ def _generate_reimbursement_brain(claim_data: dict[str, Any]) -> dict[str, Any]:
 
     # Required fields for reimbursement
     req_fields = [
-        ("patient_name", "Patient identification"),
-        ("admission_date", "Stay period verification"),
-        ("discharge_date", "Stay period verification"),
-        ("diagnosis", "Medical necessity"),
-        ("procedure", "Procedure justification"),
-        ("total_amount", "Claim amount"),
-        ("policy_number", "Policy verification"),
-        ("hospital_name", "Hospital verification"),
+        ("patient_name", "Patient identification", ("patient_name", "member_name", "insured_name")),
+        ("admission_date", "Stay period verification", ("admission_date", "service_date", "date_of_service")),
+        ("discharge_date", "Stay period verification", ("discharge_date", "date_of_discharge")),
+        ("diagnosis", "Medical necessity", ("diagnosis", "primary_diagnosis", "chief_complaint", "clinical_diagnosis_summary")),
+        ("procedure", "Procedure justification", ("procedure", "procedure_name", "cpt_code", "surgical_procedure")),
+        ("total_amount", "Claim amount", ("total_amount", "claimed_total", "billed_total", "total_billed_amount", "amount", "billed_amount")),
+        ("policy_number", "Policy verification", ("policy_number", "policy_id", "policy_no", "member_id")),
+        ("hospital_name", "Hospital verification", ("hospital_name", "hospital", "provider_name")),
     ]
-    for fld, reason in req_fields:
-        val = fields.get(fld) or fields.get(fld.replace("_name", "")) or ""
+    for fld, reason, aliases in req_fields:
+        val = next((fields.get(a) for a in aliases if fields.get(a)), "")
         checklist.append({
             "item": fld.replace("_", " ").title(),
             "status": "present" if val else "missing",

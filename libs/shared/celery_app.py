@@ -87,6 +87,13 @@ os.environ["CELERY_RESULT_BACKEND"] = backend_url
 broker_transport_options = {
     'visibility_timeout': 300,  # 5 minutes: unacknowledged tasks from crashed workers are restored in 5 min instead of 1 hour
 }
+if broker_url and broker_url.startswith("azureservicebus://"):
+    broker_transport_options = {
+        'visibility_timeout': 300,
+        'peek_lock_seconds': 300,  # 5 minutes lock duration matching queue lock
+        'wait_time_seconds': 5,
+        'retry_total': 3,
+    }
 result_backend_transport_options = {}
 
 if broker_url and broker_url.startswith("sentinel://"):

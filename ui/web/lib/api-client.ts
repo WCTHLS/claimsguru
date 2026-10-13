@@ -11,7 +11,7 @@ export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     if (host.includes('azurecontainerapps.io')) {
-      const ingressHost = host.replace(/frontend/i, 'ingress');
+      const ingressHost = host.replace(/(frontend|web)/i, 'ingress');
       return `https://${ingressHost}`;
     }
     if (host === 'localhost' || host === '127.0.0.1') {
@@ -550,7 +550,13 @@ export async function fetchRecentClaims(patientId?: string): Promise<RecentClaim
       const isAction = c.status === "DOCUMENTS_REQUESTED" || Boolean(c.has_action_request) || Boolean(c.tpa_requested_docs?.length > 0);
       return {
         id: c.id || c.claim_id,
-        patient_name: c.patient_name || c.name || c.summary?.patient_name || (c.documents && c.documents.length > 0 ? c.documents[0].file_name : "Claim Record"),
+        patient_name: (() => {
+          const raw = c.patient_name || c.name || c.summary?.patient_name || "";
+          const isFile = Boolean(raw && /\.(pdf|png|jpe?g|tiff?|docx?)$/i.test(raw.trim()));
+          if (raw && !isFile && raw !== "N/A" && raw !== "Processing...") return raw.trim();
+          const isProcessing = c.status === "PROCESSING" || c.status === "UPLOADED" || c.status === "RUNNING" || (typeof c.percentage === "number" && c.percentage > 0 && c.percentage < 100);
+          return isProcessing ? "Processing..." : "";
+        })(),
         status: isAction ? "DOCUMENTS_REQUESTED" : (c.status || "PROCESSING").toUpperCase(),
         created_at: c.created_at || "",
         total_amount: c.total_amount || c.amount || "",

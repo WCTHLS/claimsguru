@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -166,7 +167,7 @@ Return STRICT JSON only adhering exactly to this schema:
   "sum_insured": "Total sum insured or policy coverage limit amount as numeric string (e.g. '500000', '1000000'). Return null if not present.",
   "policy_start_date": "Policy inception / start date in DD/MM/YYYY or DD-MM-YYYY format if explicitly present. Return null if not present.",
   "policy_end_date": "Policy expiry / end date in DD/MM/YYYY or DD-MM-YYYY format if explicitly present. Return null if not present.",
-  "claimed_total": "Final billed total amount as number or string if an invoice/bill is present (null if this is only a discharge summary with no bills)"
+  "claimed_total": "Final billed total amount / claim amount requested on the hospital bill/invoice as number or string (null if this is only a discharge summary with no bills). NEVER extract amounts from 'Previous Claims' or 'Prior Claims' history."
 }
 
 STRICT RULES (Zero Hallucination):
@@ -174,6 +175,7 @@ STRICT RULES (Zero Hallucination):
 2. For insurance_company vs tpa_name: Do not confuse insurer and TPA. If text explicitly states 'TPA: Family Health Plan (TPA) Ltd.', extract that into tpa_name. If an insurer is explicitly named, extract it into insurance_company.
 3. For discharge summaries with NO bills, claimed_total MUST be null.
 4. For patient_name: extract the genuine patient name, even if listed next to UHID/MRNO or printed as a single name.
+5. NEVER extract historical previous claims or prior claims history (e.g. 'Previous Claims: Rs. ...', 'Total Claimed: Rs. ...' under prior claims) as claimed_total. claimed_total MUST be the current hospital bill total / claim amount requested.
 
 Document Text:
 """

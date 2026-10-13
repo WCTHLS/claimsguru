@@ -168,7 +168,7 @@ export function useAuditorState() {
   const progressRef = useRef<number>(0);
   const isAnalyzingRef = useRef<boolean>(false);
 
-  const [claimProgressMap, setClaimProgressMap] = useState<Record<string, { percentage: number; step: string }>>({});
+  const [claimProgressMap, setClaimProgressMap] = useState<Record<string, { percentage: number; step: string; status?: string; error?: string }>>({});
 
   /* Central progress and pipeline stage synchronizer */
   const updateProgressAndStage = (targetPct: number, customStep?: string) => {
@@ -745,9 +745,13 @@ export function useAuditorState() {
   /* Dynamically extracted metadata fields from backend preview */
   const selectedClaimMeta = recentClaims.find((c) => c.id === (claimId || activeClaimIdRef.current));
 
-  const extractedPatient = realPreview?.summary?.patient_name && realPreview.summary.patient_name !== "N/A"
+  const isDocFile = (val?: string | null) => Boolean(val && /\.(pdf|png|jpe?g|tiff?|docx?)$/i.test(val.trim()));
+  const rawCandidatePatient = realPreview?.summary?.patient_name && realPreview.summary.patient_name !== "N/A"
     ? realPreview.summary.patient_name
     : realPreview?.parsed_fields?.patient_name || realPreview?.parsed_fields?.member_name || realPreview?.parsed_fields?.insured_name || selectedClaimMeta?.patient_name;
+  const extractedPatient = rawCandidatePatient && !isDocFile(rawCandidatePatient) && rawCandidatePatient !== "Processing..."
+    ? rawCandidatePatient.trim()
+    : "";
 
   const extractedHospital = realPreview?.summary?.hospital && realPreview.summary.hospital !== "N/A"
     ? realPreview.summary.hospital

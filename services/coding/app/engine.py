@@ -30,6 +30,7 @@ from .icd10_codes import (
     search_cpt_by_text,
 )
 from .icd10_rag import (
+    is_exact_icd10,
     is_rag_available,
     is_valid_icd10,
     lookup_icd10_rag,
@@ -1347,7 +1348,7 @@ def _extract_explicit_codes(
             code=raw_code,
             code_system="ICD10",
             description=desc,
-            confidence=1.0,
+            confidence=1.0 if is_exact_icd10(raw_code) else 0.85,
             is_primary=is_primary,
         ))
 
