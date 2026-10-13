@@ -17,13 +17,7 @@ Provisions an administrative or organizational user into:
    - staff_profiles
 
 Usage:
-    python scripts/provision.py \\
-        --email user@example.com \\
-        --password "StrongPassword123!" \\
-        --first-name John \\
-        --last-name Doe \\
-        --insurance-company "Star Health" \\
-        --role admin
+    python scripts/provision.py --email user@example.com --password "StrongPassword123!" --first-name John --last-name Doe --insurance-company "Star Health" --role admin
 """
 
 from __future__ import annotations
@@ -49,6 +43,19 @@ except ImportError:
 import requests
 from sqlalchemy import create_engine, text
 
+# Ensure UTF-8 console output on Windows
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
+
+PREPROD_BACKEND_URL = "https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io"
+PREPROD_DB_URL = "mssql+pymssql://claimsgurupreprodadmin:ClaimsGuruPreProdPass!2026@cg-preprod-sql-vvekhbufuteq2.database.windows.net:1433/claimsguru"
+
 
 # ============================================================
 # Argument Parsing
@@ -60,6 +67,22 @@ def parse_arguments() -> argparse.Namespace:
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
 
+    parser.add_argument(
+        "--env",
+        choices=["local", "preprod"],
+        default=None,
+        help="Target environment ('local' or 'preprod'). If omitted, script prompts interactively before running.",
+    )
+    parser.add_argument(
+        "--backend-url",
+        default=None,
+        help="Override backend API URL (defaults to env-based local URL or Azure preprod ingress URL)",
+    )
+    parser.add_argument(
+        "--database-url",
+        default=None,
+        help="Override database connection URL",
+    )
     parser.add_argument(
         "--email",
         required=True,
@@ -132,6 +155,73 @@ def parse_arguments() -> argparse.Namespace:
 # ============================================================
 # Environment Helpers
 # ============================================================
+
+def mask_database_url(url: str) -> str:
+    """Mask password in database URL for safe terminal logging."""
+    try:
+        if "@" in url and "://" in url:
+            proto, rest = url.split("://", 1)
+            userinfo, hostinfo = rest.split("@", 1)
+            if ":" in userinfo:
+                user = userinfo.split(":", 1)[0]
+                return f"{proto}://{user}:***@{hostinfo}"
+    except Exception:
+        pass
+    return url
+
+
+def select_environment(cli_env: Optional[str] = None, cli_backend: Optional[str] = None, cli_db: Optional[str] = None) -> tuple[str, str, str]:
+    """
+    Prompt or resolve the environment (local vs preprod) and return (env_name, backend_api_url, database_url).
+    """
+    selected = (cli_env or "").strip().lower()
+
+    if selected not in ("local", "preprod"):
+        print("\n" + "=" * 65)
+        print("  SELECT TARGET ENVIRONMENT")
+        print("=" * 65)
+        print("  [1] local   - Local dev backend & database")
+        print(f"  [2] preprod - Azure Pre-Prod Ingress & Azure SQL")
+        print("=" * 65)
+        while selected not in ("local", "preprod"):
+            try:
+                choice = input(">> Select environment [1 for local, 2 for preprod] (default: 1): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n[-] Cancelled by user.")
+                sys.exit(1)
+
+            if choice in ("1", "local", ""):
+                selected = "local"
+            elif choice in ("2", "preprod"):
+                selected = "preprod"
+            else:
+                print("[-] Invalid choice. Please enter 1 (local) or 2 (preprod).")
+
+    if selected == "local":
+        backend_url = (
+            cli_backend
+            or os.getenv("BACKEND_API_URL")
+            or os.getenv("INGRESS_URL")
+            or os.getenv("INTERNAL_INGRESS_URL")
+            or os.getenv("NEXT_PUBLIC_API_BASE")
+            or os.getenv("EXPO_PUBLIC_API_URL")
+            or "http://localhost:8000"
+        ).rstrip("/")
+        database_url = (
+            cli_db
+            or os.getenv("DATABASE_URL")
+            or "mssql+pymssql://sa:YourStrong!Password@localhost:1433/claimgpt"
+        )
+    else:  # preprod
+        backend_url = (cli_backend or PREPROD_BACKEND_URL).rstrip("/")
+        database_url = (
+            cli_db
+            or os.getenv("PREPROD_DATABASE_URL")
+            or PREPROD_DB_URL
+        )
+
+    return selected, backend_url, database_url
+
 
 def get_env_var(name: str, fallback_names: list[str] | None = None, default: str | None = None) -> str:
     """Retrieve environment variable supporting multiple alias names."""
@@ -358,44 +448,48 @@ def create_or_update_db_user(
     designation: str = "Organization Administrator",
     employee_id: Optional[str] = None,
     phone: Optional[str] = None,
+    database_url: str,
 ) -> uuid.UUID:
     """
     Provisions or synchronizes the user into ClaimsGuru relational schema:
-    1. organizations: ensure insurer/organization exists
-    2. roles: ensure requested role ('admin', etc.) exists
+    1. organizations: ensure insurer/organization exists (for admin/reviewer or if specified)
+    2. roles: lookup or ensure role ('admin', 'reviewer', 'submitter') exists in roles table
     3. users: create/update user linked to entra provider and external_subject_id
-    4. user_roles: assign role to user
-    5. staff_profiles: link user to organization profile
+    4. user_roles: associate user_id with role_id from roles table
+    5. Profiles:
+       - If role in ('admin', 'reviewer'): create/update staff_profiles (with role, is_admin, organization_id)
+       - If role == 'submitter': create/update patient_profiles
     """
     clean_email = email.strip().lower()
-    clean_company = insurance_company.strip()
+    clean_company = insurance_company.strip() if insurance_company else ""
     clean_role = role.strip().lower()
 
-    database_url = get_env_var("DATABASE_URL")
     engine = create_engine(database_url, pool_pre_ping=True)
 
     with engine.begin() as conn:
-        # 1. Organization lookup or insertion
-        org_row = conn.execute(
-            text("SELECT id, name FROM organizations WHERE lower(name) = lower(:name)"),
-            {"name": clean_company},
-        ).mappings().first()
+        # 1. Organization lookup or insertion (mandatory for staff, optional for submitter)
+        org_id = None
+        if clean_company:
+            org_row = conn.execute(
+                text("SELECT id, name FROM organizations WHERE lower(name) = lower(:name)"),
+                {"name": clean_company},
+            ).mappings().first()
 
-        if org_row:
-            org_id = org_row["id"]
-            print(f"    ✓ Found existing organization: '{org_row['name']}' (ID: {org_id})")
-        else:
-            org_id = uuid.uuid4()
-            conn.execute(
-                text("""
-                    INSERT INTO organizations (id, name, type, status, created_at, updated_at)
-                    VALUES (:id, :name, :type, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                """),
-                {"id": org_id, "name": clean_company, "type": org_type},
-            )
-            print(f"    ✓ Created organization: '{clean_company}' (ID: {org_id}, Type: {org_type})")
+            if org_row:
+                org_id = org_row["id"]
+                print(f"    ✓ Found existing organization: '{org_row['name']}' (ID: {org_id})")
+            else:
+                org_id = uuid.uuid4()
+                conn.execute(
+                    text("""
+                        INSERT INTO organizations (id, name, type, status, created_at, updated_at)
+                        VALUES (:id, :name, :type, 'ACTIVE', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    """),
+                    {"id": org_id, "name": clean_company, "type": org_type},
+                )
+                print(f"    ✓ Created organization: '{clean_company}' (ID: {org_id}, Type: {org_type})")
 
-        # 2. Role lookup or insertion
+        # 2. Role lookup or insertion in roles table
         role_row = conn.execute(
             text("SELECT id, name FROM roles WHERE lower(name) = lower(:name)"),
             {"name": clean_role},
@@ -403,7 +497,7 @@ def create_or_update_db_user(
 
         if role_row:
             role_id = role_row["id"]
-            print(f"    ✓ Found role: '{role_row['name']}' (ID: {role_id})")
+            print(f"    ✓ Found role in roles table: '{role_row['name']}' (ID: {role_id})")
         else:
             role_id = uuid.uuid4()
             conn.execute(
@@ -413,9 +507,9 @@ def create_or_update_db_user(
                 """),
                 {"id": role_id, "name": clean_role, "desc": f"{clean_role.title()} Access Role"},
             )
-            print(f"    ✓ Created role: '{clean_role}' (ID: {role_id})")
+            print(f"    ✓ Created role in roles table: '{clean_role}' (ID: {role_id})")
 
-        # 3. User lookup, creation or update
+        # 3. User lookup, creation or update in users table
         user_row = conn.execute(
             text("""
                 SELECT id, email, status FROM users
@@ -439,7 +533,7 @@ def create_or_update_db_user(
                 """),
                 {"id": user_id, "subject_id": external_subject_id},
             )
-            print(f"    ✓ Synchronized existing user: '{clean_email}' (ID: {user_id})")
+            print(f"    ✓ Synchronized existing user in users table: '{clean_email}' (ID: {user_id})")
         else:
             try:
                 user_id = uuid.UUID(str(external_subject_id))
@@ -464,9 +558,9 @@ def create_or_update_db_user(
                     "subject_id": external_subject_id,
                 },
             )
-            print(f"    ✓ Created new DB user: '{clean_email}' (ID: {user_id})")
+            print(f"    ✓ Created record in users table: '{clean_email}' (ID: {user_id})")
 
-        # 4. Role assignment (user_roles)
+        # 4. Role association in user_roles table
         user_role_row = conn.execute(
             text("SELECT user_id FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"),
             {"user_id": user_id, "role_id": role_id},
@@ -480,66 +574,172 @@ def create_or_update_db_user(
                 """),
                 {"user_id": user_id, "role_id": role_id},
             )
-            print(f"    ✓ Assigned role '{clean_role}' to user '{clean_email}'")
+            print(f"    ✓ Associated user_id ({user_id}) with role_id ({role_id}) in user_roles table")
         else:
-            print(f"    ✓ User already has role '{clean_role}'")
+            print(f"    ✓ User already associated with role '{clean_role}' in user_roles table")
 
-        # 5. Staff Profile synchronization
-        staff_row = conn.execute(
-            text("SELECT id FROM staff_profiles WHERE user_id = :user_id"),
-            {"user_id": user_id},
-        ).mappings().first()
+        # 5. Profile creation based on role
+        if clean_role == "submitter":
+            # ----------------------------------------------------
+            # Submitter (Patient) Profile Flow
+            # ----------------------------------------------------
+            patient_row = conn.execute(
+                text("SELECT id FROM patient_profiles WHERE user_id = :user_id"),
+                {"user_id": user_id},
+            ).mappings().first()
 
-        emp_code = employee_id or f"EMP-{str(uuid.uuid4())[:8].upper()}"
+            if patient_row:
+                conn.execute(
+                    text("""
+                        UPDATE patient_profiles
+                        SET first_name = :first_name,
+                            last_name = :last_name,
+                            insurer_id = :insurer_id,
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = :user_id
+                    """),
+                    {
+                        "user_id": user_id,
+                        "first_name": first_name.strip(),
+                        "last_name": last_name.strip(),
+                        "insurer_id": org_id,
+                    },
+                )
+                print(f"    ✓ Updated existing record in patient_profiles table for '{clean_email}'")
+            else:
+                conn.execute(
+                    text("""
+                        INSERT INTO patient_profiles (
+                            id, user_id, first_name, last_name, insurer_id,
+                            coverage_verified, created_at, updated_at
+                        )
+                        VALUES (
+                            :id, :user_id, :first_name, :last_name, :insurer_id,
+                            0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                    """),
+                    {
+                        "id": uuid.uuid4(),
+                        "user_id": user_id,
+                        "first_name": first_name.strip(),
+                        "last_name": last_name.strip(),
+                        "insurer_id": org_id,
+                    },
+                )
+                print(f"    ✓ Created record in patient_profiles table for '{clean_email}'")
 
-        if staff_row:
-            conn.execute(
-                text("""
-                    UPDATE staff_profiles
-                    SET organization_id = :org_id,
-                        first_name = :first_name,
-                        last_name = :last_name,
-                        designation = :designation,
-                        status = 'ACTIVE',
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE user_id = :user_id
-                """),
-                {
-                    "user_id": user_id,
-                    "org_id": org_id,
-                    "first_name": first_name.strip(),
-                    "last_name": last_name.strip(),
-                    "designation": designation,
-                },
-            )
-            print(f"    ✓ Updated staff profile for '{clean_email}'")
         else:
-            conn.execute(
-                text("""
-                    INSERT INTO staff_profiles (
-                        id, user_id, organization_id, first_name, last_name,
-                        employee_id, designation, department, status,
-                        created_at, updated_at
-                    )
-                    VALUES (
-                        :id, :user_id, :org_id, :first_name, :last_name,
-                        :employee_id, :designation, 'Operations', 'ACTIVE',
-                        CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                    )
-                """),
-                {
-                    "id": uuid.uuid4(),
-                    "user_id": user_id,
-                    "org_id": org_id,
-                    "first_name": first_name.strip(),
-                    "last_name": last_name.strip(),
-                    "employee_id": emp_code,
-                    "designation": designation,
-                },
-            )
-            print(f"    ✓ Created staff profile linking '{clean_email}' to '{clean_company}'")
+            # ----------------------------------------------------
+            # Staff Profile Flow (admin, reviewer, tpa)
+            # ----------------------------------------------------
+            if not org_id:
+                raise RuntimeError("An organization (insurance company / TPA) is required when provisioning staff users.")
+
+            is_admin_flag = 1 if clean_role == "admin" else 0
+            emp_code = employee_id or f"EMP-{str(uuid.uuid4())[:8].upper()}"
+
+            staff_row = conn.execute(
+                text("SELECT id FROM staff_profiles WHERE user_id = :user_id"),
+                {"user_id": user_id},
+            ).mappings().first()
+
+            if staff_row:
+                conn.execute(
+                    text("""
+                        UPDATE staff_profiles
+                        SET organization_id = :org_id,
+                            first_name = :first_name,
+                            last_name = :last_name,
+                            role = :role,
+                            is_admin = :is_admin,
+                            designation = :designation,
+                            status = 'ACTIVE',
+                            updated_at = CURRENT_TIMESTAMP
+                        WHERE user_id = :user_id
+                    """),
+                    {
+                        "user_id": user_id,
+                        "org_id": org_id,
+                        "first_name": first_name.strip(),
+                        "last_name": last_name.strip(),
+                        "role": clean_role,
+                        "is_admin": is_admin_flag,
+                        "designation": designation,
+                    },
+                )
+                print(f"    ✓ Updated staff profile for '{clean_email}' (Role: {clean_role}, is_admin: {is_admin_flag})")
+            else:
+                conn.execute(
+                    text("""
+                        INSERT INTO staff_profiles (
+                            id, user_id, organization_id, first_name, last_name,
+                            role, is_admin, employee_id, designation, department, status,
+                            created_at, updated_at
+                        )
+                        VALUES (
+                            :id, :user_id, :org_id, :first_name, :last_name,
+                            :role, :is_admin, :employee_id, :designation, 'Operations', 'ACTIVE',
+                            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
+                    """),
+                    {
+                        "id": uuid.uuid4(),
+                        "user_id": user_id,
+                        "org_id": org_id,
+                        "first_name": first_name.strip(),
+                        "last_name": last_name.strip(),
+                        "role": clean_role,
+                        "is_admin": is_admin_flag,
+                        "employee_id": emp_code,
+                        "designation": designation,
+                    },
+                )
+                print(f"    ✓ Created staff_profiles record linking '{clean_email}' to '{clean_company}' (Role: {clean_role}, is_admin: {is_admin_flag})")
 
     return user_id
+
+
+# ============================================================
+# Backend API Synchronization
+# ============================================================
+
+def sync_with_backend_api(
+    backend_url: str,
+    email: str,
+    first_name: str,
+    last_name: str,
+    insurance_company: str,
+    role: str,
+    external_subject_id: str,
+    phone: Optional[str] = None,
+) -> Optional[dict]:
+    """
+    Synchronizes the newly provisioned user with the running ClaimsGuru backend service.
+    Hits POST /auth/sync-entra-user to ensure user session cache and state are live.
+    """
+    sync_url = f"{backend_url.rstrip('/')}/auth/sync-entra-user"
+    payload = {
+        "email": email.strip().lower(),
+        "name": f"{first_name} {last_name}".strip(),
+        "first_name": first_name.strip(),
+        "last_name": last_name.strip(),
+        "company_name": insurance_company.strip(),
+        "organization": insurance_company.strip(),
+        "external_subject_id": str(external_subject_id),
+        "requested_role": role.strip().lower(),
+        "phone": phone,
+    }
+
+    try:
+        res = requests.post(sync_url, json=payload, timeout=15)
+        if res.ok:
+            print(f"    ✓ Backend API synchronized successfully: {sync_url} (HTTP {res.status_code})")
+            return res.json() if res.content else {}
+        else:
+            print(f"    [!] Backend API responded ({res.status_code}): {res.text}")
+    except Exception as exc:
+        print(f"    [!] Note: Could not reach Backend API at {sync_url}: {exc}")
+    return None
 
 
 # ============================================================
@@ -548,6 +748,13 @@ def create_or_update_db_user(
 
 def main() -> int:
     args = parse_arguments()
+
+    # Step 0: Resolve Target Environment (interactively or via CLI flag)
+    env_name, backend_api_url, database_url = select_environment(
+        cli_env=args.env,
+        cli_backend=args.backend_url,
+        cli_db=args.database_url,
+    )
 
     subdomain = (
         args.subdomain
@@ -573,8 +780,11 @@ def main() -> int:
     )
 
     print("\n" + "=" * 65)
-    print(" ClaimsGuru User Provisioning (Native Auth + Database)")
+    print(" ClaimsGuru User Provisioning (Native Auth + Database + API)")
     print("=" * 65)
+    print(f"Environment:        {env_name.upper()}")
+    print(f"Backend API URL:    {backend_api_url}")
+    print(f"Database URL:       {mask_database_url(database_url)}")
     print(f"Target Email:       {args.email}")
     print(f"Target Name:        {args.first_name} {args.last_name}")
     print(f"Insurance Company:  {args.insurance_company}")
@@ -590,7 +800,7 @@ def main() -> int:
     )
 
     # Step 1: Execute Native Signup with interactive OTP
-    print("\n[1/2] Registering user via Microsoft Entra Native Auth...")
+    print("\n[1/3] Registering user via Microsoft Entra Native Auth...")
     try:
         token_data = native_client.signup_user(args.email, args.password)
     except Exception as e:
@@ -609,8 +819,8 @@ def main() -> int:
     print(f"    ✓ User successfully registered in Microsoft Entra External ID.")
     print(f"    ✓ Entra Subject ID (sub): {external_subject_id}")
 
-    # Step 2: Provision into ClaimsGuru database
-    print("\n[2/2] Provisioning user in ClaimsGuru Relational Database...")
+    # Step 2: Provision into ClaimsGuru database (Local or Preprod)
+    print(f"\n[2/3] Provisioning user in ClaimsGuru Database ({env_name.upper()})...")
     try:
         user_id = create_or_update_db_user(
             email=args.email,
@@ -623,13 +833,29 @@ def main() -> int:
             designation=args.designation,
             employee_id=args.employee_id,
             phone=args.phone,
+            database_url=database_url,
         )
     except Exception as e:
         print(f"[-] ERROR: Database provisioning failed: {e}", file=sys.stderr)
         return 1
 
+    # Step 3: Synchronize with Backend API
+    print(f"\n[3/3] Synchronizing with Backend API ({backend_api_url})...")
+    sync_with_backend_api(
+        backend_url=backend_api_url,
+        email=args.email,
+        first_name=args.first_name,
+        last_name=args.last_name,
+        insurance_company=args.insurance_company,
+        role=args.role,
+        external_subject_id=str(external_subject_id),
+        phone=args.phone,
+    )
+
     print("\n" + "=" * 65)
     print("🎉 User Provisioning Completed Successfully!")
+    print(f"   Environment:  {env_name.upper()}")
+    print(f"   Backend API:  {backend_api_url}")
     print(f"   Email:        {args.email}")
     print(f"   Role:         {args.role}")
     print(f"   Database ID:  {user_id}")
