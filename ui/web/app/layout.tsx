@@ -9,6 +9,14 @@ export const metadata: Metadata = {
   description:
     'AI-powered health insurance claim reimbursement & audit platform for India. OCR, ICD-10/CPT coding, validation, TPA submission, and audit in one unified workspace.',
   metadataBase: new URL('https://claimsguru.example.com'),
+  icons: {
+    icon: [
+      { url: '/ClaimsGuru_logo_icon.png', type: 'image/png' },
+      { url: '/favicon.ico', sizes: 'any' },
+    ],
+    shortcut: '/ClaimsGuru_logo_icon.png',
+    apple: '/ClaimsGuru_logo_icon.png',
+  },
 };
 
 export default function RootLayout({
@@ -18,6 +26,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
+      <head>
+        <link rel="icon" href="/ClaimsGuru_logo_icon.png" type="image/png" />
+        <link rel="shortcut icon" href="/ClaimsGuru_logo_icon.png" type="image/png" />
+        <link rel="apple-touch-icon" href="/ClaimsGuru_logo_icon.png" />
+      </head>
       <body className="font-sans antialiased">
         <DesignProvider>
           {children}
