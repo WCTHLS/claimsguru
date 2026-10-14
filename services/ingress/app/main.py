@@ -3363,7 +3363,10 @@ def list_claims(
                             "CLAIM_SEND_BACK",
                             "CLAIM_REJECT",
                             "CLAIM_REJECTED",
+                            "CLAIM_APPROVE",
                             "CLAIM_APPROVED",
+                            "CLAIM_SEND_MONEY",
+                            "CLAIM_SETTLE",
                             "CLAIM_SETTLED",
                             "CLAIM_SUBMITTED",
                             "CLAIM_DOCUMENTS_UPLOADED",
@@ -3383,10 +3386,14 @@ def list_claims(
         for c in claims:
             effective_status = c.status
             w_state = wf_states.get(c.id)
-            if w_state and (w_state.current_step in ("FINISHED", "COMPLETED") or w_state.status in ("FINISHED", "COMPLETED")):
-                effective_status = "COMPLETED"
-            elif c.status == "PARSED" and not (w_state and w_state.status == "RUNNING"):
-                effective_status = "COMPLETED"
+
+            # Only infer COMPLETED if the current status is an unfinalized pipeline/intake step.
+            # Explicit adjudications (APPROVED, REJECTED, SETTLED, DOCUMENTS_REQUESTED, MODIFICATION_REQUESTED, SUBMITTED) must NOT be overwritten by w_state!
+            if c.status in ("PARSED", "STARTING", "RUNNING", "UPLOADED", "DOCUMENTS_UPLOADED", None):
+                if w_state and (w_state.current_step in ("FINISHED", "COMPLETED") or w_state.status in ("FINISHED", "COMPLETED")):
+                    effective_status = "COMPLETED"
+                elif c.status == "PARSED" and not (w_state and w_state.status == "RUNNING"):
+                    effective_status = "COMPLETED"
 
             has_action_request = False
             tpa_message = None
@@ -3414,12 +3421,17 @@ def list_claims(
                     effective_status = "DOCUMENTS_UPLOADED" if is_done else "UPLOADED"
                 elif audit.action in ("CLAIM_REJECT", "CLAIM_REJECTED"):
                     effective_status = "REJECTED"
-                elif audit.action == "CLAIM_APPROVED":
+                elif audit.action in ("CLAIM_APPROVE", "CLAIM_APPROVED"):
                     effective_status = "APPROVED"
-                elif audit.action == "CLAIM_SETTLED":
+                elif audit.action in ("CLAIM_SETTLE", "CLAIM_SETTLED", "CLAIM_SEND_MONEY"):
                     effective_status = "SETTLED"
                 elif audit.action == "CLAIM_SUBMITTED":
-                    effective_status = "SUBMITTED"
+                    if (c.status or "").upper() not in ("APPROVED", "REJECTED", "SETTLED"):
+                        effective_status = "SUBMITTED"
+
+            # If the database row itself has an explicit final decision, ensure it stays final
+            if (c.status or "").upper() in ("APPROVED", "REJECTED", "SETTLED"):
+                effective_status = c.status.upper()
 
             step_label = None
             pct_val = None
@@ -4824,7 +4836,7 @@ def tpa_action_endpoint(
                 id=uuid.uuid4(),
                 claim_id=cid,
                 actor="Star Health Reviewer",
-                action=f"CLAIM_{action.upper()}",
+                action=f"CLAIM_{new_status}",
                 audit_metadata=audit_meta,
                 created_at=datetime.now(timezone.utc),
             )
@@ -4832,7 +4844,7 @@ def tpa_action_endpoint(
             db.commit()
         except Exception as log_err:
             logger.warning("Could not persist audit log for tpa action: %s", log_err)
-            _audit(db, f"CLAIM_{action.upper()}", claim_id=cid, metadata=audit_meta)
+            _audit(db, f"CLAIM_{new_status}", claim_id=cid, metadata=audit_meta)
 
         # Trigger push notification to patient's mobile app
         try:

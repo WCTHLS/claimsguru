@@ -403,8 +403,16 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
             const prevRes = await fetch(`${SUBMISSION_API}/claims/${c.id}/preview`, { headers }).catch(() => null);
             if (prevRes && prevRes.ok) {
               const prevData = await prevRes.json();
+              const effectiveStatus = (
+                ['APPROVED', 'REJECTED', 'SETTLED', 'MODIFICATION_REQUESTED', 'DOCUMENTS_REQUESTED'].includes((c.status || '').toUpperCase())
+                  ? c.status
+                  : (['APPROVED', 'REJECTED', 'SETTLED', 'MODIFICATION_REQUESTED', 'DOCUMENTS_REQUESTED'].includes((prevData.status || '').toUpperCase())
+                      ? prevData.status
+                      : (c.status || prevData.status))
+              );
               return {
                 ...c,
+                status: effectiveStatus,
                 summary: prevData.summary || (c as any).summary,
                 billed_total: prevData.billed_total ?? (c as any).billed_total,
                 edited_fields: prevData.field_feedback ? Object.keys(prevData.field_feedback) : (c as any).edited_fields,

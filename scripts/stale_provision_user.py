@@ -40,10 +40,22 @@ except ImportError:
 import requests
 from sqlalchemy import create_engine, inspect, text
 
+# Ensure UTF-8 console output on Windows
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
+except Exception:
+    pass
+
 
 # ============================================================
 # Constants & Defaults
 # ============================================================
+
+PREPROD_BACKEND_URL = "https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io"
+PREPROD_DB_URL = "mssql+pymssql://claimsgurupreprodadmin:ClaimsGuruPreProdPass!2026@cg-preprod-sql-vvekhbufuteq2.database.windows.net:1433/claimsguru"
 
 GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
 
@@ -65,6 +77,22 @@ def parse_args():
         description="Provision ClaimsGuru user in Microsoft Entra External ID and application database."
     )
 
+    parser.add_argument(
+        "--env",
+        choices=["local", "preprod"],
+        default=None,
+        help="Target environment ('local' or 'preprod'). If omitted, script prompts interactively before running.",
+    )
+    parser.add_argument(
+        "--backend-url",
+        default=None,
+        help="Override backend API URL (defaults to env-based local URL or Azure preprod ingress URL)",
+    )
+    parser.add_argument(
+        "--database-url",
+        default=None,
+        help="Override database connection URL",
+    )
     parser.add_argument(
         "--email",
         required=True,
@@ -135,6 +163,73 @@ def parse_args():
 # Environment Helpers
 # ============================================================
 
+def mask_database_url(url: str) -> str:
+    """Mask password in database URL for safe terminal logging."""
+    try:
+        if "@" in url and "://" in url:
+            proto, rest = url.split("://", 1)
+            userinfo, hostinfo = rest.split("@", 1)
+            if ":" in userinfo:
+                user = userinfo.split(":", 1)[0]
+                return f"{proto}://{user}:***@{hostinfo}"
+    except Exception:
+        pass
+    return url
+
+
+def select_environment(cli_env: Optional[str] = None, cli_backend: Optional[str] = None, cli_db: Optional[str] = None) -> tuple[str, str, str]:
+    """
+    Prompt or resolve the environment (local vs preprod) and return (env_name, backend_api_url, database_url).
+    """
+    selected = (cli_env or "").strip().lower()
+
+    if selected not in ("local", "preprod"):
+        print("\n" + "=" * 65)
+        print("  SELECT TARGET ENVIRONMENT")
+        print("=" * 65)
+        print("  [1] local   - Local dev backend (http://localhost:8000) & database")
+        print(f"  [2] preprod - Azure Pre-Prod Ingress ({PREPROD_BACKEND_URL})")
+        print("=" * 65)
+        while selected not in ("local", "preprod"):
+            try:
+                choice = input(">> Select environment [1 for local, 2 for preprod] (default: 1): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n[-] Cancelled by user.")
+                sys.exit(1)
+
+            if choice in ("1", "local", ""):
+                selected = "local"
+            elif choice in ("2", "preprod"):
+                selected = "preprod"
+            else:
+                print("[-] Invalid choice. Please enter 1 (local) or 2 (preprod).")
+
+    if selected == "local":
+        backend_url = (
+            cli_backend
+            or os.getenv("BACKEND_API_URL")
+            or os.getenv("INGRESS_URL")
+            or os.getenv("INTERNAL_INGRESS_URL")
+            or os.getenv("NEXT_PUBLIC_API_BASE")
+            or os.getenv("EXPO_PUBLIC_API_URL")
+            or "http://localhost:8000"
+        ).rstrip("/")
+        database_url = (
+            cli_db
+            or os.getenv("DATABASE_URL")
+            or "mssql+pymssql://sa:YourStrong!Password@localhost:1433/claimgpt"
+        )
+    else:  # preprod
+        backend_url = (cli_backend or PREPROD_BACKEND_URL).rstrip("/")
+        database_url = (
+            cli_db
+            or os.getenv("PREPROD_DATABASE_URL")
+            or PREPROD_DB_URL
+        )
+
+    return selected, backend_url, database_url
+
+
 def get_env_var(name: str, fallback_names: list[str] | None = None, default: str | None = None) -> str:
     """Retrieve environment variable supporting multiple alias names."""
     names = [name] + (fallback_names or [])
@@ -162,6 +257,7 @@ def get_graph_access_token() -> str:
     tenant_id = get_env_var(
         "ENTRA_TENANT_ID",
         fallback_names=["EXPO_PUBLIC_ENTRA_TENANT_ID", "NEXT_PUBLIC_ENTRA_TENANT_ID"],
+        default="0fac25c7-0d8c-4f34-8c8d-3981a5d2a482",
     )
     client_id = get_env_var(
         "ENTRA_PROVISIONING_CLIENT_ID",
@@ -170,6 +266,7 @@ def get_graph_access_token() -> str:
             "PROVISIONIG_ENTRA_CLIENT_ID",
             "ENTRA_CLIENT_ID",
         ],
+        default="c2731748-4911-491f-82a1-beda9766edfe",
     )
     client_secret = get_env_var(
         "ENTRA_PROVISIONING_CLIENT_SECRET",
@@ -178,6 +275,7 @@ def get_graph_access_token() -> str:
             "PROVISIONIG_ENTRA_CLIENT_SECRET",
             "ENTRA_CLIENT_SECRET",
         ],
+        default="zXb8Q~Co2YlDeko5Tbu19tv0-OpDUCVUUEmiFbwj",
     )
 
     token_url = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token"
@@ -350,6 +448,7 @@ def create_or_update_db_user(
     designation: str = "Organization Administrator",
     employee_id: Optional[str] = None,
     phone: Optional[str] = None,
+    database_url: Optional[str] = None,
 ) -> uuid.UUID:
     """
     Provisions or synchronizes the user into ClaimsGuru relational schema:
@@ -363,8 +462,8 @@ def create_or_update_db_user(
     clean_company = insurance_company.strip()
     clean_role = role.strip().lower()
 
-    database_url = get_env_var("DATABASE_URL")
-    engine = create_engine(database_url, pool_pre_ping=True)
+    target_db_url = database_url or get_env_var("DATABASE_URL", default="mssql+pymssql://sa:YourStrong!Password@localhost:1433/claimgpt")
+    engine = create_engine(target_db_url, pool_pre_ping=True)
 
     with engine.begin() as conn:
         # ----------------------------------------------------
@@ -469,17 +568,17 @@ def create_or_update_db_user(
         # 4. Role assignment (user_roles)
         # ----------------------------------------------------
         user_role_row = conn.execute(
-            text("SELECT id FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"),
+            text("SELECT user_id FROM user_roles WHERE user_id = :user_id AND role_id = :role_id"),
             {"user_id": user_id, "role_id": role_id},
         ).mappings().first()
 
         if not user_role_row:
             conn.execute(
                 text("""
-                    INSERT INTO user_roles (id, user_id, role_id, created_at)
-                    VALUES (:id, :user_id, :role_id, CURRENT_TIMESTAMP)
+                    INSERT INTO user_roles (user_id, role_id)
+                    VALUES (:user_id, :role_id)
                 """),
-                {"id": uuid.uuid4(), "user_id": user_id, "role_id": role_id},
+                {"user_id": user_id, "role_id": role_id},
             )
             print(f"    ✓ Assigned role '{clean_role}' to user '{clean_email}'")
         else:
@@ -488,12 +587,13 @@ def create_or_update_db_user(
         # ----------------------------------------------------
         # 5. Staff Profile synchronization
         # ----------------------------------------------------
+        is_admin_flag = 1 if clean_role == "admin" else 0
+        emp_code = employee_id or f"EMP-{str(uuid.uuid4())[:8].upper()}"
+
         staff_row = conn.execute(
             text("SELECT id FROM staff_profiles WHERE user_id = :user_id"),
             {"user_id": user_id},
         ).mappings().first()
-
-        emp_code = employee_id or f"EMP-{str(uuid.uuid4())[:8].upper()}"
 
         if staff_row:
             conn.execute(
@@ -502,6 +602,8 @@ def create_or_update_db_user(
                     SET organization_id = :org_id,
                         first_name = :first_name,
                         last_name = :last_name,
+                        role = :role,
+                        is_admin = :is_admin,
                         designation = :designation,
                         status = 'ACTIVE',
                         updated_at = CURRENT_TIMESTAMP
@@ -512,21 +614,23 @@ def create_or_update_db_user(
                     "org_id": org_id,
                     "first_name": first_name.strip(),
                     "last_name": last_name.strip(),
+                    "role": clean_role,
+                    "is_admin": is_admin_flag,
                     "designation": designation,
                 },
             )
-            print(f"    ✓ Updated staff profile for '{clean_email}'")
+            print(f"    ✓ Updated staff profile for '{clean_email}' (Role: {clean_role}, is_admin: {is_admin_flag})")
         else:
             conn.execute(
                 text("""
                     INSERT INTO staff_profiles (
                         id, user_id, organization_id, first_name, last_name,
-                        employee_id, designation, department, status,
+                        role, is_admin, employee_id, designation, department, status,
                         created_at, updated_at
                     )
                     VALUES (
                         :id, :user_id, :org_id, :first_name, :last_name,
-                        :employee_id, :designation, 'Operations', 'ACTIVE',
+                        :role, :is_admin, :employee_id, :designation, 'Operations', 'ACTIVE',
                         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                     )
                 """),
@@ -536,13 +640,58 @@ def create_or_update_db_user(
                     "org_id": org_id,
                     "first_name": first_name.strip(),
                     "last_name": last_name.strip(),
+                    "role": clean_role,
+                    "is_admin": is_admin_flag,
                     "employee_id": emp_code,
                     "designation": designation,
                 },
             )
-            print(f"    ✓ Created staff profile linking '{clean_email}' to '{clean_company}'")
+            print(f"    ✓ Created staff profile linking '{clean_email}' to '{clean_company}' (Role: {clean_role}, is_admin: {is_admin_flag})")
 
     return user_id
+
+
+# ============================================================
+# Backend API Synchronization
+# ============================================================
+
+def sync_with_backend_api(
+    backend_url: str,
+    email: str,
+    first_name: str,
+    last_name: str,
+    insurance_company: str,
+    role: str,
+    external_subject_id: str,
+    phone: Optional[str] = None,
+) -> Optional[dict]:
+    """
+    Synchronizes the newly provisioned user with the running ClaimsGuru backend service.
+    Hits POST /auth/sync-entra-user to ensure user session cache and state are live.
+    """
+    sync_url = f"{backend_url.rstrip('/')}/auth/sync-entra-user"
+    payload = {
+        "email": email.strip().lower(),
+        "name": f"{first_name} {last_name}".strip(),
+        "first_name": first_name.strip(),
+        "last_name": last_name.strip(),
+        "company_name": insurance_company.strip(),
+        "organization": insurance_company.strip(),
+        "external_subject_id": str(external_subject_id),
+        "requested_role": role.strip().lower(),
+        "phone": phone,
+    }
+
+    try:
+        res = requests.post(sync_url, json=payload, timeout=15)
+        if res.ok:
+            print(f"    ✓ Backend API synchronized successfully: {sync_url} (HTTP {res.status_code})")
+            return res.json() if res.content else {}
+        else:
+            print(f"    [!] Backend API responded ({res.status_code}): {res.text}")
+    except Exception as exc:
+        print(f"    [!] Note: Could not reach Backend API at {sync_url}: {exc}")
+    return None
 
 
 # ============================================================
@@ -552,10 +701,20 @@ def create_or_update_db_user(
 def main():
     args = parse_args()
 
+    # Step 0: Resolve Target Environment (interactively or via CLI flag)
+    env_name, backend_api_url, database_url = select_environment(
+        cli_env=args.env,
+        cli_backend=args.backend_url,
+        cli_db=args.database_url,
+    )
+
     clean_email = args.email.strip().lower()
     print("\n=======================================================")
-    print(" ClaimsGuru Production User Provisioning")
+    print(" ClaimsGuru User Provisioning (Graph API)")
     print("=======================================================")
+    print(f"Target Environment: {env_name.upper()}")
+    print(f"Backend API URL:    {backend_api_url}")
+    print(f"Database URL:       {mask_database_url(database_url)}")
     print(f"Target Email:       {clean_email}")
     print(f"Target Name:        {args.first_name} {args.last_name}")
     print(f"Insurance Company:  {args.insurance_company}")
@@ -563,7 +722,7 @@ def main():
     print("=======================================================\n")
 
     # Step 1: Microsoft Graph Authentication
-    print("[1/3] Authenticating with Microsoft Graph...")
+    print("[1/4] Authenticating with Microsoft Graph...")
     try:
         access_token = get_graph_access_token()
         print("    ✓ Successfully acquired Microsoft Graph bearer token.")
@@ -572,7 +731,7 @@ def main():
         sys.exit(1)
 
     # Step 2: Entra External ID User Creation
-    print("\n[2/3] Provisioning user in Microsoft Entra External ID (Customer Local Account)...")
+    print("\n[2/4] Provisioning user in Microsoft Entra External ID (Customer Local Account)...")
     entra_user: Optional[dict] = None
     try:
         entra_user = create_or_get_entra_user(
@@ -594,7 +753,7 @@ def main():
         sys.exit(2)
 
     # Step 3: Application Database Record Creation
-    print("\n[3/3] Synchronizing user and organization in ClaimsGuru database...")
+    print(f"\n[3/4] Synchronizing user and organization in ClaimsGuru database ({env_name.upper()})...")
     try:
         db_user_id = create_or_update_db_user(
             email=clean_email,
@@ -607,6 +766,7 @@ def main():
             designation=args.designation,
             employee_id=args.employee_id,
             phone=args.phone,
+            database_url=database_url,
         )
         print(f"    ✓ Application User ID: {db_user_id}")
     except Exception as exc:
@@ -614,9 +774,24 @@ def main():
         print(f"    Note: Entra account was already created with Object ID '{entra_user_id}'.", file=sys.stderr)
         sys.exit(3)
 
+    # Step 4: Backend API Synchronization
+    print(f"\n[4/4] Synchronizing with Backend API ({backend_api_url})...")
+    sync_with_backend_api(
+        backend_url=backend_api_url,
+        email=clean_email,
+        first_name=args.first_name,
+        last_name=args.last_name,
+        insurance_company=args.insurance_company,
+        role=args.role,
+        external_subject_id=entra_user_id,
+        phone=args.phone,
+    )
+
     print("\n=======================================================")
     print(" ✓ USER PROVISIONING COMPLETED SUCCESSFULLY")
     print("=======================================================")
+    print(f" Environment:         {env_name.upper()}")
+    print(f" Backend URL:         {backend_api_url}")
     print(f" Email:               {clean_email}")
     print(f" Entra Object ID:     {entra_user_id}")
     print(f" ClaimsGuru User ID:  {db_user_id}")
