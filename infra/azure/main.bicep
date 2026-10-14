@@ -361,6 +361,13 @@ resource ingressApp 'Microsoft.App/containerApps@2023-05-01' = {
             { name: 'AZURE_OPENAI_API_KEY', value: azureOpenAiApiKey }
             { name: 'AZURE_OPENAI_DEPLOYMENT', value: azureOpenAiDeployment }
             { name: 'AZURE_OPENAI_API_VERSION', value: '2024-11-20' }
+            { name: 'ENTRA_TENANT_ID', value: '0fac25c7-0d8c-4f34-8c8d-3981a5d2a482' }
+            { name: 'ENTRA_CLIENT_ID', value: 'c2731748-4911-491f-82a1-beda9766edfe' }
+            { name: 'ENTRA_CLIENT_SECRET', value: 'zXb8Q~Co2YlDeko5Tbu19tv0-OpDUCVUUEmiFbwj' }
+            { name: 'ENTRA_PROVISIONING_CLIENT_ID', value: 'c2731748-4911-491f-82a1-beda9766edfe' }
+            { name: 'ENTRA_PROVISIONING_CLIENT_SECRET', value: 'zXb8Q~Co2YlDeko5Tbu19tv0-OpDUCVUUEmiFbwj' }
+            { name: 'ENTRA_SUBDOMAIN', value: 'claimsguruapp' }
+            { name: 'ENTRA_EXTERNAL_ID_ISSUER', value: 'claimsguruapp.onmicrosoft.com' }
             { name: 'DB_POOL_SIZE', value: '10' }
             { name: 'DB_MAX_OVERFLOW', value: '15' }
           ]
