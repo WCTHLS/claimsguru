@@ -30,6 +30,12 @@ param azureOpenAiApiKey string = ''
 @description('Azure OpenAI Model Deployment Name')
 param azureOpenAiDeployment string = 'gpt-4o'
 
+@description('Custom Domain Name for Frontend (optional)')
+param frontendCustomDomainName string = ''
+
+@description('Managed Certificate Name for Frontend Custom Domain (optional)')
+param frontendCertificateName string = ''
+
 var locCode = (location == 'centralindia') ? 'cin' : ((location == 'eastus') ? 'eus' : take(location, 4))
 var prefix = 'cg-${environmentName}-${locCode}'
 var uniqueSuffix = uniqueString(resourceGroup().id, location)
@@ -567,6 +573,13 @@ resource frontendApp 'Microsoft.App/containerApps@2023-05-01' = {
         external: true
         targetPort: 3000
         transport: 'auto'
+        customDomains: !empty(frontendCustomDomainName) ? [
+          {
+            name: frontendCustomDomainName
+            bindingType: 'SniEnabled'
+            certificateId: !empty(frontendCertificateName) ? '${containerAppEnv.id}/managedCertificates/${frontendCertificateName}' : null
+          }
+        ] : null
       }
     }
     template: {
