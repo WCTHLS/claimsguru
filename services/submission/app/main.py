@@ -2043,6 +2043,34 @@ def preview_claim_data(claim_id: str, db: Session = Depends(get_db)):
         "manual_review_required": bool((data.get("identity_review") or {}).get("manual_review_required")),
     }
 
+    # Resolve submitting patient profile name & email
+    sub_name = None
+    sub_email = None
+    if claim.patient_id:
+        try:
+            from libs.shared.models import User, PatientProfile
+            pid_clean = str(claim.patient_id).strip()
+            p_uid = _safe_parse_uuid(pid_clean)
+            u_obj = db.query(User).filter(
+                ((User.id == p_uid) if p_uid else False) |
+                (User.email.ilike(pid_clean)) |
+                (User.external_subject_id == pid_clean)
+            ).first()
+            if u_obj:
+                sub_email = u_obj.email
+                prof = db.query(PatientProfile).filter(PatientProfile.user_id == u_obj.id).first()
+                if prof and prof.first_name:
+                    p_first = (prof.first_name or "").strip()
+                    p_last = (prof.last_name or "").strip()
+                    sub_name = f"{p_first} {p_last}".strip()
+                else:
+                    sub_name = u_obj.email.split("@")[0] if u_obj.email else None
+        except Exception:
+            pass
+    data["submitted_by_name"] = sub_name
+    data["submitted_by_email"] = sub_email
+    data["summary"]["submitted_by"] = sub_name or sub_email
+
     # AI Brain insights — synthesized intelligence from all documents
     try:
         data["brain_insights"] = _generate_brain_insights(data)

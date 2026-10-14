@@ -28,6 +28,8 @@ class ClaimOut(BaseModel):
     documents: list[DocumentOut] = []
     task_id: str | None = None
     patient_name: str | None = None
+    submitted_by_name: str | None = None
+    submitted_by_email: str | None = None
     hospital_name: str | None = None
     doctor_name: str | None = None
     diagnosis: str | None = None

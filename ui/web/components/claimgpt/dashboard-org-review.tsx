@@ -115,10 +115,12 @@ export interface FieldFeedbackEntry {
 }
 
 export interface EnrichedClaim extends Claim {
-  summary?: ClaimSummary;
+  summary?: ClaimSummary & { submitted_by?: string };
   billed_total?: number;
   edited_fields?: string[];
   field_feedback?: Record<string, FieldFeedbackEntry>;
+  submitted_by_name?: string | null;
+  submitted_by_email?: string | null;
 }
 
 export interface ChatMessage {
@@ -175,6 +177,7 @@ function getPriorityLevel(c: EnrichedClaim): 'high' | 'medium' | 'low' {
 
 function getPatientName(c: EnrichedClaim) {
   if (c.summary?.patient_name && c.summary.patient_name !== 'N/A') return c.summary.patient_name;
+  if (c.submitted_by_name) return c.submitted_by_name;
   return c.patient_id ? `${c.patient_id.substring(0, 10)}...` : 'Patient Record';
 }
 
@@ -413,6 +416,8 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
               return {
                 ...c,
                 status: effectiveStatus,
+                submitted_by_name: (c as any).submitted_by_name || prevData.submitted_by_name || (prevData.summary as any)?.submitted_by || null,
+                submitted_by_email: (c as any).submitted_by_email || prevData.submitted_by_email || null,
                 summary: prevData.summary || (c as any).summary,
                 billed_total: prevData.billed_total ?? (c as any).billed_total,
                 edited_fields: prevData.field_feedback ? Object.keys(prevData.field_feedback) : (c as any).edited_fields,
@@ -1074,11 +1079,20 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                                 )}
                               </div>
 
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
-                                <span className="font-semibold text-slate-800">{getPatientName(c)}</span>
-                                <span>Policy: {getPolicyNum(c)}</span>
+                              <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
+                                <span className="font-semibold text-slate-900">{getPatientName(c)}</span>
+                                {(c.submitted_by_name || c.submitted_by_email) && (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded bg-teal-50 px-2 py-0.5 text-[11px] font-medium text-teal-800 border border-teal-200"
+                                    title={`Patient who submitted this claim: ${c.submitted_by_name || ''} (${c.submitted_by_email || ''})`}
+                                  >
+                                    <User className="h-3 w-3 text-teal-600" />
+                                    <span>Submitted by: <strong className="font-semibold text-teal-950">{c.submitted_by_name || c.submitted_by_email}</strong></span>
+                                  </span>
+                                )}
+                                <span className="text-slate-500">Policy: <strong className="text-slate-700">{getPolicyNum(c)}</strong></span>
                                 {c.summary?.hospital && (
-                                  <span className="truncate max-w-[200px]" title={c.summary.hospital}>
+                                  <span className="truncate max-w-[200px] text-slate-500" title={c.summary.hospital}>
                                     {c.summary.hospital}
                                   </span>
                                 )}
@@ -1309,6 +1323,20 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                                     Parsed Clinical Details
                                   </h4>
                                   <div className="grid grid-cols-2 gap-2 text-xs">
+                                    {(c.submitted_by_name || c.submitted_by_email) && (
+                                      <div className="col-span-2 rounded bg-slate-50 p-2 border border-slate-100 flex items-center justify-between">
+                                        <div>
+                                          <span className="text-slate-400 block text-[11px]">Submitted By (Patient):</span>
+                                          <span className="font-semibold text-teal-800 text-xs flex items-center gap-1">
+                                            <User className="h-3 w-3 text-teal-600" />
+                                            {c.submitted_by_name || c.submitted_by_email}
+                                          </span>
+                                        </div>
+                                        {c.submitted_by_email && c.submitted_by_name && (
+                                          <span className="text-[11px] text-slate-500 font-mono">{c.submitted_by_email}</span>
+                                        )}
+                                      </div>
+                                    )}
                                     <div>
                                       <span className="text-slate-400 block">Diagnosis:</span>
                                       <span className="font-semibold text-slate-800">
