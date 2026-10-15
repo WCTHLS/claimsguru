@@ -14,6 +14,18 @@ const nextConfig = {
         source: '/policy&privacy',
         destination: '/privacy&policy',
       },
+      {
+        source: '/privacy-policy',
+        destination: '/privacy&policy',
+      },
+      {
+        source: '/privacy',
+        destination: '/privacy&policy',
+      },
+      {
+        source: '/policy',
+        destination: '/privacy&policy',
+      },
     ];
   },
 };
