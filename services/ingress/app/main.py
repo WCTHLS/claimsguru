@@ -1078,8 +1078,13 @@ def _apply_identity_gate(
 router = APIRouter()
 
 
+_schema_columns_checked = False
+
 def _ensure_tables_and_columns(db: Session) -> None:
     """Ensure required tables and missing schema columns exist on MSSQL/PostgreSQL."""
+    global _schema_columns_checked
+    if _schema_columns_checked:
+        return
     col_checks = [
         ("employee_id", "NVARCHAR(255) NULL"),
         ("department", "NVARCHAR(255) NULL"),
@@ -1097,6 +1102,7 @@ def _ensure_tables_and_columns(db: Session) -> None:
             db.commit()
         except Exception:
             db.rollback()
+    _schema_columns_checked = True
 
 
 def _ensure_users_password_hash_column() -> None:

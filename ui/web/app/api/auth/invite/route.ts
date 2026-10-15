@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchIngress } from '@/lib/ingress-resolver';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,38 +20,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const rawBase = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8001';
-    const cleanBase = rawBase.replace(/\/+$/, '');
-
-    const urlsToTry = [
-      'http://127.0.0.1:8001/auth/invite',
-      'http://127.0.0.1:8000/ingress/auth/invite',
-      `${cleanBase}/auth/invite`,
-      `${cleanBase}/ingress/auth/invite`,
-    ];
-
-    let res: Response | null = null;
-    let data: any = null;
-
-    for (const url of urlsToTry) {
-      try {
-        const attempt = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        });
-        if (attempt.status !== 404) {
-          res = attempt;
-          data = await attempt.json().catch(() => ({}));
-          break;
-        }
-      } catch {
-        /* try next candidate endpoint */
-      }
-    }
+    const { res, data } = await fetchIngress('/auth/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
 
     if (!res) {
-      // Backend is offline in demo mode — return simulated success
+      // Backend is offline in demo mode - return simulated success
       return NextResponse.json(
         {
           success: true,

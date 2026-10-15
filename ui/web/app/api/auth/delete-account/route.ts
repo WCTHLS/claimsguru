@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchIngress } from '@/lib/ingress-resolver';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,36 +26,6 @@ async function handleDeleteAccount(request: NextRequest) {
       email: cleanEmail || undefined,
     };
 
-    const urlsToTry: string[] = [];
-    const envBase = process.env.INTERNAL_INGRESS_URL || process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE;
-    if (envBase) {
-      const clean = envBase.replace(/\/+$/, '');
-      if (clean.endsWith('/ingress')) {
-        urlsToTry.push(`${clean}/auth/delete-account`);
-        urlsToTry.push(`${clean.replace(/\/ingress$/, '')}/auth/delete-account`);
-      } else {
-        urlsToTry.push(`${clean}/ingress/auth/delete-account`);
-        urlsToTry.push(`${clean}/auth/delete-account`);
-      }
-    }
-
-    urlsToTry.push('https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io/auth/delete-account');
-    urlsToTry.push('https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io/ingress/auth/delete-account');
-    urlsToTry.push('http://cg-preprod-cin-ingress:8000/ingress/auth/delete-account');
-    urlsToTry.push('http://cg-preprod-cin-ingress:8000/auth/delete-account');
-    urlsToTry.push('http://claimsguru-stage-ingress:8000/ingress/auth/delete-account');
-    urlsToTry.push('http://claimsguru-stage-ingress:8000/auth/delete-account');
-    urlsToTry.push('http://claimsguru-ingress:8000/ingress/auth/delete-account');
-    urlsToTry.push('http://127.0.0.1:8000/ingress/auth/delete-account');
-    urlsToTry.push('http://127.0.0.1:8000/auth/delete-account');
-    urlsToTry.push('http://localhost:8000/ingress/auth/delete-account');
-    urlsToTry.push('http://localhost:8000/auth/delete-account');
-
-    const uniqueUrls = Array.from(new Set(urlsToTry));
-
-    let res: Response | null = null;
-    let data: any = null;
-
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -62,23 +33,11 @@ async function handleDeleteAccount(request: NextRequest) {
       headers['Authorization'] = authHeader;
     }
 
-    for (const url of uniqueUrls) {
-      try {
-        const attempt = await fetch(url, {
-          method: 'POST',
-          headers,
-          body: JSON.stringify(deletePayload),
-          signal: AbortSignal.timeout(10000),
-        });
-        if (attempt.status !== 404) {
-          res = attempt;
-          data = await attempt.json().catch(() => ({}));
-          break;
-        }
-      } catch {
-        // try next endpoint
-      }
-    }
+    const { res, data } = await fetchIngress('/auth/delete-account', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(deletePayload),
+    }, 8000);
 
     if (!res) {
       return NextResponse.json(

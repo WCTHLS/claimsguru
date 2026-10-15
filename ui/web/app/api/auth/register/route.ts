@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchIngress } from '@/lib/ingress-resolver';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,56 +46,14 @@ export async function POST(request: NextRequest) {
       sum_insured: body.sum_insured,
     };
 
-    const urlsToTry: string[] = [];
-    const envBase = process.env.INTERNAL_INGRESS_URL || process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE;
-    if (envBase) {
-      const clean = envBase.replace(/\/+$/, '');
-      if (clean.endsWith('/ingress')) {
-        urlsToTry.push(`${clean}/auth/register`);
-        urlsToTry.push(`${clean.replace(/\/ingress$/, '')}/auth/register`);
-      } else {
-        urlsToTry.push(`${clean}/ingress/auth/register`);
-        urlsToTry.push(`${clean}/auth/register`);
-      }
-    }
-    urlsToTry.push('http://cg-preprod-cin-ingress:8000/ingress/auth/register');
-    urlsToTry.push('http://cg-preprod-cin-ingress:8000/auth/register');
-    urlsToTry.push('http://cg-preprod-cin-ingress/ingress/auth/register');
-    urlsToTry.push('http://cg-preprod-cin-ingress/auth/register');
-    urlsToTry.push('http://claimsguru-stage-ingress:8000/ingress/auth/register');
-    urlsToTry.push('http://claimsguru-stage-ingress:8000/auth/register');
-    urlsToTry.push('http://claimsguru-stage-ingress/ingress/auth/register');
-    urlsToTry.push('http://claimsguru-stage-ingress/auth/register');
-    urlsToTry.push('http://claimsguru-ingress:8000/ingress/auth/register');
-    urlsToTry.push('http://claimsguru-api-test:8000/ingress/auth/register');
-    urlsToTry.push('http://127.0.0.1:8000/ingress/auth/register');
-    urlsToTry.push('http://localhost:8000/ingress/auth/register');
-
-    const uniqueUrls = Array.from(new Set(urlsToTry));
-
-    let res: Response | null = null;
-    let data: any = null;
-
-    for (const url of uniqueUrls) {
-      try {
-        const attempt = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(profilePayload),
-          signal: AbortSignal.timeout(3500),
-        });
-        if (attempt.status !== 404) {
-          res = attempt;
-          data = await attempt.json().catch(() => ({}));
-          break;
-        }
-      } catch {
-        /* try next candidate endpoint */
-      }
-    }
+    const { res, data } = await fetchIngress('/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profilePayload),
+    });
 
     if (!res) {
-      // Microservice backend is offline — succeed in local standalone mode
+      // Microservice backend is offline - succeed in local standalone mode
       return NextResponse.json({ success: true, is_local_demo: true });
     }
 

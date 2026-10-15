@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchIngress } from '@/lib/ingress-resolver';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,43 +11,20 @@ export async function POST(request: NextRequest) {
       role: body?.role,
     };
 
-    const rawBase = process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE || 'http://127.0.0.1:8001';
-    const cleanBase = rawBase.replace(/\/+$/, '');
-
-    const urlsToTry = [
-      'http://127.0.0.1:8001/auth/login',
-      'http://127.0.0.1:8000/ingress/auth/login',
-      `${cleanBase}/auth/login`,
-      `${cleanBase}/ingress/auth/login`,
-    ];
-
-    let res: Response | null = null;
-    let data: any = null;
     const clientIp = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || '127.0.0.1';
 
-    for (const url of urlsToTry) {
-      try {
-        const attempt = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Forwarded-For': clientIp,
-            'X-Real-IP': clientIp,
-          },
-          body: JSON.stringify(payload),
-        });
-        if (attempt.status !== 404) {
-          res = attempt;
-          data = await attempt.json().catch(() => ({}));
-          break;
-        }
-      } catch {
-        /* try next candidate endpoint */
-      }
-    }
+    const { res, data } = await fetchIngress('/auth/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Forwarded-For': clientIp,
+        'X-Real-IP': clientIp,
+      },
+      body: JSON.stringify(payload),
+    });
 
     if (!res) {
-      // Backend microservice is offline / standalone mode — return fallback local session
+      // Backend microservice is offline / standalone mode - return fallback local session
       return NextResponse.json({
         access_token: `local-token-${Date.now()}`,
         role: payload.role === 'patient' ? 'submitter' : 'admin',

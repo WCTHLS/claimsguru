@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { fetchIngress } from '@/lib/ingress-resolver';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,52 +49,11 @@ export async function POST(request: NextRequest) {
       recreate_existing: body.recreate_existing,
     };
 
-    const urlsToTry: string[] = [
-      'http://claimsguru-api-test:8000/auth/sync-entra-user',
-      'http://claimsguru-api-test:8000/ingress/auth/sync-entra-user',
-      'http://localhost:8000/auth/sync-entra-user',
-      'http://localhost:8000/ingress/auth/sync-entra-user',
-      'http://127.0.0.1:8000/auth/sync-entra-user',
-      'http://127.0.0.1:8000/ingress/auth/sync-entra-user',
-    ];
-    const envBase = process.env.INTERNAL_INGRESS_URL || process.env.INGRESS_API || process.env.NEXT_PUBLIC_API_BASE;
-    if (envBase) {
-      const clean = envBase.replace(/\/+$/, '');
-      if (clean.endsWith('/ingress')) {
-        urlsToTry.unshift(`${clean}/auth/sync-entra-user`);
-        urlsToTry.unshift(`${clean.replace(/\/ingress$/, '')}/auth/sync-entra-user`);
-      } else {
-        urlsToTry.unshift(`${clean}/auth/sync-entra-user`);
-        urlsToTry.unshift(`${clean}/ingress/auth/sync-entra-user`);
-      }
-    }
-    // Preprod Container App endpoints
-    urlsToTry.push('http://cg-preprod-cin-ingress:8000/auth/sync-entra-user');
-    urlsToTry.push('http://claimsguru-stage-ingress:8000/auth/sync-entra-user');
-    urlsToTry.push('https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io/auth/sync-entra-user');
-
-    const uniqueUrls = Array.from(new Set(urlsToTry));
-
-    let res: Response | null = null;
-    let data: any = null;
-
-    for (const url of uniqueUrls) {
-      try {
-        const attempt = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(3000),
-        });
-        if (attempt.status !== 404) {
-          res = attempt;
-          data = await attempt.json().catch(() => ({}));
-          break;
-        }
-      } catch {
-        /* try next candidate */
-      }
-    }
+    const { res, data } = await fetchIngress('/auth/sync-entra-user', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
 
     if (!res) {
       // Backend is offline / standalone dev fallback
