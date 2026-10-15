@@ -33,7 +33,7 @@ import aiofiles
 from celery import chord, group, chain
 from fastapi import APIRouter, Body, Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, Response, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from services.shared_tasks import (
@@ -60,6 +60,7 @@ from libs.auth.passwords import hash_password, password_matches
 from libs.shared.redis_cache import get_claim_progress_cache, set_claim_progress_cache
 from .schemas import ClaimListOut, ClaimOut
 from .rate_limiter import RateLimiter
+from .privacy_policy import PRIVACY_POLICY_DATA, get_privacy_policy_html
 
 
 class AuthUser(BaseModel):
@@ -2471,6 +2472,22 @@ def health():
     db_ok = check_db_health()
     status = "ok" if db_ok else "degraded"
     return {"status": status, "database": "up" if db_ok else "down"}
+
+
+# ── Public Privacy Policy (Google Play Developer Compliance) ──
+@router.get("/privacy&policy", tags=["Public", "Compliance"])
+def privacy_policy_endpoint(request: Request, format: str | None = Query(None)):
+    """Serve ClaimsGuru Privacy Policy as standard non-editable HTML webpage or JSON API.
+    
+    Google Play Developer Policy compliant:
+    - Active, publicly accessible URL without login or geofencing.
+    - Standard non-editable HTML webpage with ClaimsGuru specific disclosure.
+    - Also serves structured JSON when requested via ?format=json or Accept: application/json.
+    """
+    accept = request.headers.get("accept", "")
+    if format == "json" or ("application/json" in accept and "text/html" not in accept):
+        return JSONResponse(content=PRIVACY_POLICY_DATA)
+    return HTMLResponse(content=get_privacy_policy_html(), status_code=200)
 
 
 

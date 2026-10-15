@@ -232,8 +232,10 @@ export function RegisterOrganization() {
                 <Checkbox id="o-agree" checked={agree} onCheckedChange={(v) => setAgree(v === true)} className="mt-0.5" />
                 <Label htmlFor="o-agree" className="text-sm leading-relaxed text-muted-foreground">
                   I agree to the <span className="font-medium text-accent">Terms of Service</span>,{' '}
-                  <span className="font-medium text-accent">Privacy Policy</span>, and{' '}
-                  <span className="font-medium text-accent">data protection</span> processing terms.
+                  <Link href="/privacy&policy" target="_blank" className="font-medium text-accent underline hover:opacity-80">
+                    Privacy Policy
+                  </Link>
+                  , and <span className="font-medium text-accent">data protection</span> processing terms.
                 </Label>
               </div>
 
