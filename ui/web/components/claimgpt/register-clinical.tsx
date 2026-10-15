@@ -448,8 +448,10 @@ export function RegisterClinical() {
                 <Checkbox id="c-agree" checked={agree} onCheckedChange={(v) => setAgree(v === true)} className="mt-0.5" />
                 <Label htmlFor="c-agree" className="text-sm leading-relaxed text-muted-foreground">
                   I agree to the <span className="font-medium text-teal-700">Terms of Service</span>,{' '}
-                  <span className="font-medium text-teal-700">Privacy Policy</span>, and{' '}
-                  <span className="font-medium text-teal-700">data protection</span> compliance terms.
+                  <Link href="/privacy&policy" target="_blank" className="font-medium text-teal-700 underline hover:text-teal-900">
+                    Privacy Policy
+                  </Link>
+                  , and <span className="font-medium text-teal-700">data protection</span> compliance terms.
                 </Label>
               </div>
 

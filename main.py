@@ -194,6 +194,22 @@ def health():
     return {"status": "ok"}
 
 
+# ── Public Privacy Policy (Google Play Developer Compliance) ──
+@app.get("/privacy&policy", tags=["Public & Legal Compliance"])
+def gateway_privacy_policy_endpoint(request: Request, format: str | None = None):
+    """Publicly accessible ClaimsGuru Privacy Policy webpage and JSON API."""
+    try:
+        from services.ingress.app.privacy_policy import PRIVACY_POLICY_DATA, get_privacy_policy_html
+    except ImportError:
+        from app.privacy_policy import PRIVACY_POLICY_DATA, get_privacy_policy_html  # type: ignore
+
+    from fastapi.responses import HTMLResponse, JSONResponse
+    accept = request.headers.get("accept", "")
+    if format == "json" or ("application/json" in accept and "text/html" not in accept):
+        return JSONResponse(content=PRIVACY_POLICY_DATA)
+    return HTMLResponse(content=get_privacy_policy_html(), status_code=200)
+
+
 # ── Include each service router (graceful — skip if deps missing) ──
 for prefix, module_path, attr, tag in SERVICES:
     try:
