@@ -420,9 +420,14 @@ export function DashboardClinical() {
                         return 'Scoring';
                       };
                       const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
+                      const effectiveClaimStatus = (
+                        (isSelected && (s.realPreview as any)?.status)
+                          ? (s.realPreview as any).status
+                          : claim.status || ""
+                      ).toUpperCase();
                       const hasDocsRequested = (
                         (isSelected && s.isDocumentsRequested) ||
-                        (claim.status || "").toUpperCase() === "DOCUMENTS_REQUESTED" ||
+                        effectiveClaimStatus === "DOCUMENTS_REQUESTED" ||
                         Boolean((claim as any).has_action_request) ||
                         Boolean((claim as any).tpa_requested_docs?.length)
                       );
@@ -498,27 +503,27 @@ export function DashboardClinical() {
                               <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300 animate-pulse">
                                 ⚠️ Docs Req
                               </span>
-                            ) : (claim.status || "").toUpperCase() === "MODIFICATION_REQUESTED" ? (
+                            ) : effectiveClaimStatus === "MODIFICATION_REQUESTED" ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 text-amber-800 font-bold px-2 py-0.5 text-[9px] border border-amber-300">
                                 ⚠️ Info Req
                               </span>
-                            ) : (claim.status || "").toUpperCase() === "APPROVED" ? (
+                            ) : effectiveClaimStatus === "APPROVED" ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-teal-100 text-teal-800 font-bold px-2 py-0.5 text-[9px] border border-teal-300">
                                 ✓ Approved
                               </span>
-                            ) : (claim.status || "").toUpperCase() === "SETTLED" ? (
+                            ) : effectiveClaimStatus === "SETTLED" ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 text-[9px] border border-emerald-300">
                                 💎 Settled
                               </span>
-                            ) : (claim.status || "").toUpperCase() === "REJECTED" ? (
+                            ) : effectiveClaimStatus === "REJECTED" ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-rose-100 text-rose-800 font-bold px-2 py-0.5 text-[9px] border border-rose-300">
                                 ✕ Rejected
                               </span>
-                            ) : (claim.status || "").toUpperCase() === "DOCUMENTS_UPLOADED" ? (
+                            ) : effectiveClaimStatus === "DOCUMENTS_UPLOADED" ? (
                               <span className="inline-flex items-center gap-1 rounded-full bg-purple-100 text-purple-800 font-bold px-2 py-0.5 text-[9px] border border-purple-300">
                                 📄 Docs Uploaded
                               </span>
-                            ) : (claim.status || "").toUpperCase() === "SUBMITTED" ? (
+                            ) : effectiveClaimStatus === "SUBMITTED" ? (
                               <span
                                 className="inline-flex items-center gap-1 rounded-full bg-sky-100 text-sky-800 font-bold px-2 py-0.5 text-[10px] border border-sky-300 max-w-full"
                                 title={submittedBadgeText}
@@ -1175,24 +1180,125 @@ export function DashboardClinical() {
                               <AlertTriangle className="h-3 w-3 text-red-600" />
                               MISMATCH
                             </span>
-                          ) : ((s.realPreview as any)?.status === "SUBMITTED" || (s.recentClaims.find(c => c.id === s.claimId)?.status || "").toUpperCase() === "SUBMITTED") ? (
-                            <span
-                              className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-medium text-sky-700 border border-sky-200 max-w-[220px] truncate"
-                              title={(() => {
-                                const matched = s.recentClaims.find(c => c.id === s.claimId);
-                                const ins = (matched?.insurance_company || matched?.payer || (s.realPreview as any)?.insurance_company || (s.realPreview as any)?.payer || (typeof window !== "undefined" && s.claimId ? localStorage.getItem(`claimgpt_submitted_payer_${s.claimId}`) : "") || "").trim();
-                                return ins ? `Submitted to ${ins}` : "Submitted";
-                              })()}
-                            >
-                              <span className="flex-none">📤</span>
-                              <span className="truncate">
-                                {(() => {
-                                  const matched = s.recentClaims.find(c => c.id === s.claimId);
-                                  const ins = (matched?.insurance_company || matched?.payer || (s.realPreview as any)?.insurance_company || (s.realPreview as any)?.payer || (typeof window !== "undefined" && s.claimId ? localStorage.getItem(`claimgpt_submitted_payer_${s.claimId}`) : "") || "").trim();
-                                  return ins ? `Submitted to ${ins}` : "Submitted";
-                                })()}
-                              </span>
-                            </span>
+                          ) : (() => {
+                            const activeClaimStatus = (
+                              (s.realPreview as any)?.status ||
+                              s.recentClaims.find(c => c.id === s.claimId)?.status ||
+                              ""
+                            ).toUpperCase();
+                            const matched = s.recentClaims.find(c => c.id === s.claimId);
+                            const ins = (matched?.insurance_company || matched?.payer || (s.realPreview as any)?.insurance_company || (s.realPreview as any)?.payer || (typeof window !== "undefined" && s.claimId ? localStorage.getItem(`claimgpt_submitted_payer_${s.claimId}`) : "") || "").trim();
+
+                            if (activeClaimStatus === "SETTLED") {
+                              return (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-emerald-800 border border-emerald-300 max-w-[240px] truncate shadow-2xs"
+                                  title={ins ? `Settled & Paid by ${ins}` : "Claim Settled & Paid"}
+                                >
+                                  <span className="flex-none">💎</span>
+                                  <span className="truncate">
+                                    {ins ? `Settled (${ins})` : "Settled & Paid"}
+                                  </span>
+                                </span>
+                              );
+                            }
+                            if (activeClaimStatus === "APPROVED") {
+                              return (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-teal-800 border border-teal-300 max-w-[240px] truncate shadow-2xs"
+                                  title={ins ? `Approved by ${ins}` : "Claim Approved"}
+                                >
+                                  <CheckCircle2 className="h-3 w-3 text-teal-600 flex-none" />
+                                  <span className="truncate">
+                                    {ins ? `Approved (${ins})` : "Approved"}
+                                  </span>
+                                </span>
+                              );
+                            }
+                            if (activeClaimStatus === "REJECTED") {
+                              return (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-rose-800 border border-rose-300 max-w-[240px] truncate shadow-2xs"
+                                  title="Claim Rejected"
+                                >
+                                  <AlertTriangle className="h-3 w-3 text-rose-600 flex-none" />
+                                  <span className="truncate">Rejected</span>
+                                </span>
+                              );
+                            }
+                            if (activeClaimStatus === "SUBMITTED") {
+                              return (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-medium text-sky-700 border border-sky-200 max-w-[240px] truncate shadow-2xs"
+                                  title={ins ? `Submitted to ${ins}` : "Submitted"}
+                                >
+                                  <span className="flex-none">📤</span>
+                                  <span className="truncate">
+                                    {ins ? `Submitted to ${ins}` : "Submitted"}
+                                  </span>
+                                </span>
+                              );
+                            }
+                            return null;
+                          })() ? (
+                            (() => {
+                              const activeClaimStatus = (
+                                (s.realPreview as any)?.status ||
+                                s.recentClaims.find(c => c.id === s.claimId)?.status ||
+                                ""
+                              ).toUpperCase();
+                              const matched = s.recentClaims.find(c => c.id === s.claimId);
+                              const ins = (matched?.insurance_company || matched?.payer || (s.realPreview as any)?.insurance_company || (s.realPreview as any)?.payer || (typeof window !== "undefined" && s.claimId ? localStorage.getItem(`claimgpt_submitted_payer_${s.claimId}`) : "") || "").trim();
+
+                              if (activeClaimStatus === "SETTLED") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-emerald-800 border border-emerald-300 max-w-[240px] truncate shadow-2xs"
+                                    title={ins ? `Settled & Paid by ${ins}` : "Claim Settled & Paid"}
+                                  >
+                                    <span className="flex-none">💎</span>
+                                    <span className="truncate">
+                                      {ins ? `Settled (${ins})` : "Settled & Paid"}
+                                    </span>
+                                  </span>
+                                );
+                              }
+                              if (activeClaimStatus === "APPROVED") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-teal-800 border border-teal-300 max-w-[240px] truncate shadow-2xs"
+                                    title={ins ? `Approved by ${ins}` : "Claim Approved"}
+                                  >
+                                    <CheckCircle2 className="h-3 w-3 text-teal-600 flex-none" />
+                                    <span className="truncate">
+                                      {ins ? `Approved (${ins})` : "Approved"}
+                                    </span>
+                                  </span>
+                                );
+                              }
+                              if (activeClaimStatus === "REJECTED") {
+                                return (
+                                  <span
+                                    className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2.5 py-0.5 text-[9px] sm:text-[10px] font-bold text-rose-800 border border-rose-300 max-w-[240px] truncate shadow-2xs"
+                                    title="Claim Rejected"
+                                  >
+                                    <AlertTriangle className="h-3 w-3 text-rose-600 flex-none" />
+                                    <span className="truncate">Rejected</span>
+                                  </span>
+                                );
+                              }
+                              return (
+                                <span
+                                  className="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-[9px] sm:text-[10px] font-medium text-sky-700 border border-sky-200 max-w-[240px] truncate shadow-2xs"
+                                  title={ins ? `Submitted to ${ins}` : "Submitted"}
+                                >
+                                  <span className="flex-none">📤</span>
+                                  <span className="truncate">
+                                    {ins ? `Submitted to ${ins}` : "Submitted"}
+                                  </span>
+                                </span>
+                              );
+                            })()
                           ) : s.isStalled ? (
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] sm:text-[11px] font-semibold text-amber-700 border border-amber-500/30">
                               <AlertCircle className="h-3 w-3 text-amber-600" />

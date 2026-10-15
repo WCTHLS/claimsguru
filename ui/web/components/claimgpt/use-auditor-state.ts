@@ -546,6 +546,11 @@ export function useAuditorState() {
           if (prevData) {
             setRealPreview(prevData);
             setPreviewVersion((v) => v + 1);
+            if (prevData.status) {
+              setRecentClaims((prev) =>
+                prev.map((c) => (c.id === latestId ? { ...c, status: prevData.status } : c))
+              );
+            }
           }
 
           if (statusInfo?.status === "IDENTITY_MISMATCH" || statusInfo?.step?.includes("Identity Mismatch")) {
@@ -1461,6 +1466,7 @@ export function useAuditorState() {
               const ins = (prevData as any).insurance_company || (prevData.summary as any)?.insurance_company || pf.insurance_company || pf.insurer || c.insurer || c.insurance_company;
               return {
                 ...c,
+                status: prevData.status || c.status,
                 policy_number: pol,
                 insurer: ins,
                 documents: prevData.documents || c.documents,

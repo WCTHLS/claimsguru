@@ -151,10 +151,34 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     }
     lastInitializedKeyRef.current = claimKey;
 
-    // Check if claim is already submitted
-    if (preview?.status === 'SUBMITTED' || (preview as any)?.is_submitted) {
+    // Check if claim is already submitted or adjudicated
+    const activeClaimMeta = s.recentClaims?.find((c) => c.id === s.claimId);
+    const rawStatus = (preview?.status || activeClaimMeta?.status || '').toUpperCase();
+    const isSubmittedOrDecided =
+      rawStatus === 'SUBMITTED' ||
+      rawStatus === 'APPROVED' ||
+      rawStatus === 'SETTLED' ||
+      rawStatus === 'REJECTED' ||
+      rawStatus === 'DOCUMENTS_REQUESTED' ||
+      rawStatus === 'MODIFICATION_REQUESTED' ||
+      Boolean((preview as any)?.is_submitted);
+
+    const savedPayer =
+      typeof window !== 'undefined' && s.claimId
+        ? localStorage.getItem(`claimgpt_submitted_payer_${s.claimId}`)
+        : null;
+
+    const knownPayer = (
+      (preview as any)?.insurance_company ||
+      (preview as any)?.payer ||
+      activeClaimMeta?.insurance_company ||
+      activeClaimMeta?.payer ||
+      savedPayer ||
+      ''
+    ).trim();
+
+    if (isSubmittedOrDecided || Boolean(savedPayer)) {
       setIsSubmittedToPayer(true);
-      const knownPayer = (preview as any)?.insurance_company || (preview as any)?.payer || (typeof window !== 'undefined' && s.claimId ? localStorage.getItem(`claimgpt_submitted_payer_${s.claimId}`) : '');
       if (knownPayer) setSubmittedPayer(knownPayer);
     } else {
       setIsSubmittedToPayer(false);
@@ -1841,23 +1865,63 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
             {/* Submit & Close Group */}
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleOpenInsurerModal}
-                disabled={isSubmittingToPayer || isSubmittedToPayer}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 min-h-[42px] sm:min-h-[44px] px-4 text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer"
-              >
-                {isSubmittingToPayer ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : isSubmittedToPayer ? (
-                  <CheckCircle2 className="h-4 w-4 text-white" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-                {isSubmittedToPayer
-                  ? (submittedPayer ? `Submitted to ${submittedPayer}` : "Submitted to Insurer")
-                  : "Submit Claim to Insurer"}
-              </button>
+              {(() => {
+                const activeClaimMeta = s.recentClaims?.find((c) => c.id === s.claimId);
+                const currentStatus = (preview?.status || activeClaimMeta?.status || '').toUpperCase();
+                const isSettled = currentStatus === 'SETTLED';
+                const isApproved = currentStatus === 'APPROVED';
+                const isRejected = currentStatus === 'REJECTED';
+                const isDocsReq = currentStatus === 'DOCUMENTS_REQUESTED';
+
+                return (
+                  <button
+                    type="button"
+                    onClick={handleOpenInsurerModal}
+                    disabled={isSubmittingToPayer || isSubmittedToPayer || isSettled || isApproved || isRejected || isDocsReq}
+                    className={cn(
+                      "flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl min-h-[42px] sm:min-h-[44px] px-4 text-xs font-bold text-white transition-all shadow-md active:scale-95",
+                      isSettled
+                        ? "bg-emerald-600 border border-emerald-400 opacity-95 cursor-default shadow-emerald-900/30"
+                        : isApproved
+                        ? "bg-teal-600 border border-teal-400 opacity-95 cursor-default shadow-teal-900/30"
+                        : isRejected
+                        ? "bg-rose-600 border border-rose-400 opacity-95 cursor-default shadow-rose-900/30"
+                        : isDocsReq
+                        ? "bg-amber-600 border border-amber-400 opacity-95 cursor-default shadow-amber-900/30"
+                        : isSubmittedToPayer
+                        ? "bg-sky-600 border border-sky-400 opacity-95 cursor-default shadow-sky-900/30"
+                        : "bg-emerald-600 hover:bg-emerald-500 cursor-pointer"
+                    )}
+                  >
+                    {isSubmittingToPayer ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : isSettled ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-200" />
+                    ) : isApproved ? (
+                      <CheckCircle2 className="h-4 w-4 text-teal-200" />
+                    ) : isRejected ? (
+                      <AlertTriangle className="h-4 w-4 text-rose-200" />
+                    ) : isDocsReq ? (
+                      <AlertTriangle className="h-4 w-4 text-amber-200" />
+                    ) : isSubmittedToPayer ? (
+                      <CheckCircle2 className="h-4 w-4 text-white" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                    {isSettled
+                      ? (submittedPayer ? `Settled & Paid (${submittedPayer})` : "Claim Settled & Paid")
+                      : isApproved
+                      ? (submittedPayer ? `Approved by ${submittedPayer}` : "Claim Approved")
+                      : isRejected
+                      ? (submittedPayer ? `Rejected by ${submittedPayer}` : "Claim Rejected")
+                      : isDocsReq
+                      ? (submittedPayer ? `Docs Requested by ${submittedPayer}` : "Documents Requested")
+                      : isSubmittedToPayer
+                      ? (submittedPayer ? `Submitted to ${submittedPayer}` : "Submitted to Insurer")
+                      : "Submit Claim to Insurer"}
+                  </button>
+                );
+              })()}
 
               <button
                 type="button"
