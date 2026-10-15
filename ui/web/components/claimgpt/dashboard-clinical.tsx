@@ -420,10 +420,15 @@ export function DashboardClinical() {
                         return 'Scoring';
                       };
                       const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
+                      const cachedClaimStatus = (typeof window !== "undefined" ? localStorage.getItem(`claimgpt_claim_status_${claim.id}`) : null)?.toUpperCase();
+                      const previewStatus = (isSelected && (s.realPreview as any)?.status) ? (s.realPreview as any).status.toUpperCase() : null;
+                      const TERMINAL_STATUSES = new Set(["SETTLED", "APPROVED", "REJECTED"]);
+
                       const effectiveClaimStatus = (
-                        (isSelected && (s.realPreview as any)?.status)
-                          ? (s.realPreview as any).status
-                          : claim.status || ""
+                        previewStatus ||
+                        (cachedClaimStatus && TERMINAL_STATUSES.has(cachedClaimStatus) ? cachedClaimStatus : null) ||
+                        claim.status ||
+                        ""
                       ).toUpperCase();
                       const hasDocsRequested = (
                         (isSelected && s.isDocumentsRequested) ||

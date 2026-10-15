@@ -309,9 +309,26 @@ export function useAuditorState() {
               survivingLocal.push(activeClaim);
             }
           }
-          if (survivingLocal.length === 0) return claims;
+          // Protect terminal statuses (SETTLED, APPROVED, REJECTED) from being downgraded by stale backend list values
+          const TERMINAL_ADJUDICATIONS = new Set(["SETTLED", "APPROVED", "REJECTED"]);
+          const mergedClaims = claims.map((c) => {
+            const cached = typeof window !== "undefined" ? localStorage.getItem(`claimgpt_claim_status_${c.id}`) : null;
+            const cachedUpper = (cached || "").toUpperCase();
+            const prevClaim = prev.find((p) => p.id === c.id);
+            const prevStatus = (prevClaim?.status || "").toUpperCase();
+
+            let effectiveStatus = c.status;
+            if (TERMINAL_ADJUDICATIONS.has(cachedUpper)) {
+              effectiveStatus = cachedUpper;
+            } else if (TERMINAL_ADJUDICATIONS.has(prevStatus) && !TERMINAL_ADJUDICATIONS.has((c.status || "").toUpperCase())) {
+              effectiveStatus = prevStatus;
+            }
+            return { ...c, status: effectiveStatus };
+          });
+
+          if (survivingLocal.length === 0) return mergedClaims;
           // Merge: optimistic claims on top, then backend claims
-          return [...survivingLocal, ...claims];
+          return [...survivingLocal, ...mergedClaims];
         });
       }
     } catch (err) {
@@ -515,10 +532,19 @@ export function useAuditorState() {
           patientId = session.user.sub;
         }
         const claims = await fetchRecentClaims(patientId);
+        const TERMINAL_ADJUDICATIONS = new Set(["SETTLED", "APPROVED", "REJECTED"]);
+        const enhancedClaims = (claims || []).map((c) => {
+          const cached = typeof window !== "undefined" ? localStorage.getItem(`claimgpt_claim_status_${c.id}`) : null;
+          const cachedUpper = (cached || "").toUpperCase();
+          if (TERMINAL_ADJUDICATIONS.has(cachedUpper)) {
+            return { ...c, status: cachedUpper };
+          }
+          return c;
+        });
         if (claims !== null) {
-          setRecentClaims(claims);
+          setRecentClaims(enhancedClaims);
         }
-        const claimsList = claims || [];
+        const claimsList = enhancedClaims;
 
         // Check if a specific claim was requested via URL query string
         let targetId: string | null = null;
@@ -547,8 +573,12 @@ export function useAuditorState() {
             setRealPreview(prevData);
             setPreviewVersion((v) => v + 1);
             if (prevData.status) {
+              const prevSt = prevData.status.toUpperCase();
+              try {
+                localStorage.setItem(`claimgpt_claim_status_${latestId}`, prevSt);
+              } catch {}
               setRecentClaims((prev) =>
-                prev.map((c) => (c.id === latestId ? { ...c, status: prevData.status } : c))
+                prev.map((c) => (c.id === latestId ? { ...c, status: prevSt } : c))
               );
             }
           }
@@ -734,6 +764,15 @@ export function useAuditorState() {
         setPreviewVersion((v) => v + 1);
         const statusUpper = (prevData.status || "").toUpperCase();
         setIsDocumentsRequested(statusUpper === "DOCUMENTS_REQUESTED");
+        if (prevData.status) {
+          const prevSt = prevData.status.toUpperCase();
+          try {
+            localStorage.setItem(`claimgpt_claim_status_${targetId}`, prevSt);
+          } catch {}
+          setRecentClaims((prev) =>
+            prev.map((c) => (c.id === targetId ? { ...c, status: prevSt } : c))
+          );
+        }
       }
     } catch (err) {
       console.warn("Failed to fetch preview for selected claim:", err);
