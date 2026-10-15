@@ -816,11 +816,6 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         c_includes = getattr(c, "code_includes", None) or (c_meta.get("code_includes") if c_meta else None)
         
         if is_explicit:
-            doc_mention = "ICD-10 code explicitly present in document"
-            if not c_includes:
-                c_includes = doc_mention
-            elif doc_mention not in c_includes:
-                c_includes = f"{doc_mention} | {c_includes}"
             c_other = []
         else:
             c_other = getattr(c, "other_matches", None) or []
@@ -832,6 +827,7 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
             "estimated_cost": getattr(c, "estimated_cost", None),
             "code_includes": c_includes,
             "other_matches": c_other or [],
+            "is_explicit": is_explicit,
         })
 
     cpt_list = [{"code": c.code, "description": c.description or "", "confidence": c.confidence, "estimated_cost": getattr(c, "estimated_cost", None)} for c in codes if c.code_system == "CPT"]
@@ -2047,6 +2043,34 @@ def preview_claim_data(claim_id: str, db: Session = Depends(get_db)):
         "manual_review_required": bool((data.get("identity_review") or {}).get("manual_review_required")),
     }
 
+    # Resolve submitting patient profile name & email
+    sub_name = None
+    sub_email = None
+    if claim.patient_id:
+        try:
+            from libs.shared.models import User, PatientProfile
+            pid_clean = str(claim.patient_id).strip()
+            p_uid = _safe_parse_uuid(pid_clean)
+            u_obj = db.query(User).filter(
+                ((User.id == p_uid) if p_uid else False) |
+                (User.email.ilike(pid_clean)) |
+                (User.external_subject_id == pid_clean)
+            ).first()
+            if u_obj:
+                sub_email = u_obj.email
+                prof = db.query(PatientProfile).filter(PatientProfile.user_id == u_obj.id).first()
+                if prof and prof.first_name:
+                    p_first = (prof.first_name or "").strip()
+                    p_last = (prof.last_name or "").strip()
+                    sub_name = f"{p_first} {p_last}".strip()
+                else:
+                    sub_name = u_obj.email.split("@")[0] if u_obj.email else None
+        except Exception:
+            pass
+    data["submitted_by_name"] = sub_name
+    data["submitted_by_email"] = sub_email
+    data["summary"]["submitted_by"] = sub_name or sub_email
+
     # AI Brain insights — synthesized intelligence from all documents
     try:
         data["brain_insights"] = _generate_brain_insights(data)
@@ -2653,7 +2677,7 @@ def tpa_claim_action(
         from libs.utils.audit import AuditLogger
         audit = AuditLogger(db, "submission-service")
         audit.log(
-            action=f"CLAIM_{action.upper()}",
+            action=f"CLAIM_{new_status}",
             claim_id=cid,
             actor="tpa-reviewer",
             metadata={

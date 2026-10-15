@@ -3347,6 +3347,44 @@ def list_claims(
             for w in wf_rows:
                 wf_states[w.claim_id] = w
 
+        # Batch-fetch submitter patient user profiles
+        submitter_map = {}
+        patient_id_strs = [str(c.patient_id).strip() for c in claims if c.patient_id]
+        if patient_id_strs:
+            try:
+                parsed_uids = [_safe_parse_uuid(pid) for pid in patient_id_strs]
+                parsed_uids = [u for u in parsed_uids if u]
+                email_candidates = [p.lower() for p in patient_id_strs if "@" in p]
+                conds = []
+                if parsed_uids:
+                    conds.append(User.id.in_(parsed_uids))
+                if email_candidates:
+                    conds.append(User.email.in_(email_candidates))
+                conds.append(User.external_subject_id.in_(patient_id_strs))
+
+                sub_users = db.query(User).filter(or_(*conds)).all() if conds else []
+                sub_user_ids = [u.id for u in sub_users]
+                sub_profiles = db.query(PatientProfile).filter(PatientProfile.user_id.in_(sub_user_ids)).all() if sub_user_ids else []
+                profile_by_uid = {p.user_id: p for p in sub_profiles}
+
+                for u in sub_users:
+                    prof = profile_by_uid.get(u.id)
+                    p_first = (getattr(prof, "first_name", "") or "").strip()
+                    p_last = (getattr(prof, "last_name", "") or "").strip()
+                    full_name = f"{p_first} {p_last}".strip() if p_first else (u.email.split("@")[0] if u.email else None)
+                    entry = {
+                        "name": full_name,
+                        "email": u.email,
+                    }
+                    submitter_map[str(u.id)] = entry
+                    submitter_map[str(u.id).lower()] = entry
+                    if u.email:
+                        submitter_map[u.email.lower()] = entry
+                    if u.external_subject_id:
+                        submitter_map[u.external_subject_id] = entry
+            except Exception as _subm_err:
+                logger.debug(f"[list_claims] Could not fetch submitter profiles: {_subm_err}")
+
         # Batch-fetch latest actionable AuditLog records for document requests / status
         action_map = {}
         if claims:
@@ -3363,7 +3401,10 @@ def list_claims(
                             "CLAIM_SEND_BACK",
                             "CLAIM_REJECT",
                             "CLAIM_REJECTED",
+                            "CLAIM_APPROVE",
                             "CLAIM_APPROVED",
+                            "CLAIM_SEND_MONEY",
+                            "CLAIM_SETTLE",
                             "CLAIM_SETTLED",
                             "CLAIM_SUBMITTED",
                             "CLAIM_DOCUMENTS_UPLOADED",
@@ -3383,10 +3424,14 @@ def list_claims(
         for c in claims:
             effective_status = c.status
             w_state = wf_states.get(c.id)
-            if w_state and (w_state.current_step in ("FINISHED", "COMPLETED") or w_state.status in ("FINISHED", "COMPLETED")):
-                effective_status = "COMPLETED"
-            elif c.status == "PARSED" and not (w_state and w_state.status == "RUNNING"):
-                effective_status = "COMPLETED"
+
+            # Only infer COMPLETED if the current status is an unfinalized pipeline/intake step.
+            # Explicit adjudications (APPROVED, REJECTED, SETTLED, DOCUMENTS_REQUESTED, MODIFICATION_REQUESTED, SUBMITTED) must NOT be overwritten by w_state!
+            if c.status in ("PARSED", "STARTING", "RUNNING", "UPLOADED", "DOCUMENTS_UPLOADED", None):
+                if w_state and (w_state.current_step in ("FINISHED", "COMPLETED") or w_state.status in ("FINISHED", "COMPLETED")):
+                    effective_status = "COMPLETED"
+                elif c.status == "PARSED" and not (w_state and w_state.status == "RUNNING"):
+                    effective_status = "COMPLETED"
 
             has_action_request = False
             tpa_message = None
@@ -3414,18 +3459,27 @@ def list_claims(
                     effective_status = "DOCUMENTS_UPLOADED" if is_done else "UPLOADED"
                 elif audit.action in ("CLAIM_REJECT", "CLAIM_REJECTED"):
                     effective_status = "REJECTED"
-                elif audit.action == "CLAIM_APPROVED":
+                elif audit.action in ("CLAIM_APPROVE", "CLAIM_APPROVED"):
                     effective_status = "APPROVED"
-                elif audit.action == "CLAIM_SETTLED":
+                elif audit.action in ("CLAIM_SETTLE", "CLAIM_SETTLED", "CLAIM_SEND_MONEY"):
                     effective_status = "SETTLED"
                 elif audit.action == "CLAIM_SUBMITTED":
-                    effective_status = "SUBMITTED"
+                    if (c.status or "").upper() not in ("APPROVED", "REJECTED", "SETTLED"):
+                        effective_status = "SUBMITTED"
+
+            # If the database row itself has an explicit final decision, ensure it stays final
+            if (c.status or "").upper() in ("APPROVED", "REJECTED", "SETTLED"):
+                effective_status = c.status.upper()
 
             step_label = None
             pct_val = None
             is_terminal_status = effective_status in ("COMPLETED", "VALIDATED", "APPROVED", "SETTLED", "REJECTED", "IDENTITY_MISMATCH", "FAILED", "WORKFLOW_FAILED", "DOCUMENTS_UPLOADED", "SUBMITTED")
             if w_state and not is_terminal_status and w_state.current_step not in ("FINISHED", "COMPLETED") and w_state.status not in ("FINISHED", "COMPLETED"):
                 step_label, pct_val = _map_progress(w_state.current_step, w_state.status)
+
+            sub_info = submitter_map.get(str(c.patient_id)) or (submitter_map.get(str(c.patient_id).lower()) if c.patient_id else None) or {}
+            submitted_by_name = sub_info.get("name")
+            submitted_by_email = sub_info.get("email")
 
             claim_items.append({
                 "id": c.id,
@@ -3440,6 +3494,8 @@ def list_claims(
                 "documents": c.documents,
                 "task_id": getattr(c, "task_id", None),
                 "patient_name": getattr(c, "patient_name", None),
+                "submitted_by_name": submitted_by_name,
+                "submitted_by_email": submitted_by_email,
                 "hospital_name": getattr(c, "hospital_name", None),
                 "doctor_name": getattr(c, "doctor_name", None),
                 "diagnosis": getattr(c, "diagnosis", None),
@@ -3818,6 +3874,32 @@ def get_claim(
             claim.insurance_company = extracted_ins
     elif not getattr(claim, "insurance_company", None):
         claim.insurance_company = None
+
+    # Resolve submitting patient profile name & email
+    sub_name = None
+    sub_email = None
+    if claim.patient_id:
+        try:
+            pid_clean = str(claim.patient_id).strip()
+            p_uid = _safe_parse_uuid(pid_clean)
+            u_obj = db.query(User).filter(
+                ((User.id == p_uid) if p_uid else False) |
+                (User.email.ilike(pid_clean)) |
+                (User.external_subject_id == pid_clean)
+            ).first()
+            if u_obj:
+                sub_email = u_obj.email
+                prof = db.query(PatientProfile).filter(PatientProfile.user_id == u_obj.id).first()
+                if prof and prof.first_name:
+                    p_first = (prof.first_name or "").strip()
+                    p_last = (prof.last_name or "").strip()
+                    sub_name = f"{p_first} {p_last}".strip()
+                else:
+                    sub_name = u_obj.email.split("@")[0] if u_obj.email else None
+        except Exception:
+            pass
+    claim.submitted_by_name = sub_name
+    claim.submitted_by_email = sub_email
     
     return ClaimOut.model_validate(claim).model_dump(mode="json")
 
@@ -4865,7 +4947,7 @@ def tpa_action_endpoint(
                 id=uuid.uuid4(),
                 claim_id=cid,
                 actor="Star Health Reviewer",
-                action=f"CLAIM_{action.upper()}",
+                action=f"CLAIM_{new_status}",
                 audit_metadata=audit_meta,
                 created_at=datetime.now(timezone.utc),
             )
@@ -4873,7 +4955,7 @@ def tpa_action_endpoint(
             db.commit()
         except Exception as log_err:
             logger.warning("Could not persist audit log for tpa action: %s", log_err)
-            _audit(db, f"CLAIM_{action.upper()}", claim_id=cid, metadata=audit_meta)
+            _audit(db, f"CLAIM_{new_status}", claim_id=cid, metadata=audit_meta)
 
         # Trigger push notification to patient's mobile app
         try:

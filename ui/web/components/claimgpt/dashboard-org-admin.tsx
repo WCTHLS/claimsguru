@@ -118,10 +118,12 @@ export interface FieldFeedbackEntry {
 }
 
 export interface EnrichedClaim extends Claim {
-  summary?: ClaimSummary;
+  summary?: ClaimSummary & { submitted_by?: string };
   billed_total?: number;
   edited_fields?: string[];
   field_feedback?: Record<string, FieldFeedbackEntry>;
+  submitted_by_name?: string | null;
+  submitted_by_email?: string | null;
 }
 
 export interface ChatMessage {
@@ -424,8 +426,18 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
             const prevRes = await fetch(`${SUBMISSION_API}/claims/${c.id}/preview`, { headers }).catch(() => null);
             if (prevRes && prevRes.ok) {
               const prevData = await prevRes.json();
+              const effectiveStatus = (
+                ['APPROVED', 'REJECTED', 'SETTLED', 'MODIFICATION_REQUESTED', 'DOCUMENTS_REQUESTED'].includes((c.status || '').toUpperCase())
+                  ? c.status
+                  : (['APPROVED', 'REJECTED', 'SETTLED', 'MODIFICATION_REQUESTED', 'DOCUMENTS_REQUESTED'].includes((prevData.status || '').toUpperCase())
+                      ? prevData.status
+                      : (c.status || prevData.status))
+              );
               return {
                 ...c,
+                status: effectiveStatus,
+                submitted_by_name: (c as any).submitted_by_name || prevData.submitted_by_name || (prevData.summary as any)?.submitted_by || null,
+                submitted_by_email: (c as any).submitted_by_email || prevData.submitted_by_email || null,
                 summary: prevData.summary || (c as any).summary,
                 billed_total: prevData.billed_total ?? (c as any).billed_total,
                 edited_fields: prevData.field_feedback ? Object.keys(prevData.field_feedback) : (c as any).edited_fields,

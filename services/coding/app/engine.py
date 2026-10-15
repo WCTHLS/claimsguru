@@ -65,6 +65,7 @@ class Code:
     entity_index: int | None = None
     code_includes: str | None = None
     other_matches: list[dict[str, Any]] | None = None
+    is_explicit: bool = False
 
 
 @dataclass
@@ -571,17 +572,13 @@ def _deduplicate_and_rank_codes(codes: list[Code]) -> list[Code]:
             if meta:
                 best_code.code_includes = meta.get("code_includes")
 
-        is_explicit_code = best_code.confidence >= 0.99
+        is_explicit_code = (best_code.confidence or 0.0) >= 0.99 or getattr(best_code, "is_explicit", False)
         if is_explicit_code:
             # When explicit code is present in document:
-            # 1. No need to show closest matches (do NOT run RAG search)
+            # 1. Flag as explicit
+            best_code.is_explicit = True
+            # 2. No need to show closest matches (do NOT run RAG search)
             best_code.other_matches = []
-            # 2. Explicitly mention ICD code already present in document
-            doc_mention = "ICD-10 code explicitly present in document"
-            if not best_code.code_includes:
-                best_code.code_includes = doc_mention
-            elif doc_mention not in best_code.code_includes:
-                best_code.code_includes = f"{doc_mention} | {best_code.code_includes}"
         else:
             # Only for non-explicit/fuzzy codes: preserve alternative matches derived
             # directly from the raw clinical query, plus any other codes in this category group
@@ -865,8 +862,9 @@ def _extract_from_parsed_fields(
                         confidence=1.0,
                         is_primary=is_primary,
                         entity_index=len(entities) - 1,
-                        code_includes="ICD-10 code explicitly present in document",
+                        code_includes=meta_lookup[3] if (meta_lookup and len(meta_lookup) > 3) else None,
                         other_matches=[],
+                        is_explicit=True,
                     ))
             elif matches:
                 top_tuple = matches[0]

@@ -293,13 +293,18 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         }
       }
 
-      const covers = isExplicit
-        ? (item.code_includes || 'ICD-10 code explicitly present in document')
-        : (item.code_includes || (
-          item.code === 'K44.0'
-            ? 'Code covers: hiatus hernia (oesophageal)(sliding) | paraoesophageal hernia | Diaphragmatic hernia: causing obstruction without gangrene | Diaphragmatic hernia: incarcerated without gangrene | Diaphragmatic hernia: irreducible without gangrene | Diaphragmatic hernia: strangulated without gangrene'
-            : undefined
-        ));
+      const cleanCovers = typeof item.code_includes === 'string'
+        ? item.code_includes
+            .replace(/ICD-10 code explicitly present in document\s*\|\s*/gi, '')
+            .replace(/^ICD-10 code explicitly present in document$/gi, '')
+            .trim()
+        : '';
+
+      const covers = cleanCovers || (
+        item.code === 'K44.0'
+          ? 'Code covers: hiatus hernia (oesophageal)(sliding) | paraoesophageal hernia | Diaphragmatic hernia: causing obstruction without gangrene | Diaphragmatic hernia: incarcerated without gangrene | Diaphragmatic hernia: irreducible without gangrene | Diaphragmatic hernia: strangulated without gangrene'
+          : undefined
+      );
 
       return {
         ...item,
@@ -1615,13 +1620,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                       <p className="text-slate-200 text-xs leading-relaxed font-semibold">
                         {item.description}
                       </p>
-
-                      {isExplicit && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-400/90 bg-emerald-950/30 border border-emerald-500/20 px-2.5 py-1.5 rounded-md mt-1">
-                          <CheckCircle2 className="h-3.5 w-3.5 flex-none text-emerald-400" />
-                          <span>ICD-10 code explicitly present in document</span>
-                        </div>
-                      )}
 
                       {/* Disclosure Button: Code Description & Covers for Top 1 */}
                       <div className="pt-1">
