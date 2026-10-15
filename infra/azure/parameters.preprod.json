@@ -31,6 +31,12 @@
     },
     "azureOpenAiDeployment": {
       "value": "gpt-4o"
+    },
+    "frontendCustomDomainName": {
+      "value": "www.wct-health.com"
+    },
+    "frontendCertificateName": {
+      "value": "www.wct-health.com-claimsgu-260930181456"
     }
   }
 }

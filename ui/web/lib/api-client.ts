@@ -10,19 +10,23 @@ import JSZip from 'jszip';
 export function getApiBaseUrl(): string {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
+    if (host === 'localhost' || host === '127.0.0.1') {
+      return `http://${host}:8000`;
+    }
     if (host.includes('azurecontainerapps.io')) {
       const ingressHost = host.replace(/(frontend|web)/i, 'ingress');
       return `https://${ingressHost}`;
     }
-    if (host === 'localhost' || host === '127.0.0.1') {
-      return `http://${host}:8000`;
+    // Custom domain support (e.g. www.wct-health.com, wct-health.com, or claimsguru domains)
+    if (host.includes('wct-health.com') || host.includes('claimsguru')) {
+      return 'https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io';
     }
   }
   const raw = process.env.NEXT_PUBLIC_API_BASE || '';
   if (raw && !raw.includes('127.0.0.1') && !raw.includes('localhost')) {
     return raw;
   }
-  return 'http://127.0.0.1:8000';
+  return 'https://cg-preprod-cin-ingress.purpleocean-4441f644.centralindia.azurecontainerapps.io';
 }
 
 export function getIngressApiUrl(): string {

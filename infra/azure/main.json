@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.46.1.21595",
-      "templateHash": "3207952447315271333"
+      "templateHash": "8194196765184626365"
     }
   },
   "parameters": {
@@ -55,6 +55,41 @@
       "metadata": {
         "description": "SQL Administrator Password"
       }
+    },
+    "azureOpenAiEndpoint": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure OpenAI Endpoint"
+      }
+    },
+    "azureOpenAiApiKey": {
+      "type": "securestring",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Azure OpenAI API Key"
+      }
+    },
+    "azureOpenAiDeployment": {
+      "type": "string",
+      "defaultValue": "gpt-4o",
+      "metadata": {
+        "description": "Azure OpenAI Model Deployment Name"
+      }
+    },
+    "frontendCustomDomainName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Custom Domain Name for Frontend (optional)"
+      }
+    },
+    "frontendCertificateName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Managed Certificate Name for Frontend Custom Domain (optional)"
+      }
     }
   },
   "variables": {
@@ -69,6 +104,8 @@
     "serviceBusName": "[format('cg-{0}-sb-{1}', parameters('environmentName'), variables('uniqueSuffix'))]",
     "sqlServerName": "[format('cg-{0}-sql-{1}', parameters('environmentName'), variables('uniqueSuffix'))]",
     "sqlDbName": "claimsguru",
+    "acsName": "[format('cg-{0}-acs-{1}', parameters('environmentName'), variables('uniqueSuffix'))]",
+    "emailServiceName": "[format('cg-{0}-email-{1}', parameters('environmentName'), variables('uniqueSuffix'))]",
     "redisConnectionString": "[format('redis://{0}-redis:6379/0', variables('prefix'))]",
     "acrName": "[split(parameters('acrLoginServer'), '.')[0]]"
   },
@@ -167,6 +204,7 @@
       "apiVersion": "2022-10-01-preview",
       "name": "[format('{0}/{1}', variables('serviceBusName'), 'default')]",
       "properties": {
+        "lockDuration": "PT5M",
         "maxDeliveryCount": 10,
         "deadLetteringOnMessageExpiration": true
       },
@@ -179,6 +217,7 @@
       "apiVersion": "2022-10-01-preview",
       "name": "[format('{0}/{1}', variables('serviceBusName'), 'ocr_queue')]",
       "properties": {
+        "lockDuration": "PT5M",
         "maxDeliveryCount": 10,
         "deadLetteringOnMessageExpiration": true
       },
@@ -191,6 +230,7 @@
       "apiVersion": "2022-10-01-preview",
       "name": "[format('{0}/{1}', variables('serviceBusName'), 'parser_queue')]",
       "properties": {
+        "lockDuration": "PT5M",
         "maxDeliveryCount": 10,
         "deadLetteringOnMessageExpiration": true
       },
@@ -203,6 +243,7 @@
       "apiVersion": "2022-10-01-preview",
       "name": "[format('{0}/{1}', variables('serviceBusName'), 'dead_letter')]",
       "properties": {
+        "lockDuration": "PT5M",
         "maxDeliveryCount": 10,
         "deadLetteringOnMessageExpiration": true
       },
@@ -232,7 +273,27 @@
               "resources": {
                 "cpu": "[json('0.5')]",
                 "memory": "1.0Gi"
-              }
+              },
+              "probes": [
+                {
+                  "type": "Liveness",
+                  "tcpSocket": {
+                    "port": 6379
+                  },
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 15,
+                  "failureThreshold": 3
+                },
+                {
+                  "type": "Readiness",
+                  "tcpSocket": {
+                    "port": 6379
+                  },
+                  "initialDelaySeconds": 5,
+                  "periodSeconds": 10,
+                  "failureThreshold": 2
+                }
+              ]
             }
           ],
           "scale": {
@@ -298,6 +359,36 @@
       }
     },
     {
+      "type": "Microsoft.Communication/communicationServices",
+      "apiVersion": "2023-04-01",
+      "name": "[variables('acsName')]",
+      "location": "global",
+      "properties": {
+        "dataLocation": "India"
+      }
+    },
+    {
+      "type": "Microsoft.Communication/emailServices",
+      "apiVersion": "2023-04-01",
+      "name": "[variables('emailServiceName')]",
+      "location": "global",
+      "properties": {
+        "dataLocation": "India"
+      }
+    },
+    {
+      "type": "Microsoft.Communication/emailServices/domains",
+      "apiVersion": "2023-04-01",
+      "name": "[format('{0}/{1}', variables('emailServiceName'), 'AzureManagedDomain')]",
+      "location": "global",
+      "properties": {
+        "domainManagement": "AzureManaged"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Communication/emailServices', variables('emailServiceName'))]"
+      ]
+    },
+    {
       "type": "Microsoft.App/containerApps",
       "apiVersion": "2023-05-01",
       "name": "[format('{0}-ingress', variables('prefix'))]",
@@ -355,6 +446,10 @@
                   "value": "[listKeys(format('{0}/AuthorizationRules/RootManageSharedAccessKey', resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))), '2022-10-01-preview').primaryConnectionString]"
                 },
                 {
+                  "name": "CELERY_USE_AZURE_SERVICEBUS",
+                  "value": "true"
+                },
+                {
                   "name": "AZURE_STORAGE_CONNECTION_STRING",
                   "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-01-01').keys[0].value, environment().suffixes.storage)]"
                 },
@@ -377,12 +472,104 @@
                 {
                   "name": "CELERY_RESULT_BACKEND",
                   "value": "[variables('redisConnectionString')]"
+                },
+                {
+                  "name": "AZURE_COMMUNICATION_CONNECTION_STRING",
+                  "value": "[listKeys(resourceId('Microsoft.Communication/communicationServices', variables('acsName')), '2023-04-01').primaryConnectionString]"
+                },
+                {
+                  "name": "AZURE_COMMUNICATION_SENDER_EMAIL",
+                  "value": "[format('DoNotReply@{0}', reference(resourceId('Microsoft.Communication/emailServices/domains', variables('emailServiceName'), 'AzureManagedDomain'), '2023-04-01').fromSenderDomain)]"
+                },
+                {
+                  "name": "ENABLE_EMAIL_NOTIFICATIONS",
+                  "value": "true"
+                },
+                {
+                  "name": "ENABLE_NOTIFICATIONS",
+                  "value": "true"
+                },
+                {
+                  "name": "AZURE_OPENAI_ENDPOINT",
+                  "value": "[parameters('azureOpenAiEndpoint')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_API_KEY",
+                  "value": "[parameters('azureOpenAiApiKey')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_DEPLOYMENT",
+                  "value": "[parameters('azureOpenAiDeployment')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_API_VERSION",
+                  "value": "2024-11-20"
+                },
+                {
+                  "name": "ENTRA_TENANT_ID",
+                  "value": "0fac25c7-0d8c-4f34-8c8d-3981a5d2a482"
+                },
+                {
+                  "name": "ENTRA_CLIENT_ID",
+                  "value": "c2731748-4911-491f-82a1-beda9766edfe"
+                },
+                {
+                  "name": "ENTRA_CLIENT_SECRET",
+                  "value": "zXb8Q~Co2YlDeko5Tbu19tv0-OpDUCVUUEmiFbwj"
+                },
+                {
+                  "name": "ENTRA_PROVISIONING_CLIENT_ID",
+                  "value": "c2731748-4911-491f-82a1-beda9766edfe"
+                },
+                {
+                  "name": "ENTRA_PROVISIONING_CLIENT_SECRET",
+                  "value": "zXb8Q~Co2YlDeko5Tbu19tv0-OpDUCVUUEmiFbwj"
+                },
+                {
+                  "name": "ENTRA_SUBDOMAIN",
+                  "value": "claimsguruapp"
+                },
+                {
+                  "name": "ENTRA_EXTERNAL_ID_ISSUER",
+                  "value": "claimsguruapp.onmicrosoft.com"
+                },
+                {
+                  "name": "DB_POOL_SIZE",
+                  "value": "10"
+                },
+                {
+                  "name": "DB_MAX_OVERFLOW",
+                  "value": "15"
                 }
               ],
               "resources": {
                 "cpu": "[json('1.0')]",
                 "memory": "2.0Gi"
-              }
+              },
+              "probes": [
+                {
+                  "type": "Liveness",
+                  "httpGet": {
+                    "path": "/health",
+                    "port": 8000
+                  },
+                  "initialDelaySeconds": 15,
+                  "periodSeconds": 20,
+                  "timeoutSeconds": 3,
+                  "failureThreshold": 3
+                },
+                {
+                  "type": "Readiness",
+                  "httpGet": {
+                    "path": "/health",
+                    "port": 8000
+                  },
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 3,
+                  "failureThreshold": 2
+                }
+              ]
             }
           ],
           "scale": {
@@ -392,8 +579,10 @@
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.Communication/communicationServices', variables('acsName'))]",
         "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName'))]",
+        "[resourceId('Microsoft.Communication/emailServices/domains', variables('emailServiceName'), 'AzureManagedDomain')]",
         "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]",
         "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
@@ -460,6 +649,10 @@
                   "value": "[listKeys(format('{0}/AuthorizationRules/RootManageSharedAccessKey', resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))), '2022-10-01-preview').primaryConnectionString]"
                 },
                 {
+                  "name": "CELERY_USE_AZURE_SERVICEBUS",
+                  "value": "true"
+                },
+                {
                   "name": "AZURE_STORAGE_CONNECTION_STRING",
                   "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-01-01').keys[0].value, environment().suffixes.storage)]"
                 },
@@ -486,11 +679,23 @@
                 {
                   "name": "OCR_USE_AZURE_OCR",
                   "value": "True"
+                },
+                {
+                  "name": "DB_POOL_SIZE",
+                  "value": "5"
+                },
+                {
+                  "name": "DB_MAX_OVERFLOW",
+                  "value": "5"
+                },
+                {
+                  "name": "CELERY_MAX_TASKS_PER_CHILD",
+                  "value": "25"
                 }
               ],
               "resources": {
-                "cpu": "[json('2.0')]",
-                "memory": "4.0Gi"
+                "cpu": "[json('1.0')]",
+                "memory": "2.0Gi"
               }
             }
           ],
@@ -569,6 +774,10 @@
                   "value": "[listKeys(format('{0}/AuthorizationRules/RootManageSharedAccessKey', resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))), '2022-10-01-preview').primaryConnectionString]"
                 },
                 {
+                  "name": "CELERY_USE_AZURE_SERVICEBUS",
+                  "value": "true"
+                },
+                {
                   "name": "AZURE_STORAGE_CONNECTION_STRING",
                   "value": "[format('DefaultEndpointsProtocol=https;AccountName={0};AccountKey={1};EndpointSuffix={2}', variables('storageAccountName'), listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName')), '2023-01-01').keys[0].value, environment().suffixes.storage)]"
                 },
@@ -591,6 +800,50 @@
                 {
                   "name": "CELERY_RESULT_BACKEND",
                   "value": "[variables('redisConnectionString')]"
+                },
+                {
+                  "name": "AZURE_COMMUNICATION_CONNECTION_STRING",
+                  "value": "[listKeys(resourceId('Microsoft.Communication/communicationServices', variables('acsName')), '2023-04-01').primaryConnectionString]"
+                },
+                {
+                  "name": "AZURE_COMMUNICATION_SENDER_EMAIL",
+                  "value": "[format('DoNotReply@{0}', reference(resourceId('Microsoft.Communication/emailServices/domains', variables('emailServiceName'), 'AzureManagedDomain'), '2023-04-01').fromSenderDomain)]"
+                },
+                {
+                  "name": "ENABLE_EMAIL_NOTIFICATIONS",
+                  "value": "true"
+                },
+                {
+                  "name": "ENABLE_NOTIFICATIONS",
+                  "value": "true"
+                },
+                {
+                  "name": "AZURE_OPENAI_ENDPOINT",
+                  "value": "[parameters('azureOpenAiEndpoint')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_API_KEY",
+                  "value": "[parameters('azureOpenAiApiKey')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_DEPLOYMENT",
+                  "value": "[parameters('azureOpenAiDeployment')]"
+                },
+                {
+                  "name": "AZURE_OPENAI_API_VERSION",
+                  "value": "2024-11-20"
+                },
+                {
+                  "name": "DB_POOL_SIZE",
+                  "value": "5"
+                },
+                {
+                  "name": "DB_MAX_OVERFLOW",
+                  "value": "5"
+                },
+                {
+                  "name": "CELERY_MAX_TASKS_PER_CHILD",
+                  "value": "25"
                 }
               ],
               "resources": {
@@ -606,8 +859,10 @@
         }
       },
       "dependsOn": [
+        "[resourceId('Microsoft.Communication/communicationServices', variables('acsName'))]",
         "[resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName'))]",
         "[resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName'))]",
+        "[resourceId('Microsoft.Communication/emailServices/domains', variables('emailServiceName'), 'AzureManagedDomain')]",
         "[resourceId('Microsoft.ServiceBus/namespaces', variables('serviceBusName'))]",
         "[resourceId('Microsoft.Sql/servers', variables('sqlServerName'))]",
         "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]"
@@ -637,7 +892,8 @@
           "ingress": {
             "external": true,
             "targetPort": 3000,
-            "transport": "auto"
+            "transport": "auto",
+            "customDomains": "[if(not(empty(parameters('frontendCustomDomainName'))), createArray(createObject('name', parameters('frontendCustomDomainName'), 'bindingType', 'SniEnabled', 'certificateId', if(not(empty(parameters('frontendCertificateName'))), format('{0}/managedCertificates/{1}', resourceId('Microsoft.App/managedEnvironments', variables('acaEnvName')), parameters('frontendCertificateName')), null()))), null())]"
           }
         },
         "template": {
@@ -657,12 +913,44 @@
                 {
                   "name": "NEXT_PUBLIC_API_BASE",
                   "value": "[format('https://{0}', reference(resourceId('Microsoft.App/containerApps', format('{0}-ingress', variables('prefix'))), '2023-05-01').configuration.ingress.fqdn)]"
+                },
+                {
+                  "name": "INGRESS_API",
+                  "value": "[format('https://{0}/ingress', reference(resourceId('Microsoft.App/containerApps', format('{0}-ingress', variables('prefix'))), '2023-05-01').configuration.ingress.fqdn)]"
+                },
+                {
+                  "name": "INTERNAL_INGRESS_URL",
+                  "value": "[format('http://{0}-ingress:8000/ingress', variables('prefix'))]"
                 }
               ],
               "resources": {
                 "cpu": "[json('0.5')]",
                 "memory": "1.0Gi"
-              }
+              },
+              "probes": [
+                {
+                  "type": "Liveness",
+                  "httpGet": {
+                    "path": "/api/health",
+                    "port": 3000
+                  },
+                  "initialDelaySeconds": 15,
+                  "periodSeconds": 20,
+                  "timeoutSeconds": 3,
+                  "failureThreshold": 3
+                },
+                {
+                  "type": "Readiness",
+                  "httpGet": {
+                    "path": "/api/health",
+                    "port": 3000
+                  },
+                  "initialDelaySeconds": 10,
+                  "periodSeconds": 10,
+                  "timeoutSeconds": 3,
+                  "failureThreshold": 2
+                }
+              ]
             }
           ],
           "scale": {
@@ -705,6 +993,14 @@
     "docIntelEndpoint": {
       "type": "string",
       "value": "[reference(resourceId('Microsoft.CognitiveServices/accounts', variables('docIntelName')), '2023-05-01').endpoint]"
+    },
+    "communicationServiceEndpoint": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Communication/communicationServices', variables('acsName')), '2023-04-01').hostName]"
+    },
+    "emailSenderDomain": {
+      "type": "string",
+      "value": "[reference(resourceId('Microsoft.Communication/emailServices/domains', variables('emailServiceName'), 'AzureManagedDomain'), '2023-04-01').fromSenderDomain]"
     }
   }
 }

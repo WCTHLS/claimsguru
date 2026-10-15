@@ -19,10 +19,12 @@ import {
   AlertTriangle,
   Loader2,
   ShieldAlert,
+  Pencil,
+  Lock,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type AuditorState } from '@/components/claimgpt/use-auditor-state';
-import { getStoredAuthSession, clearAuthSession, deleteUserAccount } from '@/lib/auth';
+import { getStoredAuthSession, clearAuthSession, deleteUserAccount, saveSession } from '@/lib/auth';
 import { getIngressApiUrl } from '@/lib/api-client';
 import { UserAvatar } from '@/components/claimgpt/user-avatar';
 import { formatDob, formatINR } from '@/lib/claimgpt-data';
@@ -34,6 +36,29 @@ interface UserProfileModalProps {
   userName: string;
   userEmail: string;
   variant?: 'neon' | 'clinical' | 'executive';
+}
+
+function formatToDateInput(dob?: string | null): string {
+  if (!dob || !dob.trim() || dob === 'Not specified') return '';
+  const clean = dob.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(clean)) return clean;
+  // If DD/MM/YYYY or DD-MM-YYYY
+  const ddmmyyyy = clean.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (ddmmyyyy) {
+    const day = ddmmyyyy[1].padStart(2, '0');
+    const month = ddmmyyyy[2].padStart(2, '0');
+    const year = ddmmyyyy[3];
+    return `${year}-${month}-${day}`;
+  }
+  // Try JS Date parsing
+  const parsed = new Date(clean);
+  if (!isNaN(parsed.getTime())) {
+    const y = parsed.getFullYear();
+    const m = String(parsed.getMonth() + 1).padStart(2, '0');
+    const d = String(parsed.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  return '';
 }
 
 export const UserProfileModal: React.FC<UserProfileModalProps> = ({
@@ -48,10 +73,25 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Profile data
   const [userMeta, setUserMeta] = useState({
     dob: 'Not specified',
+    rawDob: '',
     gender: 'Not specified',
+    firstName: '',
+    lastName: '',
   });
+
+  // Edit Mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editFirstName, setEditFirstName] = useState('');
+  const [editLastName, setEditLastName] = useState('');
+  const [editDob, setEditDob] = useState('');
+  const [editGender, setEditGender] = useState('Male');
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [saveSuccess, setSaveSuccess] = useState(false);
 
   const session = getStoredAuthSession();
   const isTpa = session?.role === 'tpa' || session?.accountRole === 'admin' || session?.accountRole === 'reviewer';
@@ -94,6 +134,113 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
   };
 
+  const handleStartEdit = () => {
+    setSaveError(null);
+    setSaveSuccess(false);
+
+    let fn = userMeta.firstName;
+    let ln = userMeta.lastName;
+    if (!fn && userName) {
+      const parts = userName.trim().split(' ');
+      fn = parts[0] || '';
+      ln = parts.slice(1).join(' ') || '';
+    }
+
+    setEditFirstName(fn);
+    setEditLastName(ln);
+    setEditDob(formatToDateInput(userMeta.rawDob || userMeta.dob));
+    setEditGender(
+      userMeta.gender && userMeta.gender !== 'Not specified' ? userMeta.gender : 'Male'
+    );
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setSaveError(null);
+    setSaveSuccess(false);
+  };
+
+  const handleSaveProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!editFirstName.trim()) {
+      setSaveError('First name is required.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      setSaveError(null);
+
+      const fullName = `${editFirstName.trim()} ${editLastName.trim()}`.trim();
+      const currentEmail = userEmail || session?.user?.email || '';
+
+      const payload = {
+        email: currentEmail,
+        name: fullName,
+        first_name: editFirstName.trim(),
+        last_name: editLastName.trim(),
+        dob: editDob || undefined,
+        gender: editGender || undefined,
+        requested_role: isTpa ? 'tpa' : 'patient',
+      };
+
+      const res = await fetch('/api/auth/sync-entra', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data?.error || data?.detail || 'Failed to update profile.');
+      }
+
+      const emailKey = currentEmail.toLowerCase();
+      if (emailKey) {
+        localStorage.setItem(`claimgpt_user_name_${emailKey}`, fullName);
+        localStorage.setItem(`claimgpt_user_fname_${emailKey}`, editFirstName.trim());
+        localStorage.setItem(`claimgpt_user_lname_${emailKey}`, editLastName.trim());
+        if (editDob) localStorage.setItem(`claimgpt_user_dob_${emailKey}`, editDob);
+        if (editGender) localStorage.setItem(`claimgpt_user_gender_${emailKey}`, editGender);
+      }
+      localStorage.setItem('claimgpt_user_name', fullName);
+      if (editDob) localStorage.setItem('claimgpt_user_dob', editDob);
+      if (editGender) localStorage.setItem('claimgpt_user_gender', editGender);
+
+      const currentSession = getStoredAuthSession();
+      if (currentSession && currentSession.user) {
+        currentSession.user.name = fullName;
+        currentSession.user.firstName = editFirstName.trim();
+        currentSession.user.lastName = editLastName.trim();
+        saveSession(currentSession);
+      }
+
+      if (s?.setUserName) {
+        s.setUserName(fullName);
+      }
+
+      setUserMeta({
+        dob: editDob ? formatDob(editDob) : 'Not specified',
+        rawDob: editDob,
+        gender: editGender,
+        firstName: editFirstName.trim(),
+        lastName: editLastName.trim(),
+      });
+
+      setSaveSuccess(true);
+      setTimeout(() => {
+        setIsEditing(false);
+        setSaveSuccess(false);
+      }, 600);
+    } catch (err: any) {
+      setSaveError(err?.message || 'Error occurred while saving profile.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   useEffect(() => {
     try {
       const session = getStoredAuthSession();
@@ -108,6 +255,14 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
         localStorage.getItem(`claimgpt_user_gender_${emailKey}`) ||
         localStorage.getItem(`claimgpt_user_gender_${currentEmail}`) ||
         localStorage.getItem('claimgpt_user_gender');
+      const storedFirstName =
+        session?.user?.firstName ||
+        localStorage.getItem(`claimgpt_user_fname_${emailKey}`) ||
+        '';
+      const storedLastName =
+        session?.user?.lastName ||
+        localStorage.getItem(`claimgpt_user_lname_${emailKey}`) ||
+        '';
 
       // Clean up any obsolete cached policy/sum keys from localStorage
       try {
@@ -124,10 +279,13 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
       setUserMeta({
         dob: rawDob ? formatDob(rawDob) : 'Not specified',
+        rawDob: rawDob || '',
         gender: gender || 'Not specified',
+        firstName: storedFirstName,
+        lastName: storedLastName,
       });
 
-      // Always fetch live profile from backend database to ensure 100% sync across devices and Incognito
+      // Always fetch live profile from backend database to ensure 100% sync
       if (currentEmail && currentEmail !== 'user@example.com' && currentEmail !== 'User') {
         const ingressBase = getIngressApiUrl().replace(/\/+$/, '');
         fetch(`${ingressBase}/auth/profile/${encodeURIComponent(currentEmail)}`)
@@ -145,12 +303,18 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               if (data.name) {
                 localStorage.setItem(`claimgpt_user_name_${emailKey}`, data.name);
                 localStorage.setItem('claimgpt_user_name', data.name);
+                if (s?.setUserName) {
+                  s.setUserName(data.name);
+                }
               }
 
               setUserMeta(prev => ({
                 ...prev,
                 dob: data.dob ? formatDob(data.dob) : prev.dob,
+                rawDob: data.dob || prev.rawDob,
                 gender: data.gender || prev.gender,
+                firstName: data.first_name || prev.firstName,
+                lastName: data.last_name || prev.lastName,
               }));
             }
           })
@@ -163,11 +327,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Generate 2-letter initials (e.g. Kareem Rossi -> KR, Swagath -> SW, Nivas -> NV)
-  const nameParts = userName.trim().split(' ');
-  const initials = nameParts.length >= 2
-    ? (nameParts[0][0] + nameParts[1][0]).toUpperCase()
-    : userName.slice(0, 2).toUpperCase();
+  // Active name for preview / display
+  const effectiveName = isEditing
+    ? `${editFirstName.trim()} ${editLastName.trim()}`.trim() || userName
+    : userName;
 
   // Compute family member / patient claim list under this account
   const accountClaims = s.recentClaims || [];
@@ -188,7 +351,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       sumValue: 'text-emerald-400',
       divider: 'border-cyan-500/20',
       closeBtn: 'text-cyan-300 hover:bg-cyan-500/20 hover:text-white',
-      mobileBtn: 'bg-cyan-600 hover:bg-cyan-500 text-white',
+      editBtn: 'bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border-cyan-500/40',
+      saveBtn: 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold',
+      cancelBtn: 'border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-200',
+      inputBg: 'bg-cyan-950/50 border-cyan-500/40 text-white placeholder-cyan-500/40 focus:ring-cyan-400',
+      inputDisabled: 'bg-slate-900/80 border-cyan-500/20 text-slate-400',
       switchAccountBtn: 'border-cyan-500/30 bg-cyan-950/40 hover:bg-cyan-900/50 text-cyan-200',
     },
     clinical: {
@@ -205,7 +372,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       sumValue: 'text-teal-700',
       divider: 'border-slate-200',
       closeBtn: 'text-slate-500 hover:bg-slate-100 hover:text-slate-900',
-      mobileBtn: 'bg-teal-600 hover:bg-teal-700 text-white',
+      editBtn: 'bg-teal-50 hover:bg-teal-100 text-teal-700 border-teal-200',
+      saveBtn: 'bg-teal-600 hover:bg-teal-700 text-white font-semibold',
+      cancelBtn: 'border-slate-300 bg-white hover:bg-slate-100 text-slate-700',
+      inputBg: 'bg-white border-slate-300 text-slate-900 placeholder-slate-400 focus:ring-teal-500 focus:border-teal-500',
+      inputDisabled: 'bg-slate-100/90 border-slate-200 text-slate-500',
       switchAccountBtn: 'border-slate-200 bg-white hover:bg-slate-100 text-slate-700',
     },
     executive: {
@@ -222,7 +393,11 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       sumValue: 'text-amber-400',
       divider: 'border-amber-500/20',
       closeBtn: 'text-amber-300 hover:bg-amber-500/20 hover:text-white',
-      mobileBtn: 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold',
+      editBtn: 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/40',
+      saveBtn: 'bg-amber-600 hover:bg-amber-500 text-slate-950 font-bold',
+      cancelBtn: 'border-amber-500/30 bg-amber-950/40 hover:bg-amber-900/50 text-amber-200',
+      inputBg: 'bg-amber-950/50 border-amber-500/40 text-white placeholder-amber-500/40 focus:ring-amber-400',
+      inputDisabled: 'bg-slate-900/80 border-amber-500/20 text-slate-400',
       switchAccountBtn: 'border-amber-500/30 bg-amber-950/40 hover:bg-amber-900/50 text-amber-200',
     },
   }[variant];
@@ -232,39 +407,73 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       {/* Click outside backdrop */}
       <div 
         className="absolute inset-0 bg-slate-950/60 backdrop-blur-sm transition-opacity animate-fade-in"
-        onClick={onClose} 
+        onClick={() => {
+          if (!isSaving) onClose();
+        }} 
       />
 
       {/* Profile Card */}
-      <div className={`relative w-full max-w-[360px] sm:max-w-none sm:absolute sm:top-16 sm:right-6 z-[101] sm:w-[380px] max-h-[82vh] sm:max-h-[85vh] flex flex-col rounded-3xl border backdrop-blur-2xl overflow-hidden animate-scale-in sm:animate-slide-down ${themeStyles.cardBg}`}>
+      <div className={`relative w-full max-w-[360px] sm:max-w-none sm:absolute sm:top-16 sm:right-6 z-[101] sm:w-[390px] max-h-[85vh] flex flex-col rounded-3xl border backdrop-blur-2xl overflow-hidden animate-scale-in sm:animate-slide-down ${themeStyles.cardBg}`}>
         
         {/* Top Header Pill Bar */}
-        <div className={`flex items-center justify-between px-4 pt-3.5 pb-2 flex-none ${themeStyles.headerBg}`}>
+        <div className={`flex items-center justify-between px-4 pt-3.5 pb-2.5 flex-none ${themeStyles.headerBg}`}>
           <div className={`flex items-center gap-1.5 rounded-full px-3 py-0.5 text-xs font-semibold backdrop-blur-md ${themeStyles.headerPill}`}>
-            <User className="h-3.5 w-3.5" />
-            <span>{isTpa ? (session?.accountRole === 'admin' ? 'Org Admin Profile' : 'TPA Reviewer Profile') : 'Patient Profile'}</span>
+            {isEditing ? (
+              <>
+                <Pencil className="h-3.5 w-3.5" />
+                <span>Edit Profile</span>
+              </>
+            ) : (
+              <>
+                <User className="h-3.5 w-3.5" />
+                <span>{isTpa ? (session?.accountRole === 'admin' ? 'Org Admin Profile' : 'TPA Reviewer Profile') : 'Patient Profile'}</span>
+              </>
+            )}
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${themeStyles.closeBtn}`}
-            title="Close profile"
-          >
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            {!isEditing && (
+              <button
+                type="button"
+                onClick={handleStartEdit}
+                className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold border transition-colors shadow-2xs ${themeStyles.editBtn}`}
+                title="Edit Profile Details"
+              >
+                <Pencil className="h-3 w-3" />
+                <span>Edit</span>
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={isEditing ? handleCancelEdit : onClose}
+              className={`flex h-7 w-7 items-center justify-center rounded-full transition-colors ${themeStyles.closeBtn}`}
+              title={isEditing ? 'Cancel Edit' : 'Close Profile'}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
 
         {/* Scrollable Content Body */}
-        <div className="px-4 py-3 space-y-3 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
+        <div className="px-4 py-3 space-y-3.5 overflow-y-auto flex-1 min-h-0 scrollbar-thin">
           
           {/* Main User Banner */}
           <div className="flex items-start gap-3.5 pt-0.5">
             {/* Colorful Illustrated Avatar */}
-            <UserAvatar name={userName} gender={userMeta.gender} size="xl" className="shadow-md" />
+            <UserAvatar
+              name={effectiveName}
+              gender={isEditing ? editGender : userMeta.gender}
+              size="xl"
+              className="shadow-md flex-none"
+            />
 
-            <div className="min-w-0 flex-1 space-y-1.5">
-              <h2 className={`text-base sm:text-lg font-bold tracking-tight truncate ${themeStyles.valueColor}`}>{userName}</h2>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <h2 className={`text-base sm:text-lg font-bold tracking-tight truncate ${themeStyles.valueColor}`}>
+                  {effectiveName}
+                </h2>
+              </div>
               
               {/* Badges Row */}
               <div className="flex items-center gap-1.5 flex-wrap text-[10px] sm:text-[11px]">
@@ -283,163 +492,335 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                     Verified Patient
                   </span>
                 )}
+
+                {isEditing && (
+                  <span className="rounded-full bg-teal-500/20 text-teal-600 dark:text-teal-300 border border-teal-500/30 px-2 py-0.5 text-[9px] font-bold uppercase">
+                    Live Preview
+                  </span>
+                )}
               </div>
             </div>
           </div>
 
-          {/* 2-Column Grid of Registration Fields */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            {/* EMAIL ADDRESS / CONTACT */}
-            <div className={`col-span-2 rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-              <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                <Mail className="h-3 w-3" /> EMAIL ADDRESS / CONTACT
-              </span>
-              <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userEmail}</p>
-            </div>
-
-            {isTpa ? (
-              <>
-                {/* ORGANIZATION */}
-                <div className={`col-span-2 rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                    <Building2 className="h-3 w-3" /> ORGANIZATION
+          {/* Form / Details Section */}
+          {isEditing ? (
+            /* ================= EDIT MODE FORM ================= */
+            <form onSubmit={handleSaveProfile} className="space-y-3 pt-1 animate-fade-in">
+              
+              {/* EMAIL ADDRESS - READ ONLY (ENTRA ID) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold uppercase tracking-wider flex items-center justify-between text-slate-500 dark:text-slate-400">
+                  <span className="flex items-center gap-1">
+                    <Mail className="h-3 w-3" /> Email Address
                   </span>
-                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{session?.organization || 'Star Health'}</p>
-                </div>
-
-                {/* STAFF ROLE */}
-                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                    <ShieldCheck className="h-3 w-3" /> STAFF ROLE
+                  <span className="flex items-center gap-1 text-[9px] text-amber-600 dark:text-amber-400 font-semibold lowercase bg-amber-500/10 border border-amber-500/30 rounded-md px-1.5 py-0.2">
+                    <Lock className="h-2.5 w-2.5" /> Uneditable
                   </span>
-                  <p className={`font-bold truncate text-xs ${themeStyles.accentValue}`}>{session?.accountRole === 'admin' ? 'Administrator' : 'Claims Reviewer'}</p>
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    readOnly
+                    disabled
+                    value={userEmail}
+                    className={`w-full rounded-xl border px-3 py-2 text-xs cursor-not-allowed select-none font-medium pr-8 ${themeStyles.inputDisabled}`}
+                  />
+                  <div className="absolute right-2.5 top-1/2 -translate-y-1/2">
+                    <Lock className="h-3.5 w-3.5 text-slate-400" />
+                  </div>
+                </div>
+                <p className="text-[9px] text-slate-400 dark:text-slate-500 pl-0.5 leading-tight">
+                  Email is locked to your verified Microsoft Entra account ID.
+                </p>
+              </div>
+
+              {/* FIRST NAME & LAST NAME (2 Cols) */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                    <User className="h-3 w-3 text-teal-600" /> First Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editFirstName}
+                    onChange={(e) => setEditFirstName(e.target.value)}
+                    placeholder="First name"
+                    className={`w-full rounded-xl border px-3 py-2 text-xs focus:outline-none focus:ring-2 font-medium transition-all ${themeStyles.inputBg}`}
+                  />
                 </div>
 
-                {/* AUTH PROVIDER */}
-                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                    <Users className="h-3 w-3" /> AUTH PROVIDER
-                  </span>
-                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{session?.provider === 'entra' ? 'Microsoft Entra' : 'Local / SSO'}</p>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                    Last Name
+                  </label>
+                  <input
+                    type="text"
+                    value={editLastName}
+                    onChange={(e) => setEditLastName(e.target.value)}
+                    placeholder="Last name"
+                    className={`w-full rounded-xl border px-3 py-2 text-xs focus:outline-none focus:ring-2 font-medium transition-all ${themeStyles.inputBg}`}
+                  />
                 </div>
-              </>
-            ) : (
-              <>
-                {/* DATE OF BIRTH */}
-                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                    <Calendar className="h-3 w-3" /> DATE OF BIRTH
-                  </span>
-                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userMeta.dob}</p>
+              </div>
+
+              {/* DATE OF BIRTH & GENDER (2 Cols) */}
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                    <Calendar className="h-3 w-3 text-teal-600" /> Date of Birth
+                  </label>
+                  <input
+                    type="date"
+                    max={new Date().toISOString().split('T')[0]}
+                    value={editDob}
+                    onChange={(e) => setEditDob(e.target.value)}
+                    className={`w-full rounded-xl border px-2.5 py-1.5 text-xs focus:outline-none focus:ring-2 font-medium transition-all ${themeStyles.inputBg}`}
+                  />
                 </div>
 
-                {/* GENDER */}
-                <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
-                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
-                    <User className="h-3 w-3" /> GENDER
-                  </span>
-                  <p className={`font-bold truncate text-xs ${themeStyles.accentValue}`}>{userMeta.gender}</p>
-                </div>
-
-              </>
-            )}
-          </div>
-
-          {/* Family & Account Member Claims Submissions */}
-          <div className={`space-y-2 pt-2 border-t ${themeStyles.divider}`}>
-            <div className="flex items-center justify-between text-xs">
-              <span className={`font-bold uppercase tracking-wider text-[10px] ${themeStyles.labelColor}`}>
-                {isTpa ? `Claims in ${session?.organization || 'Organization'}` : `Submissions under ${userName}'s Account`}
-              </span>
-              <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${themeStyles.headerPill}`}>
-                {accountClaims.length} Claims
-              </span>
-            </div>
-
-            <div className="space-y-1.5 max-h-[130px] overflow-y-auto">
-              {accountClaims.length === 0 ? (
-                <div className={`rounded-xl p-3 text-center ${themeStyles.gridBlock}`}>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
-                    No claims submitted yet
-                  </p>
-                </div>
-              ) : (
-                accountClaims.map((claim, idx) => (
-                  <div
-                    key={claim.id || idx}
-                    onClick={() => {
-                      s.selectClaim(claim.id);
-                      onClose();
-                    }}
-                    className={`flex items-center justify-between rounded-xl p-2 transition-all cursor-pointer group text-xs ${themeStyles.gridBlock}`}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 text-slate-700 dark:text-slate-300">
+                    <User className="h-3 w-3 text-teal-600" /> Gender
+                  </label>
+                  <select
+                    value={editGender}
+                    onChange={(e) => setEditGender(e.target.value)}
+                    className={`w-full rounded-xl border px-2.5 py-2 text-xs focus:outline-none focus:ring-2 font-medium transition-all cursor-pointer ${themeStyles.inputBg}`}
                   >
-                    <div className="min-w-0 pr-2">
-                      <div className="flex items-center gap-1.5">
-                        <p className={`text-[11px] font-bold truncate ${themeStyles.valueColor}`}>
-                          Patient: {claim.patient_name || 'Patient'}
-                        </p>
-                        {claim.patient_name && claim.patient_name.toLowerCase() !== userName.toLowerCase() && (
-                          <span className="rounded bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-400/30 px-1 py-0.2 text-[8px] font-bold uppercase">
-                            Family
-                          </span>
-                        )}
-                      </div>
-                      <p className={`text-[9px] truncate mt-0.5 ${themeStyles.labelColor}`}>
-                        ID: {claim.id.slice(0, 8)}... &bull; {claim.total_amount ? (claim.total_amount.startsWith('₹') ? claim.total_amount : formatINR(parseFloat(claim.total_amount) || 0)) : '₹0'}
-                      </p>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                    <option value="Prefer not to say">Prefer not to say</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Error & Success Feedback */}
+              {saveError && (
+                <div className="rounded-xl border border-rose-200 bg-rose-50 dark:bg-rose-950/40 p-2.5 text-[11px] text-rose-600 dark:text-rose-300 flex items-center gap-2">
+                  <AlertTriangle className="h-3.5 w-3.5 flex-none" />
+                  <span>{saveError}</span>
+                </div>
+              )}
+
+              {saveSuccess && (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/40 p-2.5 text-[11px] text-emerald-600 dark:text-emerald-300 flex items-center gap-2 animate-fade-in">
+                  <CheckCircle2 className="h-3.5 w-3.5 flex-none text-emerald-500" />
+                  <span className="font-semibold">Profile updated successfully!</span>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className={`flex items-center gap-2 pt-2 border-t ${themeStyles.divider}`}>
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  disabled={isSaving}
+                  className={`flex-1 rounded-xl py-2 px-3 text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1 shadow-2xs active:scale-95 disabled:opacity-50 ${themeStyles.cancelBtn}`}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className={`flex-1 rounded-xl py-2 px-3 text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md active:scale-95 disabled:opacity-60 ${themeStyles.saveBtn}`}
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      <span>Save Changes</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          ) : (
+            /* ================= VIEW MODE ================= */
+            <>
+              {/* 2-Column Grid of Registration Fields */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {/* EMAIL ADDRESS / CONTACT */}
+                <div className={`col-span-2 rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                  <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center justify-between ${themeStyles.labelColor}`}>
+                    <span className="flex items-center gap-1">
+                      <Mail className="h-3 w-3" /> EMAIL ADDRESS / CONTACT
+                    </span>
+                    <span className="flex items-center gap-0.5 text-[8px] text-slate-400 font-normal lowercase">
+                      <Lock className="h-2 w-2" /> unchangeable
+                    </span>
+                  </span>
+                  <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userEmail}</p>
+                </div>
+
+                {isTpa ? (
+                  <>
+                    {/* ORGANIZATION */}
+                    <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                        <Building2 className="h-3 w-3" /> ORGANIZATION
+                      </span>
+                      <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{session?.organization || 'Star Health'}</p>
                     </div>
 
-                    <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-0.5 flex-none">
-                      <CheckCircle2 className="h-3 w-3" /> Done
-                    </span>
-                  </div>
-                ))
-              )}
+                    {/* STAFF ROLE */}
+                    <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                        <ShieldCheck className="h-3 w-3" /> STAFF ROLE
+                      </span>
+                      <p className={`font-bold truncate text-xs ${themeStyles.accentValue}`}>{session?.accountRole === 'admin' ? 'Administrator' : 'Claims Reviewer'}</p>
+                    </div>
+
+                    {/* AUTH PROVIDER */}
+                    <div className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md ${themeStyles.gridBlock}`}>
+                      <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center gap-1 ${themeStyles.labelColor}`}>
+                        <Users className="h-3 w-3" /> AUTH PROVIDER
+                      </span>
+                      <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{session?.provider === 'entra' ? 'Microsoft Entra' : 'Local / SSO'}</p>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* DATE OF BIRTH */}
+                    <div
+                      onClick={handleStartEdit}
+                      className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md cursor-pointer transition-all hover:ring-1 hover:ring-teal-400/50 group ${themeStyles.gridBlock}`}
+                      title="Click to edit Date of Birth"
+                    >
+                      <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center justify-between ${themeStyles.labelColor}`}>
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" /> DATE OF BIRTH
+                        </span>
+                        <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-teal-600" />
+                      </span>
+                      <p className={`font-bold truncate text-xs ${themeStyles.valueColor}`}>{userMeta.dob}</p>
+                    </div>
+
+                    {/* GENDER */}
+                    <div
+                      onClick={handleStartEdit}
+                      className={`rounded-2xl p-2.5 space-y-0.5 backdrop-blur-md cursor-pointer transition-all hover:ring-1 hover:ring-teal-400/50 group ${themeStyles.gridBlock}`}
+                      title="Click to edit Gender"
+                    >
+                      <span className={`text-[9px] font-bold uppercase tracking-wider flex items-center justify-between ${themeStyles.labelColor}`}>
+                        <span className="flex items-center gap-1">
+                          <User className="h-3 w-3" /> GENDER
+                        </span>
+                        <Pencil className="h-2.5 w-2.5 opacity-0 group-hover:opacity-100 transition-opacity text-teal-600" />
+                      </span>
+                      <p className={`font-bold truncate text-xs ${themeStyles.accentValue}`}>{userMeta.gender}</p>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Family & Account Member Claims Submissions */}
+              <div className={`space-y-2 pt-2 border-t ${themeStyles.divider}`}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className={`font-bold uppercase tracking-wider text-[10px] ${themeStyles.labelColor}`}>
+                    {isTpa ? `Claims in ${session?.organization || 'Organization'}` : `Submissions under ${userName}'s Account`}
+                  </span>
+                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${themeStyles.headerPill}`}>
+                    {accountClaims.length} Claims
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 max-h-[130px] overflow-y-auto">
+                  {accountClaims.length === 0 ? (
+                    <div className={`rounded-xl p-3 text-center ${themeStyles.gridBlock}`}>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                        No claims submitted yet
+                      </p>
+                    </div>
+                  ) : (
+                    accountClaims.map((claim, idx) => (
+                      <div
+                        key={claim.id || idx}
+                        onClick={() => {
+                          s.selectClaim(claim.id);
+                          onClose();
+                        }}
+                        className={`flex items-center justify-between rounded-xl p-2 transition-all cursor-pointer group text-xs ${themeStyles.gridBlock}`}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-1.5">
+                            <p className={`text-[11px] font-bold truncate ${themeStyles.valueColor}`}>
+                              Patient: {claim.patient_name || 'Patient'}
+                            </p>
+                            {claim.patient_name && claim.patient_name.toLowerCase() !== userName.toLowerCase() && (
+                              <span className="rounded bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-400/30 px-1 py-0.2 text-[8px] font-bold uppercase">
+                                Family
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-[9px] truncate mt-0.5 ${themeStyles.labelColor}`}>
+                            ID: {claim.id.slice(0, 8)}... &bull; {claim.total_amount ? (claim.total_amount.startsWith('₹') ? claim.total_amount : formatINR(parseFloat(claim.total_amount) || 0)) : '₹0'}
+                          </p>
+                        </div>
+
+                        <span className="text-[9px] font-bold text-emerald-500 flex items-center gap-0.5 flex-none">
+                          <CheckCircle2 className="h-3 w-3" /> Done
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+
+        </div>
+
+        {/* Modal Bottom Actions: Switch Account & Sign Out (Only when not editing) */}
+        {!isEditing && (
+          <>
+            <div className={`p-3 border-t flex items-center gap-2 flex-none ${themeStyles.headerBg}`}>
+              <button
+                type="button"
+                onClick={handleSwitchAccount}
+                className={`flex-1 rounded-xl py-2 px-3 text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 ${themeStyles.switchAccountBtn}`}
+              >
+                <LogIn className="h-3.5 w-3.5" />
+                <span>Switch Account</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-slate-500/10 hover:bg-slate-500/20 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs active:scale-95"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                <span>Sign Out</span>
+              </button>
             </div>
-          </div>
 
-        </div>
+            {/* Danger Zone: Delete Account */}
+            <div className="px-3 py-2 border-t border-rose-500/20 bg-rose-500/5 flex items-center justify-between flex-none">
+              <div className="flex items-center gap-1.5 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
+                <ShieldAlert className="h-3.5 w-3.5 flex-none text-rose-500" />
+                <span>Danger Zone</span>
+              </div>
 
-        {/* Modal Bottom Actions: Switch Account & Sign Out */}
-        <div className={`p-3 border-t flex items-center gap-2 flex-none ${themeStyles.headerBg}`}>
-          <button
-            type="button"
-            onClick={handleSwitchAccount}
-            className={`flex-1 rounded-xl py-2 px-3 text-xs font-semibold border transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs active:scale-95 ${themeStyles.switchAccountBtn}`}
-          >
-            <LogIn className="h-3.5 w-3.5" />
-            <span>Switch Account</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex-1 rounded-xl py-2 px-3 text-xs font-semibold bg-slate-500/10 hover:bg-slate-500/20 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700 transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs active:scale-95"
-          >
-            <LogOut className="h-3.5 w-3.5" />
-            <span>Sign Out</span>
-          </button>
-        </div>
-
-        {/* Danger Zone: Delete Account */}
-        <div className="px-3 py-2 border-t border-rose-500/20 bg-rose-500/5 flex items-center justify-between flex-none">
-          <div className="flex items-center gap-1.5 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
-            <ShieldAlert className="h-3.5 w-3.5 flex-none text-rose-500" />
-            <span>Danger Zone</span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setDeleteError(null);
-              setShowDeleteConfirm(true);
-            }}
-            className="rounded-lg py-1 px-2.5 text-[11px] font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-xs"
-          >
-            <Trash2 className="h-3 w-3 text-rose-500" />
-            <span>Delete Account</span>
-          </button>
-        </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteError(null);
+                  setShowDeleteConfirm(true);
+                }}
+                className="rounded-lg py-1 px-2.5 text-[11px] font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-xs"
+              >
+                <Trash2 className="h-3 w-3 text-rose-500" />
+                <span>Delete Account</span>
+              </button>
+            </div>
+          </>
+        )}
 
         {/* Delete Account Confirmation Dialog Overlay */}
         {showDeleteConfirm && (
@@ -513,4 +894,4 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       </div>
     </div>
   );
-}
+};
