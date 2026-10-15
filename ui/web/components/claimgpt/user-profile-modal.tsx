@@ -493,18 +493,10 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
                   </span>
                 )}
 
-                {isEditing ? (
+                {isEditing && (
                   <span className="rounded-full bg-teal-500/20 text-teal-600 dark:text-teal-300 border border-teal-500/30 px-2 py-0.5 text-[9px] font-bold uppercase">
                     Live Preview
                   </span>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleStartEdit}
-                    className="inline-flex items-center gap-1 text-[10px] font-semibold text-teal-600 dark:text-teal-400 hover:underline cursor-pointer pl-0.5"
-                  >
-                    <Pencil className="h-2.5 w-2.5" /> Edit Details
-                  </button>
                 )}
               </div>
             </div>
