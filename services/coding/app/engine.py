@@ -37,6 +37,7 @@ from .icd10_rag import (
     lookup_icd10_meta,
     search_cpt_rag,
     search_icd10_rag,
+    is_crossencoder_negative,
 )
 
 logger = logging.getLogger("coding.engine")
@@ -66,6 +67,8 @@ class Code:
     code_includes: str | None = None
     other_matches: list[dict[str, Any]] | None = None
     is_explicit: bool = False
+    is_low_match: bool = False
+    review_warning: str | None = None
 
 
 @dataclass
@@ -498,27 +501,50 @@ def _search_icd10_smart(
     return merged, query_hint
 
 
-def _icd_confidence_from_score(score: float, rank: int = 0, explicit: bool = False) -> float:
+def _icd_confidence_from_score(
+    score: float,
+    rank: int = 0,
+    explicit: bool = False,
+    query: str | None = None,
+    code: str | None = None,
+) -> float:
     """Map retrieval score / rank to a display confidence in [0.0, 1.0].
 
     Explicit matches and top neural RAG matches reflect true diagnostic alignment (95-100%).
+    If the cross-encoder score is negative, the match score is automatically mapped below 40% (< 0.40).
     """
     if explicit:
         return 1.0
-    
+
     score_val = float(score)
+
+    is_neg = False
+    if query and code:
+        try:
+            is_neg = is_crossencoder_negative(query, code)
+        except Exception:
+            pass
+
+    if not is_neg and score_val < 0.0:
+        is_neg = True
+
+    if is_neg:
+        # Cross encoder score is in negative: automatically show match score below 40%
+        base = max(0.20, min(0.38, 0.35 - min(rank * 0.03, 0.10)))
+        return round(base, 2)
+
     if score_val >= 1.0:
-        base = 0.99
+        base = 0.96
     elif score_val >= 0.7:
-        base = 0.95 + min(score_val - 0.7, 0.3) * 0.13
+        base = 0.93 + min(score_val - 0.7, 0.3) * 0.08
     elif score_val >= 0.3:
-        base = 0.90 + (score_val - 0.3) * 0.125
+        base = 0.88 + (score_val - 0.3) * 0.10
     else:
         # Fused / dense winner
-        base = 0.95
-    
+        base = 0.92
+
     base -= min(rank * 0.02, 0.05)
-    return round(max(0.50, min(base, 1.0)), 2)
+    return round(max(0.50, min(base, 0.98)), 2)
 
 
 def _deduplicate_and_rank_codes(codes: list[Code]) -> list[Code]:
@@ -554,8 +580,8 @@ def _deduplicate_and_rank_codes(codes: list[Code]) -> list[Code]:
         group_sorted = sorted(
             group,
             key=lambda x: (
-                x.confidence >= 0.99,  # 100% explicit match first
-                x.confidence,          # highest confidence
+                getattr(x, "is_explicit", False) or (x.confidence is not None and x.confidence >= 1.0),  # 100% explicit match first
+                x.confidence or 0.0,   # highest confidence
                 x.is_primary,          # primary flag
                 len(str(x.description or "")), # richer description
             ),
@@ -572,7 +598,7 @@ def _deduplicate_and_rank_codes(codes: list[Code]) -> list[Code]:
             if meta:
                 best_code.code_includes = meta.get("code_includes")
 
-        is_explicit_code = (best_code.confidence or 0.0) >= 0.99 or getattr(best_code, "is_explicit", False)
+        is_explicit_code = getattr(best_code, "is_explicit", False) or ((best_code.confidence or 0.0) >= 1.0)
         if is_explicit_code:
             # When explicit code is present in document:
             # 1. Flag as explicit
@@ -590,11 +616,14 @@ def _deduplicate_and_rank_codes(codes: list[Code]) -> list[Code]:
                 if other_c.code not in seen_alt_codes:
                     seen_alt_codes.add(other_c.code)
                     other_meta = lookup_icd10_meta(other_c.code) if is_rag_available() else None
+                    alt_is_low = getattr(other_c, "is_low_match", False) or (other_c.confidence is not None and other_c.confidence < 0.40)
                     existing_alts.append({
                         "code": other_c.code,
                         "description": other_c.description or (other_meta.get("description") if other_meta else ""),
                         "confidence": other_c.confidence,
                         "code_includes": other_c.code_includes or (other_meta.get("code_includes") if other_meta else None),
+                        "is_low_match": alt_is_low,
+                        "review_warning": getattr(other_c, "review_warning", None) or ("please review the code as its a low matched code" if alt_is_low else None),
                     })
                     if len(existing_alts) >= 2:
                         break
@@ -890,14 +919,18 @@ def _extract_from_parsed_fields(
                         alt_code = alt_tuple[0]
                         alt_desc = alt_tuple[1]
                         alt_score = alt_tuple[2]
+                        alt_query = alt_tuple[3] if len(alt_tuple) == 4 else matching_term
                         alt_meta = lookup_icd10_meta(alt_code) if is_rag_available() else None
                         alt_desc_clean = (alt_meta.get("description") if alt_meta else alt_desc) or alt_desc
-                        alt_conf = _icd_confidence_from_score(alt_score, rank=alt_rank)
+                        alt_conf = _icd_confidence_from_score(alt_score, rank=alt_rank, query=alt_query, code=alt_code)
+                        alt_is_low = alt_conf < 0.40 or (is_rag_available() and bool(alt_query) and is_crossencoder_negative(alt_query, alt_code))
                         raw_alts.append({
                             "code": alt_code,
                             "description": alt_desc_clean,
                             "confidence": alt_conf,
                             "code_includes": alt_meta.get("code_includes") if alt_meta else None,
+                            "is_low_match": alt_is_low,
+                            "review_warning": "please review the code as its a low matched code" if alt_is_low else None,
                         })
 
                     is_primary = False
@@ -911,7 +944,9 @@ def _extract_from_parsed_fields(
                         is_primary = True
                         primary_diag_code = code
 
-                    conf = _icd_confidence_from_score(match_score, rank=0)
+                    conf = _icd_confidence_from_score(match_score, rank=0, query=matching_term, code=code)
+                    is_low_match = conf < 0.40 or (is_rag_available() and bool(matching_term) and is_crossencoder_negative(matching_term, code))
+                    review_warning = "please review the code as its a low matched code" if is_low_match else None
                     codes.append(Code(
                         code=code,
                         code_system="ICD10",
@@ -921,6 +956,8 @@ def _extract_from_parsed_fields(
                         entity_index=len(entities) - 1,
                         code_includes=meta_lookup[3] if (meta_lookup and len(meta_lookup) > 3) else None,
                         other_matches=raw_alts,
+                        is_low_match=is_low_match,
+                        review_warning=review_warning,
                     ))
             logger.info(f"--------------------------Recieved codes from : {match_source}-------------------------------------------")
                     
@@ -995,13 +1032,17 @@ def _extract_from_parsed_fields(
                 for code, desc, _cat, score in hits:
                     if code not in seen_codes:
                         seen_codes.add(code)
+                        conf = _icd_confidence_from_score(score, rank=0, explicit=False, query=term, code=code)
+                        is_low = conf < 0.40 or (is_rag_available() and is_crossencoder_negative(term, code))
                         codes.append(Code(
                             code=code,
                             code_system="ICD10",
                             description=term if len(term) > 3 else desc,
-                            confidence=_icd_confidence_from_score(score, rank=0, explicit=False),
+                            confidence=conf,
                             is_primary=not any(c.code_system == "ICD10" for c in codes),
                             entity_index=len(entities) - 1,
+                            is_low_match=is_low,
+                            review_warning="please review the code as its a low matched code" if is_low else None,
                         ))
 
     # Extract any remaining explicit ICD-10 and CPT codes from the text
@@ -1061,13 +1102,17 @@ def _extract_with_scispacy(nlp, full_text: str) -> CodingOutput:
                 if code in seen_codes:
                     continue
                 seen_codes.add(code)
+                conf = _icd_confidence_from_score(score, rank=rank, explicit=False, query=ent.text, code=code)
+                is_low = conf < 0.40 or (is_rag_available() and is_crossencoder_negative(ent.text, code))
                 codes.append(Code(
                     code=code,
                     code_system="ICD10",
                     description=ent.text if len(ent.text) > 3 else desc,
-                    confidence=_icd_confidence_from_score(score, rank=rank, explicit=False),
+                    confidence=conf,
                     is_primary=len(codes) == 0,
                     entity_index=len(entities) - 1,
+                    is_low_match=is_low,
+                    review_warning="please review the code as its a low matched code" if is_low else None,
                 ))
 
     # Supplement with regex for PROCEDURE entities (not covered by bc5cdr model)

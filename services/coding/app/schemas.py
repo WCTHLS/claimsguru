@@ -12,6 +12,8 @@ class MedicalCodeOut(BaseModel):
     description: str | None = None
     confidence: float | None = None
     is_primary: bool = False
+    is_low_match: bool = False
+    review_warning: str | None = None
 
     model_config = {"from_attributes": True}
 

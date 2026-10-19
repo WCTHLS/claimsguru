@@ -371,6 +371,8 @@ def _build_result(db: Session, cid: uuid.UUID, status: str) -> CodingResultOut:
                         id=c.id, code=c.code, code_system=c.code_system,
                         description=c.description, confidence=c.confidence,
                         is_primary=c.is_primary,
+                        is_low_match=(c.confidence is not None and c.confidence < 0.40),
+                        review_warning="please review the code as its a low matched code" if (c.confidence is not None and c.confidence < 0.40) else None,
                     )
                     for c in e.codes
                 ],
@@ -382,7 +384,9 @@ def _build_result(db: Session, cid: uuid.UUID, status: str) -> CodingResultOut:
             MedicalCodeOut(
                 id=c.id, code=c.code, code_system=c.code_system,
                 description=c.description, confidence=c.confidence,
-                    is_primary=c.is_primary,
+                is_primary=c.is_primary,
+                is_low_match=(c.confidence is not None and c.confidence < 0.40),
+                review_warning="please review the code as its a low matched code" if (c.confidence is not None and c.confidence < 0.40) else None,
             )
             for c in icd_codes
         ],
@@ -391,6 +395,8 @@ def _build_result(db: Session, cid: uuid.UUID, status: str) -> CodingResultOut:
                 id=c.id, code=c.code, code_system=c.code_system,
                 description=c.description, confidence=c.confidence,
                 is_primary=c.is_primary,
+                is_low_match=(c.confidence is not None and c.confidence < 0.40),
+                review_warning="please review the code as its a low matched code" if (c.confidence is not None and c.confidence < 0.40) else None,
             )
             for c in all_codes if c.code_system == "CPT"
         ],
