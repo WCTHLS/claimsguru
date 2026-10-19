@@ -372,13 +372,21 @@ _LLM_SYSTEM = (
     2. Put the PRIMARY / PRINCIPAL diagnosis on Line 1 (the primary condition treated or main reason for admission).
     3. If secondary diagnoses, comorbidities, or complications are present, list each on a separate subsequent line.
     4. When a documented diagnosis is explicitly provided, treat it as the authoritative diagnosis. Use the clinical summary only to clarify terminology, anatomical site, acuity, laterality, or other specificity that is explicitly supported by the documentation. Do NOT replace the documented diagnosis with a diagnosis inferred from symptoms, imaging findings, laboratory values, medications, or planned procedures.
-    5. Use standard medical coding terms and expand abbreviations and clinical shorthand to formal WHO ICD-10 clinical diagnosis descriptions (e.g., 'T2DM' -> 'type 2 diabetes mellitus', 'FTND' -> 'single spontaneous delivery', 'LSCS' -> 'delivery by caesarean section', 'HTN' -> 'essential hypertension', 'COPD' -> 'chronic obstructive pulmonary disease', 'CKD' -> 'chronic kidney disease', 'AWMI' / 'STEMI' -> 'acute myocardial infarction', 'Dengue with warning signs' -> 'dengue fever').
-    6. Strip administrative and care modality noise (e.g., '- medical management', '- conservative management', 'under evaluation for', 's/p', 'c/o', 'h/o').
-    7. Output AT MOST 5 lines. 
-    8. DO NOT infer new diagnosis if documented diagnosis present.
-    9. If absolutely no diagnosis or clinical indication can be determined, output:
+    5. DEFINITIVE OUTCOME OVER ADMISSION STATUS:
+       When clinical evidence shows a completed definitive medical event or procedure occurred during the stay 
+       (e.g., childbirth delivery, surgical excision, fracture reduction, coronary intervention), 
+       the primary diagnosis MUST be the definitive condition/outcome, NOT the pre-procedure symptom or admission state.
+       - OBSTETRIC/DELIVERY: If the note indicates a baby was delivered (e.g., 'delivered male baby', 'episiotomy performed', 'vaginal delivery', 'LSCS'), 
+         the primary diagnosis MUST be the formal delivery outcome ('single spontaneous delivery' or 'delivery by caesarean section'), 
+         NOT 'pregnancy in labor' or 'pregnancy at 39 weeks'.
+       - SURGERY: If admitted with 'abdominal pain' and diagnosed with 'acute appendicitis' with appendectomy, output 'acute appendicitis'.
+    6. Use standard medical coding terms and expand abbreviations and clinical shorthand to formal WHO ICD-10 clinical diagnosis descriptions (e.g., 'T2DM' -> 'type 2 diabetes mellitus', 'FTND' -> 'single spontaneous delivery', 'LSCS' -> 'delivery by caesarean section', 'HTN' -> 'essential hypertension', 'COPD' -> 'chronic obstructive pulmonary disease', 'CKD' -> 'chronic kidney disease', 'AWMI' / 'STEMI' -> 'acute myocardial infarction', 'Dengue with warning signs' -> 'dengue fever').
+    7. Strip administrative and care modality noise (e.g., '- medical management', '- conservative management', 'under evaluation for', 's/p', 'c/o', 'h/o').
+    8. Output AT MOST 5 lines. 
+    9. DO NOT infer new diagnosis if documented diagnosis present.
+    10. If absolutely no diagnosis or clinical indication can be determined, output:
     NONE
-    10. Output NOTHING else. No explanations, no introductory or concluding text."""
+    11. Output NOTHING else. No explanations, no introductory or concluding text."""
 )
 
 

@@ -562,6 +562,8 @@ def _recalculate_prediction_for_claim(cid: uuid.UUID, db: Session) -> None:
         expenses = []
         if claim_obj and claim_obj.canonical_json and isinstance(claim_obj.canonical_json, dict):
             raw_exp = claim_obj.canonical_json.get("expenses") or claim_obj.canonical_json.get("bill", {}).get("items", [])
+            if isinstance(raw_exp, dict):
+                raw_exp = raw_exp.get("line_items") or raw_exp.get("items") or []
             if isinstance(raw_exp, list):
                 for e in raw_exp:
                     if isinstance(e, dict):

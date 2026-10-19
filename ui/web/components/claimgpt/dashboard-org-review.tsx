@@ -143,6 +143,7 @@ const STATUS_OPTIONS = [
 ];
 
 const PAGE_SIZE = 20;
+const previewCache = new Map<string, any>();
 
 function formatStatus(status: string) {
   if (status === 'DOCUMENTS_UPLOADED') return 'Docs Uploaded';
@@ -399,13 +400,19 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
         }
       }
 
-      // Enrich claims with submission preview data
+      // Enrich claims with submission preview data (cached to prevent N+1 query storms)
       let enriched: EnrichedClaim[] = await Promise.all(
         rawClaims.map(async (c) => {
           try {
-            const prevRes = await fetch(`${SUBMISSION_API}/claims/${c.id}/preview`, { headers }).catch(() => null);
-            if (prevRes && prevRes.ok) {
-              const prevData = await prevRes.json();
+            let prevData = previewCache.get(c.id);
+            if (!prevData) {
+              const prevRes = await fetch(`${SUBMISSION_API}/claims/${c.id}/preview`, { headers }).catch(() => null);
+              if (prevRes && prevRes.ok) {
+                prevData = await prevRes.json();
+                previewCache.set(c.id, prevData);
+              }
+            }
+            if (prevData) {
               const effectiveStatus = (
                 ['APPROVED', 'REJECTED', 'SETTLED', 'MODIFICATION_REQUESTED', 'DOCUMENTS_REQUESTED'].includes((c.status || '').toUpperCase())
                   ? c.status

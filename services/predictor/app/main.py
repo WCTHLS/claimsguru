@@ -136,7 +136,7 @@ def run_prediction(claim_id: str, db: Session = Depends(get_db)):
                         amt = 0.0
                     expenses.append({"category": str(cat), "amount": amt})
 
-        # Reconcile historical previous claims bleed into claimed_total
+        # Reconcile historical previous claims bleed into claimed_total and handle zero/missing totals
         canon_claims = claim.canonical_json.get("claims", {})
         canon_total = (
             canon_claims.get("total_amount")
@@ -144,14 +144,29 @@ def run_prediction(claim_id: str, db: Session = Depends(get_db)):
             or claim.canonical_json.get("billed_total")
             or claim.canonical_json.get("gross_total")
         )
-        if canon_total and expenses:
+        if expenses:
             exp_sum = sum(e.get("amount", 0.0) for e in expenses)
-            if exp_sum > 0:
-                curr_total = next((_parse_amount(p["field_value"]) for p in parsed if p.get("field_name") in ("claimed_total", "total_amount", "billed_total")), 0.0)
-                if curr_total > 0 and abs(curr_total - exp_sum) / max(curr_total, 1.0) > 0.08:
+            curr_total = next((_parse_amount(p["field_value"]) for p in parsed if p.get("field_name") in ("claimed_total", "total_amount", "billed_total")), 0.0)
+
+            # If current total is 0 or missing, but expenses exist, adopt the expenses total!
+            if curr_total <= 0.0 and exp_sum > 0:
+                for p in parsed:
+                    if p.get("field_name") in ("claimed_total", "total_amount"):
+                        p["field_value"] = str(round(exp_sum, 2))
+                if not any(p.get("field_name") in ("claimed_total", "total_amount") for p in parsed):
+                    parsed.append({"field_name": "total_amount", "field_value": str(round(exp_sum, 2))})
+                for pf in pf_rows:
+                    if pf.field_name in ("claimed_total", "total_amount"):
+                        pf.field_value = str(round(exp_sum, 2))
+                curr_total = exp_sum
+
+            # If current total differs significantly from itemized expenses:
+            if curr_total > 0 and exp_sum > 0:
+                diff_pct = abs(curr_total - exp_sum) / max(curr_total, 1.0)
+                if diff_pct > 0.05:
                     try:
-                        c_val = float(canon_total)
-                        if abs(c_val - exp_sum) / max(exp_sum, 1.0) <= 0.02:
+                        c_val = float(canon_total) if canon_total else 0.0
+                        if c_val > 0 and abs(c_val - exp_sum) / max(exp_sum, 1.0) <= 0.06:
                             for p in parsed:
                                 if p.get("field_name") in ("claimed_total", "total_amount"):
                                     p["field_value"] = str(round(c_val, 2))

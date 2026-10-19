@@ -47,7 +47,7 @@ export function getIngressCandidates(path: string): string[] {
 export async function fetchIngress(
   path: string,
   options: RequestInit = {},
-  timeoutMs: number = process.env.NODE_ENV !== 'production' ? 1200 : 2500
+  timeoutMs: number = process.env.NODE_ENV !== 'production' ? 1500 : 5000
 ): Promise<{ res: Response | null; data: any }> {
   const candidates = getIngressCandidates(path);
   let res: Response | null = null;

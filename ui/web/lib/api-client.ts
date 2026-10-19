@@ -210,7 +210,7 @@ export async function uploadClaimDocument(
   claimId?: string,
   force: boolean = false,
   patientId?: string
-): Promise<{ claim_id: string; document_id: string; status?: string; task_id?: string | null; is_duplicate?: boolean }> {
+): Promise<{ claim_id: string; document_id: string; status?: string; task_id?: string | null; is_duplicate?: boolean; error?: string }> {
   const fileArray = Array.isArray(files) ? files : [files];
   const fileNames = fileArray.map(f => f.name.toLowerCase());
   const fallbackClaimId = `CLM-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -309,12 +309,13 @@ export async function uploadClaimDocument(
         is_duplicate: Boolean(data.is_duplicate || (data.status === "COMPLETED" && data.task_id === null))
       };
     }
-  } catch (err) {
-    /* safe catch */
+  } catch (err: any) {
+    const errorMsg = err?.message || 'Network error during upload';
+    return { claim_id: "", document_id: "", error: errorMsg };
   }
 
   // If server is reachable but upload had issues, do not simulate false completion
-  return { claim_id: "", document_id: "" };
+  return { claim_id: "", document_id: "", error: 'Upload failed on server. Please check file format and try again.' };
 }
 
 /**
@@ -759,9 +760,13 @@ export async function submitClaimToPayerApi(
   orgId?: string
 ): Promise<{ success: boolean; data?: any; error?: string }> {
   try {
+    const authHeaders = getAuthHeaders();
     const res = await fetch(`${SUBMISSION_API}/submit/${claimId}`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        ...authHeaders,
+      },
       body: JSON.stringify({ payer, policy_id: policyId, org_id: orgId }),
     });
     if (res.ok) {

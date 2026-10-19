@@ -10,10 +10,10 @@
 
 | Service Name | Role in Application | vCPU | Memory | Replicas (Min / Max) | Port / Concurrency | Monthly Cost Estimate |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`cg-preprod-cin-worker-ocr`** | Celery worker for `ocr_queue` (Document OCR ingestion) | **1.0 vCPU** | **2.0 GiB** | Min: 1 / Max: 8 | `-c 2` (2 concurrent tasks) | **~$23.60 / mo** |
-| **`cg-preprod-cin-worker-default`** | Celery worker for `default` & `parser_queue` (NLP coding, validation, risk) | **1.0 vCPU** | **2.0 GiB** | Min: 1 / Max: 6 | `-c 2` (2 concurrent tasks) | **~$23.60 / mo** |
-| **`cg-preprod-cin-ingress`** | FastAPI HTTP API Gateway (Auth, uploads, claim lifecycle) | **1.0 vCPU** | **2.0 GiB** | Min: 1 / Max: 10 | Port 8000 (External HTTP) | **~$23.60 / mo** |
-| **`cg-preprod-cin-frontend`** | Next.js Web Frontend (Auditor UI dashboard) | **0.5 vCPU** | **1.0 GiB** | Min: 1 / Max: 5 | Port 3000 (External HTTP) | **~$11.80 / mo** |
+| **`cg-preprod-cin-worker-ocr`** | Celery worker for `ocr_queue` (Document OCR ingestion) | **1.0 vCPU** | **2.0 GiB** | Min: 1 / Max: 8 *(CPU > 75%)* | `-c 2` (2 concurrent tasks) | **~$23.60 / mo** |
+| **`cg-preprod-cin-worker-default`** | Celery worker for `default` & `parser_queue` (NLP coding, validation, risk) | **1.0 vCPU** | **2.0 GiB** | Min: 1 / Max: 6 *(CPU > 75%)* | `-c 2` (2 concurrent tasks) | **~$23.60 / mo** |
+| **`cg-preprod-cin-ingress`** | FastAPI HTTP API Gateway (Auth, uploads, claim lifecycle) | **1.0 vCPU** | **2.0 GiB** | Min: 1 / Max: 10 *(HTTP > 25 req)* | Port 8000 (External HTTP) | **~$23.60 / mo** |
+| **`cg-preprod-cin-frontend`** | Next.js Web Frontend (Auditor UI dashboard) | **0.5 vCPU** | **1.0 GiB** | Min: 1 / Max: 5 *(HTTP > 30 req)* | Port 3000 (External HTTP) | **~$11.80 / mo** |
 | **`cg-preprod-cin-redis`** | In-cluster Redis 7 (Celery message broker & result backend) | **0.5 vCPU** | **1.0 GiB** | Min: 1 / Max: 1 | Port 6379 (Internal TCP) | **~$11.80 / mo** |
 
 *Note: Container Apps compute includes active processing usage plus 24/7 idle warm capacity ($0.000003/vCPU-s and $0.000003/GiB-s).*
@@ -55,9 +55,25 @@
 
 | Category | Included Services | Estimated Monthly Cost | % of Total Spend |
 | :--- | :--- | :--- | :--- |
-| **Container Compute** | OCR Worker, Default Worker, Ingress, Frontend, Redis | **~$94.40** | **73.2%** |
-| **Database** | Azure SQL Database (Standard S1 - 20 DTUs) | **~$30.00** | **23.3%** |
-| **Container Registry** | Azure Container Registry (Basic Tier - 10 GiB) | **~$5.00** | **3.9%** |
-| **AI Models & OCR** | Azure OpenAI (GPT-4o) + Document Intelligence | **~$12.50** | **9.7%** |
-| **Storage & Platform** | Storage Account, Service Bus, Logs, Bandwidth | **~$2.35** | **1.8%** |
+| **Container Compute** | OCR Worker, Default Worker, Ingress, Frontend, Redis | **~$94.40** | **65.4%** |
+| **Database** | Azure SQL Database (Standard S1 - 20 DTUs) | **~$30.00** | **20.8%** |
+| **Container Registry** | Azure Container Registry (Basic Tier - 10 GiB) | **~$5.00** | **3.5%** |
+| **AI Models & OCR** | Azure OpenAI (GPT-4o) + Document Intelligence | **~$12.50** | **8.7%** |
+| **Storage & Platform** | Storage Account, Service Bus, Logs, Bandwidth | **~$2.35** | **1.6%** |
 | **TOTAL** | **All claimsGuru pre-prod services combined** | **~$144.25 / mo** | **100%** |
+
+---
+---
+
+## 6. High-Concurrency Auto-Scaling & Cost Safeguards
+
+* **Smart Auto-Scaling for Workers (On-Demand Only):**  
+  Active CPU rules (`cpu-scale` at 75% load) on `worker-ocr` (up to 8 replicas) and `worker-default` (up to 6 replicas). Workers scale out automatically when documents are uploaded and scale back down to 1 when idle.  
+  *(Cost impact: **$0 extra fixed cost** — billed only for active processing seconds during spikes).*
+
+* **Traffic-Based Auto-Scaling for Frontend & API:**  
+  HTTP concurrency rules on `frontend` (30 request threshold, up to 5 replicas) and `ingress` (25 request threshold, up to 10 replicas) to guarantee fast page loads for 300–400 concurrent users without paying for idle warm replicas.
+
+* **Database Connection Guard (Zero Cost Increase):**  
+  Connection pool tuned (`DB_POOL_SIZE=3`, `DB_MAX_OVERFLOW=5`) so total connections stay safely below Azure SQL Standard S1's 60-connection limit even across multiple scaled API replicas.  
+  *(Cost impact: **$0 increase** — keeps database safely on the $30/month tier).*

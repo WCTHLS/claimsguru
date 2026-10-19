@@ -1647,6 +1647,7 @@ _WHO_ALIASES: dict[str, tuple[str, str, str]] = {
     "A90": ("A90", "Dengue fever [classical dengue]", "Infectious"),
     "A91": ("A91", "Dengue haemorrhagic fever", "Infectious"),
     "I10": ("I10", "Essential (primary) hypertension", "Circulatory"),
+    "O80": ("O80", "Single spontaneous delivery", "Pregnancy"),
 }
 
 

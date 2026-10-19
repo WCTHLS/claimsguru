@@ -165,12 +165,12 @@ class RobustFieldExtractor:
         ],
 
         "claimed_total": [
-            # Priority 0: Explicit Gross Bill / Total Claimed Amount / Master Hospital Total
-            r"(?im)\b(?:gross\s+(?:hospital\s+)?bill\s*(?:amount)?|total\s+billed\s+amount|total\s+claimed\s+amount|total\s+claimed|claimed\s+total|gross\s+amount|gross\s+total|bill\s+total|total\s+bill\s+amount)\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
-            # Priority 1: Net Claimed / Net Payable
-            r"(?im)\b(?:net\s+claimed\s+amount|net\s+claim\s+amount|net\s+amount\s+claimed|net\s+payable|net\s+amount)\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
-            # Priority 2: Grand Total / Bill Amount / Total Amount
-            r"(?im)\b(?:grand\s+total|total\s+amount|bill\s+amount)\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
+            # Priority 0: Explicit Gross Bill / Grand Total / Master Hospital Total
+            r"(?im)\b(?:gross\s+(?:hospital\s+)?bill\s*(?:amount)?|grand\s+total|total\s+billed\s+amount|total\s+bill\s+amount|bill\s+total|gross\s+amount|gross\s+total)\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
+            # Priority 1: Net Claimed / Reimbursement Claimed / Total Claimed
+            r"(?im)\b(?:net\s+claimed\s+amount|net\s+claim\s+amount|net\s+amount\s+claimed|total\s+reimbursement\s+claimed|total\s+claimed\s+amount|total\s+claimed|claimed\s+total|claimed\s+amount)\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
+            # Priority 2: Net Payable / Bill Amount / Total Amount
+            r"(?im)\b(?:net\s+payable|net\s+amount|bill\s+amount|total\s+amount)\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
             # Priority 3: Generic Total
             r"(?im)\btotal\s*[:\-=\/|]?\s*(?:rs\.?|inr|₹)?\s*([0-9]+(?:\s*,\s*[0-9]+)*(?:\s*\.\s*[0-9]+)?)",
         ],
@@ -828,8 +828,9 @@ class RobustFieldExtractor:
                 cleaned = re.sub(r"[^\d.]", "", value)
                 if cleaned:
                     try:
-                        float(cleaned)
-                        valid_candidates.append((p_idx, start_pos, value))
+                        flt = float(cleaned)
+                        if flt > 0:
+                            valid_candidates.append((p_idx, start_pos, value))
                     except ValueError:
                         continue
 

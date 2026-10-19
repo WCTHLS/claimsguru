@@ -202,12 +202,6 @@ def build_features(
     has_total_amount_raw = resolve_field(field_map, "total_amount", normalize_keys=True)
     has_provider = int(bool(resolve_field(field_map, "provider_name", normalize_keys=True)))
 
-    # --- Compute total billed amount ---
-    amount_val = _parse_amount(has_total_amount_raw)
-    if amount_val <= 0.0:
-        amount_val = _compute_total_from_expenses(field_map)
-    has_total_amount = int(amount_val > 0.0)
-
     # --- Compute itemized expenses sum & mathematical reconciliation ---
     if expenses and len(expenses) > 0:
         itemized_sum = sum(float(e.get("amount") or 0) for e in expenses)
@@ -216,16 +210,25 @@ def build_features(
         itemized_sum = _compute_total_from_expenses(field_map)
         has_itemized_breakdown = int(itemized_sum > 0)
 
+    # --- Compute total billed amount (with fallback to expenses) ---
+    amount_val = _parse_amount(has_total_amount_raw)
+    if amount_val <= 0.0:
+        if itemized_sum > 0.0:
+            amount_val = itemized_sum
+        else:
+            amount_val = _compute_total_from_expenses(field_map)
+    has_total_amount = int(amount_val > 0.0)
+
     math_diff = 0.0
     if amount_val > 0 and has_itemized_breakdown and itemized_sum > 0:
         math_diff = abs(amount_val - itemized_sum)
-        # If difference is negligible (within Rs 10 or < 0.5% rounding difference), treat as exact match
-        if math_diff <= 10.0 or (math_diff / max(amount_val, 1.0)) < 0.005:
+        rel_diff = math_diff / max(amount_val, 1.0)
+        # If difference is negligible (within Rs 10, or < 1% rounding difference, or standard non-payables < 6% where itemized_sum <= amount_val)
+        if math_diff <= 10.0 or rel_diff < 0.01 or (rel_diff <= 0.06 and itemized_sum <= amount_val):
             math_discrepancy_ratio = 0.0
         else:
-            math_discrepancy_ratio = min(math_diff / max(amount_val, 1.0), 1.0)
+            math_discrepancy_ratio = min(rel_diff, 1.0)
     else:
-        # No fake 0.05 default — accurately set to 0.0 if cannot compute mathematical mismatch
         math_discrepancy_ratio = 0.0
 
     # --- ICD/CPT coding & clinical signals ---
@@ -817,11 +820,13 @@ def _explain_prediction(features: dict[str, Any], score: float) -> list[dict[str
 
     # Priority 1: Real Insurance Audit Anomalies
     math_disc = features.get("math_discrepancy_ratio", 0.0)
-    amount_log = features.get("total_amount_log", 0.0)
-    billed_amt = round(math.exp(amount_log) - 1.0) if amount_log > 0 else 0.0
-    has_itemized = features.get("num_expense_categories", 0.0) > 0
-    math_diff = round(billed_amt * math_disc) if billed_amt > 0 else 0.0
-    item_sum = max(0.0, billed_amt - math_diff)
+    billed_amt = features.get("total_billed_amount", 0.0)
+    if billed_amt <= 0.0:
+        amount_log = features.get("total_amount_log", 0.0)
+        billed_amt = round(math.exp(amount_log) - 1.0) if amount_log > 0 else 0.0
+    item_sum = features.get("itemized_sum", 0.0)
+    has_itemized = features.get("num_expense_categories", 0.0) > 0 or item_sum > 0
+    math_diff = abs(billed_amt - item_sum) if (billed_amt > 0 and item_sum > 0) else 0.0
 
     if math_disc > 0.01 and billed_amt > 0 and item_sum > 0:
         reasons.append({
@@ -835,7 +840,7 @@ def _explain_prediction(features: dict[str, Any], score: float) -> list[dict[str
             "feature": "math_discrepancy_ratio",
             "weight": 0.12,
         })
-    elif billed_amt == 0 or not features.get("has_total_amount"):
+    elif billed_amt == 0 and not has_itemized:
         reasons.append({
             "reason": "No hospital bill or itemized expense statement attached. Billed claim amount cannot be determined.",
             "feature": "math_discrepancy_ratio",
@@ -1003,11 +1008,13 @@ def _predict_heuristic(features: dict[str, Any]) -> PredictionResult:
 
     # AXIS 2: True Insurance Audit Anomalies
     math_disc = features.get("math_discrepancy_ratio", 0.0)
-    amount_log = features.get("total_amount_log", 0.0)
-    billed_amt = round(math.exp(amount_log) - 1.0) if amount_log > 0 else 0.0
-    has_itemized = features.get("num_expense_categories", 0.0) > 0
-    math_diff = round(billed_amt * math_disc) if billed_amt > 0 else 0.0
-    item_sum = max(0.0, billed_amt - math_diff)
+    billed_amt = features.get("total_billed_amount", 0.0)
+    if billed_amt <= 0.0:
+        amount_log = features.get("total_amount_log", 0.0)
+        billed_amt = round(math.exp(amount_log) - 1.0) if amount_log > 0 else 0.0
+    item_sum = features.get("itemized_sum", 0.0)
+    has_itemized = features.get("num_expense_categories", 0.0) > 0 or item_sum > 0
+    math_diff = abs(billed_amt - item_sum) if (billed_amt > 0 and item_sum > 0) else 0.0
 
     if math_disc > 0.10 and billed_amt > 0 and item_sum > 0:
         audit_risk_score += 0.28
@@ -1018,7 +1025,7 @@ def _predict_heuristic(features: dict[str, Any]) -> PredictionResult:
     elif billed_amt > 0 and not has_itemized:
         audit_risk_score += 0.12
         reasons.append({"reason": f"Itemized bill breakup / annexure not attached (only summary total ₹{billed_amt:,.0f} provided)", "weight": 0.12})
-    elif billed_amt == 0 or not features.get("has_total_amount"):
+    elif billed_amt == 0 and not has_itemized:
         audit_risk_score += 0.26
         reasons.append({"reason": "No hospital bill or itemized expense statement attached. Billed claim amount cannot be determined.", "weight": 0.26})
 
@@ -1037,11 +1044,38 @@ def _predict_heuristic(features: dict[str, Any]) -> PredictionResult:
     # AXIS 3: Financial & Medical Severity Signals
     amount_log = features.get("total_amount_log", 0)
     if amount_log > 14.0:       # > ~12 lakh
-        severity_score += 0.18
-        reasons.append({"reason": "High-value claim (> ₹12 Lakh) attracts mandatory senior TPA scrutiny", "weight": 0.18})
+        severity_score += 0.22
+        reasons.append({"reason": "High-value claim (> ₹12 Lakh) attracts mandatory senior TPA scrutiny", "weight": 0.22})
     elif amount_log > 13.0:     # > ~4.4 lakh
-        severity_score += 0.10
-        reasons.append({"reason": "Substantial claim amount (> ₹4.4 Lakh)", "weight": 0.10})
+        severity_score += 0.14
+        reasons.append({"reason": "Substantial claim amount (> ₹4.4 Lakh)", "weight": 0.14})
+    elif amount_log > 11.5:     # > ~1 lakh
+        severity_score += 0.08
+        reasons.append({"reason": "Significant claim amount (> ₹1 Lakh)", "weight": 0.08})
+
+    if features.get("has_surgery"):
+        severity_score += 0.06
+        reasons.append({"reason": "Surgical procedure performed", "weight": 0.06})
+
+    if features.get("has_blood_transfusion"):
+        severity_score += 0.06
+        reasons.append({"reason": "Blood transfusion required during hospitalization", "weight": 0.06})
+
+    if features.get("has_secondary_diagnosis"):
+        severity_score += 0.08
+        reasons.append({"reason": "Multiple diagnoses / comorbidities present", "weight": 0.08})
+
+    if features.get("num_icd_codes", 0) >= 3:
+        severity_score += 0.08
+        reasons.append({"reason": "Multi-code clinical case complexity", "weight": 0.08})
+    elif features.get("num_icd_codes", 0) >= 2:
+        severity_score += 0.04
+
+    if features.get("num_cpt_codes", 0) >= 2:
+        severity_score += 0.03
+
+    if features.get("patient_age_norm", 0) > 0.50:
+        severity_score += 0.04
 
     los = features.get("length_of_stay", 0)
     if los > 21:
@@ -1050,6 +1084,10 @@ def _predict_heuristic(features: dict[str, Any]) -> PredictionResult:
     elif los > 14:
         severity_score += 0.08
         reasons.append({"reason": f"Hospital stay ({int(los)} days) exceeds standard duration", "weight": 0.08})
+    elif los >= 4:
+        severity_score += 0.05
+
+
 
     if features.get("is_icu_admission"):
         severity_score += 0.10

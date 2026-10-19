@@ -292,7 +292,8 @@ def parser_task(self, result: dict) -> dict[str, str]:
             db.close()
             
         _update_workflow_state(claim_id, "IDENTITY_MISMATCH", status="FAILED")
-        _purge_claim_documents(claim_id, reason=err_msg)
+        # Do not purge physical documents - preserve uploaded claim files for manual inspection & audit
+        logging.getLogger("parser-debug").warning(f"[Identity Gate] Preserving uploaded documents for claim {claim_id} despite identity mismatch.")
         raise Ignore()
 
     db = ParserSessionLocal()
@@ -1413,6 +1414,20 @@ def _purge_claim_documents(claim_id: str, reason: str = "") -> None:
         db.close()
 
 
+def _is_doctor_or_facility_name(name: str) -> bool:
+    """Returns True if the extracted text resembles a physician, clinic, or facility name rather than a patient."""
+    if not name:
+        return False
+    lower = str(name).lower().strip()
+    doctor_terms = [
+        "dr.", "dr ", "doctor", "prof.", "prof ", "physician", "surgeon", 
+        "consultant", "specialist", "hospital", "clinic", "nursing home", 
+        "healthcare", "diagnostic", "laboratory", "pathology", "radiology",
+        "medical center", "institute", "pharmacy"
+    ]
+    return any(t in lower for t in doctor_terms)
+
+
 def _check_asynchronous_identity_gate(claim_id: str) -> tuple[bool, str | None, Any | None, str | None, str | None]:
     """
     Verify if the patient name and DOB across all uploaded documents match the consensus anchor patient.
@@ -1446,6 +1461,11 @@ def _check_asynchronous_identity_gate(claim_id: str) -> tuple[bool, str | None, 
             extracted_name = RobustFieldExtractor.extract_field("patient_name", text)
             extracted_dob = RobustFieldExtractor.extract_field("dob", text)
             
+            # Filter out physician and facility names to prevent false-positive mismatch
+            if extracted_name and _is_doctor_or_facility_name(extracted_name):
+                logging.getLogger("parser-debug").info(f"[Identity Gate] Skipping doctor/facility header '{extracted_name}' in doc {d.file_name}")
+                extracted_name = None
+
             cleaned_name = _normalize_identity_name(extracted_name) if extracted_name else ""
             if cleaned_name and len(cleaned_name) >= 3:
                 doc_identities.append({

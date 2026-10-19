@@ -268,9 +268,9 @@ def build_canonical_schema(
             "medicines": entities.get("medicines") if entities else [],
         },
         "claims": {
-            "claimed_total": get_field("claimed_total", "claims.claimed_total"),
+            "claimed_total": get_field("claimed_total", "claims.claimed_total") or (f"{expense_total:.2f}" if expense_total > 0 else "0.00"),
             "calculated_total": expense_total,
-            "total_amount": expense_total if expense_total > 0 else get_field("claimed_total", "claims.claimed_total"),
+            "total_amount": get_field("claimed_total", "claims.claimed_total") or (f"{expense_total:.2f}" if expense_total > 0 else "0.00"),
             "confidence": "HIGH",
         },
 

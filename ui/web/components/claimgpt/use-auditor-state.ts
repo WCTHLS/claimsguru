@@ -343,6 +343,7 @@ export function useAuditorState() {
 
     const runSync = async () => {
       if (isFetching || !active) return;
+      if (typeof document !== "undefined" && document.hidden) return;
       isFetching = true;
       try {
         await reloadRecentClaims();
@@ -608,7 +609,12 @@ export function useAuditorState() {
             return;
           }
 
-          const isComplete = isKnownTerminal || Boolean(prevData) || (!statusInfo?.not_found && statusInfo?.status !== "NOT_FOUND" && Boolean(
+          const isActivelyProcessing = !isKnownTerminal && Boolean(
+            (statusInfo && (statusInfo.percentage ?? 0) < 100 && !statusInfo.is_complete && statusInfo.status !== "COMPLETED") ||
+            (prevData && (prevData.status === "PROCESSING" || prevData.status === "ANALYZING" || prevData.status === "STAGED"))
+          );
+
+          const isComplete = !isActivelyProcessing && (isKnownTerminal || Boolean(
             statusInfo?.is_complete ||
             (statusInfo?.percentage ?? 0) >= 100 ||
             statusInfo?.status === "COMPLETED" ||
@@ -617,7 +623,8 @@ export function useAuditorState() {
             statusInfo?.status === "SUBMITTED" ||
             statusInfo?.status === "APPROVED" ||
             statusInfo?.status === "SETTLED" ||
-            statusInfo?.status === "REJECTED"
+            statusInfo?.status === "REJECTED" ||
+            (prevData && (prevData.status === "COMPLETED" || prevData.status === "VALIDATED"))
           ));
 
           if (!isComplete) {

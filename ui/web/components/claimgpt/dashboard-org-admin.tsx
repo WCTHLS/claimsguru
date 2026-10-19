@@ -552,29 +552,52 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
     setActionFeedback('');
     const token = session?.accessToken;
 
-    try {
-      const res = await fetch(`${SUBMISSION_API}/claims/${actionClaimId}/tpa-action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ action: actionType, reason: actionReason }),
-      });
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-User-Role': session?.role || session?.accountRole || 'admin',
+      ...(session?.user?.email || session?.user?.id ? { 'X-User-Id': session.user.email || session.user.id } : {}),
+      ...(orgSlug ? { 'X-Organization-Slug': orgSlug } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
 
-      let newStatus = actionType === 'approve' ? 'APPROVED' : actionType === 'reject' ? 'REJECTED' : 'MODIFICATION_REQUESTED';
-      if (res.ok) {
-        const data = await res.json().catch(() => ({}));
-        if (data.new_status) newStatus = data.new_status;
+    const endpoints = [
+      `${SUBMISSION_API}/claims/${actionClaimId}/tpa-action`,
+      `${INGRESS_API}/claims/${actionClaimId}/tpa-action`,
+    ];
+
+    let success = false;
+    let newStatus = actionType === 'approve' ? 'APPROVED' : actionType === 'reject' ? 'REJECTED' : 'MODIFICATION_REQUESTED';
+
+    try {
+      for (const url of endpoints) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ action: actionType, reason: actionReason }),
+          });
+          if (res.ok) {
+            const data = await res.json().catch(() => ({}));
+            if (data.new_status) newStatus = data.new_status;
+            success = true;
+            break;
+          }
+        } catch {
+          // try fallback
+        }
       }
 
-      setActionFeedback(`Claim updated to ${formatStatus(newStatus)} successfully.`);
-      setClaims((prev) => prev.map((c) => (c.id === actionClaimId ? { ...c, status: newStatus } : c)));
-      setTimeout(() => {
-        setActionClaimId(null);
-        setActionType(null);
-        setActionFeedback('');
-      }, 1500);
+      if (success) {
+        setActionFeedback(`Claim updated to ${formatStatus(newStatus)} successfully.`);
+        setClaims((prev) => prev.map((c) => (c.id === actionClaimId ? { ...c, status: newStatus } : c)));
+        setTimeout(() => {
+          setActionClaimId(null);
+          setActionType(null);
+          setActionFeedback('');
+        }, 1500);
+      } else {
+        setActionFeedback('Action failed. Please verify connection.');
+      }
     } catch {
       setActionFeedback('Action failed. Please verify connection.');
     } finally {
@@ -604,32 +627,57 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
     setSendMoneyFeedback('');
     const token = session?.accessToken;
 
-    try {
-      const res = await fetch(`${SUBMISSION_API}/claims/${sendMoneyClaim.id}/tpa-action`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          action: 'send_money',
-          reason: `Settlement authorized: ₹${parseFloat(sendMoneyAmount).toLocaleString()}`,
-        }),
-      });
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-User-Role': session?.role || session?.accountRole || 'admin',
+      ...(session?.user?.email || session?.user?.id ? { 'X-User-Id': session.user.email || session.user.id } : {}),
+      ...(orgSlug ? { 'X-Organization-Slug': orgSlug } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
 
-      setSendMoneyFeedback('Settlement authorized & dispatched to payout gateway.');
-      setClaims((prev) => prev.map((c) => (c.id === sendMoneyClaim.id ? { ...c, status: 'SETTLED' } : c)));
-      setPendingAuth((prev) => {
-        const updated = { ...prev };
-        delete updated[sendMoneyClaim.id];
-        return updated;
-      });
-      setTimeout(() => {
-        setSendMoneyClaim(null);
-        setSendMoneyFeedback('');
-      }, 1800);
+    const endpoints = [
+      `${SUBMISSION_API}/claims/${sendMoneyClaim.id}/tpa-action`,
+      `${INGRESS_API}/claims/${sendMoneyClaim.id}/tpa-action`,
+    ];
+
+    let success = false;
+    try {
+      for (const url of endpoints) {
+        try {
+          const res = await fetch(url, {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              action: 'send_money',
+              reason: `Settlement authorized: ₹${parseFloat(sendMoneyAmount).toLocaleString()}`,
+            }),
+          });
+          if (res.ok) {
+            success = true;
+            break;
+          }
+        } catch {
+          // try fallback
+        }
+      }
+
+      if (success) {
+        setSendMoneyFeedback('Settlement authorized & dispatched to payout gateway.');
+        setClaims((prev) => prev.map((c) => (c.id === sendMoneyClaim.id ? { ...c, status: 'SETTLED' } : c)));
+        setPendingAuth((prev) => {
+          const updated = { ...prev };
+          delete updated[sendMoneyClaim.id];
+          return updated;
+        });
+        setTimeout(() => {
+          setSendMoneyClaim(null);
+          setSendMoneyFeedback('');
+        }, 1500);
+      } else {
+        setSendMoneyFeedback('Payment dispatch failed. Please verify connection.');
+      }
     } catch {
-      setSendMoneyFeedback('Authorization failed.');
+      setSendMoneyFeedback('Payment dispatch failed. Please verify connection.');
     } finally {
       setSendMoneySubmitting(false);
     }

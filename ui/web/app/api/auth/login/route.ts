@@ -24,13 +24,20 @@ export async function POST(request: NextRequest) {
     });
 
     if (!res) {
-      // Backend microservice is offline / standalone mode - return fallback local session
-      return NextResponse.json({
-        access_token: `local-token-${Date.now()}`,
-        role: payload.role === 'patient' ? 'submitter' : 'admin',
-        username: payload.username,
-        is_local_demo: true,
-      }, { status: 200 });
+      if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_LOCAL_FALLBACK === 'true') {
+        // Backend microservice is offline in standalone dev mode only
+        return NextResponse.json({
+          access_token: "local-token-" + Date.now(),
+          role: payload.role === 'patient' ? 'submitter' : 'admin',
+          username: payload.username,
+          is_local_demo: true,
+        }, { status: 200 });
+      }
+
+      return NextResponse.json(
+        { error: 'Authentication service timed out or unavailable. Please try again.' },
+        { status: 504 }
+      );
     }
 
     if (res.ok) {

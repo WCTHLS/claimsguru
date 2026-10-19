@@ -83,7 +83,7 @@ CANONICAL_MAPPING = {
     "claimed": "claimed_total",
     "total_claimed": "claimed_total",
     "amount_claimed": "claimed_total",
-    "reg": "insurance_policy_number",
+    "reg": "registration_number",
     "uid": "patient_id",
     "uhid": "patient_id",
 }
@@ -210,6 +210,9 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
 
         # Clean insurance_policy_number (isolate policy token from multi-column OCR concatenation)
         if canonical_key == "insurance_policy_number" and val_str:
+            # Hospital MRNO/IPNO/UHID/RegNo/Bill numbers must never be misclassified as insurance policy numbers
+            if re.search(r"\b(?:MRN|MRNO|IPNO|OPNO|UHID|REGNO|REG\.?|BILL|INVOICE|SH000|SSH/)\b", val_str, flags=re.IGNORECASE):
+                continue
             policy_match = re.search(r"\b([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]{3,8}-[A-Z0-9]{2,6}-[A-Z0-9]{4,12})\b", val_str)
             if policy_match:
                 val_str = policy_match.group(1)
@@ -551,8 +554,8 @@ def normalize_tables(tables: List[TableRegion]) -> List[Dict[str, Any]]:
         if isinstance(table, dict):
             table_kind = table.get("table_kind", table_kind)
 
-        # Skip tables classified as medications, vitals, lab results, diagnoses, or generic tables
-        if table_kind and str(table_kind).lower() in {"medications", "vitals", "lab_results", "lab_result", "diagnoses", "diagnosis", "generic_table"}:
+        # Skip tables classified as medications, vitals, lab results, diagnoses
+        if table_kind and str(table_kind).lower() in {"medications", "vitals", "lab_results", "lab_result", "diagnoses", "diagnosis"}:
             continue
 
         # Also check if it's a medications, lab, or vitals table based on content markers

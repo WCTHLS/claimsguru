@@ -249,7 +249,24 @@ def parse_document(
     page_to_filename: Optional[dict[int, str]] = None
 ) -> DocumentStructure:
     def _get_doc_type_for_page(page_num: int, tokens: list[Token], doc_type_map: dict[str, str] | None = None, page_to_filename: dict[int, str] | None = None) -> str:
-        # 1. Find document_id for page from tokens
+        # 1. Inspect page text tokens FIRST for document classification markers.
+        # Medical uploads often combine Discharge Summary + Inpatient Hospital Bills + Pharmacy Bills into a single PDF.
+        # A file-level 'discharge_summary' label must never suppress billing pages inside the same document.
+        page_toks = [t for t in tokens if getattr(t, "page", None) == page_num]
+        if page_toks:
+            page_text = " ".join(str(getattr(t, "text", "")).strip() for t in page_toks if getattr(t, "text", None)).lower()
+            if any(k in page_text for k in ["invoice", "ipd bill", "final bill", "detailed bill", "package billing summary", "tax invoice", "cash receipt", "hospital bill", "bill no", "bill date", "billing heads", "cash bill", "inpatient bill", "summary bill", "advance receipt", "particulars", "grand total", "patient paid amount", "balance amount", "room rent", "nursing charges"]):
+                return "HOSPITAL_BILL"
+            if any(k in page_text for k in ["pharmacy bill", "retail invoice", "chemist", "cash memo", "drug bill", "pharmacy cash"]) and not any(k in page_text for k in ["ipd bill", "final bill", "inpatient bill"]):
+                return "PHARMACY_BILL"
+            if any(k in page_text for k in ["discharge summary", "summary of discharge", "discharge card", "discharge report", "clinical summary"]):
+                return "DISCHARGE_SUMMARY"
+            if any(k in page_text for k in ["investigation report", "laboratory report", "pathology report", "lab report", "test report"]):
+                return "LAB_REPORT"
+            if any(k in page_text for k in ["prescription", "rx "]):
+                return "PRESCRIPTION"
+
+        # 2. Check doc_type_map if page text did not have strong markers
         doc_id = None
         for tok in tokens:
             if getattr(tok, "page", None) == page_num:
@@ -257,26 +274,10 @@ def parse_document(
                 if doc_id:
                     break
         
-        # 2. Check doc_type_map
         if doc_type_map and doc_id and str(doc_id) in doc_type_map:
             mapped_type = str(doc_type_map[str(doc_id)] or "").strip()
             if mapped_type and mapped_type.upper() != "IDENTITY_GATE":
                 return mapped_type
-            
-        # 4. Fallback: inspect page text tokens for document classification markers
-        page_toks = [t for t in tokens if getattr(t, "page", None) == page_num]
-        if page_toks:
-            page_text = " ".join(str(getattr(t, "text", "")).strip() for t in page_toks if getattr(t, "text", None)).lower()
-            if any(k in page_text for k in ["discharge summary", "summary of discharge", "discharge card", "discharge report", "clinical summary"]):
-                return "DISCHARGE_SUMMARY"
-            if any(k in page_text for k in ["investigation report", "laboratory report", "pathology report", "lab report", "test report"]):
-                return "LAB_REPORT"
-            if any(k in page_text for k in ["prescription", "rx "]):
-                return "PRESCRIPTION"
-            if any(k in page_text for k in ["ipd bill", "final bill", "detailed bill", "package billing summary", "tax invoice", "cash receipt", "hospital bill"]):
-                return "HOSPITAL_BILL"
-            if any(k in page_text for k in ["pharmacy bill", "retail invoice", "chemist"]):
-                return "PHARMACY_BILL"
                 
         return "UNKNOWN"
 
@@ -942,10 +943,21 @@ def parse_document(
         table_page = getattr(table, "page", 1)
         page_doc_type = _get_doc_type_for_page(table_page, tokens, doc_type_map, page_to_filename).upper()
         table_kind = str(getattr(table, "table_kind", "") or "").lower()
-        if page_doc_type in {"DISCHARGE_SUMMARY", "LAB_REPORT", "PRESCRIPTION", "INVESTIGATION_REPORT"}:
-            logger.info(f"[EXPENSE_FILTER] Skipping table on page {table_page} because doc_type is {page_doc_type}")
+        
+        # Check if table has expense indicators or is already marked as expenses
+        has_expense_content = table_kind == "expenses" or (
+            hasattr(table, "rows") and any(
+                any(kw in " ".join(str(c.text or "").lower() for c in r.cells)
+                    for kw in ["anesthesia", "anaesthesia", "blood", "oxygen", "charges", "medicines", "surgical", "rent", "fee", "nursing", "icu", "rate", "grand total", "total of other", "amount"])
+                for r in (table.rows or [])
+            )
+        )
+        if has_expense_content:
+            filtered_tables.append(table)
+        elif page_doc_type in {"DISCHARGE_SUMMARY", "LAB_REPORT", "PRESCRIPTION", "INVESTIGATION_REPORT"}:
+            logger.info(f"[EXPENSE_FILTER] Skipping non-billing table on page {table_page} because doc_type is {page_doc_type}")
             continue
-        if table_kind == "expenses" or page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN", "CONSULTATION", "INSURANCE_FORM"}:
+        elif table_kind == "expenses" or page_doc_type in {"BILL_INVOICE", "HOSPITAL_BILL", "PHARMACY_BILL", "UNKNOWN", "CONSULTATION", "INSURANCE_FORM"}:
             filtered_tables.append(table)
         else:
             logger.info(f"[EXPENSE_FILTER] Skipping table on page {table_page} because doc_type is {page_doc_type}")
@@ -1133,8 +1145,8 @@ def parse_document(
                 if any(term in desc for term in [" po ", " iv ", " im ", " sc ", " bd", " tds", " od", " mg ", " ml ", " mcg "]):
                     return False
 
-        # Exclude zero or negative amounts - clinical prescriptions and disclaimers are not billed expenses
-        if amount <= 0:
+        # Exclude zero amounts - clinical prescriptions, vitals and disclaimers are not billed expenses
+        if amount == 0:
             return False
 
         # Clean clinical prescription or lab billing prefixes instead of rejecting valid billed services
@@ -1636,8 +1648,16 @@ def parse_document(
                 c = (cat or "").strip().lower()
                 if c in {"room rent", "room", "ward", "icu"}:
                     return "room"
+                if c in {"nursing", "nursing care"}:
+                    return "nursing"
+                if c in {"radiology", "imaging", "x-ray", "usg", "mri", "ct scan", "ecg"}:
+                    return "radiology"
                 if c in {"laboratory", "lab", "diagnostics", "investigation"}:
                     return "laboratory"
+                if c in {"consultation", "doctor fee", "physician fee"}:
+                    return "consultation"
+                if c in {"surgery", "ot", "operation", "procedure"}:
+                    return "surgery"
                 return c
 
             semantic_categories = {
@@ -1646,17 +1666,16 @@ def parse_document(
                 if str(item.get("category") or "").strip()
             }
             # Keep semantic as source of truth, but backfill missing categories
-            # from heuristics (e.g., lab rows occasionally omitted by backend).
+            # from heuristics (e.g., room rent, lab, radiology omitted by backend).
             for h in heuristic_expenses:
                 h_cat = _norm_cat(str(h.get("category") or ""))
                 if not h_cat or h_cat in semantic_categories:
                     continue
-                if h_cat != "laboratory":
+                if h_cat not in {"laboratory", "room", "radiology", "consultation", "surgery"}:
                     continue
                 if _parse_amount(h.get("amount")) <= 0:
                     continue
                 expenses.append(dict(h))
-                semantic_categories.add(h_cat)
             logger.info(
                 "[EXPENSE_SELECTION] semantic_preferred sem_count=%s sem_total=%.2f heu_count=%s (zero-confidence backend)",
                 sem_count,
@@ -1666,10 +1685,19 @@ def parse_document(
             doc.normalized_expenses = expenses
         else:
             # If semantic backend extracted expenses with reasonable confidence, use semantic_only.
-            # Do NOT blend with heuristic expenses from non-billing pages (which falsely trigger on discharge summaries/receipts).
+            # Do NOT blend with heuristic expenses from non-billing pages unless the semantic model missed major bill sections (truncated table).
+            target_total = 0.0
+            try:
+                robust_tot = RobustFieldExtractor.extract_from_tokens(all_token_dicts).get("claimed_total")
+                if robust_tot:
+                    target_total = _parse_amount(robust_tot)
+            except Exception:
+                target_total = 0.0
+
             should_blend = (
                 sem_count == 0
                 or (sem_count < 3 and heu_count >= 10 and sem_conf < 0.50)
+                or (target_total > 0 and sem_total < target_total * 0.80 and heu_total >= target_total * 0.85)
             )
             if should_blend:
                 expenses = _merge_expense_lists(list(semantic_expenses), heuristic_expenses)
@@ -1832,35 +1860,102 @@ def parse_document(
 
     # Cross-document Master Bill vs Sub-Bill Reconciler
     def _reconcile_master_and_sub_bills(rows: list[dict], claimed_total_str: str | None = None) -> list[dict]:
-        """Reconcile Master Hospital Bill with sub-bills (e.g. separate pharmacy cash receipts or lab receipts).
+        """Reconcile Master Hospital Bill with detailed sub-bills (lab & pharmacy breakdowns).
         
-        When a comprehensive Master Bill exists whose line items sum to the hospital's billed total (within 1%),
-        we select the Master Bill line items and discard duplicate items from separate pharmacy/lab slips.
+        When itemized child lines exist that sum to a category summary line (e.g. 11 lab tests
+        summing to 4650.0 for 'Investigations & Bills', or itemized drugs summing to 'Pharmacy Sales'),
+        we SUBSTITUTE the macro summary row with the granular line items so that TPAs/insurers
+        receive the full transparent itemization required for non-payable audit.
         """
         if len(rows) <= 1:
             return rows
 
         target_total = _parse_amount(claimed_total_str) if claimed_total_str else 0.0
-        
-        # 1. Group rows by page
-        page_items: dict[int, list[dict]] = {}
-        for r in rows:
-            p = r.get("page")
-            if p is not None:
-                try:
-                    page_items.setdefault(int(p), []).append(r)
-                except Exception:
-                    pass
 
-        # 2. Check if a single page's items sum to the target_total (or contains the master bill)
-        if target_total > 0 and page_items:
-            # Sort pages by sum descending so the comprehensive master bill is evaluated first
-            sorted_pages = sorted(page_items.items(), key=lambda item: sum(_parse_amount(x.get("amount")) for x in item[1]), reverse=True)
-            for p, p_rows in sorted_pages:
-                p_sum = sum(_parse_amount(x.get("amount")) for x in p_rows)
-                if abs(p_sum - target_total) <= max(2.0, 0.01 * target_total):
-                    logger.info("[RECONCILER] Page %d line items sum (%.2f) matches claimed total (%.2f). Using Page %d as Master Bill.", p, p_sum, target_total, p)
-                    return p_rows
+        # 1. Drop cashier payment collections / advance vouchers
+        collection_kws = [
+            "ip collection", "lab collection", "cash collection", "total collection",
+            "patient paid", "paid amount", "due amount", "advance payment"
+        ]
+        cleaned_rows = []
+        for r in rows:
+            desc = str(r.get("description") or "").lower().strip()
+            amt = _parse_amount(r.get("amount"))
+            if amt <= 0:
+                continue
+            if any(desc == kw or desc.startswith(kw) for kw in collection_kws):
+                logger.info("[RECONCILER] Excluding cashier collection record: '%s' (%.2f)", desc, amt)
+                continue
+            cleaned_rows.append(r)
+
+        # 2. Check if we have Macro category summary rows with itemized child slips
+        macro_lab_kws = ["investigations & bills", "investigations", "laboratory charges", "lab bills", "lab charges", "s & bills"]
+        macro_pharm_kws = ["pharmacy sales", "pharmacy charges", "total medicines", "drugs", "pharmacy sales returns"]
+        
+        # Identify candidate child items
+        lab_children = [
+            r for r in cleaned_rows
+            if str(r.get("category", "")).lower() in {"laboratory", "radiology", "diagnostics"}
+            and not any(str(r.get("description", "")).lower().strip() == kw for kw in macro_lab_kws)
+        ]
+        pharm_children = [
+            r for r in cleaned_rows
+            if str(r.get("category", "")).lower() in {"pharmacy", "injection", "tablet", "supplies", "oxygen"}
+            and not any(str(r.get("description", "")).lower().strip() == kw for kw in macro_pharm_kws)
+        ]
+        
+        has_macro_lab = any(any(str(r.get("description", "")).lower().strip() == kw for kw in macro_lab_kws) for r in cleaned_rows)
+        has_macro_pharm = any(any(str(r.get("description", "")).lower().strip() == kw for kw in macro_pharm_kws) for r in cleaned_rows)
+
+        # If micro children exist for lab, suppress the macro summary row in favor of the children
+        suppress_macro_lab = has_macro_lab and len(lab_children) >= 2
+        # If micro children exist for pharmacy, suppress the macro summary row in favor of the children
+        suppress_macro_pharm = has_macro_pharm and len(pharm_children) >= 5
+
+        # 3. Macro-to-Micro substitution pass
+        substituted_rows = []
+        for r in cleaned_rows:
+            desc = str(r.get("description") or "").lower().strip()
+            if suppress_macro_lab and any(desc == kw for kw in macro_lab_kws):
+                logger.info("[RECONCILER] Substituting macro lab summary '%s' with %d itemized lab tests", desc, len(lab_children))
+                continue
+            if suppress_macro_pharm and any(desc == kw for kw in macro_pharm_kws):
+                logger.info("[RECONCILER] Substituting macro pharmacy summary '%s' with %d itemized medicines", desc, len(pharm_children))
+                continue
+            substituted_rows.append(r)
+
+        if suppress_macro_lab or suppress_macro_pharm:
+            logger.info("[RECONCILER] Line item substitution complete: %d detailed lines", len(substituted_rows))
+            rows_to_dedup = substituted_rows
+        else:
+            # Fallback to multi-page subset reconciliation if no parent-child substitution was needed
+            page_items: dict[int, list[dict]] = {}
+            for r in cleaned_rows:
+                p = r.get("page")
+                if p is not None:
+                    try:
+                        page_items.setdefault(int(p), []).append(r)
+                    except Exception:
+                        pass
+            if target_total > 0 and page_items:
+                sorted_pages = sorted(page_items.items(), key=lambda item: sum(_parse_amount(x.get("amount")) for x in item[1]), reverse=True)
+                for p, p_rows in sorted_pages:
+                    p_sum = sum(_parse_amount(x.get("amount")) for x in p_rows)
+                    if abs(p_sum - target_total) <= max(2.0, 0.01 * target_total):
+                        logger.info("[RECONCILER] Page %d line items sum (%.2f) matches claimed total (%.2f). Using Page %d as Master Bill.", p, p_sum, target_total, p)
+                        return p_rows
+
+                sorted_p_nums = sorted(page_items.keys())
+                for s_idx in range(len(sorted_p_nums)):
+                    for e_idx in range(s_idx + 1, len(sorted_p_nums)):
+                        sub_pages = sorted_p_nums[s_idx:e_idx + 1]
+                        if sub_pages[-1] - sub_pages[0] == len(sub_pages) - 1:
+                            sub_rows = [r for pg in sub_pages for r in page_items[pg]]
+                            sub_sum = sum(_parse_amount(x.get("amount")) for x in sub_rows)
+                            if abs(sub_sum - target_total) <= max(2.0, 0.01 * target_total):
+                                logger.info("[RECONCILER] Consecutive pages %s line items sum (%.2f) matches claimed total (%.2f). Using pages as Master Bill.", sub_pages, sub_sum, target_total)
+                                return sub_rows
+            rows_to_dedup = cleaned_rows
 
         # 3. Dedup identical or sub-bill pharmacy line items
         drug_stems = [
@@ -1873,20 +1968,23 @@ def parse_document(
         
         seen_stem_idx: dict[str, int] = {}
         to_remove = set()
-        for idx, r in enumerate(rows):
+        for idx, r in enumerate(rows_to_dedup):
             # Clean trailing dashed footer artifacts
             if r.get("description"):
-                r["description"] = re.sub(r"\s*[-_—=]{3,}.*$", "", str(r["description"])).strip()
+                r["description"] = re.sub(r"\s*[-_=]{3,}.*$", "", str(r["description"])).strip()
             desc = (r.get("description") or "").lower()
             amt = _parse_amount(r.get("amount"))
-            if amt <= 0 or not desc:
+            if amt == 0 or not desc:
                 to_remove.add(idx)
+                continue
+            # Keep negative amounts (returns/credits)
+            if amt < 0:
                 continue
             for stem in drug_stems:
                 if stem in desc:
                     if stem in seen_stem_idx:
                         prev_idx = seen_stem_idx[stem]
-                        prev_desc = (rows[prev_idx].get("description") or "").lower()
+                        prev_desc = (rows_to_dedup[prev_idx].get("description") or "").lower()
                         # Prefer row that does not contain messy receipt tokens like 'batch', 'expiry', 'drug inj. name'
                         if "batch" in desc or "expiry" in desc or "drug inj. name" in desc or len(desc) < 18:
                             to_remove.add(idx)
@@ -1899,7 +1997,7 @@ def parse_document(
                         seen_stem_idx[stem] = idx
                     break
 
-        return [r for idx, r in enumerate(rows) if idx not in to_remove]
+        return [r for idx, r in enumerate(rows_to_dedup) if idx not in to_remove]
 
     # Find claimed_total from fields
     claimed_total_target = None
@@ -1918,6 +2016,37 @@ def parse_document(
             doc.canonical_claim.setdefault("expenses", {})["line_items"] = deduped_expenses
     except Exception:
         logger.debug("Failed to attach normalized_expenses to canonical_claim")
+
+    # Reconcile claimed_total with actual hospital bill and itemized expenses
+    try:
+        robust_total_str = RobustFieldExtractor.extract_from_tokens(all_token_dicts).get("claimed_total")
+        robust_total_val = _parse_amount(robust_total_str) if robust_total_str else 0.0
+        expenses_total_val = sum(_parse_amount(e.get("amount")) for e in deduped_expenses) if deduped_expenses else 0.0
+        curr_target_val = _parse_amount(claimed_total_target) if claimed_total_target else 0.0
+
+        target_update_str = None
+        if curr_target_val <= 0.0:
+            if robust_total_val > 0.0:
+                target_update_str = str(robust_total_str)
+            elif expenses_total_val > 0.0:
+                target_update_str = str(round(expenses_total_val, 2))
+        elif robust_total_val > 0.0 and abs(curr_target_val - robust_total_val) > 10.0:
+            # If robust total is a Gross Hospital Bill that reconciles with expenses sum closer than partial reimbursement claimed:
+            if expenses_total_val > 0.0 and abs(robust_total_val - expenses_total_val) < abs(curr_target_val - expenses_total_val):
+                target_update_str = str(robust_total_str)
+
+        if target_update_str:
+            found_field = False
+            for nf in doc.normalized_fields:
+                fn = (nf.get("canonical_field") or nf.get("field") or "").lower()
+                if fn in {"claimed_total", "total_amount", "claims.claimed_total", "claims.total_amount"}:
+                    nf["value"] = target_update_str
+                    found_field = True
+            if not found_field:
+                _append_local_field("claimed_total", target_update_str, confidence=0.90)
+            logger.info(f"[CLAIMED_TOTAL_RECONCILER] Updated claimed_total to '{target_update_str}'")
+    except Exception as exc:
+        logger.warning(f"[CLAIMED_TOTAL_RECONCILER] Failed to reconcile total: {exc}")
     
     # Build canonical claim from normalized fields
     for nf in doc.normalized_fields:

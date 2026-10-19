@@ -38,6 +38,7 @@ class SemanticTableRowOutput(BaseModel):
 class SemanticTableOutput(BaseModel):
     table_kind: str
     confidence: float = 0.0
+    page: Optional[int] = None
     source_region_id: Optional[str] = None
     source_region_type: Optional[str] = None
     source_tokens: list[SemanticSourceToken] = Field(default_factory=list)

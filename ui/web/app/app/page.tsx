@@ -41,7 +41,7 @@ export default function AppPage() {
   if (!isAuthorized) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100/80">
-        <p className="text-sm text-slate-500">Verifying patient portal access…</p>
+        <p className="text-sm text-slate-500">Verifying patient portal access……</p>
       </div>
     );
   }

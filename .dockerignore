@@ -38,3 +38,10 @@ ui/web/.vercel/
 *.tar.gz
 scratch/
 tmp/
+
+
+**/.next
+**/.next/**
+ui/web/.next
+ui/web/.next/**
+ui\web\.next

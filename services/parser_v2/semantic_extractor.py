@@ -27,6 +27,14 @@ _NON_EXPENSE_ROW_PREFIXES = (
     "grand total",
     "subtotal",
     "net payable",
+    "collection",
+    "ip collection",
+    "lab collection",
+    "cash collection",
+    "patient paid",
+    "paid amount",
+    "due amount",
+    "balance due",
     "total claimed",
     "amount claimed",
     "claim amount",
@@ -41,6 +49,14 @@ _NON_EXPENSE_ROW_KEYWORDS = {
     "deposit",
     "deposits",
     "payment",
+    "collection",
+    "ip collection",
+    "lab collection",
+    "cash collection",
+    "patient paid",
+    "paid amount",
+    "due amount",
+    "balance due",
     "advance",
     "refund",
     "claim",
@@ -372,7 +388,33 @@ def _is_expense_like_table_payload(table: TableRegion) -> bool:
     monetary_ratio = monetary_row_count / max(1, len(data_rows))
     has_currency_marker = "₹" in table_text or "rs." in table_text or "inr" in table_text or "gross" in table_text or "payable" in table_text
 
-    return (has_billing_header and monetary_ratio >= 0.3) or (has_currency_marker and monetary_row_count >= 2)
+    # Medical billing concepts & continuation indicators
+    clinical_billing_kws = [
+        "anesthesia", "anaesthesia", "blood", "oxygen", "operation theater", "ot charges",
+        "surgical", "medicines", "drugs", "pharmacy", "investigation", "radiology", "pathology",
+        "consultation", "room rent", "nursing", "icu", "bed charges", "procedure charges",
+        "lab charges", "implant", "dialysis", "chemotherapy", "physiotherapy", "duty doctor",
+        "ward charges", "admission charges", "doctor charges", "practitioner charges",
+        "surgeon charges", "anesthetist charges", "specialist charges", "injection charges",
+        "iv fluids", "transfusion", "diagnostic materials"
+    ]
+    has_clinical_billing_terms = any(kw in table_text for kw in clinical_billing_kws)
+    
+    # Summary or footer billing keywords (e.g. "grand total", "total of other expenses", "patient paid", "balance amount")
+    summary_billing_kws = [
+        "grand total", "net payable", "total amount", "amount in rs", "total of other",
+        "patient paid", "balance amount", "sub total", "subtotal", "bill amount", "total bill"
+    ]
+    has_summary_billing = any(kw in table_text for kw in summary_billing_kws)
+
+    is_continuation_expense_table = (has_clinical_billing_terms or has_summary_billing) and monetary_row_count >= 2
+
+    return (
+        (has_billing_header and monetary_ratio >= 0.25)
+        or (has_currency_marker and monetary_row_count >= 2)
+        or is_continuation_expense_table
+        or (has_clinical_billing_terms and monetary_row_count >= 1 and monetary_ratio >= 0.20)
+    )
 
 
 def _is_vertical_layout_table(table: TableRegion) -> bool:
@@ -561,32 +603,21 @@ def _is_medications_table(table: TableRegion) -> bool:
     
     import re
     
-    # Safeguard: if the table has billing/pricing terms AND decimal values,
-    # it is an itemised bill/invoice, not a clinical medications log.
-    billing_terms = ["gross", "payable", "rate", "inr", "amount", "price", "bill", "invoice", "receipt", "charge", "charges", "fee", "fees", "total"]
-    has_billing_terms = False
-    for term in billing_terms:
-        if re.search(r"\b" + re.escape(term) + r"\b", table_text):
-            has_billing_terms = True
-            break
-            
-    if not has_billing_terms:
-        if "₹" in table_text or re.search(r"\brs\b\.?", table_text):
-            has_billing_terms = True
+    # Safeguard: if the table has billing/pricing terms (including pharmacy bill headers like PaidAmt, DueAmt, BillDate, Billno)
+    # AND price/amount numbers, it is an itemised pharmacy BILL/INVOICE, not a clinical prescription log!
+    pharmacy_billing_indicators = [
+        "paidamt", "dueamt", "netamt", "totalamt", "billdate", "billno", "batchno", "expdate",
+        "paid amt", "due amt", "net amt", "total amt", "bill date", "bill no", "batch no", "exp date",
+        "gross", "payable", "rate", "inr", "amount", "price", "bill", "invoice", "receipt", "charge", "charges", "total"
+    ]
+    has_billing_terms = any(ind in table_text for ind in pharmacy_billing_indicators) or ("₹" in table_text) or bool(re.search(r"\brs\b\.?", table_text))
             
     has_prices = False
-    has_currency_symbol = "₹" in table_text or bool(re.search(r"\brs\b\.?", table_text) or re.search(r"\binr\b", table_text))
     for row in rows:
         for cell in row.cells:
             text = str(cell.text or "").strip().replace(",", "")
             cleaned = re.sub(r"^(?:rs|inr|₹)\.?\s*", "", text, flags=re.IGNORECASE).strip()
-            if re.fullmatch(r"\d+\.\d{2}", cleaned):
-                has_prices = True
-                break
-            
-            billing_context = ["amount", "price", "rate", "charges", "fees"]
-            has_billing_context = any(re.search(r"\b" + re.escape(t) + r"\b", table_text) for t in billing_context)
-            if (has_currency_symbol or has_billing_context) and re.fullmatch(r"\d+", cleaned) and int(cleaned) > 0:
+            if re.fullmatch(r"-?\d+\.\d{2}", cleaned) or (cleaned.isdigit() and len(cleaned) >= 2):
                 has_prices = True
                 break
         if has_prices:
@@ -633,6 +664,19 @@ def _is_lab_results_table(table: TableRegion) -> bool:
     if not rows:
         return False
     table_text = " ".join(str(cell.text or "") for row in rows for cell in row.cells).lower()
+    
+    import re
+    # Safeguard: If the table contains billing columns (totalamt, paid, due, amount, rate, disc, bill no)
+    # with decimal prices, it is an itemized investigation BILL, not a lab result report!
+    lab_billing_terms = [
+        "totalamt", "paidamt", "dueamt", "invst name", "investigation name", "paid", "due",
+        "total amt", "paid amt", "due amt", "rate", "disc", "discount", "bill no", "bill date", "day total"
+    ]
+    if any(bt in table_text for bt in lab_billing_terms):
+        has_prices = any(re.search(r"\b\d+\.\d{2}\b", str(c.text or "")) for r in rows for c in r.cells)
+        if has_prices:
+            return False
+
     lab_indicators = [
         "reference range", "ref range", "ref. range", "reference interval", "biological reference", 
         "normal range", "observed value", "flag", "subtest", "specimen", "nabl accredited", "nabl ref",
@@ -643,7 +687,7 @@ def _is_lab_results_table(table: TableRegion) -> bool:
     # If table mentions multiple lab test names and units/results without billing keywords
     lab_tests = ["haemoglobin", "platelets", "wbc count", "bilirubin", "sgot", "sgpt", "creatinine", "blood sugar", "pt/inr", "hbsag", "electrolytes"]
     lab_test_matches = sum(1 for test in lab_tests if test in table_text)
-    if lab_test_matches >= 2 and not any(term in table_text for term in ["gross (rs", "payable (rs", "rate", "bill no", "mrp"]):
+    if lab_test_matches >= 2 and not any(term in table_text for term in ["gross", "payable", "rate", "bill no", "mrp", "totalamt", "amount", "paid"]):
         return True
     if "units" in table_text and any(term in table_text for term in ["reference", "normal", "ref.", "biological", "observed", "patient value"]):
         return True
@@ -1082,6 +1126,11 @@ def extract_semantics(
         with lock:
             region_outputs.append(region_output)
             semantic_fields.extend(region_output.fields)
+            for tbl in region_output.tables:
+                if not getattr(tbl, "source_region_id", None):
+                    tbl.source_region_id = region.region_id
+                if getattr(tbl, "page", None) is None:
+                    tbl.page = region.page
             classified_tables.extend(region_output.tables)
 
     # Collect and configure tables to be analyzed
@@ -1170,8 +1219,8 @@ def extract_semantics(
 
     for table in classified_tables:
         semantic_table_mapping.setdefault(table.table_kind, []).append(table.model_dump())
-        source_page = None
-        if table.source_region_id and table.source_region_id in region_by_id:
+        source_page = getattr(table, "page", None)
+        if source_page is None and table.source_region_id and table.source_region_id in region_by_id:
             source_page = region_by_id[table.source_region_id].page
         if source_page is None:
             tokens = getattr(table, "source_tokens", []) or []
