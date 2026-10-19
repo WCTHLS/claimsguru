@@ -63,8 +63,8 @@ def _infer_doc_type(file_name: str, text: str) -> str:
 
 def reconcile_claim_expenses(
     raw_expenses: list[dict[str, Any]],
-    docs: list[Any],
-    doc_ocr_map: dict[str, str],
+    docs: list[Any] = None,
+    doc_ocr_map: dict[str, str] = None,
     gross_total: float = 0.0,
     net_payable: float = 0.0,
     deductions: float = 0.0,
@@ -100,132 +100,36 @@ def reconcile_claim_expenses(
     if not filtered_expenses:
         return []
 
-    # 2. Group expenses by (document_id, source_page) to isolate distinct tables/pages
-    page_to_expenses: dict[tuple[str, Any], list[dict[str, Any]]] = {}
-    for exp in filtered_expenses:
-        key = (exp.get("document_id") or "unknown", exp.get("source_page"))
-        page_to_expenses.setdefault(key, []).append(exp)
-
-    # 3. Clean intra-page duplicates & filter table fragments within each page
-    cleaned_by_page: dict[tuple[str, Any], list[dict[str, Any]]] = {}
-    for pkey, exp_list in page_to_expenses.items():
-        unique_items: list[dict[str, Any]] = []
-        for item in exp_list:
-            amt = round(float(item.get("amount") or 0.0), 2)
-            desc_norm = _normalize_desc(item.get("category") or "")
-            
-            is_dup = False
-            words_curr = set(w for w in desc_norm.split() if w not in ("qty", "rate", "unit", "units", "rs", "inr") and not w.isdigit())
-            for prev in unique_items:
-                prev_amt = round(float(prev.get("amount") or 0.0), 2)
-                prev_desc_norm = _normalize_desc(prev.get("category") or "")
-                words_prev = set(w for w in prev_desc_norm.split() if w not in ("qty", "rate", "unit", "units", "rs", "inr") and not w.isdigit())
-                
-                # Exact same amount and text overlap (substring or substantial token overlap)
-                same_amount = abs(amt - prev_amt) < 0.05
-                has_text_overlap = (
-                    desc_norm in prev_desc_norm or prev_desc_norm in desc_norm or
-                    (len(words_curr & words_prev) >= 2) or
-                    (len(words_curr) > 0 and len(words_prev) > 0 and (words_curr.issubset(words_prev) or words_prev.issubset(words_curr)))
-                )
-                if same_amount and has_text_overlap:
-                    is_dup = True
-                    if len(item.get("category", "")) > len(prev.get("category", "")):
-                        prev["category"] = item["category"]
-                    break
-            if not is_dup:
-                unique_items.append(item)
-
-        # Drop spurious column fragment rows (e.g., 'care - 1 days: 1', 'room: 1', 'nursing: 1', 'ward - 1 days: 1', 'charges general: 1')
-        # when a full legitimate expense row on the same page already covers the description
-        legit_rows = [it for it in unique_items if float(it.get("amount") or 0.0) > 10.0]
-        final_page_items: list[dict[str, Any]] = []
-        for it in unique_items:
-            amt = round(float(it.get("amount") or 0.0), 2)
-            desc_norm = _normalize_desc(it.get("category") or "")
-            if amt <= 10.0 and legit_rows:
-                desc_words = set(desc_norm.split())
-                is_fragment = False
-                for lr in legit_rows:
-                    lr_desc_norm = _normalize_desc(lr.get("category") or "")
-                    lr_words = set(lr_desc_norm.split())
-                    if desc_norm in lr_desc_norm or (desc_words and desc_words.issubset(lr_words) and len(desc_words) <= 3):
-                        is_fragment = True
-                        break
-                if is_fragment:
-                    logger.info("[EXPENSE_RECONCILER] Dropped table fragment row: %s (Rs. %s)", it.get("category"), amt)
-                    continue
-            final_page_items.append(it)
-        cleaned_by_page[pkey] = final_page_items
-
-    # 4. Identify Master Bill Page(s) vs Supporting Voucher Page(s)
-    # Master bill pages contain broader clinical line items (Room, Nursing, Lab, Rx)
-    # Voucher pages are composed almost entirely of items with batch/expiry numbers or pharmacy lines
-    master_pages: list[tuple[str, Any]] = []
-    voucher_pages: list[tuple[str, Any]] = []
-
-    for pkey, items in cleaned_by_page.items():
-        if not items:
-            continue
-        voucher_count = sum(1 for it in items if _is_pharmacy_voucher_line(it.get("category") or ""))
-        # If majority of items on this page have batch/expiry formats, it is a supporting pharmacy voucher page
-        if len(items) >= 2 and (voucher_count / len(items)) >= 0.5:
-            voucher_pages.append(pkey)
-        else:
-            master_pages.append(pkey)
-
-    # If we identified master page(s) and voucher page(s), check if voucher page lines overlap with master page
-    final_items: list[dict[str, Any]] = []
-    if master_pages and voucher_pages:
-        master_items: list[dict[str, Any]] = []
-        for mp in master_pages:
-            master_items.extend(cleaned_by_page[mp])
-
-        master_stems = set()
-        for m in master_items:
-            stem = _extract_drug_stem(m.get("category") or "")
-            if stem:
-                master_stems.add(stem)
-
-        final_items = list(master_items)
-        for vp in voucher_pages:
-            vp_items = cleaned_by_page[vp]
-            overlapping = sum(1 for it in vp_items if _extract_drug_stem(it.get("category") or "") in master_stems)
-            if overlapping > 0 or len(vp_items) == sum(1 for it in vp_items if _is_pharmacy_voucher_line(it.get("category") or "")):
-                logger.info("[EXPENSE_RECONCILER] Suppressed supporting voucher page %s with %d rows", vp, len(vp_items))
-            else:
-                final_items.extend(vp_items)
-    else:
-        for items in cleaned_by_page.values():
-            final_items.extend(items)
-
-    # 5. Individual line-item voucher deduplication fallback
-    # If any remaining items have duplicate batch/voucher format where a clinical line already exists:
-    clinical_stems = set()
-    for it in final_items:
-        cat = it.get("category") or ""
-        if not _is_pharmacy_voucher_line(cat):
-            stem = _extract_drug_stem(cat)
-            if stem and len(stem) >= 3:
-                clinical_stems.add(stem)
-
+    # 2. Granular deduplication and clean formatting
+    # Preserve all legitimate line items including repeat administrations on different dates/times.
+    # Only suppress true identical duplicate OCR scans on the same page/document.
+    seen_exact_entries: set[tuple] = set()
     reconciled_final: list[dict[str, Any]] = []
-    for it in final_items:
-        cat = it.get("category") or ""
-        if _is_pharmacy_voucher_line(cat):
-            stem = _extract_drug_stem(cat)
-            if stem in clinical_stems:
-                logger.info("[EXPENSE_RECONCILER] Dropped duplicate voucher line: %s", cat[:60])
-                continue
-        reconciled_final.append(it)
 
-    for it in reconciled_final:
-        cat = str(it.get("category") or "").strip()
-        # Clean leading digits like "1 ", "2 ", "#3 "
-        cat = re.sub(r"^#?\d+[\.\-\s]+", "", cat).strip()
-        if cat and not cat[0].isupper():
-            cat = cat.title()
-        it["category"] = cat
+    for item in filtered_expenses:
+        amt = round(float(item.get("amount") or 0.0), 2)
+        cat = str(item.get("category") or "").strip()
+        desc = str(item.get("description") or item.get("item") or "").strip()
+        doc_id = str(item.get("document_id") or "doc")
+        sp = item.get("source_page")
+
+        # Normalize description for exact duplicate matching
+        desc_norm = _normalize_desc(desc or cat)
+        
+        # Deduplication signature: (document_id, source_page, amount, normalized_desc)
+        # Identical OCR table re-scans on the exact same page with the exact same amount and description are dropped
+        sig = (doc_id, sp, amt, desc_norm)
+        if desc_norm and sig in seen_exact_entries:
+            continue
+        if desc_norm:
+            seen_exact_entries.add(sig)
+
+        # Clean formatting of category / description
+        clean_cat = re.sub(r"^#?\d+[\.\-\s]+", "", cat).strip()
+        if clean_cat and not clean_cat[0].isupper():
+            clean_cat = clean_cat.title()
+        item["category"] = clean_cat
+        reconciled_final.append(item)
 
     return reconciled_final
 
