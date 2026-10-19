@@ -271,8 +271,18 @@ def extract_with_azure_docintel(file_path: Path, document_id: str | None = None)
             else:
                 json_name = f"azure_ocr_response_{file_path.name}.json"
             target_json = dump_path / json_name
-            target_json.write_text(json.dumps(pages_data, indent=2, ensure_ascii=False), encoding="utf-8")
+            json_bytes = json.dumps(pages_data, indent=2, ensure_ascii=False).encode("utf-8")
+            target_json.write_bytes(json_bytes)
             logger.info("Dumped Azure Document Intelligence layout extraction to %s", target_json)
+
+            if document_id:
+                try:
+                    from libs.shared.storage import MinioStorage
+                    storage_key = f"azure_ocr/{json_name}"
+                    MinioStorage.upload_file(storage_key, json_bytes)
+                    logger.info("[AZURE OCR] Persisted layout extraction to storage: %s", storage_key)
+                except Exception as storage_err:
+                    logger.warning("[AZURE OCR] Could not upload layout extraction to storage: %s", storage_err)
         except Exception as dump_err:
             logger.warning("Failed to dump Azure OCR output to tmp folder: %s", dump_err)
 
@@ -413,8 +423,8 @@ def _extract_from_pdf(path: Path) -> list[dict]:
     return results
 
 
-def _extract_from_image(path: Path) -> list[dict]:
-    azure_res = extract_with_azure_docintel(path)
+def _extract_from_image(path: Path, document_id: str | None = None) -> list[dict]:
+    azure_res = extract_with_azure_docintel(path, document_id=document_id)
     if azure_res is not None:
         return azure_res
     raise ValueError("Azure Document Intelligence failed to extract text from image.")
@@ -687,7 +697,7 @@ def extract_text(file_path: str | Path, document_id: str | None = None) -> list[
     if suffix in _PDF_EXTENSIONS:
         return _extract_from_pdf(path)
     elif suffix in _IMAGE_EXTENSIONS:
-        return _extract_from_image(path)
+        return _extract_from_image(path, document_id=document_id)
     elif suffix in _DOCX_EXTENSIONS:
         return _extract_from_docx(path)
     elif suffix in _EXCEL_EXTENSIONS:
@@ -704,7 +714,7 @@ def extract_text(file_path: str | Path, document_id: str | None = None) -> list[
         kind = _detect_extractor_for_unknown(path)
         attempts = {
             "pdf": _extract_from_pdf,
-            "image": _extract_from_image,
+            "image": lambda p: _extract_from_image(p, document_id=document_id),
             "docx": _extract_from_docx,
             "excel": _extract_from_excel,
             "text": _extract_from_text,
