@@ -116,6 +116,61 @@ _VALID_MODES = {"dense", "bm25", "hybrid"}
 # matches (e.g. drug names, abbreviations) the dense model misses.
 _DEFAULT_MODE = os.environ.get("CODING_SEARCH_MODE", "hybrid")
 
+# Cached cross-encoder scores: (normalized_query, code) -> score, and normalized_query -> best_score
+_CROSSENCODER_SCORES_CACHE: dict[tuple[str, str], float] = {}
+_CROSSENCODER_BEST_QUERY_SCORES: dict[str, float] = {}
+
+
+def get_crossencoder_score(query: str, code: str) -> float | None:
+    """Return the cached cross-encoder relevance score for (query, code), if available."""
+    norm_q = (query or "").strip().lower()
+    c_code = (code or "").strip().upper()
+    if (norm_q, c_code) in _CROSSENCODER_SCORES_CACHE:
+        return _CROSSENCODER_SCORES_CACHE[(norm_q, c_code)]
+    return _CROSSENCODER_SCORES_CACHE.get((norm_q, (code or "").strip()))
+
+
+def is_crossencoder_negative(query: str, code: str) -> bool:
+    """Return True if the cross-encoder relevance score for this (query, code) is negative (< 0.0)."""
+    norm_q = (query or "").strip().lower()
+    c_code = (code or "").strip().upper()
+    score = _CROSSENCODER_SCORES_CACHE.get((norm_q, c_code))
+    if score is None:
+        score = _CROSSENCODER_SCORES_CACHE.get((norm_q, (code or "").strip()))
+    if score is not None:
+        return score < 0.0
+    best = _CROSSENCODER_BEST_QUERY_SCORES.get(norm_q)
+    if best is not None and best < 0.0:
+        return True
+    return False
+
+
+def record_crossencoder_scores(query: str, scores: dict[str, float] | list[Any]) -> None:
+    """Record cross-encoder scores for (query, code) pairs into cache (useful for testing or external rerankers)."""
+    norm_q = (query or "").strip().lower()
+    if isinstance(scores, dict):
+        items = list(scores.items())
+    else:
+        items = scores
+    best = None
+    for entry in items:
+        if isinstance(entry, (tuple, list)):
+            code = entry[0]
+            sc = entry[-1]
+        else:
+            continue
+        c_code = str(code).strip().upper()
+        try:
+            f_sc = float(sc)
+        except (ValueError, TypeError):
+            continue
+        _CROSSENCODER_SCORES_CACHE[(norm_q, c_code)] = f_sc
+        _CROSSENCODER_SCORES_CACHE[(norm_q, str(code).strip())] = f_sc
+        if best is None or f_sc > best:
+            best = f_sc
+    if best is not None:
+        _CROSSENCODER_BEST_QUERY_SCORES[norm_q] = best
+
 
 # ── Tokenizer for BM25 ────────────────────────────────────────────
 _TOKEN_RE = re.compile(r"[a-z0-9]+")
@@ -1028,6 +1083,8 @@ def clear_search_cache() -> None:
     """Invalidate the LRU caches (call after rebuilding indices)."""
     _search_icd10_rag_cached.cache_clear()
     _search_cpt_rag_cached.cache_clear()
+    _CROSSENCODER_SCORES_CACHE.clear()
+    _CROSSENCODER_BEST_QUERY_SCORES.clear()
 
 
 def get_cache_stats() -> dict[str, dict[str, int]]:
@@ -1521,6 +1578,15 @@ def _try_crossencoder_rerank(query: str, candidates: list[tuple[str, str, str, f
         # Apply parent code preference threshold if needed
         best_code = scored_candidates[0][0]
         best_score = float(scored_candidates[0][4])
+
+        # Record cross-encoder scores for query and candidates into cache
+        norm_q = (query or "").strip().lower()
+        _CROSSENCODER_BEST_QUERY_SCORES[norm_q] = best_score
+        for row in scored_candidates:
+            c_code = str(row[0]).strip()
+            c_score = float(row[4])
+            _CROSSENCODER_SCORES_CACHE[(norm_q, c_code)] = c_score
+            _CROSSENCODER_SCORES_CACHE[(norm_q, c_code.upper())] = c_score
 
         # Check if the best candidate is below cross-encoder confidence threshold (Bug C fallback)
         if best_score < 2.0:

@@ -811,16 +811,75 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
     except Exception:
         pass
 
+    # Verify physical presence in OCR text or parsed fields
+    all_doc_tokens = " ".join(filter(None, doc_ocr_map.values()))
+    if pf_rows:
+        all_doc_tokens += " " + " ".join(str(pf.field_value or "") for pf in pf_rows)
+
     icd_list = []
     for c in icd_codes_sorted:
-        is_explicit = (c.confidence or 0.0) >= 0.99
+        clean_code = (c.code or "").strip().upper()
+        clean_code_bare = clean_code.replace(".", "")
+        in_doc_text = False
+        if all_doc_tokens:
+            in_doc_text = bool(
+                re.search(rf"\b{re.escape(clean_code)}\b", all_doc_tokens, flags=re.IGNORECASE)
+                or (len(clean_code_bare) >= 3 and re.search(rf"\b{re.escape(clean_code_bare)}\b", all_doc_tokens, flags=re.IGNORECASE))
+            )
+
+        # An ICD code is explicit ONLY if it was physically present in the document text
+        is_explicit = bool(
+            (getattr(c, "is_explicit", False) or (c.confidence is not None and c.confidence >= 1.0))
+            and in_doc_text
+        )
         c_meta = _lookup_meta(c.code) if _lookup_meta else None
         c_includes = getattr(c, "code_includes", None) or (c_meta.get("code_includes") if c_meta else None)
         
+        is_low_match = getattr(c, "is_low_match", False) or (c.confidence is not None and c.confidence < 0.40)
+        review_warning = getattr(c, "review_warning", None) or ("please review the code as its a low matched code" if is_low_match else None)
+
         if is_explicit:
             c_other = []
         else:
             c_other = getattr(c, "other_matches", None) or []
+            if not c_other and _search_rag:
+                try:
+                    rag_q = c.description or c.code
+                    rag_results = _search_rag(rag_q, max_results=5)
+                    alts = []
+                    for alt_code, alt_desc, _cat, alt_sc in rag_results:
+                        if alt_code == c.code:
+                            continue
+                        alt_meta = _lookup_meta(alt_code) if _lookup_meta else None
+                        alt_rank = len(alts) + 1
+                        if is_low_match:
+                            alt_conf = round(max(0.20, min(0.38, (c.confidence or 0.35) - (alt_rank * 0.03))), 2)
+                            alt_low = True
+                            alt_warn = "please review the code as its a low matched code"
+                        else:
+                            alt_conf = round(max(0.70, min(0.92, (c.confidence or 0.90) - 0.05)), 2)
+                            alt_low = False
+                            alt_warn = None
+                        alts.append({
+                            "code": alt_code,
+                            "description": (alt_meta.get("description") if alt_meta else alt_desc) or alt_desc,
+                            "confidence": alt_conf,
+                            "code_includes": alt_meta.get("code_includes") if alt_meta else None,
+                            "is_low_match": alt_low,
+                            "review_warning": alt_warn,
+                        })
+                        if len(alts) >= 2:
+                            break
+                    c_other = alts
+                except Exception:
+                    pass
+            elif c_other and is_low_match:
+                # Ensure existing alternatives for low-matched codes also reflect < 40% match
+                for alt_idx, alt in enumerate(c_other, start=1):
+                    if alt.get("confidence") is None or alt.get("confidence") >= 0.40:
+                        alt["confidence"] = round(max(0.20, min(0.38, (c.confidence or 0.35) - (alt_idx * 0.03))), 2)
+                    alt["is_low_match"] = True
+                    alt["review_warning"] = alt.get("review_warning") or "please review the code as its a low matched code"
 
         icd_list.append({
             "code": c.code,
@@ -830,6 +889,8 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
             "code_includes": c_includes,
             "other_matches": c_other or [],
             "is_explicit": is_explicit,
+            "is_low_match": is_low_match,
+            "review_warning": review_warning,
         })
 
     cpt_list = [{"code": c.code, "description": c.description or "", "confidence": c.confidence, "estimated_cost": getattr(c, "estimated_cost", None)} for c in codes if c.code_system == "CPT"]

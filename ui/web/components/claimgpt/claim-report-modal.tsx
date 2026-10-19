@@ -277,12 +277,37 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     return rawList.map((item: any) => {
       const isExplicit = Boolean(
         item.is_explicit ||
-        (item.confidence || 0) >= 0.99 ||
-        (typeof item.code_includes === 'string' && item.code_includes.toLowerCase().includes('explicitly present'))
+        (item.is_explicit !== false && (item.confidence || 0) >= 1.0)
       );
 
+      const isLowMatch = Boolean(
+        item.is_low_match ||
+        (!isExplicit && item.confidence !== undefined && item.confidence !== null && item.confidence < 0.40) ||
+        item.review_warning
+      );
+
+      const reviewWarning = item.review_warning || (isLowMatch ? 'please review the code as its a low matched code' : undefined);
+
       // Sibling fallback ONLY if backend hasn't populated other_matches and code is NOT explicit
-      let alts = isExplicit ? [] : (item.other_matches || []);
+      let alts = isExplicit ? [] : (item.other_matches || []).map((alt: any, altIdx: number) => {
+        const altIsLow = Boolean(
+          isLowMatch ||
+          alt.is_low_match ||
+          (alt.confidence !== undefined && alt.confidence !== null && alt.confidence < 0.40) ||
+          alt.review_warning
+        );
+        const altConf = altIsLow
+          ? (alt.confidence !== undefined && alt.confidence !== null && alt.confidence < 0.40
+              ? alt.confidence
+              : Math.max(0.20, Math.min(0.38, (item.confidence || 0.35) - (altIdx + 1) * 0.03)))
+          : alt.confidence;
+        return {
+          ...alt,
+          confidence: altConf,
+          is_low_match: altIsLow,
+          review_warning: alt.review_warning || (altIsLow ? 'please review the code as its a low matched code' : undefined),
+        };
+      });
       if (!isExplicit && !alts.length && item.code) {
         if (item.code.startsWith('K44')) {
           alts = [
@@ -333,6 +358,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       return {
         ...item,
         is_explicit: isExplicit,
+        is_low_match: isLowMatch,
+        review_warning: reviewWarning,
         code_includes: covers,
         other_matches: isExplicit ? [] : alts,
       };
@@ -372,6 +399,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         description: currentTop.description,
         confidence: currentTop.confidence,
         code_includes: currentTop.code_includes,
+        is_low_match: currentTop.is_low_match,
+        review_warning: currentTop.review_warning,
       };
 
       next[parentIdx] = {
@@ -380,6 +409,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
         description: chosenAlt.description,
         confidence: chosenAlt.confidence,
         code_includes: chosenAlt.code_includes,
+        is_low_match: chosenAlt.is_low_match,
+        review_warning: chosenAlt.review_warning,
         other_matches: newAlts,
       };
 
@@ -1611,8 +1642,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 const isTopDescOpen = Boolean(expandedCodeDesc[`top-${parentIdx}-${item.code}`]);
                 const isExplicit = Boolean(
                   item.is_explicit ||
-                  (item.confidence || 0) >= 0.99 ||
-                  (typeof item.code_includes === 'string' && item.code_includes.toLowerCase().includes('explicitly present'))
+                  (item.is_explicit !== false && (item.confidence || 0) >= 1.0)
+                );
+                const isLowMatch = Boolean(
+                  item.is_low_match ||
+                  (!isExplicit && item.confidence !== undefined && item.confidence !== null && item.confidence < 0.40) ||
+                  item.review_warning
                 );
                 const otherMatches: any[] = isExplicit ? [] : (item.other_matches || []);
 
@@ -1622,7 +1657,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <span className="font-mono font-bold text-teal-300 bg-teal-500/10 border border-teal-500/25 px-2 py-0.5 rounded text-[11px]">
+                          <span className={cn(
+                            "font-mono font-bold px-2 py-0.5 rounded text-[11px]",
+                            isLowMatch
+                              ? "text-amber-300 bg-amber-500/10 border border-amber-500/25"
+                              : "text-teal-300 bg-teal-500/10 border border-teal-500/25"
+                          )}>
                             {item.code}
                           </span>
                           {isExplicit ? (
@@ -1630,16 +1670,35 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                               <CheckCircle2 className="h-3 w-3 text-emerald-400" />
                               ICD code present in document
                             </span>
+                          ) : isLowMatch ? (
+                            <span className="text-[10px] font-semibold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded flex items-center gap-1">
+                              <AlertTriangle className="h-3 w-3 text-amber-400" />
+                              Low Matched Code
+                            </span>
                           ) : (
                             <span className="text-[10px] font-semibold text-teal-400/80 bg-teal-400/10 px-1.5 py-0.5 rounded">
                               Matched Code
                             </span>
                           )}
                         </div>
-                        <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full flex-none">
-                          {isExplicit ? '100% Match' : `${((item.confidence || 0.90) * 100).toFixed(0)}% Match`}
+                        <span className={cn(
+                          "font-bold text-[10px] px-2 py-0.5 rounded-full flex-none",
+                          isLowMatch
+                            ? "text-amber-400 bg-amber-500/15 border border-amber-500/30"
+                            : "text-emerald-400 font-bold text-[10px] bg-emerald-500/15 border border-emerald-500/30"
+                        )}>
+                          {isExplicit
+                            ? '100% Match'
+                            : `${((item.confidence !== undefined && item.confidence !== null ? item.confidence : (isLowMatch ? 0.35 : 0.90)) * 100).toFixed(0)}% Match`}
                         </span>
                       </div>
+
+                      {isLowMatch && (
+                        <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-300 bg-amber-500/10 border border-amber-500/25 px-2.5 py-1.5 rounded-lg mt-1">
+                          <AlertTriangle className="h-3.5 w-3.5 text-amber-400 flex-none" />
+                          <span>{item.review_warning || "please review the code as its a low matched code"}</span>
+                        </div>
+                      )}
                       
                       <p className="text-slate-200 text-xs leading-relaxed font-semibold">
                         {item.description}
@@ -1705,6 +1764,18 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                               const altDescKey = `alt-${parentIdx}-${altIdx}-${alt.code}`;
                               const isAltDescOpen = Boolean(expandedCodeDesc[altDescKey]);
 
+                              const altIsLow = Boolean(
+                                isLowMatch ||
+                                alt.is_low_match ||
+                                (alt.confidence !== undefined && alt.confidence !== null && alt.confidence < 0.40) ||
+                                alt.review_warning
+                              );
+                              const altDisplayConf = altIsLow
+                                ? (alt.confidence !== undefined && alt.confidence !== null && alt.confidence < 0.40
+                                    ? alt.confidence
+                                    : Math.max(0.20, Math.min(0.38, (item.confidence || 0.35) - (altIdx + 1) * 0.03)))
+                                : (alt.confidence !== undefined && alt.confidence !== null ? alt.confidence : 0.85);
+
                               return (
                                 <div
                                   key={`alt-${alt.code}-${altIdx}`}
@@ -1712,11 +1783,21 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2">
-                                      <span className="font-mono font-bold text-sky-300 bg-sky-500/10 border border-sky-500/25 px-1.5 py-0.5 rounded text-[10px]">
+                                      <span className={cn(
+                                        "font-mono font-bold px-1.5 py-0.5 rounded text-[10px]",
+                                        altIsLow
+                                          ? "text-amber-300 bg-amber-500/10 border border-amber-500/25"
+                                          : "text-sky-300 bg-sky-500/10 border border-sky-500/25"
+                                      )}>
                                         {alt.code}
                                       </span>
-                                      <span className="text-slate-400 text-[10px]">
-                                        {((alt.confidence || 0.85) * 100).toFixed(0)}% Match
+                                      <span className={cn(
+                                        "text-[10px] font-semibold px-2 py-0.5 rounded-full",
+                                        altIsLow
+                                          ? "text-amber-400 bg-amber-500/15 border border-amber-500/30"
+                                          : "text-slate-400"
+                                      )}>
+                                        {`${(altDisplayConf * 100).toFixed(0)}% Match`}
                                       </span>
                                     </div>
                                     <button
@@ -1729,6 +1810,13 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                                       <span>Swap into Top 1</span>
                                     </button>
                                   </div>
+
+                                  {altIsLow && (
+                                    <div className="flex items-center gap-1 text-[10px] text-amber-300 font-medium">
+                                      <AlertTriangle className="h-3 w-3 text-amber-400 flex-none" />
+                                      <span>{alt.review_warning || "please review the code as its a low matched code"}</span>
+                                    </div>
+                                  )}
 
                                   <p className="text-slate-300 text-[11px] leading-relaxed">
                                     {alt.description}
