@@ -508,20 +508,56 @@ def _process_single_document(db: Session, doc: Document) -> None:
         # fallback to document id if hash missing
         existing_ocr = existing_ocr.filter(OcrResult.document_id == doc_id)
     if existing_ocr.first():
-        logger.info(f"[OCR] Reusing OCR results for document {doc_id} (content_hash={getattr(doc, 'content_hash', None)})")
-        dup_doc = db.query(Document).filter(Document.content_hash == doc.content_hash, Document.id != doc.id).first()
-        if dup_doc:
-            dup_results = db.query(OcrResult).filter(OcrResult.document_id == dup_doc.id).all()
-            for r in dup_results:
-                db.add(OcrResult(
-                    document_id=doc.id,
-                    page_number=r.page_number,
-                    text=r.text,
-                    confidence=r.confidence,
-                    tokens=r.tokens,
-                ))
-            db.flush()
-        return
+        dup_doc = db.query(Document).filter(Document.content_hash == doc.content_hash, Document.id != doc.id).first() if (hasattr(doc, "content_hash") and doc.content_hash) else None
+        
+        # Check if Azure layout JSON is needed and available in storage
+        use_azure = os.getenv("OCR_USE_AZURE_OCR", "false").lower() in ("true", "1", "yes")
+        layout_found = False
+        try:
+            from libs.shared.storage import MinioStorage
+            candidates = []
+            if hasattr(doc, "content_hash") and doc.content_hash:
+                candidates.append(f"azure_ocr/azure_ocr_hash_{doc.content_hash}.json")
+            if dup_doc:
+                candidates.append(f"azure_ocr/azure_ocr_response_{dup_doc.id}.json")
+            
+            for key in candidates:
+                try:
+                    data_bytes = MinioStorage.download_file_bytes(f"s3://claimgpt/{key}")
+                    if data_bytes:
+                        # Copy to the new doc_id key in storage
+                        MinioStorage.upload_file(f"azure_ocr/azure_ocr_response_{doc_id}.json", data_bytes)
+                        # Also save to local tmp directories if present
+                        for prefix in ["/app/tmp", "tmp"]:
+                            p = Path(prefix)
+                            if p.exists():
+                                (p / f"azure_ocr_response_{doc_id}.json").write_bytes(data_bytes)
+                        layout_found = True
+                        logger.info(f"[OCR] Reused Azure layout JSON from {key} -> azure_ocr/azure_ocr_response_{doc_id}.json")
+                        break
+                except Exception:
+                    pass
+        except Exception as st_err:
+            logger.warning(f"[OCR] Error syncing layout JSON during OCR reuse: {st_err}")
+
+        # If Azure OCR is enabled but no layout JSON exists for this document, do NOT reuse stale OCR!
+        # Re-run OCR so that Azure Document Intelligence generates the full layout JSON with tables.
+        if use_azure and not layout_found:
+            logger.warning(f"[OCR] Not reusing OCR for {doc_id}: no Azure layout JSON in storage. Running fresh Azure OCR.")
+        else:
+            logger.info(f"[OCR] Reusing OCR results for document {doc_id} (content_hash={getattr(doc, 'content_hash', None)})")
+            if dup_doc:
+                dup_results = db.query(OcrResult).filter(OcrResult.document_id == dup_doc.id).all()
+                for r in dup_results:
+                    db.add(OcrResult(
+                        document_id=doc.id,
+                        page_number=r.page_number,
+                        text=r.text,
+                        confidence=r.confidence,
+                        tokens=r.tokens,
+                    ))
+                db.flush()
+            return
 
     # Remove any previous results for this doc (should be rare)
     db.query(OcrResult).filter(OcrResult.document_id == doc_id).delete()

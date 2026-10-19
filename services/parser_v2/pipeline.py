@@ -317,11 +317,31 @@ def parse_document(
             # Download from shared storage (Azure Blob / MinIO) for distributed workers
             try:
                 from libs.shared.storage import MinioStorage
-                storage_key = f"azure_ocr/azure_ocr_response_{d_id}.json"
                 dest_dir = Path("/app/tmp") if Path("/app/tmp").exists() else Path("tmp")
                 dest_dir.mkdir(parents=True, exist_ok=True)
                 dest_path = dest_dir / f"azure_ocr_response_{d_id}.json"
-                MinioStorage.download_file(f"s3://claimgpt/{storage_key}", str(dest_path))
+                
+                downloaded = False
+                storage_key = f"azure_ocr/azure_ocr_response_{d_id}.json"
+                try:
+                    MinioStorage.download_file(f"s3://claimgpt/{storage_key}", str(dest_path))
+                    downloaded = dest_path.exists()
+                except Exception:
+                    pass
+                
+                # Fallback: check content_hash if tokens have it
+                if not downloaded:
+                    for t in tokens:
+                        thash = getattr(t, "content_hash", None)
+                        if thash:
+                            try:
+                                MinioStorage.download_file(f"s3://claimgpt/azure_ocr/azure_ocr_hash_{thash}.json", str(dest_path))
+                                downloaded = dest_path.exists()
+                                if downloaded:
+                                    break
+                            except Exception:
+                                pass
+
                 if dest_path.exists():
                     logger.info("[PIPELINE] Downloaded Azure Document Intelligence layout from storage: %s", dest_path)
                     azure_json_paths.append(str(dest_path))

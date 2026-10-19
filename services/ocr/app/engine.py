@@ -277,10 +277,18 @@ def extract_with_azure_docintel(file_path: Path, document_id: str | None = None)
 
             if document_id:
                 try:
+                    import hashlib
                     from libs.shared.storage import MinioStorage
                     storage_key = f"azure_ocr/{json_name}"
                     MinioStorage.upload_file(storage_key, json_bytes)
                     logger.info("[AZURE OCR] Persisted layout extraction to storage: %s", storage_key)
+                    try:
+                        file_hash = hashlib.sha256(file_path.read_bytes()).hexdigest()
+                        hash_key = f"azure_ocr/azure_ocr_hash_{file_hash}.json"
+                        MinioStorage.upload_file(hash_key, json_bytes)
+                        logger.info("[AZURE OCR] Persisted layout extraction under content hash: %s", hash_key)
+                    except Exception as hash_err:
+                        logger.warning("[AZURE OCR] Could not upload layout under hash: %s", hash_err)
                 except Exception as storage_err:
                     logger.warning("[AZURE OCR] Could not upload layout extraction to storage: %s", storage_err)
         except Exception as dump_err:
