@@ -371,13 +371,22 @@ _LLM_SYSTEM = (
     1. Output EXACTLY ONE clinical diagnosis per line, in lowercase, with NO numbers, bullets, or dashes.
     2. Put the PRIMARY / PRINCIPAL diagnosis on Line 1 (the primary condition treated or main reason for admission).
     3. If secondary diagnoses, comorbidities, or complications are present, list each on a separate subsequent line.
-    4. When a generic phrase (e.g., 'infectious disease', 'viral illness', 'acute respiratory infection', 'post-op care') is given alongside clinical context (medications, ICU consumables, investigations, procedures), synthesize the specific clinical diagnosis supported by the treatments and clinical findings (e.g., Remdesivir / Tocilizumab / COVID ICU items -> 'coronavirus disease 2019' or 'covid-19'; Artesunate -> 'severe malaria'; Trastuzumab -> 'breast cancer').
-    5. Use standard medical coding terms and expand abbreviations and clinical shorthand to formal WHO ICD-10 clinical diagnosis descriptions (e.g., 'T2DM' -> 'type 2 diabetes mellitus', 'FTND' -> 'single spontaneous delivery', 'LSCS' -> 'delivery by caesarean section', 'HTN' -> 'essential hypertension', 'COPD' -> 'chronic obstructive pulmonary disease', 'CKD' -> 'chronic kidney disease', 'AWMI' / 'STEMI' -> 'acute myocardial infarction', 'Dengue with warning signs' -> 'dengue fever').
-    6. Strip administrative and care modality noise (e.g., '- medical management', '- conservative management', 'under evaluation for', 's/p', 'c/o', 'h/o').
-    7. Output AT MOST 5 lines.
-    8. If absolutely no diagnosis or clinical indication can be determined, output:
+    4. When a documented diagnosis is explicitly provided, treat it as authoritative. Use the clinical summary only to clarify terminology, anatomical site, acuity, laterality, or other specificity explicitly supported by the documentation. Do NOT replace an explicitly confirmed documented diagnosis with an inferred one.
+    5. When ONLY a generic phrase (e.g., 'infectious disease', 'viral illness', 'acute respiratory infection', 'post-op care') is given alongside clinical context (medications, ICU consumables, investigations, procedures), synthesize the specific clinical diagnosis supported by the treatments and clinical findings (e.g., Remdesivir / Tocilizumab / COVID ICU items -> 'coronavirus disease 2019' or 'covid-19'; Artesunate -> 'severe malaria'; Trastuzumab -> 'breast cancer').
+    6. DEFINITIVE OUTCOME OVER ADMISSION STATUS:
+       When clinical evidence shows a completed definitive medical event or procedure occurred during the stay 
+       (e.g., childbirth delivery, surgical excision, fracture reduction, coronary intervention), 
+       the primary diagnosis MUST be the definitive condition/outcome, NOT the pre-procedure symptom or admission state.
+       - OBSTETRIC/DELIVERY: If the note indicates a baby was delivered (e.g., 'delivered male baby', 'episiotomy performed', 'vaginal delivery', 'LSCS'), 
+         the primary diagnosis MUST be the formal delivery outcome ('single spontaneous delivery' or 'delivery by caesarean section'), 
+         NOT 'pregnancy in labor' or 'pregnancy at 39 weeks'.
+       - SURGERY: If admitted with 'abdominal pain' and diagnosed with 'acute appendicitis' with appendectomy, output 'acute appendicitis'.
+    7. Use standard medical coding terms and expand abbreviations and clinical shorthand to formal WHO ICD-10 clinical diagnosis descriptions (e.g., 'T2DM' -> 'type 2 diabetes mellitus', 'FTND' -> 'single spontaneous delivery', 'LSCS' -> 'delivery by caesarean section', 'HTN' -> 'essential hypertension', 'COPD' -> 'chronic obstructive pulmonary disease', 'CKD' -> 'chronic kidney disease', 'AWMI' / 'STEMI' -> 'acute myocardial infarction', 'Dengue with warning signs' -> 'dengue fever').
+    8. Strip administrative and care modality noise (e.g., '- medical management', '- conservative management', 'under evaluation for', 's/p', 'c/o', 'h/o').
+    9. Output AT MOST 5 lines.
+    10. If absolutely no diagnosis or clinical indication can be determined, output:
     NONE
-    9. Output NOTHING else. No explanations, no introductory or concluding text."""
+    11. Output NOTHING else. No explanations, no introductory or concluding text."""
 )
 
 
