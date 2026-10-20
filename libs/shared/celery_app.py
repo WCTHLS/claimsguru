@@ -85,7 +85,11 @@ os.environ["CELERY_BROKER_URL"] = broker_url
 os.environ["CELERY_RESULT_BACKEND"] = backend_url
 
 broker_transport_options = {
-    'visibility_timeout': 300,  # 5 minutes: unacknowledged tasks from crashed workers are restored in 5 min instead of 1 hour
+    'visibility_timeout': 3600,  # 1 hour visibility timeout
+    'socket_timeout': 30,
+    'socket_connect_timeout': 30,
+    'socket_keepalive': True,
+    'health_check_interval': 15,
 }
 if broker_url and broker_url.startswith("azureservicebus://"):
     broker_transport_options = {
@@ -94,7 +98,12 @@ if broker_url and broker_url.startswith("azureservicebus://"):
         'wait_time_seconds': 5,
         'retry_total': 3,
     }
-result_backend_transport_options = {}
+result_backend_transport_options = {
+    'socket_timeout': 30,
+    'socket_connect_timeout': 30,
+    'socket_keepalive': True,
+    'health_check_interval': 15,
+}
 
 if broker_url and broker_url.startswith("sentinel://"):
     sentinels = []

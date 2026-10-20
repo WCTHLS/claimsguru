@@ -3977,7 +3977,7 @@ def _map_progress(current_step: str | None, status: str | None) -> tuple[str | N
         return "Retrying (transient)", 92
     if current_step == "IDENTITY_MISMATCH":
         return "Identity Mismatch (Documents belong to different patients)", 0
-    if current_step == "FAILED" or status == "FAILED":
+    if current_step in ("FAILED", "PARSE_FAILED") or status in ("FAILED", "PARSE_FAILED"):
         return "Failed", 0
     if current_step == "FINALIZING":
         return "Finalizing", 98
@@ -4039,8 +4039,8 @@ def get_claim_progress(claim_id: str):
             return queued_res
 
         step, percentage = _map_progress(state.current_step, state.status)
-        is_failed = (state.status == "FAILED") or (state.current_step == "FAILED") or (state.current_step == "IDENTITY_MISMATCH")
-        is_complete = bool(percentage == 100 or (is_failed and state.current_step != "IDENTITY_MISMATCH"))
+        is_failed = (state.status in ("FAILED", "PARSE_FAILED")) or (state.current_step in ("FAILED", "PARSE_FAILED")) or (state.current_step == "IDENTITY_MISMATCH")
+        is_complete = bool(percentage == 100 and not is_failed)
 
         # Stalled Pipeline Detection: If claim is in RUNNING state but has had no worker updates for > 15 minutes
         is_stalled = False

@@ -175,18 +175,26 @@ def _token_payloads(tokens: Iterable[Any]) -> list[dict[str, Any]]:
     return payloads
 
 
-def _crop_region_image(page_image: Image.Image | None, bbox: list[float] | None) -> Image.Image | None:
+def _crop_region_image(page_image: Any, bbox: list[float] | None) -> Any:
     if page_image is None or not bbox or len(bbox) != 4:
         return None
-
-    left, top, right, bottom = bbox
-    left = max(0, int(left) - 8)
-    top = max(0, int(top) - 8)
-    right = min(page_image.width, int(right) + 8)
-    bottom = min(page_image.height, int(bottom) + 8)
-    if right <= left or bottom <= top:
+    try:
+        if hasattr(page_image, "load"):
+            try:
+                page_image.load()
+            except Exception:
+                pass
+        left, top, right, bottom = bbox
+        left = max(0, int(left) - 8)
+        top = max(0, int(top) - 8)
+        right = min(getattr(page_image, "width", 10000), int(right) + 8)
+        bottom = min(getattr(page_image, "height", 10000), int(bottom) + 8)
+        if right <= left or bottom <= top:
+            return None
+        return page_image.crop((left, top, right, bottom))
+    except (AssertionError, Exception) as exc:
+        logger.warning("Failed to crop region image at bbox %s: %s", bbox, exc)
         return None
-    return page_image.crop((left, top, right, bottom))
 
 
 def _row_cells_payload(table: TableRegion) -> list[list[dict[str, Any]]]:
@@ -1201,6 +1209,14 @@ def extract_semantics(
     for region, table in tables_to_analyze:
         tasks_to_analyze.append((region, table))
 
+    if page_images:
+        for _p_no, _img in list(page_images.items()):
+            if _img is not None and hasattr(_img, "load"):
+                try:
+                    _img.load()
+                except Exception:
+                    pass
+
     if tasks_to_analyze:
         # Run table semantic extractions concurrently (up to 6 parallel workers) across Azure OpenAI
         concurrency_limit = int(os.environ.get("SEMANTIC_CONCURRENCY", getattr(settings, "semantic_concurrency", 6)))
@@ -1209,8 +1225,14 @@ def extract_semantics(
             "[SEMANTIC_EXTRACTOR] Processing %d table(s) via Azure OpenAI in parallel (concurrency=%d)",
             len(tasks_to_analyze), effective_concurrency
         )
+        def _safe_analyze_region(*args):
+            try:
+                _analyze_region(*args)
+            except Exception as e:
+                logger.exception("Error analyzing region in worker thread: %s", e)
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=effective_concurrency) as executor:
-            list(executor.map(lambda args: _analyze_region(*args), tasks_to_analyze))
+            list(executor.map(lambda args: _safe_analyze_region(*args), tasks_to_analyze))
 
     # Semantic tables should create canonical expenses, medications, labs, and diagnosis tables.
     semantic_expenses: list[dict[str, Any]] = []
