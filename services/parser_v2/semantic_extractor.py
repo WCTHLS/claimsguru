@@ -1200,14 +1200,13 @@ def extract_semantics(
         tasks_to_analyze.append((region, table))
 
     if tasks_to_analyze:
-        # Honour OPENROUTER_CONCURRENT setting: serialize calls when False (default)
-        # to avoid hammering rate-limited API keys simultaneously.
-        openrouter_concurrent = getattr(settings, "openrouter_concurrent", False)
-        effective_concurrency = settings.semantic_concurrency if openrouter_concurrent else 1
-        if not openrouter_concurrent:
-            logger.info(
-                "[SEMANTIC_EXTRACTOR] OPENROUTER_CONCURRENT=false — serializing LLM calls (max_workers=1)"
-            )
+        # Run table semantic extractions concurrently (up to 6 parallel workers) across Azure OpenAI
+        concurrency_limit = int(os.environ.get("SEMANTIC_CONCURRENCY", getattr(settings, "semantic_concurrency", 6)))
+        effective_concurrency = min(concurrency_limit, 6)
+        logger.info(
+            "[SEMANTIC_EXTRACTOR] Processing %d table(s) via Azure OpenAI in parallel (concurrency=%d)",
+            len(tasks_to_analyze), effective_concurrency
+        )
         with concurrent.futures.ThreadPoolExecutor(max_workers=effective_concurrency) as executor:
             list(executor.map(lambda args: _analyze_region(*args), tasks_to_analyze))
 
