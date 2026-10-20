@@ -3928,6 +3928,8 @@ def get_claim(
 
 
 def _map_progress(current_step: str | None, status: str | None) -> tuple[str | None, int]:
+    if current_step in ("QUEUED", "PENDING") or status in ("QUEUED", "PENDING"):
+        return "In Queue (waiting for worker)", 5
     if current_step == "STARTING":
         return "OCR (extracting text)", 20
     if current_step == "OCR_IN_PROGRESS":
@@ -4008,8 +4010,8 @@ def get_claim_progress(claim_id: str):
             # Claim exists but no state row — treat as queued, never as silently null.
             queued_res = {
                 "status": "QUEUED",
-                "step": "Queued (waiting for worker)",
-                "percentage": 2,
+                "step": "In Queue (waiting for worker)",
+                "percentage": 5,
                 "is_complete": False,
                 "error": None,
             }
@@ -4020,7 +4022,7 @@ def get_claim_progress(claim_id: str):
         is_failed = (state.status == "FAILED") or (state.current_step == "FAILED") or (state.current_step == "IDENTITY_MISMATCH")
         is_complete = bool(percentage == 100 or (is_failed and state.current_step != "IDENTITY_MISMATCH"))
 
-        # Stalled Pipeline Detection: If claim is in RUNNING state but has had no worker updates for > 5 minutes
+        # Stalled Pipeline Detection: If claim is in RUNNING state but has had no worker updates for > 15 minutes
         is_stalled = False
         error_message: str | None = None
 
@@ -4029,7 +4031,8 @@ def get_claim_progress(claim_id: str):
                 from datetime import datetime, timezone, timedelta
                 now_utc = datetime.now(timezone.utc)
                 state_updated_utc = state.updated_at if state.updated_at.tzinfo else state.updated_at.replace(tzinfo=timezone.utc)
-                if (now_utc - state_updated_utc) > timedelta(minutes=5):
+                elapsed = now_utc - state_updated_utc
+                if elapsed > timedelta(minutes=15):
                     is_stalled = True
                     is_failed = True
                     step = "Processing Stalled"
@@ -4039,6 +4042,21 @@ def get_claim_progress(claim_id: str):
                         db.commit()
                     except Exception:
                         db.rollback()
+                else:
+                    # Within active 15-minute window: If previously marked STALLED, auto-restore to RUNNING
+                    if state.status == "STALLED":
+                        try:
+                            state.status = "RUNNING"
+                            db.commit()
+                        except Exception:
+                            db.rollback()
+                    # Clean queue status indicator when waiting in Celery backlog during high burst loads
+                    if elapsed > timedelta(minutes=2):
+                        if step and "in queue" not in step.lower() and "stalled" not in step.lower():
+                            if state.current_step in ("STARTING", "OCR_COMPLETED", "PARSING_COMPLETED", "CODING_COMPLETED", "RISK_COMPLETED", "VALIDATION_COMPLETED"):
+                                step = f"{step} (In queue - processing high volume)"
+                            else:
+                                step = f"{step} (In queue - high volume)"
             except Exception:
                 pass
 
