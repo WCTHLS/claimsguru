@@ -542,14 +542,25 @@ def _enqueue_pipeline(
     if isinstance(file_metadata, str):
         claim_id_str = file_metadata
         
-        # Synchronously reset workflow state in DB so polling API immediately returns 5% progress
+        # Check if OCR has already completed for all documents belonging to this claim
+        ocr_already_done = False
         try:
             from services.ocr.app.db import SessionLocal as OcrSessionLocal
             with OcrSessionLocal() as db_session:
-                upsert_workflow_state(db_session, uuid.UUID(claim_id_str), "STARTING", status="RUNNING")
+                ocr_job = (
+                    db_session.query(OcrJob)
+                    .filter(OcrJob.claim_id == uuid.UUID(claim_id_str))
+                    .order_by(OcrJob.created_at.desc())
+                    .first()
+                )
+                if ocr_job and ocr_job.status == "COMPLETED":
+                    ocr_already_done = True
+                
+                initial_step = "OCR_COMPLETED" if ocr_already_done else "STARTING"
+                upsert_workflow_state(db_session, uuid.UUID(claim_id_str), initial_step, status="RUNNING")
                 db_session.commit()
         except Exception:
-            logger.exception("Failed to reset workflow state for claim %s", claim_id_str)
+            logger.exception("Failed to check/set workflow state for claim %s", claim_id_str)
 
         if _should_run_inline():
             import threading
@@ -572,14 +583,24 @@ def _enqueue_pipeline(
             thread.start()
             return "inline:queued"
 
-        workflow_chain = chain(
-            ocr_task.s(claim_id_str),                               # Step 2: OCR (intake bypassed)
-            parser_task.s(),                                        # Step 3: Parser
-            coding_task.s(),                                        # Step 4: Coding
-            risk_task.s(),                                          # Step 5: Risk
-            validator_task.s(),                                     # Step 6: Validator
-            finalize_claim_task.s(),                                # Step 7: Finalize Callback
-        )
+        if ocr_already_done:
+            logger.info("OCR already completed for claim %s. Fast-forwarding directly to parser_task.", claim_id_str)
+            workflow_chain = chain(
+                parser_task.s({"claim_id": claim_id_str}),              # Step 3: Parser (OCR bypassed)
+                coding_task.s(),                                        # Step 4: Coding
+                risk_task.s(),                                          # Step 5: Risk
+                validator_task.s(),                                     # Step 6: Validator
+                finalize_claim_task.s(),                                # Step 7: Finalize Callback
+            )
+        else:
+            workflow_chain = chain(
+                ocr_task.s({"claim_id": claim_id_str}),                 # Step 2: OCR (intake bypassed)
+                parser_task.s(),                                        # Step 3: Parser
+                coding_task.s(),                                        # Step 4: Coding
+                risk_task.s(),                                          # Step 5: Risk
+                validator_task.s(),                                     # Step 6: Validator
+                finalize_claim_task.s(),                                # Step 7: Finalize Callback
+            )
         result = workflow_chain.apply_async()
         return str(result.id)
 
@@ -4776,8 +4797,10 @@ def reprocess_claim_endpoint(
         claim.canonical_json = None
         db.commit()
 
-        # Reset workflow state
-        upsert_workflow_state(db, cid, "STARTING", status="RUNNING")
+        # Reset workflow state: if OCR is already complete, mark OCR_COMPLETED so UI immediately advances to parsing
+        ocr_job = db.query(OcrJob).filter(OcrJob.claim_id == cid).order_by(OcrJob.created_at.desc()).first()
+        initial_step = "OCR_COMPLETED" if (ocr_job and ocr_job.status == "COMPLETED") else "STARTING"
+        upsert_workflow_state(db, cid, initial_step, status="RUNNING")
         db.commit()
 
         # Invalidate progress cache so next client poll immediately sees fresh STARTING status
