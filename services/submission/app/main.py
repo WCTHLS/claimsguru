@@ -734,6 +734,39 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
 
     # Validations — re-run rules live so preview always reflects current data
     parsed = _build_parsed_field_map(pf_rows)
+
+    # Ensure canonical_json data is propagated into parsed fields for UI preview
+    canon = claim.canonical_json if isinstance(claim.canonical_json, dict) else (json.loads(claim.canonical_json) if isinstance(claim.canonical_json, str) and claim.canonical_json.strip() else {})
+    if canon:
+        p_info = canon.get("patient") or {}
+        h_info = canon.get("hospitalization") or {}
+        d_info = canon.get("diagnosis") or {}
+        c_info = canon.get("claims") or {}
+        i_info = canon.get("insurance") or {}
+
+        if p_info.get("name") and not parsed.get("patient_name"):
+            parsed["patient_name"] = str(p_info["name"]).strip()
+        if p_info.get("age") and not parsed.get("age"):
+            parsed["age"] = str(p_info["age"]).strip()
+        if p_info.get("sex") and not parsed.get("gender"):
+            parsed["gender"] = str(p_info["sex"]).strip()
+        if h_info.get("hospital_name") and not parsed.get("hospital_name"):
+            parsed["hospital_name"] = str(h_info["hospital_name"]).strip()
+        if h_info.get("doctor_name") and not parsed.get("doctor_name"):
+            parsed["doctor_name"] = str(h_info["doctor_name"]).strip()
+        if h_info.get("admission_date") and not parsed.get("admission_date"):
+            parsed["admission_date"] = str(h_info["admission_date"]).strip()
+        if h_info.get("discharge_date") and not parsed.get("discharge_date"):
+            parsed["discharge_date"] = str(h_info["discharge_date"]).strip()
+        if d_info.get("primary") and not parsed.get("diagnosis"):
+            parsed["diagnosis"] = str(d_info["primary"]).strip()
+        if (c_info.get("claimed_total") or c_info.get("total_amount")) and not parsed.get("total_amount"):
+            parsed["total_amount"] = str(c_info.get("claimed_total") or c_info.get("total_amount")).strip()
+            parsed["claimed_total"] = parsed["total_amount"]
+        if (p_info.get("policy_number") or i_info.get("policy_number")) and not parsed.get("policy_number"):
+            parsed["policy_number"] = str(p_info.get("policy_number") or i_info.get("policy_number")).strip()
+        if (i_info.get("company") or i_info.get("tpa_name")) and not parsed.get("insurance_company"):
+            parsed["insurance_company"] = str(i_info.get("company") or i_info.get("tpa_name")).strip()
     # If parser didn't populate hospital_name, try a lightweight fallback using OCR text
     if not parsed.get("hospital_name"):
         try:

@@ -3338,6 +3338,16 @@ def list_claims(
                 c.hospital_name = fields.get("hospital_name") or fields.get("hospital") or None
                 c.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
                 c.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
+
+                # Canonical JSON fallback if flat fields are not in parsed_fields table
+                if (not c.patient_name or not c.hospital_name) and getattr(c, "canonical_json", None):
+                    import json as _json
+                    c_canon = c.canonical_json if isinstance(c.canonical_json, dict) else (_json.loads(c.canonical_json) if isinstance(c.canonical_json, str) and c.canonical_json.strip() else {})
+                    if c_canon:
+                        c.patient_name = c.patient_name or c_canon.get("patient", {}).get("name")
+                        c.hospital_name = c.hospital_name or c_canon.get("hospitalization", {}).get("hospital_name")
+                        c.doctor_name = c.doctor_name or c_canon.get("hospitalization", {}).get("doctor_name")
+                        c.diagnosis = c.diagnosis or c_canon.get("diagnosis", {}).get("primary")
                 
                 raw_total = (
                     fields.get("claimed_total")
@@ -3889,6 +3899,16 @@ def get_claim(
     claim.hospital_name = fields.get("hospital_name") or fields.get("hospital") or None
     claim.doctor_name = fields.get("doctor_name") or fields.get("doctor") or fields.get("provider_name") or fields.get("rendering_provider") or None
     claim.diagnosis = fields.get("diagnosis") or fields.get("primary_diagnosis") or fields.get("chief_complaint") or None
+
+    # Canonical JSON fallback if flat fields are not in parsed_fields table
+    if (not claim.patient_name or not claim.hospital_name) and getattr(claim, "canonical_json", None):
+        import json as _json
+        c_canon = claim.canonical_json if isinstance(claim.canonical_json, dict) else (_json.loads(claim.canonical_json) if isinstance(claim.canonical_json, str) and claim.canonical_json.strip() else {})
+        if c_canon:
+            claim.patient_name = claim.patient_name or c_canon.get("patient", {}).get("name")
+            claim.hospital_name = claim.hospital_name or c_canon.get("hospitalization", {}).get("hospital_name")
+            claim.doctor_name = claim.doctor_name or c_canon.get("hospitalization", {}).get("doctor_name")
+            claim.diagnosis = claim.diagnosis or c_canon.get("diagnosis", {}).get("primary")
     if not getattr(claim, "policy_number", None):
         claim.policy_number = fields.get("policy_number") or fields.get("insurance_policy_number") or None
     extracted_ins = fields.get("insurance_company") or fields.get("insurer") or fields.get("payer") or fields.get("tpa_name") or None

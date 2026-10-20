@@ -294,11 +294,16 @@ def _persist_fields(
     db: Session,
     claim_id: uuid.UUID,
     output: ParseOutput,
+    canonical_claim: dict[str, Any] | None = None,
 ) -> None:
     """Delete old parsed fields for claim and insert new ones."""
     db.query(ParsedField).filter(ParsedField.claim_id == claim_id).delete()
 
+    persisted_names = set()
+    first_doc_id = None
     for f in output.fields:
+        if not first_doc_id and f.document_id:
+            first_doc_id = f.document_id
         db.add(ParsedField(
             claim_id=claim_id,
             document_id=f.document_id,
@@ -309,6 +314,43 @@ def _persist_fields(
             doc_type=f.doc_type,
             model_version=f.model_version,
         ))
+        persisted_names.add(f.field_name)
+
+    # Inject standard flat alias fields so all downstream services and UI can read them directly
+    if canonical_claim:
+        p_info = canonical_claim.get("patient") or {}
+        h_info = canonical_claim.get("hospitalization") or {}
+        d_info = canonical_claim.get("diagnosis") or {}
+        c_info = canonical_claim.get("claims") or {}
+        i_info = canonical_claim.get("insurance") or {}
+
+        aliases = [
+            ("patient_name", p_info.get("name")),
+            ("hospital_name", h_info.get("hospital_name")),
+            ("admission_date", h_info.get("admission_date")),
+            ("discharge_date", h_info.get("discharge_date")),
+            ("doctor_name", h_info.get("doctor_name")),
+            ("diagnosis", d_info.get("primary")),
+            ("claimed_total", c_info.get("claimed_total") or c_info.get("total_amount")),
+            ("total_amount", c_info.get("claimed_total") or c_info.get("total_amount")),
+            ("policy_number", p_info.get("policy_number") or i_info.get("policy_number")),
+            ("age", p_info.get("age")),
+            ("gender", p_info.get("sex")),
+            ("insurance_company", i_info.get("company") or i_info.get("tpa_name")),
+        ]
+        for name, val in aliases:
+            if val and name not in persisted_names:
+                db.add(ParsedField(
+                    claim_id=claim_id,
+                    document_id=first_doc_id,
+                    field_name=name,
+                    field_value=str(val).strip(),
+                    source_page=1,
+                    doc_type="summary",
+                    model_version="canonical_flat_sync",
+                ))
+                persisted_names.add(name)
+
     db.commit()
 
 
@@ -935,7 +977,7 @@ def _run_parse_job(job_id: uuid.UUID) -> None:
                 except Exception:
                     logger.exception("Failed to write parse debug dump")
 
-                _persist_fields(db, job.claim_id, output)
+                _persist_fields(db, job.claim_id, output, canonical_claim=canonical_claim)
                 logger.info("[DB_PERSIST_PAYLOAD] ParsedField records created")
                 
                 # Mock a renderer input check
@@ -1006,16 +1048,16 @@ def _run_parse_job(job_id: uuid.UUID) -> None:
                 job.processed_documents = job.total_documents
                 job.completed_at = datetime.now(UTC)
                 db.commit()
-            except Exception:
+            except Exception as pe:
                 logger.exception("Parse engine failed for job %s", job_id)
                 job.status = "FAILED"
-                job.error_message = "Parse engine error"
+                job.error_message = f"Parse engine error: {str(pe)[:200]}"
                 job.completed_at = datetime.now(UTC)
                 if claim:
                     claim.status = "PARSE_FAILED"
 
                 db.commit()
-                return
+                raise
 
         except Exception as e:
             db.rollback()
@@ -1024,11 +1066,12 @@ def _run_parse_job(job_id: uuid.UUID) -> None:
                 job = db.query(ParseJob).filter(ParseJob.id == job_id).first()
                 if job:
                     job.status = "FAILED"
-                    job.error_message = "Internal error"
+                    job.error_message = f"Internal error: {str(e)[:200]}"
                     job.completed_at = datetime.now(UTC)
                     db.commit()
             except Exception:
                 pass
+            raise
 
 
 # ------------------------------------------------------------------ routes

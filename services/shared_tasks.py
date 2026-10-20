@@ -894,7 +894,13 @@ def finalize_claim_task(self, previous_result: Any) -> dict[str, Any]:
     try:
         claim = db.query(Claim).filter(Claim.id == cid).first()
         if not claim:
-            raise ValueError(f"Claim not found during finalization: {claim_id}")
+            logging.getLogger("validator-debug").warning(f"Claim {claim_id} deleted or not found during finalization, skipping.")
+            return {"claim_id": claim_id, "status": "NOT_FOUND"}
+
+        if claim.status in ("FAILED", "PARSE_FAILED", "IDENTITY_MISMATCH"):
+            logging.getLogger("validator-debug").warning(f"Claim {claim_id} failed previously with status={claim.status}, not finalizing as COMPLETED.")
+            _update_workflow_state(claim_id, "FAILED", status="FAILED")
+            return {"claim_id": claim_id, "status": claim.status}
 
         total_processing_seconds: float | None = None
         if claim.created_at:
