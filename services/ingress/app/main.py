@@ -548,9 +548,9 @@ def _enqueue_pipeline(
             from services.ocr.app.db import SessionLocal as OcrSessionLocal
             with OcrSessionLocal() as db_session:
                 ocr_job = (
-                    db_session.query(OcrJob)
-                    .filter(OcrJob.claim_id == uuid.UUID(claim_id_str))
-                    .order_by(OcrJob.created_at.desc())
+                    db_session.query(_OcrJob)
+                    .filter(_OcrJob.claim_id == uuid.UUID(claim_id_str))
+                    .order_by(_OcrJob.created_at.desc())
                     .first()
                 )
                 if ocr_job and ocr_job.status == "COMPLETED":
@@ -4798,7 +4798,8 @@ def reprocess_claim_endpoint(
         db.commit()
 
         # Reset workflow state: if OCR is already complete, mark OCR_COMPLETED so UI immediately advances to parsing
-        ocr_job = db.query(OcrJob).filter(OcrJob.claim_id == cid).order_by(OcrJob.created_at.desc()).first()
+        from libs.shared.models import OcrJob as _OcrJob
+        ocr_job = db.query(_OcrJob).filter(_OcrJob.claim_id == cid).order_by(_OcrJob.created_at.desc()).first()
         initial_step = "OCR_COMPLETED" if (ocr_job and ocr_job.status == "COMPLETED") else "STARTING"
         upsert_workflow_state(db, cid, initial_step, status="RUNNING")
         db.commit()
