@@ -402,8 +402,28 @@ resource ingressApp 'Microsoft.App/containerApps@2023-05-01' = {
         }
       ]
       scale: {
-        minReplicas: 1
+        minReplicas: 2
         maxReplicas: 10
+        rules: [
+          {
+            name: 'http-scaling'
+            http: {
+              metadata: {
+                concurrentRequests: '15'
+              }
+            }
+          }
+          {
+            name: 'cpu-scaling'
+            custom: {
+              type: 'cpu'
+              metadata: {
+                type: 'Utilization'
+                value: '65'
+              }
+            }
+          }
+        ]
       }
     }
   }
@@ -420,6 +440,10 @@ resource workerOcrApp 'Microsoft.App/containerApps@2023-05-01' = {
         {
           name: 'acr-password'
           value: acr.listCredentials().passwords[0].value
+        }
+        {
+          name: 'servicebus-connection-string'
+          value: serviceBusConnectionString
         }
       ]
       registries: [
@@ -445,7 +469,8 @@ resource workerOcrApp 'Microsoft.App/containerApps@2023-05-01' = {
             '-Q'
             'ocr_queue'
             '-c'
-            '2'
+            '4'
+            '--prefetch-multiplier=1'
           ]
           env: [
             { name: 'APP_ENV', value: 'production' }
@@ -472,8 +497,36 @@ resource workerOcrApp 'Microsoft.App/containerApps@2023-05-01' = {
         }
       ]
       scale: {
-        minReplicas: 1
-        maxReplicas: 8
+        minReplicas: 2
+        maxReplicas: 10
+        rules: [
+          {
+            name: 'servicebus-ocr-queue'
+            custom: {
+              type: 'azure-servicebus'
+              metadata: {
+                queueName: 'ocr_queue'
+                messageCount: '2'
+              }
+              auth: [
+                {
+                  secretRef: 'servicebus-connection-string'
+                  triggerParameter: 'connection'
+                }
+              ]
+            }
+          }
+          {
+            name: 'cpu-scaling'
+            custom: {
+              type: 'cpu'
+              metadata: {
+                type: 'Utilization'
+                value: '60'
+              }
+            }
+          }
+        ]
       }
     }
   }
@@ -490,6 +543,10 @@ resource workerDefaultApp 'Microsoft.App/containerApps@2023-05-01' = {
         {
           name: 'acr-password'
           value: acr.listCredentials().passwords[0].value
+        }
+        {
+          name: 'servicebus-connection-string'
+          value: serviceBusConnectionString
         }
       ]
       registries: [
@@ -515,7 +572,8 @@ resource workerDefaultApp 'Microsoft.App/containerApps@2023-05-01' = {
             '-Q'
             'default,parser_queue'
             '-c'
-            '2'
+            '4'
+            '--prefetch-multiplier=1'
           ]
           env: [
             { name: 'APP_ENV', value: 'production' }
@@ -549,8 +607,52 @@ resource workerDefaultApp 'Microsoft.App/containerApps@2023-05-01' = {
         }
       ]
       scale: {
-        minReplicas: 1
-        maxReplicas: 6
+        minReplicas: 2
+        maxReplicas: 8
+        rules: [
+          {
+            name: 'servicebus-default-queue'
+            custom: {
+              type: 'azure-servicebus'
+              metadata: {
+                queueName: 'default'
+                messageCount: '2'
+              }
+              auth: [
+                {
+                  secretRef: 'servicebus-connection-string'
+                  triggerParameter: 'connection'
+                }
+              ]
+            }
+          }
+          {
+            name: 'servicebus-parser-queue'
+            custom: {
+              type: 'azure-servicebus'
+              metadata: {
+                queueName: 'parser_queue'
+                messageCount: '2'
+              }
+              auth: [
+                {
+                  secretRef: 'servicebus-connection-string'
+                  triggerParameter: 'connection'
+                }
+              ]
+            }
+          }
+          {
+            name: 'cpu-scaling'
+            custom: {
+              type: 'cpu'
+              metadata: {
+                type: 'Utilization'
+                value: '60'
+              }
+            }
+          }
+        ]
       }
     }
   }
@@ -632,8 +734,28 @@ resource frontendApp 'Microsoft.App/containerApps@2023-05-01' = {
         }
       ]
       scale: {
-        minReplicas: 1
-        maxReplicas: 5
+        minReplicas: 2
+        maxReplicas: 8
+        rules: [
+          {
+            name: 'http-scaling'
+            http: {
+              metadata: {
+                concurrentRequests: '20'
+              }
+            }
+          }
+          {
+            name: 'cpu-scaling'
+            custom: {
+              type: 'cpu'
+              metadata: {
+                type: 'Utilization'
+                value: '70'
+              }
+            }
+          }
+        ]
       }
     }
   }
