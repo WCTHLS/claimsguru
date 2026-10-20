@@ -54,7 +54,7 @@ from sqlalchemy.orm import Session, selectinload
 from .config import settings
 from .db import SessionLocal, check_db_health, engine, force_master_session
 from .models import Claim, Document, DocValidation
-from libs.shared.models import ParseJob, ParsedField, WorkflowState, User, Role, UserRoleTable, Organization, PatientProfile, StaffProfile, Invitation, Submission, AuditLog
+from libs.shared.models import ParseJob, ParsedField, WorkflowState, User, Role, UserRoleTable, Organization, PatientProfile, StaffProfile, Invitation, Submission, AuditLog, OcrJob as _OcrJob
 from libs.shared.workflow_state import get_latest_workflow_state, upsert_workflow_state
 from libs.auth.passwords import hash_password, password_matches
 from libs.shared.redis_cache import get_claim_progress_cache, set_claim_progress_cache
@@ -545,6 +545,7 @@ def _enqueue_pipeline(
         # Check if OCR has already completed for all documents belonging to this claim
         ocr_already_done = False
         try:
+            from libs.shared.models import OcrJob as _OcrJob
             from services.ocr.app.db import SessionLocal as OcrSessionLocal
             with OcrSessionLocal() as db_session:
                 ocr_job = (
