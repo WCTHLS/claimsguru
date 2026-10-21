@@ -99,6 +99,7 @@ class AzureCommunicationEmailDriver(BaseEmailDriver):
             or os.getenv("AZURE_COMMUNICATION_SENDER_EMAIL")
             or "DoNotReply@claimsguru.azurecomm.net"
         ).strip('"' + "'")
+        self._client = None
 
     def is_configured(self) -> bool:
         enable_notifications = os.getenv("ENABLE_NOTIFICATIONS", "true").lower() not in ("0", "false", "no", "off")
@@ -124,9 +125,15 @@ class AzureCommunicationEmailDriver(BaseEmailDriver):
 
         try:
             import base64
+            import time
+            import random
+            from azure.core.exceptions import HttpResponseError
             from azure.communication.email import EmailClient
 
-            client = EmailClient.from_connection_string(self.connection_string)
+            if self._client is None:
+                self._client = EmailClient.from_connection_string(self.connection_string)
+            client = self._client
+
             message: dict[str, Any] = {
                 "content": {
                     "subject": subject,
@@ -160,12 +167,51 @@ class AzureCommunicationEmailDriver(BaseEmailDriver):
                 if formatted_attachments:
                     message["attachments"] = formatted_attachments
 
-            poller = client.begin_send(message)
-            try:
-                res = poller.result()
-                logger.info(f"[Azure Email] Email delivered successfully to {to_email}. MessageId: {res.get('id') if isinstance(res, dict) else getattr(res, 'id', res)}")
-            except Exception as wait_err:
-                logger.warning(f"[Azure Email] Email transmission initiated for {to_email} (waiting poller returned: {wait_err})")
+            max_retries = 6
+            base_delay = 1.0
+            poller = None
+
+            for attempt in range(1, max_retries + 1):
+                try:
+                    poller = client.begin_send(message)
+                    break
+                except HttpResponseError as http_err:
+                    status_code = getattr(http_err, "status_code", None)
+                    err_msg = str(http_err).lower()
+                    is_rate_limited = (
+                        status_code == 429
+                        or "toomanyrequests" in err_msg
+                        or "try again after" in err_msg
+                    )
+                    if is_rate_limited and attempt < max_retries:
+                        retry_after = None
+                        if hasattr(http_err, "response") and hasattr(http_err.response, "headers"):
+                            retry_after = http_err.response.headers.get("Retry-After")
+
+                        try:
+                            sleep_sec = float(retry_after) if retry_after else (base_delay * (1.5 ** (attempt - 1)) + random.uniform(0.2, 0.8))
+                        except (ValueError, TypeError):
+                            sleep_sec = base_delay * (1.5 ** (attempt - 1)) + random.uniform(0.2, 0.8)
+
+                        sleep_sec = max(sleep_sec, 1.0)
+                        logger.warning(
+                            f"[Azure Email] Rate limited (attempt {attempt}/{max_retries}) for {to_email}. "
+                            f"Retrying in {sleep_sec:.2f}s..."
+                        )
+                        time.sleep(sleep_sec)
+                    else:
+                        raise
+
+            def _poll_email_delivery():
+                try:
+                    res = poller.result()
+                    logger.info(f"[Azure Email] Email delivered successfully to {to_email}. MessageId: {res.get('id') if isinstance(res, dict) else getattr(res, 'id', res)}")
+                except Exception as wait_err:
+                    logger.warning(f"[Azure Email] Email transmission completed for {to_email} (poller result: {wait_err})")
+
+            import threading
+            threading.Thread(target=_poll_email_delivery, daemon=True, name="azure-email-poller").start()
+            logger.info(f"[Azure Email] Email transmission initiated asynchronously for {to_email}")
             return True
         except ImportError:
             logger.warning("[Azure Email] azure-communication-email SDK not installed. Falling back to Mock.")
