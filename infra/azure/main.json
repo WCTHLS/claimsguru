@@ -807,7 +807,7 @@
                 "-Q",
                 "default,parser_queue",
                 "-c",
-                "4",
+                "2",
                 "--prefetch-multiplier=1"
               ],
               "env": [

@@ -133,6 +133,14 @@ export const PIPELINE_ACTIVE_STATUSES = new Set([
   "RISK_ANALYSIS",
   "VALIDATION_RUNNING",
   "IN_PROGRESS",
+  "PARSING",
+  "OCR",
+  "OCR_DONE",
+  "PARSED",
+  "UPLOADED",
+  "STARTING",
+  "PENDING",
+  "QUEUED",
 ]);
 
 /**

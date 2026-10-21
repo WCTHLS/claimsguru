@@ -85,7 +85,7 @@ os.environ["CELERY_BROKER_URL"] = broker_url
 os.environ["CELERY_RESULT_BACKEND"] = backend_url
 
 broker_transport_options = {
-    'visibility_timeout': 3600,  # 1 hour visibility timeout
+    'visibility_timeout': 3600,  # 1 hour visibility timeout (must exceed longest task hard limit)
     'socket_timeout': 30,
     'socket_connect_timeout': 30,
     'socket_keepalive': True,

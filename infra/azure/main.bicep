@@ -572,7 +572,7 @@ resource workerDefaultApp 'Microsoft.App/containerApps@2023-05-01' = {
             '-Q'
             'default,parser_queue'
             '-c'
-            '4'
+            '2'
             '--prefetch-multiplier=1'
           ]
           env: [

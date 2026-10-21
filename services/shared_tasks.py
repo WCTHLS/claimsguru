@@ -64,6 +64,13 @@ def _update_workflow_state(claim_id: str, current_step: str, status: str | None 
         except Exception:
             db.rollback()
             raise
+
+        # Push real-time progress update directly to Redis so Ingress serves polling with 0 DB load
+        try:
+            from libs.shared.redis_cache import sync_claim_progress_cache
+            sync_claim_progress_cache(claim_id, current_step, status=state.status if state else status)
+        except Exception as _re:
+            logging.getLogger("workflow_state").debug(f"Redis progress sync skipped: {_re}")
     finally:
         db.close()
 
@@ -171,6 +178,7 @@ def _run_validator_job(claim_id: str) -> dict[str, Any]:
 
 @shared_task(
     bind=True,
+    queue="ocr_queue",
     autoretry_for=(Exception,),
     dont_autoretry_for=(NonRetryableTaskError, Ignore),
     retry_backoff=True,
@@ -252,6 +260,7 @@ def ocr_task(self, result: dict) -> dict[str, str]:
 
 @shared_task(
     bind=True,
+    queue="parser_queue",
     autoretry_for=(Exception,),
     dont_autoretry_for=(NonRetryableTaskError, Ignore),
     retry_backoff=True,
@@ -369,6 +378,7 @@ def parser_task(self, result: dict) -> dict[str, str]:
 
 @shared_task(
     bind=True,
+    queue="default",
     autoretry_for=(Exception,),
     dont_autoretry_for=(NonRetryableTaskError, Ignore),
     retry_backoff=True,
@@ -402,6 +412,7 @@ def coding_task(self, payload: Any) -> dict[str, str]:
 
 @shared_task(
     bind=True,
+    queue="default",
     autoretry_for=(Exception,),
     dont_autoretry_for=(NonRetryableTaskError, Ignore),
     retry_backoff=True,
@@ -435,6 +446,7 @@ def risk_task(self, payload: Any) -> dict[str, str]:
 
 @shared_task(
     bind=True,
+    queue="default",
     autoretry_for=(Exception,),
     dont_autoretry_for=(NonRetryableTaskError, Ignore),
     retry_backoff=True,
@@ -467,6 +479,7 @@ def validator_task(self, payload: Any) -> dict[str, Any]:
 
 @shared_task(
     bind=True,
+    queue="default",
     autoretry_for=(Exception,),
     dont_autoretry_for=(NonRetryableTaskError, Ignore),
     retry_backoff=True,
@@ -873,6 +886,7 @@ def _resolve_claim_notification_recipient(db, claim, pf: dict[str, Any] | None =
 
 @celery_app.task(
     bind=True,
+    queue="default",
     autoretry_for=(Exception,),
     dont_autoretry_for=(NonRetryableTaskError, Ignore),
     retry_backoff=True,

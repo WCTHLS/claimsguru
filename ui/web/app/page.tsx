@@ -213,7 +213,7 @@ export default function HomePage() {
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
       {/* Announcement strip */}
-      <div className="lp-strip">ClaimsGuru runs on Microsoft Azure  *  self-hosted, HIPAA-aligned claims AI for TPAs &amp; insurers<a href="#how">See how it works -></a></div>
+      <div className="lp-strip">ClaimsGuru runs on Microsoft Azure  *  self-hosted, HIPAA-aligned claims AI for TPAs &amp; insurers<a href="#how">See how it works -&gt;</a></div>
 
       {/* Nav */}
       <nav className="lp-nav">

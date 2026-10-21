@@ -61,11 +61,13 @@ def upsert_workflow_state(
         else:
             state.current_step = current_step
             state.status = status or state.status or "RUNNING"
+            state.updated_at = func.now()
         db.flush()
 
     try:
-        from libs.shared.redis_cache import invalidate_claim_progress_cache
+        from libs.shared.redis_cache import invalidate_claim_progress_cache, sync_claim_progress_cache
         invalidate_claim_progress_cache(str(cid))
+        sync_claim_progress_cache(str(cid), current_step, status=status or "RUNNING")
     except Exception:
         pass
 

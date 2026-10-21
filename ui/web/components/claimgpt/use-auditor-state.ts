@@ -611,7 +611,7 @@ export function useAuditorState() {
 
           const isActivelyProcessing = !isKnownTerminal && Boolean(
             (statusInfo && (statusInfo.percentage ?? 0) < 100 && !statusInfo.is_complete && statusInfo.status !== "COMPLETED") ||
-            (prevData && (prevData.status === "PROCESSING" || prevData.status === "ANALYZING" || prevData.status === "STAGED"))
+            (prevData && (prevData.status === "PROCESSING" || prevData.status === "ANALYZING" || prevData.status === "STAGED" || PIPELINE_ACTIVE_STATUSES.has((prevData.status || "").toUpperCase())))
           );
 
           const isComplete = !isActivelyProcessing && (isKnownTerminal || Boolean(
