@@ -2767,6 +2767,8 @@ def _delete_entra_user(external_subject_id: str | None, email: str | None) -> di
 class DeleteAccountIn(BaseModel):
     user_id: str | None = None
     email: str | None = None
+    password: str | None = None
+    confirm: bool | None = None
 
 
 @router.post("/auth/delete-account", status_code=200)
@@ -2813,7 +2815,7 @@ def delete_user_account(
             try:
                 parsed_uuid = uuid.UUID(str(clean_uid).strip())
                 user_row = db.execute(
-                    text("SELECT id, email, external_provider, external_subject_id FROM users WHERE id = :id"),
+                    text("SELECT id, email, password_hash, external_provider, external_subject_id FROM users WHERE id = :id"),
                     {"id": parsed_uuid}
                 ).mappings().first()
             except (ValueError, TypeError):
@@ -2821,9 +2823,15 @@ def delete_user_account(
 
         if not user_row and clean_email:
             user_row = db.execute(
-                text("SELECT id, email, external_provider, external_subject_id FROM users WHERE lower(email) = lower(:email)"),
+                text("SELECT id, email, password_hash, external_provider, external_subject_id FROM users WHERE lower(email) = lower(:email)"),
                 {"email": clean_email}
             ).mappings().first()
+
+        # If password was provided for deletion confirmation, verify against stored hash if set
+        if payload and payload.password and user_row:
+            stored_hash = user_row.get("password_hash")
+            if stored_hash and not password_matches(payload.password, stored_hash):
+                raise HTTPException(status_code=401, detail="Invalid password.")
 
         actual_uid = user_row["id"] if user_row else (uuid.UUID(str(clean_uid).strip()) if clean_uid and len(str(clean_uid).strip()) == 36 else None)
         target_email = (user_row["email"] if user_row else None) or clean_email

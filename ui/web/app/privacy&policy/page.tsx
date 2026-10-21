@@ -247,25 +247,48 @@ export default function PrivacyPolicyPage() {
               ClaimsGuru provides convenient and accessible methods to permanently delete your account and personal data:
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                <div className="flex items-center gap-2 text-slate-900 font-semibold mb-2">
-                  <Trash2 className="w-4 h-4 text-rose-600" />
-                  1. In-App One-Click Account Deletion
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-slate-900 font-semibold mb-2">
+                    <Trash2 className="w-4 h-4 text-rose-600" />
+                    1. In-App One-Click Deletion
+                  </div>
+                  <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
+                    Open the ClaimsGuru mobile app &rarr; Go to <strong className="text-slate-800">Profile / Settings</strong> &rarr; Scroll down to <strong className="text-slate-800">Delete Account</strong> &rarr; Confirm deletion.
+                  </p>
                 </div>
-                <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-                  Open the ClaimsGuru mobile app &rarr; Go to <strong className="text-slate-800">Profile / Settings</strong> &rarr; Scroll down to <strong className="text-slate-800">Delete Account</strong> &rarr; Confirm deletion. Your account, profile data, Microsoft Entra credentials, and medical documents will be permanently purged.
-                </p>
               </div>
 
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl">
-                <div className="flex items-center gap-2 text-slate-900 font-semibold mb-2">
-                  <Mail className="w-4 h-4 text-teal-600" />
-                  2. Direct Email Request
+              <div className="p-4 bg-teal-50/50 border border-teal-200 rounded-xl flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-teal-900 font-semibold mb-2">
+                    <Globe className="w-4 h-4 text-teal-600" />
+                    2. Web Account Deletion Portal
+                  </div>
+                  <p className="text-xs md:text-sm text-slate-600 leading-relaxed mb-3">
+                    Verify your account credentials and permanently purge your account, profile data, and medical documents in real time via ClaimsGuru.
+                  </p>
                 </div>
-                <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
-                  Email our privacy team at <a href="mailto:info@waferwire.com" className="text-teal-700 underline font-medium">info@waferwire.com</a> with the subject <em>&ldquo;ClaimsGuru Data Deletion Request&rdquo;</em> from your registered account email. We will verify your request and confirm permanent erasure within 30 business days.
-                </p>
+                <Link
+                  href="/delete-account"
+                  className="inline-flex items-center justify-center gap-1.5 py-1.5 px-3 rounded-lg text-xs font-semibold bg-teal-600 hover:bg-teal-700 text-white transition-colors"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Delete Account Online
+                </Link>
+              </div>
+
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-slate-900 font-semibold mb-2">
+                    <Mail className="w-4 h-4 text-teal-600" />
+                    3. Direct Email Request
+                  </div>
+                  <p className="text-xs md:text-sm text-slate-600 leading-relaxed">
+                    Email our privacy team at <a href="mailto:info@waferwire.com" className="text-teal-700 underline font-medium">info@waferwire.com</a> with the subject <em>&ldquo;ClaimsGuru Data Deletion Request&rdquo;</em> from your registered account email.
+                  </p>
+                </div>
               </div>
             </div>
           </section>
