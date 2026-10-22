@@ -3,22 +3,22 @@ ClaimsGuru Privacy Policy Module
 Product of WaferWire LLC
 
 Provides both standard non-editable HTML webpage and structured JSON API
-compliant with Google Play Developer User Data Policy, HIPAA, and Indian DPDP Act.
+compliant with Google Play Developer User Data Policy, HIPAA, and applicable privacy standards.
 """
 
 from typing import Any, Dict
 
-LAST_UPDATED = "October 15, 2026"
-EFFECTIVE_DATE = "October 15, 2026"
-VERSION = "1.2.0"
+LAST_UPDATED = "October 22, 2026"
+EFFECTIVE_DATE = "October 22, 2026"
+VERSION = "2.0.0"
 
 COMPANY_DETAILS: Dict[str, str] = {
     "name": "WaferWire LLC",
     "product": "ClaimsGuru",
     "address": "4034 148TH Ave NE, Redmond - 98052-5165, United States (US)",
     "email": "info@waferwire.com",
-    "phone": "+14252460195",
-    "website": "https://waferwire.com/",
+    "website": "https://www.wct-health.com/",
+    "account_deletion": "https://www.wct-health.com/delete-account",
 }
 
 PRIVACY_POLICY_DATA: Dict[str, Any] = {
@@ -29,236 +29,296 @@ PRIVACY_POLICY_DATA: Dict[str, Any] = {
     "effective_date": EFFECTIVE_DATE,
     "version": VERSION,
     "summary": (
-        "ClaimsGuru, a product of WaferWire LLC, is committed to safeguarding your personal "
-        "and sensitive medical data. This Privacy Policy details how we collect, process, store, "
-        "share, retain, and protect your information when using the ClaimsGuru mobile application, "
-        "web portals, and backend processing APIs."
+        "ClaimsGuru is a health insurance claim management and document-processing platform operated by WaferWire LLC. "
+        "This Privacy Policy explains how ClaimsGuru collects, uses, processes, stores, protects, and shares personal "
+        "information when users access our mobile application and related services."
     ),
     "sections": [
         {
             "id": "introduction",
-            "title": "1. Introduction & Overview",
+            "title": "1. Introduction",
             "content": (
-                "ClaimsGuru ('we', 'us', 'our') is a proprietary medical insurance claims automation "
-                "platform developed and operated by WaferWire LLC, located at 4034 148TH Ave NE, Redmond - "
-                "98052-5165, United States (US). This Privacy Policy applies to all users of the ClaimsGuru "
-                "mobile application, patient/claimant portals, and associated services. By accessing or using "
-                "ClaimsGuru, you acknowledge and agree to the data collection, processing, and storage practices "
-                "described herein."
+                "ClaimsGuru is a health insurance claim management and document-processing platform operated by "
+                "WaferWire LLC ('we,' 'us,' or 'our').\n\n"
+                "This Privacy Policy explains how ClaimsGuru collects, uses, processes, stores, protects, and shares "
+                "personal information when users access our mobile application and related services.\n\n"
+                "ClaimsGuru helps patients and authorized organizational users process medical documents and insurance "
+                "policy documents, validate claim information against policy terms, and submit claims to participating "
+                "insurance companies and Third-Party Administrators (TPAs) enrolled on the platform.\n\n"
+                "ClaimsGuru supports administrative claim processing. The relevant insurance company or TPA is responsible "
+                "for reviewing the claim, making the final approval or rejection decision, and handling reimbursement or "
+                "settlement outside ClaimsGuru.\n\n"
+                "By using ClaimsGuru, you acknowledge that you have read this Privacy Policy. Where consent is required by "
+                "applicable law, we will obtain it separately."
             ),
         },
         {
-            "id": "information-collected",
-            "title": "2. Information & Documents Users Upload",
-            "content": (
-                "To provide AI-assisted medical claims compilation, validation, and submission, ClaimsGuru "
-                "collects the following categories of data:"
-            ),
+            "id": "information-we-collect",
+            "title": "2. Information We Collect",
+            "content": "The information we collect depends on how you use ClaimsGuru and the features available to your account.",
             "subsections": [
                 {
-                    "title": "A. Personal Identifiable Information (PII)",
+                    "title": "2.1 Personal Information",
+                    "description": "We may collect the following information when you create or use an account:",
                     "items": [
-                        "Full legal name, date of birth, gender, and marital status",
-                        "Contact details: email address, telephone/mobile number, and physical residential address",
-                        "Relationship to the primary policyholder (self, spouse, child, parent, dependent)",
+                        "Name: To identify your account and associate it with your claim.",
+                        "Email address: For account management, authentication where applicable, claim-related communication, and service notifications.",
+                        "Phone number: For contact, account verification, and relevant service-related communication where applicable.",
+                        "Other profile information: Information such as gender, if provided in your profile or registration form.",
+                        "Account and role information: Information needed to identify patients, organizational users, and authorized personnel.",
                     ],
                 },
                 {
-                    "title": "B. Government & KYC Identification Documents",
+                    "title": "2.2 Medical and Health Information",
+                    "description": "When you submit a claim, ClaimsGuru may process sensitive health information contained in your uploaded documents, including:",
                     "items": [
-                        "Government-issued identity cards (e.g., Aadhaar card, PAN card, Voter ID, Driver's License, or Passport)",
-                        "Member ID card, insurance health card, or corporate employee identification badge",
-                        "Documents uploaded under the Identity Gate are hashed and verified to prevent identity fraud and ensure authentic claim submission",
+                        "Medical bills and hospital invoices.",
+                        "Discharge summaries.",
+                        "Prescriptions, diagnostic reports, and other medical records.",
+                        "Diagnoses and associated medical codes extracted from documents.",
+                        "Treatment details and other information relevant to the submitted claim.",
                     ],
+                    "note": "We use this information only for claim processing, document analysis, policy-related validation, and associated claim-management functions.",
                 },
                 {
-                    "title": "C. Health, Medical & Clinical Records",
+                    "title": "2.3 Insurance Policy and Claim Information",
+                    "description": "We may collect and process:",
                     "items": [
-                        "Hospital discharge summaries, admission and discharge notes, and hospital case sheets",
-                        "Itemized final hospital bills, interim invoices, breakdown of pharmacy charges, and payment receipts",
-                        "Doctor and specialist consultation prescriptions, orders, and treatment records",
-                        "Diagnostic investigation reports, pathology and radiology results (e.g., Blood tests, ECG, CT scan, MRI, X-rays)",
-                        "Implant invoices, surgical notes, anaesthesia records, and emergency admission documentation",
-                        "International Classification of Diseases (ICD-10) diagnosis codes and Current Procedural Terminology (CPT) procedural codes",
+                        "Insurance policy documents and policy identifiers.",
+                        "Insurer and TPA information.",
+                        "Policy coverage, limits, exclusions, and relevant conditions.",
+                        "Claim details and supporting documentation.",
+                        "Extracted document information and validation results.",
+                        "Claim submission records, queries, and status updates.",
+                        "Approval, rejection, or settlement status information provided by authorized users or participating insurers/TPAs.",
                     ],
+                    "note": "This information helps users and authorized organizational personnel manage and review insurance claims.",
                 },
                 {
-                    "title": "D. Insurance Policy & Financial Information",
-                    "items": [
-                        "Insurance company name, policy number, certificate number, and corporate group/employer ID",
-                        "Third-Party Administrator (TPA) name, member ID, and pre-authorization reference numbers",
-                        "Bank account details (Account number, bank name, branch, IFSC/routing code) used strictly for processing authorized direct claim reimbursement payouts",
-                    ],
+                    "title": "2.4 Photos and Files",
+                    "content": (
+                        "When you choose to upload a photo, PDF, or another supported file, ClaimsGuru processes the "
+                        "selected file to perform the requested claim-related function.\n\n"
+                        "Uploaded files may contain personal, medical, and insurance information. We use these files to "
+                        "extract relevant information, validate claim details, and prepare or submit claims.\n\n"
+                        "The application should access only the photos or files needed for the feature being used."
+                    ),
                 },
                 {
-                    "title": "E. Device, Technical & Usage Information",
-                    "items": [
-                        "Device model, operating system version, unique device identifiers, and network IP address",
-                        "Firebase Cloud Messaging (FCM) push notification tokens to send real-time claim status updates and query alerts",
-                        "Application crash logs, system diagnostic data, and security audit logs to maintain platform stability and protect against unauthorized access",
-                    ],
+                    "title": "2.5 Device and Notification Information",
+                    "content": (
+                        "If push notifications are enabled, ClaimsGuru may collect a device or app identifier, such as a "
+                        "push-notification token, along with relevant platform information.\n\n"
+                        "This information is used to deliver notifications relating to claim status, account activity, or other "
+                        "relevant service updates."
+                    ),
+                },
+                {
+                    "title": "2.6 Technical and Security Information",
+                    "content": (
+                        "Our systems and service providers may process technical information necessary to operate and "
+                        "secure the application, such as connection information, authentication events, and security logs.\n\n"
+                        "Where diagnostic or analytics services are used, the information collected will depend on the "
+                        "services enabled in the deployed application and their configuration."
+                    ),
                 },
             ],
         },
         {
-            "id": "how-information-is-processed",
-            "title": "3. How Claim Information is Processed & Stored",
-            "content": (
-                "ClaimsGuru utilizes a high-security, multi-stage pipeline to digitize, analyze, and package "
-                "medical insurance claims:"
-            ),
-            "subsections": [
-                {
-                    "title": "A. Ingestion & Cryptographic Verification",
-                    "items": [
-                        "Upon upload, every file receives a cryptographic SHA-256 content hash to ensure data integrity and prevent post-upload tampering.",
-                        "All uploads are transmitted exclusively over encrypted TLS 1.3 / HTTPS connections.",
-                    ],
-                },
-                {
-                    "title": "B. Optical Character Recognition (OCR) & AI Extraction",
-                    "items": [
-                        "Proprietary OCR and Azure AI Document Intelligence extract printed and handwriting text from medical bills, receipts, and clinical documents.",
-                        "Natural Language Processing (NLP) models identify line items, billing amounts, diagnoses, physician notes, and dates of service.",
-                    ],
-                },
-                {
-                    "title": "C. Medical Coding & Rule Validation",
-                    "items": [
-                        "Clinical data is mapped to standardized medical codes (ICD-10, CPT) for regulatory and insurer compatibility.",
-                        "Automated validation checks verify policy limits, room-rent capping, co-pay clauses, deductibles, and required regulatory claim forms (e.g., IRDAI Part A & Part B).",
-                    ],
-                },
-                {
-                    "title": "D. Cloud Infrastructure & At-Rest Encryption",
-                    "items": [
-                        "Files and documents are stored in enterprise-grade Microsoft Azure Blob Storage / secure cloud object stores, encrypted at rest using AES-256.",
-                        "Structured claim metadata is stored in hardened Azure SQL / Microsoft SQL Server databases with row-level security and strict user/tenant isolation.",
-                        "No unauthorized employee or third party has unencrypted access to medical records.",
-                    ],
-                },
-            ],
-        },
-        {
-            "id": "data-sharing",
-            "title": "4. Data Sharing & Third-Party Disclosure",
-            "content": (
-                "We do not sell, rent, monetize, or trade your personal information or medical records to "
-                "data brokers, advertising networks, or any unaffiliated third parties. Data is shared strictly "
-                "as necessary to process and adjudicate your claims:"
-            ),
-            "subsections": [
-                {
-                    "title": "A. Insurance Companies & Third-Party Administrators (TPAs)",
-                    "items": [
-                        "When you request or submit a claim, compiled claim dossiers, medical documents, and billing records are shared with your designated insurer or TPA (e.g., Medi Assist, Vidal Health, Star Health, ICICI Lombard, Care Health, HDFC ERGO, or your selected provider) to adjudicate and settle your claim.",
-                    ],
-                },
-                {
-                    "title": "B. Cloud & Technical Service Providers",
-                    "items": [
-                        "Microsoft Azure: Enterprise cloud hosting, encrypted storage, and AI Document Intelligence under strict Business Associate and data processing agreements.",
-                        "Microsoft Entra ID: Secure, standards-based user authentication and identity management.",
-                        "Firebase / Google Cloud: Mobile push notification delivery (FCM) strictly for real-time claim status alerts.",
-                    ],
-                },
-                {
-                    "title": "C. Legal & Regulatory Compliance",
-                    "items": [
-                        "We may disclose information if required by subpoena, court order, or applicable healthcare and insurance regulatory authorities (such as IRDAI or state insurance departments).",
-                    ],
-                },
-            ],
-        },
-        {
-            "id": "data-retention-and-deletion",
-            "title": "5. Data Retention & How Users Can Request Deletion",
-            "content": (
-                "We uphold data minimization principles and provide clear mechanisms for account and data deletion:"
-            ),
-            "subsections": [
-                {
-                    "title": "A. Data Retention Period",
-                    "items": [
-                        "Active Claims: Retained for the duration necessary to adjudicate the claim, process reimbursements, and handle insurer queries or appeals.",
-                        "Regulatory Compliance: Insurance and medical statutory retention requirements may mandate retaining certain financial and claim transaction logs for the legally prescribed statutory period (typically up to 3–7 years).",
-                        "Inactive / Deleted Accounts: Once account deletion is requested, all active user records, personal profiles, and document attachments are purged within 30 days, subject only to mandatory legal dispute holds.",
-                    ],
-                },
-                {
-                    "title": "B. How to Request Account & Data Deletion",
-                    "items": [
-                        "In-App Deletion: Open the ClaimsGuru mobile app, navigate to Profile -> Settings -> tap 'Delete Account', and confirm. Your account, credentials, and associated claims will be immediately queued for permanent erasure.",
-                        "Email Request: Send an email to info@waferwire.com with the subject line 'ClaimsGuru Data Deletion Request' from your registered email address. We will verify your identity and confirm permanent deletion within 30 business days.",
-                    ],
-                },
-                {
-                    "title": "C. Scope of Deletion",
-                    "items": [
-                        "Permanent deletion of personal profile data, email, phone number, and patient demographics.",
-                        "Permanent deletion of user identity in Microsoft Entra / authentication stores.",
-                        "Purging of all uploaded medical records, identity documents, bills, and generated PDF claim forms from cloud storage.",
-                    ],
-                },
-            ],
-        },
-        {
-            "id": "security-measures",
-            "title": "6. Data Security & Protection Safeguards",
-            "content": (
-                "WaferWire LLC implements state-of-the-art administrative, physical, and technical safeguards:"
-            ),
+            "id": "how-we-use-information",
+            "title": "3. How We Use Your Information",
+            "content": "We use the information described in this policy to:",
             "items": [
-                "256-bit AES encryption for all data at rest in database and blob storage systems.",
-                "TLS 1.3 / HTTPS encryption for all data in transit across public and internal networks.",
-                "Multi-factor authentication (MFA) and Microsoft Entra ID enterprise access controls for all internal operational personnel.",
-                "Role-based access controls (RBAC) ensuring that patients only access their own claims and medical records.",
-                "Continuous automated vulnerability scanning, rate limiting, and OWASP-compliant security headers.",
+                "Create and manage user accounts.",
+                "Authenticate users and enforce appropriate access permissions.",
+                "Receive, store, and process uploaded medical and insurance documents.",
+                "Extract relevant information from documents using document-processing and optical character recognition (OCR) technologies.",
+                "Compare submitted claim information against the supplied insurance policy terms and applicable validation rules.",
+                "Identify missing information, inconsistencies, or potential policy-related issues.",
+                "Prepare and submit claim information to the insurer or TPA selected for the claim.",
+                "Display claim status, queries, and review outcomes in the application.",
+                "Send claim-processing emails, push notifications, and other relevant service communications.",
+                "Maintain application security, troubleshoot technical issues, prevent misuse, and meet applicable legal obligations.",
+            ],
+            "note": "ClaimsGuru's document extraction and validation functions assist with administrative processing. They do not guarantee coverage, establish a final entitlement to benefits, or guarantee claim approval.",
+        },
+        {
+            "id": "how-claim-submission-works",
+            "title": "4. How Claim Submission Works",
+            "content": (
+                "ClaimsGuru allows patients to submit claims to participating insurance companies and TPAs enrolled on the platform.\n\n"
+                "When a user selects the relevant insurer or TPA and submits a claim through the application, ClaimsGuru "
+                "transmits the necessary claim information and supporting documents through the platform's claim-processing workflow.\n\n"
+                "The information transmitted may include:\n"
+                "• Patient and claim identification details.\n"
+                "• Relevant medical documents.\n"
+                "• Insurance policy documents and policy information.\n"
+                "• Extracted medical and claim-related information.\n"
+                "• Supporting documents required for review.\n\n"
+                "The selected insurer or TPA receives the claim information through its authorized access to ClaimsGuru and reviews "
+                "the claim according to its own processes.\n\n"
+                "Authorized insurer or TPA personnel may update the claim status, request additional information, or record an approval, "
+                "rejection, or settlement outcome.\n\n"
+                "ClaimsGuru does not itself issue insurance policies, pay reimbursements, or transfer settlement funds. Any "
+                "reimbursement or settlement is handled by the relevant insurer or TPA outside the ClaimsGuru application.\n\n"
+                "Users should review the selected recipient and claim details before submission. Once a claim is submitted, "
+                "the recipient may process the information in accordance with its own obligations and policies."
+            ),
+        },
+        {
+            "id": "sharing-of-information",
+            "title": "5. Sharing of Information",
+            "content": (
+                "We do not sell personal information or medical documents to advertisers or data brokers.\n\n"
+                "We may disclose or transfer information in the following circumstances."
+            ),
+            "subsections": [
+                {
+                    "title": "5.1 User-Directed Claim Submission",
+                    "content": (
+                        "When a user initiates or authorizes submission of a claim to a selected participating insurer or TPA, "
+                        "we transmit the information needed for that claim to the selected recipient.\n\n"
+                        "This transfer is necessary to provide the claim-submission service requested by the user.\n\n"
+                        "The insurer or TPA may be a separate legal organization and may process submitted information under its "
+                        "own privacy policy and applicable legal obligations."
+                    ),
+                },
+                {
+                    "title": "5.2 Service Providers",
+                    "content": (
+                        "We may use service providers to operate ClaimsGuru, including providers of:\n"
+                        "• Cloud hosting and storage.\n"
+                        "• Database and application infrastructure.\n"
+                        "• Document processing and OCR.\n"
+                        "• Authentication and identity management.\n"
+                        "• Email delivery and push notifications.\n"
+                        "• Security, monitoring, and technical support.\n\n"
+                        "These providers may process information on our behalf as necessary to deliver their services, "
+                        "subject to applicable contractual and security requirements.\n\n"
+                        "The specific providers and data processed depend on the services enabled in our deployed application."
+                    ),
+                },
+                {
+                    "title": "5.3 Legal and Security Requirements",
+                    "content": (
+                        "We may disclose information where required by applicable law, a valid legal process, or a competent "
+                        "authority. We may also disclose information where reasonably necessary to protect the security, rights, "
+                        "or safety of users, the company, or the service, subject to applicable law."
+                    ),
+                },
             ],
         },
         {
-            "id": "children-privacy",
-            "title": "7. Children's Privacy",
+            "id": "data-storage-and-security",
+            "title": "6. Data Storage and Security",
             "content": (
-                "ClaimsGuru is not directed to individuals under the age of 18 without parental or guardian supervision. "
-                "When parents or legal guardians file claims on behalf of minor dependents, all data is submitted under "
-                "the adult policyholder's verified account, and consent is granted by the legal parent or guardian."
+                "ClaimsGuru uses technical and organizational safeguards designed to protect personal and sensitive information "
+                "against unauthorized access, loss, misuse, alteration, or disclosure.\n\n"
+                "Depending on the relevant system, safeguards may include:\n"
+                "• Encryption of data transmitted over secure connections.\n"
+                "• Authentication and access controls.\n"
+                "• Role-based access to claim information.\n"
+                "• Protected cloud infrastructure and storage.\n"
+                "• Security monitoring and operational safeguards.\n\n"
+                "Access to medical and insurance information should be limited to authorized users who need it for the relevant "
+                "claim-processing functions.\n\n"
+                "No electronic system or transmission method can guarantee absolute security. We continually seek to maintain "
+                "appropriate safeguards for the information processed through our services."
             ),
         },
         {
-            "id": "international-users",
-            "title": "8. Global Accessibility & Cross-Border Transfers",
+            "id": "data-retention",
+            "title": "7. Data Retention",
             "content": (
-                "ClaimsGuru and this Privacy Policy are accessible worldwide without geographical restrictions or geofencing. "
-                "Depending on where you access the service, your data may be processed on secure Microsoft Azure cloud servers "
-                "located in the United States, India, or other secure regions with equal or greater data protection standards."
+                "We retain personal information for as long as reasonably necessary to provide ClaimsGuru's services, process and "
+                "manage claims, maintain security, resolve disputes, and comply with applicable legal or contractual obligations.\n\n"
+                "Retention periods may vary depending on the information involved, the claim's status, applicable requirements, "
+                "and relevant agreements.\n\n"
+                "When information is no longer required or when an account is deleted, it is permanently deleted from our active systems. "
+                "We do not retain records or maintain backup copies once account deletion has been processed."
             ),
         },
         {
-            "id": "policy-updates",
-            "title": "9. Changes to This Privacy Policy",
+            "id": "account-and-data-deletion",
+            "title": "8. Account and Data Deletion",
             "content": (
-                "WaferWire LLC may periodically update this Privacy Policy to reflect platform enhancements, regulatory changes, "
-                "or new features. We will notify you of material changes via an in-app notice, email notification, or by updating "
-                "the 'Last Updated' date at the top of this webpage. Continued use of ClaimsGuru following such updates constitutes "
-                "acceptance of the revised terms."
+                "Users may request account deletion through our account deletion portal:\n"
+                "https://www.wct-health.com/delete-account\n\n"
+                "Users may also contact our privacy contact listed below for assistance.\n\n"
+                "We will verify and process deletion requests according to our deletion procedures.\n\n"
+                "When an account is deleted, we permanently delete associated personal information, authentication credentials, "
+                "and uploaded medical documents from our systems. We do not keep any records or maintain backup copies once an account is deleted.\n\n"
+                "Deleting an account may affect access to claim history and other application features.\n\n"
+                "Information previously submitted to an insurer or Third-Party Administrator (TPA) by the user action may also be "
+                "subject to that organization's independent retention obligations. Deleting your ClaimsGuru account does not automatically "
+                "delete records held independently by an insurer or TPA."
+            ),
+            "deletion_portal_url": "https://www.wct-health.com/delete-account",
+        },
+        {
+            "id": "user-responsibilities",
+            "title": "9. User Responsibilities",
+            "content": "Users should:",
+            "items": [
+                "Provide accurate account and claim information.",
+                "Upload only documents they are authorized to submit.",
+                "Review the selected insurer or TPA and the claim details before submission.",
+                "Protect their account credentials and report suspected unauthorized access.",
+                "Avoid submitting information unrelated to the intended claim.",
+            ],
+            "note": "Users should understand that extracted information may contain errors and that the insurer or TPA makes the final claim decision.",
+        },
+        {
+            "id": "childrens-information",
+            "title": "10. Children's Information",
+            "content": (
+                "ClaimsGuru is designed for its intended claim-management users. Where a legitimate claim requires information "
+                "about a minor, it should be submitted by an authorized parent, guardian, or representative in accordance with "
+                "applicable law.\n\n"
+                "We do not knowingly collect children's information for unrelated purposes."
+            ),
+        },
+        {
+            "id": "third-party-services",
+            "title": "11. Third-Party Services and External Policies",
+            "content": (
+                "ClaimsGuru may integrate with external service providers and participating insurers or TPAs to provide its functions.\n\n"
+                "Those organizations may have their own privacy policies and data-handling practices. Their processing of information "
+                "under their own responsibilities is governed by the applicable policies, agreements, and laws.\n\n"
+                "Users should consult the relevant organization for information about its independent handling of submitted claims."
+            ),
+        },
+        {
+            "id": "changes-to-policy",
+            "title": "12. Changes to This Privacy Policy",
+            "content": (
+                "We may update this Privacy Policy to reflect changes in our services, data practices, or legal requirements.\n\n"
+                "The latest version will be published at our designated privacy-policy URL with an updated effective date. "
+                "Where required, we will provide additional notice of material changes."
             ),
         },
         {
             "id": "contact-us",
-            "title": "10. Contact Information & Privacy Questions",
+            "title": "13. Contact Us",
             "content": (
-                "If you have questions, concerns, complaints, or wish to exercise your data protection rights, please contact "
-                "the WaferWire LLC privacy office:"
+                "For questions about this Privacy Policy, personal information, or account deletion, contact:\n\n"
+                "Company: WaferWire LLC\n"
+                "Application: ClaimsGuru\n"
+                "Email: info@waferwire.com\n"
+                "Website: https://www.wct-health.com/\n"
+                "Account deletion: https://www.wct-health.com/delete-account\n\n"
+                "Please do not email medical documents or other sensitive personal information unless our support team specifically "
+                "requests them through an appropriate channel.\n\n"
+                "This Privacy Policy describes ClaimsGuru's data-handling practices and must be kept consistent with the application's "
+                "actual features, deployed service providers, and operational procedures."
             ),
             "contact_details": {
                 "company": "WaferWire LLC",
-                "product": "ClaimsGuru",
-                "address": "4034 148TH Ave NE, Redmond - 98052-5165, United States (US)",
+                "application": "ClaimsGuru",
                 "email": "info@waferwire.com",
-                "phone": "+14252460195",
-                "website": "https://waferwire.com/",
-                "dpo_contact": "info@waferwire.com (Attn: Data Privacy Officer)",
+                "website": "https://www.wct-health.com/",
+                "account_deletion": "https://www.wct-health.com/delete-account",
+                "address": "4034 148TH Ave NE, Redmond - 98052-5165, United States (US)",
             },
         },
     ],
@@ -279,9 +339,9 @@ def get_privacy_policy_html() -> str:
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Policy - ClaimsGuru | WaferWire LLC</title>
-  <meta name="description" content="ClaimsGuru Privacy Policy. Learn how ClaimsGuru by WaferWire LLC collects, uses, processes, stores, and protects your medical claim documents and personal data.">
+  <meta name="description" content="ClaimsGuru Privacy Policy. Learn how ClaimsGuru by WaferWire LLC collects, uses, processes, stores, protects, and shares personal and medical claim information.">
   <meta name="robots" content="index, follow">
-  <link rel="canonical" href="https://waferwire.com/privacy-policy">
+  <link rel="canonical" href="https://www.wct-health.com/privacy&policy">
   <style>
     :root {{
       --primary: #0d9488;
@@ -289,6 +349,7 @@ def get_privacy_policy_html() -> str:
       --primary-light: #ccfbf1;
       --navy: #0f172a;
       --slate-800: #1e293b;
+      --slate-700: #334155;
       --slate-600: #475569;
       --slate-400: #94a3b8;
       --slate-200: #e2e8f0;
@@ -371,7 +432,7 @@ def get_privacy_policy_html() -> str:
       box-shadow: var(--shadow-sm);
     }}
     .notice-card p {{
-      color: var(--slate-600);
+      color: var(--slate-700);
       font-size: 15px;
       margin: 0;
     }}
@@ -419,29 +480,12 @@ def get_privacy_policy_html() -> str:
     li {{
       margin-bottom: 8px;
     }}
-    .info-table {{
-      width: 100%;
-      border-collapse: collapse;
-      margin: 20px 0;
+    .sub-card {{
       background: var(--slate-50);
-      border-radius: 8px;
-      overflow: hidden;
-    }}
-    .info-table th, .info-table td {{
-      padding: 12px 16px;
-      text-align: left;
-      border-bottom: 1px solid var(--slate-200);
-      font-size: 14px;
-    }}
-    .info-table th {{
-      background: var(--slate-100);
-      color: var(--navy);
-      font-weight: 600;
-    }}
-    .info-table td:first-child {{
-      font-weight: 600;
-      color: var(--slate-800);
-      width: 25%;
+      border: 1px solid var(--slate-200);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
     }}
     .highlight-box {{
       background: #f0fdfa;
@@ -475,7 +519,7 @@ def get_privacy_policy_html() -> str:
     .contact-label {{
       font-weight: 600;
       color: var(--slate-800);
-      width: 140px;
+      width: 160px;
       flex-shrink: 0;
     }}
     .contact-val a {{
@@ -506,7 +550,6 @@ def get_privacy_policy_html() -> str:
       .content-card {{ padding: 24px 16px; }}
       .contact-item {{ flex-direction: column; }}
       .contact-label {{ margin-bottom: 4px; }}
-      .info-table td:first-child {{ width: 35%; }}
     }}
     @media print {{
       body {{ background: #fff; font-size: 12pt; }}
@@ -520,295 +563,292 @@ def get_privacy_policy_html() -> str:
   <header>
     <div class="header-badge">Official Policy Documentation</div>
     <h1>ClaimsGuru Privacy Policy</h1>
-    <p class="subtitle">How ClaimsGuru collects, protects, processes, and manages medical claim information and user data.</p>
+    <p class="subtitle">Health insurance claim management and document-processing platform operated by WaferWire LLC.</p>
     <div class="meta-bar">
-      <span><strong>Product:</strong> ClaimsGuru</span>
-      <span><strong>Provider:</strong> WaferWire LLC</span>
+      <span><strong>Application:</strong> ClaimsGuru</span>
+      <span><strong>Company:</strong> WaferWire LLC</span>
       <span><strong>Effective Date:</strong> {EFFECTIVE_DATE}</span>
-      <span><strong>Version:</strong> {VERSION}</span>
+      <span><strong>Last Updated:</strong> {LAST_UPDATED}</span>
     </div>
   </header>
 
   <main class="container">
     <div class="notice-card">
       <p>
-        <strong>Transparency & Trust Notice:</strong> This privacy policy applies directly to the 
-        <strong>ClaimsGuru</strong> mobile application, web portal, and backend services provided by 
-        <strong>WaferWire LLC</strong>. ClaimsGuru complies with the Google Play Developer User Data Policy, 
-        HIPAA security standards, and applicable privacy regulations. It is publicly accessible worldwide 
-        without geographical restrictions or login requirements.
+        <strong>Transparency & Trust Notice:</strong> This Privacy Policy applies to the 
+        <strong>ClaimsGuru</strong> mobile application, web portal, and related services operated by 
+        <strong>WaferWire LLC</strong>. It is publicly accessible worldwide without geographical restrictions or login requirements.
       </p>
     </div>
 
     <div class="content-card">
       <!-- Section 1 -->
       <section id="introduction">
-        <h2>1. Introduction & Overview</h2>
-        <p>
-          ClaimsGuru ("we", "us", "our") is an intelligent medical claims automation platform created 
-          and owned by <strong>WaferWire LLC</strong>, headquartered at 4034 148TH Ave NE, Redmond - 98052-5165, 
-          United States (US).
-        </p>
-        <p>
-          ClaimsGuru is designed to assist patients, insured individuals, corporate employees, healthcare providers, 
-          and Third-Party Administrators (TPAs) by digitizing, parsing, validating, and submitting health insurance 
-          reimbursement and cashless claims. Because our application handles sensitive medical and personal data, 
-          we maintain the highest standards of data confidentiality, encryption, and regulatory compliance.
-        </p>
+        <h2>1. Introduction</h2>
+        <p>ClaimsGuru is a health insurance claim management and document-processing platform operated by WaferWire LLC (&ldquo;we,&rdquo; &ldquo;us,&rdquo; or &ldquo;our&rdquo;).</p>
+        <p>This Privacy Policy explains how ClaimsGuru collects, uses, processes, stores, protects, and shares personal information when users access our mobile application and related services.</p>
+        <p>ClaimsGuru helps patients and authorized organizational users process medical documents and insurance policy documents, validate claim information against policy terms, and submit claims to participating insurance companies and Third-Party Administrators (TPAs) enrolled on the platform.</p>
+        <p>ClaimsGuru supports administrative claim processing. The relevant insurance company or TPA is responsible for reviewing the claim, making the final approval or rejection decision, and handling reimbursement or settlement outside ClaimsGuru.</p>
+        <p>By using ClaimsGuru, you acknowledge that you have read this Privacy Policy. Where consent is required by applicable law, we will obtain it separately.</p>
       </section>
 
       <!-- Section 2 -->
-      <section id="information-collected">
-        <h2>2. What Personal Information & Medical Documents Users Upload</h2>
-        <p>
-          To process, adjudicate, and validate your medical insurance claims, ClaimsGuru collects the following 
-          categories of information when you register an account, upload documents, or submit a claim:
-        </p>
+      <section id="information-we-collect">
+        <h2>2. Information We Collect</h2>
+        <p>The information we collect depends on how you use ClaimsGuru and the features available to your account.</p>
 
-        <h3>A. Personal Identifiable Information (PII)</h3>
-        <ul>
-          <li><strong>Identity Details:</strong> Full legal name, date of birth, age, gender, marital status, and relationship to primary policyholder.</li>
-          <li><strong>Contact Information:</strong> Email address, mobile telephone number, and physical residential address.</li>
-          <li><strong>Account Credentials:</strong> Secure authentication tokens managed via Microsoft Entra ID with encrypted password hashes.</li>
-        </ul>
+        <div class="sub-card">
+          <h3>2.1 Personal Information</h3>
+          <p>We may collect the following information when you create or use an account:</p>
+          <ul>
+            <li><strong>Name:</strong> To identify your account and associate it with your claim.</li>
+            <li><strong>Email address:</strong> For account management, authentication where applicable, claim-related communication, and service notifications.</li>
+            <li><strong>Phone number:</strong> For contact, account verification, and relevant service-related communication where applicable.</li>
+            <li><strong>Other profile information:</strong> Information such as gender, if provided in your profile or registration form.</li>
+            <li><strong>Account and role information:</strong> Information needed to identify patients, organizational users, and authorized personnel.</li>
+          </ul>
+        </div>
 
-        <h3>B. Government & Identity Verification (KYC) Documents</h3>
-        <ul>
-          <li><strong>Government IDs:</strong> Aadhaar card, PAN card, Voter ID, Driver's License, or Passport uploaded under the Identity Gate to verify claimant identity and prevent fraudulent claim filings.</li>
-          <li><strong>Insurance Identifiers:</strong> Health insurance e-card, member ID card, TPA card, and corporate employee ID.</li>
-        </ul>
+        <div class="sub-card">
+          <h3>2.2 Medical and Health Information</h3>
+          <p>When you submit a claim, ClaimsGuru may process sensitive health information contained in your uploaded documents, including:</p>
+          <ul>
+            <li>Medical bills and hospital invoices.</li>
+            <li>Discharge summaries.</li>
+            <li>Prescriptions, diagnostic reports, and other medical records.</li>
+            <li>Diagnoses and associated medical codes extracted from documents.</li>
+            <li>Treatment details and other information relevant to the submitted claim.</li>
+          </ul>
+          <p style="font-size: 14px; font-style: italic; color: var(--slate-600); margin-bottom: 0;">We use this information only for claim processing, document analysis, policy-related validation, and associated claim-management functions.</p>
+        </div>
 
-        <h3>C. Medical, Clinical & Hospital Records</h3>
-        <ul>
-          <li><strong>Hospital Discharge Summaries:</strong> Hospital admission and discharge dates, discharge status, clinical summary, and attending doctor notes.</li>
-          <li><strong>Medical Bills & Receipts:</strong> Final itemized hospital bills, interim invoices, pharmacy receipts, surgical equipment vouchers, and payment proofs.</li>
-          <li><strong>Doctor Prescriptions:</strong> Physician consultation notes, outpatient prescriptions, and recommended treatment plans.</li>
-          <li><strong>Diagnostic & Investigation Reports:</strong> Pathology lab reports, radiology reports (e.g., Blood tests, ECG, X-Ray, Ultrasound, CT Scan, MRI), and biopsy records.</li>
-          <li><strong>Clinical Codes:</strong> Standardized ICD-10 diagnosis codes and CPT procedural codes extracted from medical records.</li>
-        </ul>
+        <div class="sub-card">
+          <h3>2.3 Insurance Policy and Claim Information</h3>
+          <p>We may collect and process:</p>
+          <ul>
+            <li>Insurance policy documents and policy identifiers.</li>
+            <li>Insurer and TPA information.</li>
+            <li>Policy coverage, limits, exclusions, and relevant conditions.</li>
+            <li>Claim details and supporting documentation.</li>
+            <li>Extracted document information and validation results.</li>
+            <li>Claim submission records, queries, and status updates.</li>
+            <li>Approval, rejection, or settlement status information provided by authorized users or participating insurers/TPAs.</li>
+          </ul>
+          <p style="font-size: 14px; font-style: italic; color: var(--slate-600); margin-bottom: 0;">This information helps users and authorized organizational personnel manage and review insurance claims.</p>
+        </div>
 
-        <h3>D. Insurance Policy & Financial Information</h3>
-        <ul>
-          <li><strong>Insurance Policy Data:</strong> Insurance provider name, policy number, certificate number, corporate group ID, coverage limits, and deductible details.</li>
-          <li><strong>Payout Banking Details:</strong> Bank name, account number, branch, and IFSC/routing code necessary for direct electronic reimbursement settlement by the insurer or TPA.</li>
-        </ul>
+        <div class="sub-card">
+          <h3>2.4 Photos and Files</h3>
+          <p>When you choose to upload a photo, PDF, or another supported file, ClaimsGuru processes the selected file to perform the requested claim-related function.</p>
+          <p>Uploaded files may contain personal, medical, and insurance information. We use these files to extract relevant information, validate claim details, and prepare or submit claims.</p>
+          <p style="font-weight: 600; color: var(--slate-800); margin-bottom: 0;">The application should access only the photos or files needed for the feature being used.</p>
+        </div>
 
-        <h3>E. Technical & Device Information</h3>
-        <ul>
-          <li><strong>Device & Network Data:</strong> Device model, operating system version, unique device identifier, IP address, and network provider.</li>
-          <li><strong>Push Notifications (FCM):</strong> Firebase Cloud Messaging device tokens used exclusively to notify you of claim status transitions, missing document requests, and settlement updates.</li>
-        </ul>
+        <div class="sub-card">
+          <h3>2.5 Device and Notification Information</h3>
+          <p>If push notifications are enabled, ClaimsGuru may collect a device or app identifier, such as a push-notification token, along with relevant platform information.</p>
+          <p style="margin-bottom: 0;">This information is used to deliver notifications relating to claim status, account activity, or other relevant service updates.</p>
+        </div>
+
+        <div class="sub-card">
+          <h3>2.6 Technical and Security Information</h3>
+          <p>Our systems and service providers may process technical information necessary to operate and secure the application, such as connection information, authentication events, and security logs.</p>
+          <p style="margin-bottom: 0;">Where diagnostic or analytics services are used, the information collected will depend on the services enabled in the deployed application and their configuration.</p>
+        </div>
       </section>
 
       <!-- Section 3 -->
-      <section id="processing-storage">
-        <h2>3. How Claim Information is Processed & Stored</h2>
-        <p>
-          ClaimsGuru employs robust cloud architecture, artificial intelligence, and strict security protocols 
-          to process and protect your claim documents:
-        </p>
-
+      <section id="how-we-use-information">
+        <h2>3. How We Use Your Information</h2>
+        <p>We use the information described in this policy to:</p>
+        <ul>
+          <li>Create and manage user accounts.</li>
+          <li>Authenticate users and enforce appropriate access permissions.</li>
+          <li>Receive, store, and process uploaded medical and insurance documents.</li>
+          <li>Extract relevant information from documents using document-processing and optical character recognition (OCR) technologies.</li>
+          <li>Compare submitted claim information against the supplied insurance policy terms and applicable validation rules.</li>
+          <li>Identify missing information, inconsistencies, or potential policy-related issues.</li>
+          <li>Prepare and submit claim information to the insurer or TPA selected for the claim.</li>
+          <li>Display claim status, queries, and review outcomes in the application.</li>
+          <li>Send claim-processing emails, push notifications, and other relevant service communications.</li>
+          <li>Maintain application security, troubleshoot technical issues, prevent misuse, and meet applicable legal obligations.</li>
+        </ul>
         <div class="highlight-box">
-          <strong>Cryptographic Document Ingestion (SHA-256)</strong>
-          <p>
-            Upon file upload, ClaimsGuru computes an immutable SHA-256 hash for every document. 
-            This cryptographic fingerprint ensures that uploaded medical bills and records cannot be altered, 
-            tampered with, or substituted throughout the processing lifecycle.
-          </p>
+          <strong>Administrative Processing Notice</strong>
+          <p>ClaimsGuru's document extraction and validation functions assist with administrative processing. They do not guarantee coverage, establish a final entitlement to benefits, or guarantee claim approval.</p>
         </div>
-
-        <table class="info-table">
-          <thead>
-            <tr>
-              <th>Processing Stage</th>
-              <th>Technical Method</th>
-              <th>Security & Privacy Safeguard</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Ingestion & Upload</td>
-              <td>TLS 1.3 / HTTPS Encrypted Uploads</td>
-              <td>All transfers enforce high-cipher SSL. Public file access is strictly blocked.</td>
-            </tr>
-            <tr>
-              <td>OCR & Extraction</td>
-              <td>Azure AI Document Intelligence & OCR</td>
-              <td>Text extraction runs in secure, zero-data-retention isolated processing pipelines.</td>
-            </tr>
-            <tr>
-              <td>Medical NLP & Coding</td>
-              <td>AI Clinical Rule Engine</td>
-              <td>Extracts ICD-10 and CPT codes, parses IRDAI Part A & B forms, validates against policy limits.</td>
-            </tr>
-            <tr>
-              <td>Document Storage</td>
-              <td>Microsoft Azure Blob Storage</td>
-              <td>Stored in encrypted containers with AES-256 encryption at rest.</td>
-            </tr>
-            <tr>
-              <td>Metadata & Claims DB</td>
-              <td>Azure SQL / Microsoft SQL Server</td>
-              <td>Row-level security, tenant isolation, parameterised queries, and automated daily backups.</td>
-            </tr>
-          </tbody>
-        </table>
       </section>
 
       <!-- Section 4 -->
-      <section id="sharing">
-        <h2>4. Data Sharing & Third-Party Disclosures</h2>
-        <p>
-          <strong>We never sell, rent, monetize, or trade your personal data or health information to advertisers, 
-          marketing agencies, or data brokers.</strong>
-        </p>
-        <p>Your data is shared strictly in the following limited circumstances:</p>
+      <section id="how-claim-submission-works">
+        <h2>4. How Claim Submission Works</h2>
+        <p>ClaimsGuru allows patients to submit claims to participating insurance companies and TPAs enrolled on the platform.</p>
+        <p>When a user selects the relevant insurer or TPA and submits a claim through the application, ClaimsGuru transmits the necessary claim information and supporting documents through the platform's claim-processing workflow.</p>
+        <p>The information transmitted may include:</p>
         <ul>
-          <li>
-            <strong>Designated Insurance Providers & TPAs:</strong> When you initiate a claim submission, your claim 
-            package (including discharge summary, itemized bills, diagnosis details, and completed IRDAI forms) is 
-            transmitted directly to the selected insurance carrier or licensed Third-Party Administrator 
-            (e.g., Medi Assist, Vidal Health, Star Health, ICICI Lombard, Care Health, HDFC ERGO) to evaluate, adjudicate, 
-            and pay your insurance claim.
-          </li>
-          <li>
-            <strong>Cloud Infrastructure Partners:</strong> We partner with Microsoft Azure for secure cloud hosting, 
-            database infrastructure, and OCR services under enterprise enterprise Data Protection Agreements (DPAs). 
-            Authentication is powered by Microsoft Entra ID.
-          </li>
-          <li>
-            <strong>Mobile Push Services:</strong> Google Firebase Cloud Messaging (FCM) is utilized solely for 
-            dispatching real-time notifications regarding claim approval, query status, or required additional documents.
-          </li>
-          <li>
-            <strong>Legal & Regulatory Authorities:</strong> We may disclose data when legally required by court order, 
-            subpoena, law enforcement warrant, or applicable insurance regulatory bodies (such as IRDAI).
-          </li>
+          <li>Patient and claim identification details.</li>
+          <li>Relevant medical documents.</li>
+          <li>Insurance policy documents and policy information.</li>
+          <li>Extracted medical and claim-related information.</li>
+          <li>Supporting documents required for review.</li>
         </ul>
+        <p>The selected insurer or TPA receives the claim information through its authorized access to ClaimsGuru and reviews the claim according to its own processes.</p>
+        <p>Authorized insurer or TPA personnel may update the claim status, request additional information, or record an approval, rejection, or settlement outcome.</p>
+        <p>ClaimsGuru does not itself issue insurance policies, pay reimbursements, or transfer settlement funds. Any reimbursement or settlement is handled by the relevant insurer or TPA outside the ClaimsGuru application.</p>
+        <p>Users should review the selected recipient and claim details before submission. Once a claim is submitted, the recipient may process the information in accordance with its own obligations and policies.</p>
       </section>
 
       <!-- Section 5 -->
-      <section id="retention-deletion">
-        <h2>5. Data Retention & How Users Can Request Deletion</h2>
-        
-        <h3>A. Retention Period</h3>
-        <p>
-          We retain your personal information, claims data, and medical files only as long as necessary to 
-          fulfill the purposes outlined in this policy:
-        </p>
-        <ul>
-          <li><strong>Active Claims:</strong> Retained while your claim is active, under review, in adjudication, or subject to reimbursement queries.</li>
-          <li><strong>Regulatory & Statutory Compliance:</strong> Medical record and insurance regulations generally mandate maintaining claim records and financial logs for statutory periods (typically 3 to 7 years) to support regulatory audits, fraud prevention, and dispute resolution.</li>
-          <li><strong>Account Deletion:</strong> When an account deletion is requested, all personal profiles, identity records, and attached documents are permanently purged from active systems within 30 days.</li>
-        </ul>
+      <section id="sharing-of-information">
+        <h2>5. Sharing of Information</h2>
+        <p><strong>We do not sell personal information or medical documents to advertisers or data brokers.</strong></p>
+        <p>We may disclose or transfer information in the following circumstances.</p>
 
-        <h3>B. How You Can Request Complete Deletion</h3>
-        <p>ClaimsGuru provides convenient and accessible methods to permanently delete your account and personal data:</p>
-
-        <div class="highlight-box">
-          <strong>1. In-App One-Click Account Deletion</strong>
-          <p>
-            Open the ClaimsGuru mobile app &rarr; Go to <strong>Profile / Settings</strong> &rarr; 
-            Scroll down to <strong>Delete Account</strong> &rarr; Confirm deletion. 
-            Your account, profile data, Microsoft Entra credentials, and medical documents will be permanently purged.
-          </p>
+        <div class="sub-card">
+          <h3>5.1 User-Directed Claim Submission</h3>
+          <p>When a user initiates or authorizes submission of a claim to a selected participating insurer or TPA, we transmit the information needed for that claim to the selected recipient.</p>
+          <p>This transfer is necessary to provide the claim-submission service requested by the user.</p>
+          <p style="margin-bottom: 0;">The insurer or TPA may be a separate legal organization and may process submitted information under its own privacy policy and applicable legal obligations.</p>
         </div>
 
-        <div class="highlight-box">
-          <strong>2. Direct Email Request</strong>
-          <p>
-            Email our privacy team at <a href="mailto:info@waferwire.com">info@waferwire.com</a> with the subject 
-            <em>"ClaimsGuru Data Deletion Request"</em> from your registered account email. 
-            We will verify your request and confirm permanent erasure within 30 business days.
-          </p>
+        <div class="sub-card">
+          <h3>5.2 Service Providers</h3>
+          <p>We may use service providers to operate ClaimsGuru, including providers of:</p>
+          <ul>
+            <li>Cloud hosting and storage.</li>
+            <li>Database and application infrastructure.</li>
+            <li>Document processing and OCR.</li>
+            <li>Authentication and identity management.</li>
+            <li>Email delivery and push notifications.</li>
+            <li>Security, monitoring, and technical support.</li>
+          </ul>
+          <p>These providers may process information on our behalf as necessary to deliver their services, subject to applicable contractual and security requirements.</p>
+          <p style="margin-bottom: 0;">The specific providers and data processed depend on the services enabled in our deployed application.</p>
+        </div>
+
+        <div class="sub-card">
+          <h3>5.3 Legal and Security Requirements</h3>
+          <p style="margin-bottom: 0;">We may disclose information where required by applicable law, a valid legal process, or a competent authority. We may also disclose information where reasonably necessary to protect the security, rights, or safety of users, the company, or the service, subject to applicable law.</p>
         </div>
       </section>
 
       <!-- Section 6 -->
-      <section id="security">
-        <h2>6. Security Safeguards</h2>
-        <p>
-          WaferWire LLC implements multi-layered security controls to safeguard sensitive health information:
-        </p>
+      <section id="data-storage-and-security">
+        <h2>6. Data Storage and Security</h2>
+        <p>ClaimsGuru uses technical and organizational safeguards designed to protect personal and sensitive information against unauthorized access, loss, misuse, alteration, or disclosure.</p>
+        <p>Depending on the relevant system, safeguards may include:</p>
         <ul>
-          <li><strong>At-Rest Encryption:</strong> All blob storage containers and databases use AES-256 encryption.</li>
-          <li><strong>In-Transit Encryption:</strong> Modern TLS 1.3 encryption with strict HTTP Strict Transport Security (HSTS).</li>
-          <li><strong>Role-Based Access Control (RBAC):</strong> Strict separation between patients, adjusters, and platform administrators.</li>
-          <li><strong>Least Privilege Architecture:</strong> Backend services operate on isolated microservice scopes with no unrestricted root privileges.</li>
-          <li><strong>OWASP Hardening:</strong> Anti-clickjacking (X-Frame-Options: DENY), content sniffing prevention (X-Content-Type-Options: nosniff), and rate-limiting on all authentication endpoints.</li>
+          <li>Encryption of data transmitted over secure connections.</li>
+          <li>Authentication and access controls.</li>
+          <li>Role-based access to claim information.</li>
+          <li>Protected cloud infrastructure and storage.</li>
+          <li>Security monitoring and operational safeguards.</li>
         </ul>
+        <p>Access to medical and insurance information should be limited to authorized users who need it for the relevant claim-processing functions.</p>
+        <p>No electronic system or transmission method can guarantee absolute security. We continually seek to maintain appropriate safeguards for the information processed through our services.</p>
       </section>
 
       <!-- Section 7 -->
-      <section id="children">
-        <h2>7. Children's Privacy</h2>
-        <p>
-          ClaimsGuru is not intended for unsupervised use by minors under the age of 18. Where claims are filed for 
-          minor children or dependents, all data is submitted and managed through the parent or legal guardian's 
-          verified account with explicit parental consent.
-        </p>
+      <section id="data-retention">
+        <h2>7. Data Retention</h2>
+        <p>We retain personal information for as long as reasonably necessary to provide ClaimsGuru's services, process and manage claims, maintain security, resolve disputes, and comply with applicable legal or contractual obligations.</p>
+        <p>Retention periods may vary depending on the information involved, the claim's status, applicable requirements, and relevant agreements.</p>
+        <p>When information is no longer required or when an account is deleted, it is permanently deleted from our active systems. We do not retain records or maintain backup copies once account deletion has been processed.</p>
       </section>
 
       <!-- Section 8 -->
-      <section id="global-access">
-        <h2>8. Worldwide Accessibility & Regulatory Compliance</h2>
-        <p>
-          In accordance with Google Play Developer Policies:
-        </p>
-        <ul>
-          <li>This Privacy Policy is hosted on an active, publicly accessible HTTPS URL with a valid SSL certificate.</li>
-          <li>It is accessible worldwide without geographical restrictions, IP geoblocking, or login requirements.</li>
-          <li>It is presented on a standard, non-editable HTML webpage (not a PDF or downloadable file).</li>
-          <li>It comprehensively discloses the exact data types collected, processing steps, retention schedules, and contact details.</li>
-        </ul>
+      <section id="account-and-data-deletion">
+        <h2>8. Account and Data Deletion</h2>
+        <p>Users may request account deletion through our account deletion portal:</p>
+        <div class="highlight-box">
+          <strong>Account Deletion Portal</strong>
+          <p><a href="https://www.wct-health.com/delete-account" target="_blank" rel="noopener noreferrer">https://www.wct-health.com/delete-account</a></p>
+        </div>
+        <p>Users may also contact our privacy contact listed below for assistance.</p>
+        <p>We will verify and process deletion requests according to our deletion procedures.</p>
+        <p>When an account is deleted, we permanently delete associated personal information, authentication credentials, and uploaded medical documents from our systems. We do not keep any records or maintain backup copies once an account is deleted.</p>
+        <p>Deleting an account may affect access to claim history and other application features.</p>
+        <p>Information previously submitted to an insurer or Third-Party Administrator (TPA) by the user action may also be subject to that organization's independent retention obligations. Deleting your ClaimsGuru account does not automatically delete records held independently by an insurer or TPA.</p>
       </section>
 
       <!-- Section 9 -->
-      <section id="contact">
-        <h2>9. Company Details & How to Contact Us About Privacy Questions</h2>
-        <p>
-          If you have questions, inquiries, concerns, or complaints regarding this Privacy Policy or our 
-          handling of your personal information, please contact our team:
-        </p>
+      <section id="user-responsibilities">
+        <h2>9. User Responsibilities</h2>
+        <p>Users should:</p>
+        <ul>
+          <li>Provide accurate account and claim information.</li>
+          <li>Upload only documents they are authorized to submit.</li>
+          <li>Review the selected insurer or TPA and the claim details before submission.</li>
+          <li>Protect their account credentials and report suspected unauthorized access.</li>
+          <li>Avoid submitting information unrelated to the intended claim.</li>
+        </ul>
+        <p>Users should understand that extracted information may contain errors and that the insurer or TPA makes the final claim decision.</p>
+      </section>
+
+      <!-- Section 10 -->
+      <section id="childrens-information">
+        <h2>10. Children's Information</h2>
+        <p>ClaimsGuru is designed for its intended claim-management users. Where a legitimate claim requires information about a minor, it should be submitted by an authorized parent, guardian, or representative in accordance with applicable law.</p>
+        <p>We do not knowingly collect children's information for unrelated purposes.</p>
+      </section>
+
+      <!-- Section 11 -->
+      <section id="third-party-services">
+        <h2>11. Third-Party Services and External Policies</h2>
+        <p>ClaimsGuru may integrate with external service providers and participating insurers or TPAs to provide its functions.</p>
+        <p>Those organizations may have their own privacy policies and data-handling practices. Their processing of information under their own responsibilities is governed by the applicable policies, agreements, and laws.</p>
+        <p>Users should consult the relevant organization for information about its independent handling of submitted claims.</p>
+      </section>
+
+      <!-- Section 12 -->
+      <section id="changes-to-policy">
+        <h2>12. Changes to This Privacy Policy</h2>
+        <p>We may update this Privacy Policy to reflect changes in our services, data practices, or legal requirements.</p>
+        <p>The latest version will be published at our designated privacy-policy URL with an updated effective date. Where required, we will provide additional notice of material changes.</p>
+      </section>
+
+      <!-- Section 13 -->
+      <section id="contact-us">
+        <h2>13. Contact Us</h2>
+        <p>For questions about this Privacy Policy, personal information, or account deletion, contact:</p>
 
         <div class="contact-card">
           <div class="contact-item">
-            <span class="contact-label">Product Name:</span>
-            <span class="contact-val">ClaimsGuru</span>
-          </div>
-          <div class="contact-item">
-            <span class="contact-label">Parent Company:</span>
+            <span class="contact-label">Company:</span>
             <span class="contact-val">WaferWire LLC</span>
           </div>
           <div class="contact-item">
-            <span class="contact-label">Postal Address:</span>
-            <span class="contact-val">4034 148TH Ave NE, Redmond - 98052-5165, United States (US)</span>
+            <span class="contact-label">Application:</span>
+            <span class="contact-val">ClaimsGuru</span>
           </div>
           <div class="contact-item">
-            <span class="contact-label">Email Inquiries:</span>
+            <span class="contact-label">Email:</span>
             <span class="contact-val"><a href="mailto:info@waferwire.com">info@waferwire.com</a></span>
           </div>
           <div class="contact-item">
-            <span class="contact-label">Telephone:</span>
-            <span class="contact-val"><a href="tel:+14252460195">+1 (425) 246-0195</a></span>
+            <span class="contact-label">Website:</span>
+            <span class="contact-val"><a href="https://www.wct-health.com/" target="_blank" rel="noopener noreferrer">https://www.wct-health.com/</a></span>
           </div>
           <div class="contact-item">
-            <span class="contact-label">Official Website:</span>
-            <span class="contact-val"><a href="https://waferwire.com/" target="_blank" rel="noopener noreferrer">https://waferwire.com/</a></span>
-          </div>
-          <div class="contact-item">
-            <span class="contact-label">Privacy Office:</span>
-            <span class="contact-val">Attention: Data Protection Officer (info@waferwire.com)</span>
+            <span class="contact-label">Account deletion:</span>
+            <span class="contact-val"><a href="https://www.wct-health.com/delete-account" target="_blank" rel="noopener noreferrer">https://www.wct-health.com/delete-account</a></span>
           </div>
         </div>
+
+        <p style="margin-top: 20px; font-size: 14px; color: var(--slate-600);">
+          Please do not email medical documents or other sensitive personal information unless our support team specifically requests them through an appropriate channel.
+        </p>
+        <p style="font-size: 13px; font-style: italic; color: var(--slate-600); margin-top: 8px;">
+          This Privacy Policy describes ClaimsGuru's data-handling practices and must be kept consistent with the application's actual features, deployed service providers, and operational procedures.
+        </p>
       </section>
     </div>
   </main>
 
   <footer>
-    <p>&copy; 2026 ClaimsGuru · A product of <a href="https://waferwire.com/" target="_blank" rel="noopener noreferrer">WaferWire LLC</a>. All rights reserved.</p>
+    <p>&copy; 2026 ClaimsGuru · Operated by <a href="https://www.wct-health.com/" target="_blank" rel="noopener noreferrer">WaferWire LLC</a>. All rights reserved.</p>
     <p style="margin-top: 8px; font-size: 13px; color: #64748b;">
-      Redmond, WA, United States · <a href="mailto:info@waferwire.com">info@waferwire.com</a> · +1 (425) 246-0195
+      <a href="mailto:info@waferwire.com">info@waferwire.com</a> · <a href="https://www.wct-health.com/delete-account">Account Deletion</a>
     </p>
   </footer>
 
