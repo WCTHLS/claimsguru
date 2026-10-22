@@ -1027,25 +1027,24 @@ def finalize_claim_task(self, previous_result: Any) -> dict[str, Any]:
             dest_email, dest_phone = _resolve_claim_notification_recipient(db, claim, pf)
 
             if dest_email:
-                dispatch_notification_async(
-                    "CLAIM_PROCESSED",
-                    {
-                        "claim_id": str(claim_id),
-                        "email": dest_email,
-                        "phone": dest_phone,
-                        "patient_name": patient_name,
-                        "hospital_name": hospital_name,
-                        "claim_amount": claim_amt,
-                        "diagnosis": diagnosis_val,
-                        "icd_codes": icd_list,
-                        "risk_score": risk_val,
-                        "admission_date": adm_date,
-                        "discharge_date": dis_date,
-                        "attachments": attachments_list,
-                    },
-                )
-        except Exception as notify_err:
-            logging.getLogger("finalize").warning(f"[Finalize] Failed to dispatch completed claim notification: {notify_err}")
+                try:
+                    from libs.shared.notifications import notification_service
+                    notification_service.send_claim_processed_notification(
+                        claim_id=str(claim_id),
+                        email=dest_email,
+                        phone=dest_phone,
+                        patient_name=patient_name,
+                        hospital_name=hospital_name,
+                        claim_amount=claim_amt,
+                        diagnosis=diagnosis_val,
+                        icd_codes=icd_list,
+                        risk_score=risk_val,
+                        admission_date=adm_date,
+                        discharge_date=dis_date,
+                        attachments=attachments_list,
+                    )
+                except Exception as notify_err:
+                    logging.getLogger("finalize").warning(f"[Finalize] Direct notification error for {claim_id}: {notify_err}")
 
         return {
             "claim_id": claim_id,
@@ -1295,25 +1294,24 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
                 dest_email, dest_phone = _resolve_claim_notification_recipient(db, claim, pf)
 
                 if dest_email:
-                    dispatch_notification_async(
-                        "CLAIM_PROCESSED",
-                        {
-                            "claim_id": str(claim_id),
-                            "email": dest_email,
-                            "phone": dest_phone,
-                            "patient_name": patient_name,
-                            "hospital_name": hospital_name,
-                            "claim_amount": claim_amt,
-                            "diagnosis": diagnosis_val,
-                            "icd_codes": icd_list,
-                            "risk_score": risk_val,
-                            "admission_date": adm_date,
-                            "discharge_date": dis_date,
-                            "attachments": attachments_list,
-                        },
-                    )
-            except Exception as notify_err:
-                log.warning(f"[InlinePipeline] Failed to dispatch completed claim notification: {notify_err}")
+                    try:
+                        from libs.shared.notifications import notification_service
+                        notification_service.send_claim_processed_notification(
+                            claim_id=str(claim_id),
+                            email=dest_email,
+                            phone=dest_phone,
+                            patient_name=patient_name,
+                            hospital_name=hospital_name,
+                            claim_amount=claim_amt,
+                            diagnosis=diagnosis_val,
+                            icd_codes=icd_list,
+                            risk_score=risk_val,
+                            admission_date=adm_date,
+                            discharge_date=dis_date,
+                            attachments=attachments_list,
+                        )
+                    except Exception as notify_err:
+                        log.warning(f"[InlinePipeline] Direct notification error for {claim_id}: {notify_err}")
     finally:
         db.close()
     _update_workflow_state(claim_id, "FINISHED", status="FINISHED")
@@ -1662,6 +1660,6 @@ def dispatch_notification_async(event_type: str, payload: dict[str, Any]) -> Non
         except Exception as e:
             logger.warning(f"[NotificationDispatch] Background notification error: {e}")
 
-    # Run notification asynchronously in background thread
-    thread = threading.Thread(target=_bg_runner, name=f"notify-{event_type.lower()}", daemon=True)
+    # Run notification asynchronously in background thread (non-daemon to prevent termination)
+    thread = threading.Thread(target=_bg_runner, name=f"notify-{event_type.lower()}", daemon=False)
     thread.start()

@@ -202,16 +202,11 @@ class AzureCommunicationEmailDriver(BaseEmailDriver):
                     else:
                         raise
 
-            def _poll_email_delivery():
-                try:
-                    res = poller.result()
-                    logger.info(f"[Azure Email] Email delivered successfully to {to_email}. MessageId: {res.get('id') if isinstance(res, dict) else getattr(res, 'id', res)}")
-                except Exception as wait_err:
-                    logger.warning(f"[Azure Email] Email transmission completed for {to_email} (poller result: {wait_err})")
-
-            import threading
-            threading.Thread(target=_poll_email_delivery, daemon=True, name="azure-email-poller").start()
-            logger.info(f"[Azure Email] Email transmission initiated asynchronously for {to_email}")
+            try:
+                res = poller.result(timeout=10)
+                logger.info(f"[Azure Email] Email delivered successfully to {to_email}. MessageId: {res.get('id') if isinstance(res, dict) else getattr(res, 'id', res)}")
+            except Exception as wait_err:
+                logger.info(f"[Azure Email] Email transmission accepted for {to_email} (Azure operation in progress)")
             return True
         except ImportError:
             logger.warning("[Azure Email] azure-communication-email SDK not installed. Falling back to Mock.")
