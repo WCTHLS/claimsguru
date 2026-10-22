@@ -1045,6 +1045,8 @@ def finalize_claim_task(self, previous_result: Any) -> dict[str, Any]:
                     )
                 except Exception as notify_err:
                     logging.getLogger("finalize").warning(f"[Finalize] Direct notification error for {claim_id}: {notify_err}")
+        except Exception as notify_err:
+            logging.getLogger("finalize").warning(f"[Finalize] Failed to dispatch completed claim notification: {notify_err}")
 
         return {
             "claim_id": claim_id,
@@ -1312,6 +1314,8 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
                         )
                     except Exception as notify_err:
                         log.warning(f"[InlinePipeline] Direct notification error for {claim_id}: {notify_err}")
+            except Exception as notify_err:
+                log.warning(f"[InlinePipeline] Failed to dispatch completed claim notification: {notify_err}")
     finally:
         db.close()
     _update_workflow_state(claim_id, "FINISHED", status="FINISHED")
