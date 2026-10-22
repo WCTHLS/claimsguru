@@ -29,29 +29,19 @@ def test_privacy_policy_html_endpoint(client):
     # App and provider identity
     assert "ClaimsGuru" in html
     assert "WaferWire LLC" in html
-    assert "4034 148TH Ave NE" in html
-    assert "Redmond - 98052-5165" in html
 
-    # Contact details
+    # Contact details & links
     assert "info@waferwire.com" in html
-    assert "+14252460195" in html or "+1 (425) 246-0195" in html
-    assert "https://waferwire.com/" in html
+    assert "https://www.wct-health.com/" in html
+    assert "https://www.wct-health.com/delete-account" in html
 
-    # Data collection & medical records
-    assert "Discharge Summaries" in html
-    assert "Aadhaar" in html or "Identity Gate" in html
-    assert "ICD-10" in html
+    # Key policy elements
+    assert "Discharge summaries" in html
+    assert "Medical bills and hospital invoices" in html
+    assert "account deletion portal" in html.lower() or "delete-account" in html
 
-    # Processing & Storage
-    assert "Azure Blob Storage" in html
-    assert "SHA-256" in html
-    assert "AES-256" in html
-
-    # Retention & Deletion
-    assert "Delete Account" in html
     # API endpoints must NOT be mentioned in policy text
     assert "/auth/delete-account" not in html
-    assert "30" in html  # 30 days retention/purge commitment
 
 
 def test_privacy_policy_json_format_query(client):
@@ -64,11 +54,11 @@ def test_privacy_policy_json_format_query(client):
     assert data["product_name"] == "ClaimsGuru"
     assert data["owner"]["name"] == "WaferWire LLC"
     assert data["owner"]["email"] == "info@waferwire.com"
-    assert data["owner"]["phone"] == "+14252460195"
+    assert data["owner"]["website"] == "https://www.wct-health.com/"
     assert "sections" in data
-    assert len(data["sections"]) >= 8
+    assert len(data["sections"]) >= 13
 
-    # Verify no API deletion mentioned in JSON policy content
+    # Verify no internal API deletion endpoint mentioned in JSON policy content
     json_text = str(data)
     assert "/auth/delete-account" not in json_text
 
@@ -81,3 +71,4 @@ def test_privacy_policy_json_accept_header(client):
     data = response.json()
     assert data["product_name"] == "ClaimsGuru"
     assert data["owner"]["name"] == "WaferWire LLC"
+
