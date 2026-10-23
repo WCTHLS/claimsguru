@@ -246,6 +246,16 @@ def setup_custom_logging_levels(logger, *args, **kwargs):
         l.setLevel(logging.INFO)
         l.propagate = True
 
+    # Silence noisy Azure SDK and HTTP connection pool loggers in Celery workers
+    try:
+        from libs.shared.logging_config import QUIET_LOGGERS
+        for qn in QUIET_LOGGERS:
+            ql = logging.getLogger(qn)
+            ql.setLevel(logging.WARNING)
+            ql.propagate = False
+    except Exception:
+        pass
+
 # ================================================================== worker startup hooks
 # Pre-warm OCR engines when parent worker imports the module (before fork)
 import sys

@@ -221,11 +221,16 @@ def _audit(db, action: str, claim_id=None, metadata=None):
         logger.debug("Audit log failed for %s", action, exc_info=True)
 
 # ------------------------------------------------------------------ logging
-logging.basicConfig(
-    level=settings.log_level.upper(),
-    format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
-)
-logger = logging.getLogger("ingress")
+try:
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+    from libs.shared.logging_config import configure_enterprise_logging
+    logger = configure_enterprise_logging("ingress", settings.log_level)
+except Exception:
+    logging.basicConfig(
+        level=settings.log_level.upper(),
+        format="%(asctime)s  %(levelname)-8s  %(name)s  %(message)s",
+    )
+    logger = logging.getLogger("ingress")
 
 # log4net-style on-disk audit log for claim uploads
 # Writes to <repo_root>/logs/claim_uploads.txt (override via CLAIMGPT_LOG_DIR).

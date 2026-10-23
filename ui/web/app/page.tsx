@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import ClaimChatWidget from "@/components/claimgpt/claim-chat-widget";
 import NavBrand from "@/components/claimgpt/nav-brand";
@@ -173,18 +174,7 @@ const STYLES = `
   @media (max-width:600px){ .lp-h1{font-size:34px;letter-spacing:-1.2px} .lp-h2{font-size:28px} .lp-section{padding:56px 0} .lp-wrap{padding:0 20px} .lp-nav-inner{padding:14px 20px} .lp-grid-4,.lp-grid-3,.lp-grid-2,.lp-band-grid{grid-template-columns:1fr} .lp-nav-links{display:none} .lp-foot-grid{grid-template-columns:1fr} .lp-cta h2{font-size:30px} }
 `;
 
-function BrandMark() {
-  // Concept 37  -  folded document + emerald sparkle
-  return (
-    <svg width="28" height="28" viewBox="0 0 64 68" fill="none" aria-hidden style={{ flex: "0 0 auto" }}>
-      <path d="M2 6 a4 4 0 0 1 4 -4 h36 l18 18 v44 a4 4 0 0 1 -4 4 h-50 a4 4 0 0 1 -4 -4 z" fill="#0f4c81" />
-      <path d="M42 2 v14 a4 4 0 0 0 4 4 h14" fill="none" stroke="#fff" strokeWidth="2.5" opacity=".9" />
-      <rect x="12" y="30" width="34" height="4" rx="2" fill="#fff" opacity=".7" />
-      <rect x="12" y="40" width="26" height="4" rx="2" fill="#fff" opacity=".5" />
-      <path d="M46 44 l3.5 8 l8 3.5 l-8 3.5 l-3.5 8 l-3.5 -8 l-8 -3.5 l8 -3.5 z" fill="#0d9488" />
-    </svg>
-  );
-}
+
 
 const ICONS: Record<string, React.ReactNode> = {
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
@@ -218,7 +208,16 @@ export default function HomePage() {
       {/* Nav */}
       <nav className="lp-nav">
         <div className="lp-nav-inner">
-          <NavBrand><BrandMark /><span style={{ fontSize: "18px", fontWeight: "800", color: "#06243f", letterSpacing: "-0.3px" }}>ClaimsGuru</span></NavBrand>
+          <NavBrand>
+            <Image
+              src="/image.png"
+              alt="ClaimsGuru"
+              width={160}
+              height={38}
+              priority
+              style={{ height: "36px", width: "auto", objectFit: "contain" }}
+            />
+          </NavBrand>
           <div className="lp-nav-links"></div>
           <div className="lp-nav-actions">
             <Link className="lp-nav-ghost" href="/login">Sign in</Link>
@@ -426,7 +425,15 @@ export default function HomePage() {
       <footer className="lp-footer"><div className="lp-wrap">
         <div className="lp-foot-grid">
           <div className="lp-foot-co">
-            <div className="lp-foot-brand"><BrandMark /> ClaimsGuru</div>
+            <div className="lp-foot-brand">
+              <Image
+                src="/image.png"
+                alt="ClaimsGuru"
+                width={140}
+                height={33}
+                style={{ height: "30px", width: "auto", objectFit: "contain" }}
+              />
+            </div>
             <p className="lp-foot-desc">AI-powered healthcare claims intelligence for TPAs and insurers. Built by WaferWire Cloud Technologies.</p>
           </div>
           <div className="lp-foot-loc"><h4>US Office (HQ)</h4><span>4034 148th Ave NE</span><span>Redmond, WA  -  98052</span><span>+1 425-484-3430</span></div>
