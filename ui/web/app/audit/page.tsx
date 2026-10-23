@@ -19,6 +19,7 @@ import {
   ChevronRight,
   User,
   ShieldCheck,
+  ShieldAlert,
   Filter,
   ExternalLink,
   ArrowLeft,
@@ -27,6 +28,9 @@ import {
   History,
   Send,
   Edit3,
+  Lock,
+  LogOut,
+  LogIn,
 } from 'lucide-react';
 
 import {
@@ -39,9 +43,17 @@ import {
   RealClaimPreview,
   RecentClaimSummary,
 } from '@/lib/api-client';
+import {
+  getStoredAuthSession,
+  clearAuthSession,
+  beginEntraAuthFlow,
+} from '@/lib/auth';
 
 const INGRESS_API = typeof window !== 'undefined' ? getIngressApiUrl() : 'http://127.0.0.1:8000/ingress';
 const SUBMISSION_API = typeof window !== 'undefined' ? getSubmissionApiUrl() : 'http://127.0.0.1:8000/submission';
+
+// Whitelisted Administrator for Audit Cockpit Access
+const ALLOWED_ADMIN_EMAIL = 'swagathreddykasula@gmail.com';
 
 interface ClaimItem extends RecentClaimSummary {
   submitted_by_name?: string;
@@ -84,6 +96,13 @@ interface ExtendedClaimPreview extends Omit<RealClaimPreview, 'icd_codes'> {
 }
 
 export default function MasterAuditPage() {
+  // Authentication & Access Control States
+  const [authChecking, setAuthChecking] = useState(true);
+  const [isAuthorized, setIsAuthorized] = useState(false);
+  const [currentUserEmail, setCurrentUserEmail] = useState<string | null>(null);
+  const [entraSigningIn, setEntraSigningIn] = useState(false);
+
+  // Claims Data States
   const [claims, setClaims] = useState<ClaimItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -100,6 +119,51 @@ export default function MasterAuditPage() {
   const [activeDocPreview, setActiveDocPreview] = useState<{ id: string; name: string; url: string } | null>(null);
   const [downloadingZip, setDownloadingZip] = useState(false);
 
+  // 1. Check Authenticated Session & Verify Whitelist
+  useEffect(() => {
+    const checkAuth = () => {
+      const session = getStoredAuthSession();
+      const storedEmail =
+        session?.user?.email ||
+        session?.user?.preferredUsername ||
+        (typeof window !== 'undefined' ? localStorage.getItem('claimgpt_user_email') : '') ||
+        '';
+
+      const normalized = storedEmail.toLowerCase().trim();
+      setCurrentUserEmail(normalized || null);
+
+      if (normalized === ALLOWED_ADMIN_EMAIL.toLowerCase()) {
+        setIsAuthorized(true);
+      } else {
+        setIsAuthorized(false);
+      }
+      setAuthChecking(false);
+    };
+
+    checkAuth();
+  }, []);
+
+  // Entra ID Sign-In Handler
+  const handleEntraSignIn = async () => {
+    setEntraSigningIn(true);
+    try {
+      await beginEntraAuthFlow({ role: 'patient' });
+    } catch (err) {
+      console.error('Entra sign-in error:', err);
+      setEntraSigningIn(false);
+    }
+  };
+
+  // Sign-Out Handler
+  const handleSignOut = () => {
+    clearAuthSession();
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('claimgpt_user_email');
+    }
+    setIsAuthorized(false);
+    setCurrentUserEmail(null);
+  };
+
   // Helper to ensure auditor role header is passed to fetch all claims across all TPAs
   const getAuditHeaders = useCallback(() => {
     const headers = getAuthHeaders();
@@ -112,7 +176,7 @@ export default function MasterAuditPage() {
     return headers;
   }, []);
 
-  // 1. Fetch all claims across the entire platform
+  // 2. Fetch all claims across the entire platform
   const loadAllClaims = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
@@ -167,8 +231,10 @@ export default function MasterAuditPage() {
   }, [getAuditHeaders]);
 
   useEffect(() => {
-    loadAllClaims();
-  }, [loadAllClaims]);
+    if (isAuthorized) {
+      loadAllClaims();
+    }
+  }, [isAuthorized, loadAllClaims]);
 
   // Combined documents list between Claim item and Preview item
   const resolvedDocuments = useMemo(() => {
@@ -192,7 +258,7 @@ export default function MasterAuditPage() {
     return Array.from(map.values());
   }, [selectedClaim, previewData]);
 
-  // 2. Fetch full deep-dive preview & audit trail when a claim is selected
+  // 3. Fetch full deep-dive preview & audit trail when a claim is selected
   const handleSelectClaim = async (claim: ClaimItem) => {
     setSelectedClaim(claim);
     setPreviewLoading(true);
@@ -245,7 +311,7 @@ export default function MasterAuditPage() {
     }
   };
 
-  // 3. Document preview selection
+  // 4. Document preview selection
   const handlePreviewDoc = (claimId: string, doc: any) => {
     const docId = doc.id || doc.document_id;
     if (!docId) return;
@@ -257,7 +323,7 @@ export default function MasterAuditPage() {
     });
   };
 
-  // 4. Download all documents as ZIP
+  // 5. Download all documents as ZIP
   const handleDownloadZip = async () => {
     if (!selectedClaim || resolvedDocuments.length === 0) return;
     setDownloadingZip(true);
@@ -274,21 +340,21 @@ export default function MasterAuditPage() {
     }
   };
 
-  // 5. Download IRDAI Standard Form PDF
+  // 6. Download IRDAI Standard Form PDF
   const handleDownloadIrdaPdf = () => {
     if (!selectedClaim) return;
     const downloadUrl = `${SUBMISSION_API}/claims/${encodeURIComponent(selectedClaim.id)}/irda-pdf?style=modern&view=false`;
     window.open(downloadUrl, '_blank');
   };
 
-  // 6. Download TPA Summary PDF
+  // 7. Download TPA Summary PDF
   const handleDownloadTpaPdf = () => {
     if (!selectedClaim) return;
     const downloadUrl = `${SUBMISSION_API}/claims/${encodeURIComponent(selectedClaim.id)}/tpa-pdf?style=modern&view=false`;
     window.open(downloadUrl, '_blank');
   };
 
-  // 7. Filtering and Search
+  // 8. Filtering and Search
   const filteredClaims = useMemo(() => {
     return claims.filter((c) => {
       const q = searchQuery.toLowerCase().trim();
@@ -328,6 +394,116 @@ export default function MasterAuditPage() {
     return { total, submitted, drafts, processing };
   }, [claims]);
 
+  // ── Authentication Gate Screens ──
+
+  if (authChecking) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 text-slate-500">
+        <RefreshCw className="h-8 w-8 animate-spin text-teal-600 mb-3" />
+        <p className="text-sm font-medium">Verifying administrator credentials for audit cockpit…</p>
+      </div>
+    );
+  }
+
+  if (!isAuthorized) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 p-4 font-sans text-slate-800">
+        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-xl">
+          <div className="flex justify-center mb-6">
+            <Link href="/">
+              <Image
+                src="/image.png"
+                alt="ClaimsGuru"
+                width={150}
+                height={36}
+                priority
+                style={{ height: '36px', width: 'auto', objectFit: 'contain' }}
+              />
+            </Link>
+          </div>
+
+          {!currentUserEmail ? (
+            // State: Not signed in
+            <div className="text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-50 text-teal-600 border border-teal-200 mb-4">
+                <Lock className="h-7 w-7" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-900">Restricted Administrator Access</h2>
+              <p className="mt-2 text-xs text-slate-500 leading-relaxed">
+                The Master Audit & Testing Cockpit is restricted to authorized platform administrators. Please authenticate with your official Microsoft Entra ID account (<strong className="text-slate-800">swagathreddykasula@gmail.com</strong>).
+              </p>
+
+              <div className="mt-6 space-y-3">
+                <button
+                  onClick={handleEntraSignIn}
+                  disabled={entraSigningIn}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-sm font-semibold text-white shadow-sm hover:bg-teal-700 transition disabled:opacity-50"
+                >
+                  {entraSigningIn ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span>Connecting to Microsoft Entra…</span>
+                    </>
+                  ) : (
+                    <>
+                      <LogIn className="h-4 w-4" />
+                      <span>Sign In with Microsoft Entra ID</span>
+                    </>
+                  )}
+                </button>
+
+                <Link
+                  href="/login"
+                  className="block text-center text-xs text-slate-500 hover:text-slate-800 transition py-1"
+                >
+                  Standard Login Page →
+                </Link>
+              </div>
+            </div>
+          ) : (
+            // State: Signed in with unauthorized email
+            <div className="text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 mb-4">
+                <ShieldAlert className="h-7 w-7" />
+              </div>
+              <h2 className="text-lg font-bold text-slate-900">Access Denied</h2>
+              <p className="mt-2 text-xs text-slate-600 leading-relaxed">
+                You are currently signed in as <span className="font-mono font-semibold text-slate-800">{currentUserEmail}</span>.
+              </p>
+              <div className="mt-2 rounded-lg bg-amber-50 p-2.5 text-[11px] text-amber-800 border border-amber-200">
+                This internal testing cockpit is restricted to <strong className="font-semibold">swagathreddykasula@gmail.com</strong>.
+              </div>
+
+              <div className="mt-6 space-y-3">
+                <button
+                  onClick={async () => {
+                    handleSignOut();
+                    await handleEntraSignIn();
+                  }}
+                  disabled={entraSigningIn}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-teal-700 transition"
+                >
+                  <LogIn className="h-4 w-4" />
+                  <span>Switch Account / Sign In with Entra</span>
+                </button>
+
+                <Link
+                  href="/app"
+                  className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 transition"
+                >
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  <span>Return to Employee Portal</span>
+                </Link>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Authorized Master Cockpit UI ──
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans">
       {/* Top Header */}
@@ -354,6 +530,13 @@ export default function MasterAuditPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Authenticated Admin Badge */}
+            <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-teal-200 bg-teal-50/70 px-2.5 py-1 text-xs text-teal-800 font-medium">
+              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Admin:</span>
+              <span className="font-mono text-[11px] text-teal-900">{currentUserEmail}</span>
+            </div>
+
             <button
               onClick={() => loadAllClaims(true)}
               disabled={refreshing}
@@ -362,13 +545,14 @@ export default function MasterAuditPage() {
               <RefreshCw className={`h-3.5 w-3.5 text-slate-500 ${refreshing ? 'animate-spin' : ''}`} />
               <span>{refreshing ? 'Refreshing…' : 'Refresh Feed'}</span>
             </button>
-            <Link
-              href="/app"
-              className="inline-flex items-center gap-1 text-xs font-medium text-teal-600 hover:text-teal-800"
+
+            <button
+              onClick={handleSignOut}
+              title="Sign Out"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1.5 text-xs font-medium text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition"
             >
-              <span>Employee Portal</span>
-              <ExternalLink className="h-3 w-3" />
-            </Link>
+              <LogOut className="h-3.5 w-3.5" />
+            </button>
           </div>
         </div>
       </header>
