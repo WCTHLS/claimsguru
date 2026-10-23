@@ -388,7 +388,7 @@ def build_features(
         "is_daycare_overstay":               is_daycare_overstay,
         "is_unspecified_investigation_only": is_unspecified_investigation_only,
     }
-    logger.info(f"---------Features for rejection prediction---------\n{chr(10).join(f'{k}: {v}' for k, v in features.items())}")
+    logger.debug(f"---------Features for rejection prediction---------\n{chr(10).join(f'{k}: {v}' for k, v in features.items())}")
     return features
 
 
@@ -732,7 +732,7 @@ def _load_models():
         else:
             _xgb_model = _train_xgboost()
     except ImportError:
-        logger.warning("xgboost not installed — will use heuristic fallback")
+        logger.debug("xgboost not installed — will use heuristic fallback")
     except Exception:
         logger.warning("Failed to load/train XGBoost model", exc_info=True)
 
@@ -761,7 +761,7 @@ def _load_models():
                 else:
                     logger.warning("Trained LightGBM model failed validation; disabling LightGBM")
     except ImportError:
-        logger.info("lightgbm not installed — skipping secondary model")
+        logger.debug("lightgbm not installed — skipping secondary model")
     except Exception:
         logger.warning("Failed to load/train LightGBM model", exc_info=True)
 
