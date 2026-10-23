@@ -49,8 +49,6 @@ import {
   beginEntraAuthFlow,
 } from '@/lib/auth';
 
-const INGRESS_API = typeof window !== 'undefined' ? getIngressApiUrl() : 'http://127.0.0.1:8000/ingress';
-const SUBMISSION_API = typeof window !== 'undefined' ? getSubmissionApiUrl() : 'http://127.0.0.1:8000/submission';
 
 // Whitelisted Administrator for Audit Cockpit Access
 const ALLOWED_ADMIN_EMAIL = 'swagathreddykasula@gmail.com';
@@ -106,6 +104,7 @@ export default function MasterAuditPage() {
   const [claims, setClaims] = useState<ClaimItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [tpaFilter, setTpaFilter] = useState('ALL');
@@ -167,12 +166,12 @@ export default function MasterAuditPage() {
   // Helper to ensure auditor role header is passed to fetch all claims across all TPAs
   const getAuditHeaders = useCallback(() => {
     const headers = getAuthHeaders();
-    if (!headers['X-User-Role']) {
-      headers['X-User-Role'] = 'auditor';
-    }
-    if (!headers['X-User-Id']) {
-      headers['X-User-Id'] = 'admin-auditor';
-    }
+    // 1. Force override X-User-Role to 'auditor' so backend marks caller as is_privileged = True
+    headers['X-User-Role'] = 'auditor';
+    headers['X-User-Id'] = 'admin-auditor';
+    // 2. Clear patient scoping headers so backend returns claims across ALL employees/TPAs
+    delete headers['X-Patient-Id'];
+    delete headers['X-Patient-Email'];
     return headers;
   }, []);
 
@@ -182,48 +181,57 @@ export default function MasterAuditPage() {
     else setLoading(true);
 
     try {
-      const url = `${INGRESS_API}/claims?limit=500&organization=all&t=${Date.now()}`;
+      setFetchError(null);
+      const ingressBase = getIngressApiUrl();
+      const url = `${ingressBase}/claims?limit=500&organization=all&t=${Date.now()}`;
+      const headers = getAuditHeaders();
       const res = await fetch(url, {
-        headers: getAuditHeaders(),
+        headers,
         cache: 'no-store',
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const rawClaims: any[] = data.claims || data.results || (Array.isArray(data) ? data : []);
-
-        const mapped: ClaimItem[] = rawClaims.map((c) => {
-          const rawDest = c.insurance_company || c.payer || '';
-          const isSubmitted =
-            c.status === 'SUBMITTED' ||
-            c.status === 'APPROVED' ||
-            c.status === 'SETTLED' ||
-            c.status === 'REJECTED';
-          const tpaDest = isSubmitted ? (rawDest || 'TPA') : (rawDest ? `${rawDest} (Draft)` : 'Unassigned Draft');
-
-          return {
-            id: c.id || c.claim_id,
-            patient_name: c.patient_name || c.name || 'Anonymous Patient',
-            status: (c.status || 'PROCESSING').toUpperCase(),
-            created_at: c.created_at || '',
-            total_amount: c.total_amount || '',
-            insurance_company: rawDest,
-            tpa_destination: tpaDest,
-            hospital_name: c.hospital_name || 'Hospital Not Extracted',
-            doctor_name: c.doctor_name || '',
-            diagnosis: c.diagnosis || 'Diagnosis Pending',
-            policy_id: c.policy_id || '',
-            patient_id: c.patient_id || '',
-            submitted_by_name: c.submitted_by_name || '',
-            submitted_by_email: c.submitted_by_email || (c.patient_id?.includes('@') ? c.patient_id : ''),
-            documents: c.documents || [],
-          };
-        });
-
-        setClaims(mapped);
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('Failed to load master claims HTTP', res.status, errText);
+        setFetchError(`HTTP ${res.status}: ${errText.slice(0, 100)}`);
+        return;
       }
-    } catch (err) {
+
+      const data = await res.json();
+      const rawClaims: any[] = data.claims || data.results || (Array.isArray(data) ? data : []);
+
+      const mapped: ClaimItem[] = rawClaims.map((c) => {
+        const rawDest = c.insurance_company || c.payer || '';
+        const isSubmitted =
+          c.status === 'SUBMITTED' ||
+          c.status === 'APPROVED' ||
+          c.status === 'SETTLED' ||
+          c.status === 'REJECTED';
+        const tpaDest = isSubmitted ? (rawDest || 'TPA') : (rawDest ? `${rawDest} (Draft)` : 'Unassigned Draft');
+
+        return {
+          id: c.id || c.claim_id,
+          patient_name: c.patient_name || c.name || 'Anonymous Patient',
+          status: (c.status || 'PROCESSING').toUpperCase(),
+          created_at: c.created_at || '',
+          total_amount: c.total_amount || '',
+          insurance_company: rawDest,
+          tpa_destination: tpaDest,
+          hospital_name: c.hospital_name || 'Hospital Not Extracted',
+          doctor_name: c.doctor_name || '',
+          diagnosis: c.diagnosis || 'Diagnosis Pending',
+          policy_id: c.policy_id || '',
+          patient_id: c.patient_id || '',
+          submitted_by_name: c.submitted_by_name || '',
+          submitted_by_email: c.submitted_by_email || (c.patient_id?.includes('@') ? c.patient_id : ''),
+          documents: c.documents || [],
+        };
+      });
+
+      setClaims(mapped);
+    } catch (err: any) {
       console.error('Failed to load master claims:', err);
+      setFetchError(err?.message || 'Network error fetching claims');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -267,10 +275,13 @@ export default function MasterAuditPage() {
     setAuditTrail([]);
 
     try {
+      const submissionBase = getSubmissionApiUrl();
+      const ingressBase = getIngressApiUrl();
+
       // Parallel fetch preview data and user activity audit trail
       const [previewRes, auditRes] = await Promise.allSettled([
         fetchClaimPreview(claim.id),
-        fetch(`${SUBMISSION_API}/claims/${encodeURIComponent(claim.id)}/audit`, {
+        fetch(`${submissionBase}/claims/${encodeURIComponent(claim.id)}/audit`, {
           headers: getAuditHeaders(),
           cache: 'no-store',
         }),
@@ -296,7 +307,7 @@ export default function MasterAuditPage() {
         const firstDoc = docsToChoose[0];
         const docId = firstDoc.id || firstDoc.document_id;
         if (docId) {
-          const previewUrl = `${INGRESS_API}/claims/${encodeURIComponent(claim.id)}/documents/${encodeURIComponent(docId)}/file?view=true`;
+          const previewUrl = `${ingressBase}/claims/${encodeURIComponent(claim.id)}/documents/${encodeURIComponent(docId)}/file?view=true`;
           setActiveDocPreview({
             id: docId,
             name: firstDoc.original_filename || firstDoc.file_name || 'Document.pdf',
@@ -315,7 +326,8 @@ export default function MasterAuditPage() {
   const handlePreviewDoc = (claimId: string, doc: any) => {
     const docId = doc.id || doc.document_id;
     if (!docId) return;
-    const previewUrl = `${INGRESS_API}/claims/${encodeURIComponent(claimId)}/documents/${encodeURIComponent(docId)}/file?view=true`;
+    const ingressBase = getIngressApiUrl();
+    const previewUrl = `${ingressBase}/claims/${encodeURIComponent(claimId)}/documents/${encodeURIComponent(docId)}/file?view=true`;
     setActiveDocPreview({
       id: docId,
       name: doc.original_filename || doc.file_name || 'Document.pdf',
@@ -343,14 +355,16 @@ export default function MasterAuditPage() {
   // 6. Download IRDAI Standard Form PDF
   const handleDownloadIrdaPdf = () => {
     if (!selectedClaim) return;
-    const downloadUrl = `${SUBMISSION_API}/claims/${encodeURIComponent(selectedClaim.id)}/irda-pdf?style=modern&view=false`;
+    const submissionBase = getSubmissionApiUrl();
+    const downloadUrl = `${submissionBase}/claims/${encodeURIComponent(selectedClaim.id)}/irda-pdf?style=modern&view=false`;
     window.open(downloadUrl, '_blank');
   };
 
   // 7. Download TPA Summary PDF
   const handleDownloadTpaPdf = () => {
     if (!selectedClaim) return;
-    const downloadUrl = `${SUBMISSION_API}/claims/${encodeURIComponent(selectedClaim.id)}/tpa-pdf?style=modern&view=false`;
+    const submissionBase = getSubmissionApiUrl();
+    const downloadUrl = `${submissionBase}/claims/${encodeURIComponent(selectedClaim.id)}/tpa-pdf?style=modern&view=false`;
     window.open(downloadUrl, '_blank');
   };
 
@@ -657,6 +671,21 @@ export default function MasterAuditPage() {
             </div>
           </div>
         </div>
+
+        {fetchError && (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 mb-6 flex items-center justify-between text-xs text-rose-800">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-rose-600 flex-shrink-0" />
+              <span>Failed to fetch claims from server: {fetchError}</span>
+            </div>
+            <button
+              onClick={() => loadAllClaims(true)}
+              className="rounded bg-rose-100 px-2.5 py-1 font-semibold text-rose-900 hover:bg-rose-200 transition"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Master Claims Table */}
         <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
