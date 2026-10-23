@@ -1592,7 +1592,7 @@ def _try_crossencoder_rerank(query: str, candidates: list[tuple[str, str, str, f
         if best_score < 2.0:
             top3_rejected = [(str(row[0]), str(row[1]), str(row[2]), float(row[4])) for row in scored_candidates[:3]]
             logger.info("Cross-encoder best score %s for query '%s' is below threshold 2.0. Falling back to S-PubMedBert.", best_score, query)
-            logger.info(f"----------Cross-encoder reranker results for query----------{query}\n{top3_rejected}")
+            logger.debug(f"----------Cross-encoder reranker results for query----------{query}\n{top3_rejected}")
             return None
 
         cand_dict = {row[0]: (row[0], row[1], row[2], float(row[4])) for row in scored_candidates}
@@ -1623,7 +1623,7 @@ def _try_crossencoder_rerank(query: str, candidates: list[tuple[str, str, str, f
 
         # Normalize to 4-tuples for downstream rerank compatibility
         normalized = [(str(code), str(desc), str(cat), float(score)) for code, desc, cat, _extra, score in scored_candidates]
-        logger.info(f"----------Cross-encoder reranker results for query----------{query}\n{normalized[:3]}")
+        logger.debug(f"----------Cross-encoder reranker results for query----------{query}\n{normalized[:3]}")
         return normalized
     except Exception:
         logger.debug("Cross-encoder reranker failed", exc_info=True)
@@ -1859,7 +1859,7 @@ def _search_icd10_rag_cached(
     sparse = _bm25_rank(query, _icd10_bm25, pool)
     fused = list(_to_results(_rrf_fuse([dense, sparse]), _icd10_meta, pool))
     reranked = _rerank_icd_results(query, fused)
-    logger.info(f"-------HYBRID RETRIEVAL results after reranking------------\n{reranked[:5] if len(reranked) > 5 else reranked}")
+    logger.debug(f"-------HYBRID RETRIEVAL results after reranking------------\n{reranked[:5] if len(reranked) > 5 else reranked}")
     return _merge_prior_and_ranked(prior, reranked, max_results)
 
 

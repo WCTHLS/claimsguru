@@ -414,6 +414,8 @@ def generate_irda_pdf_modern(claim_data: dict[str, Any], blank: bool = False) ->
         raise
 
     try:
+        logging.getLogger("weasyprint").setLevel(logging.ERROR)
+        logging.getLogger("fontTools").setLevel(logging.ERROR)
         pdf_bytes = HTML(string=html_str, base_url=str(_TEMPLATE_DIR)).write_pdf(
             pdf_forms=True,  # emit real AcroForm widgets for <input>/<textarea>/<input type=radio|checkbox>
         )

@@ -25,7 +25,7 @@ def init_metrics(service_name: str) -> None:
     global _REQUEST_DURATION, _REQUEST_COUNT, _REQUEST_ERRORS
 
     if not _METRICS_ENABLED:
-        logger.info("Prometheus metrics disabled (set METRICS_ENABLED=true to enable)")
+        logger.debug("Prometheus metrics disabled (set METRICS_ENABLED=true to enable)")
         return
 
     try:

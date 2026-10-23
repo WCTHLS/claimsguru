@@ -333,11 +333,12 @@ def generate_tpa_pdf_modern(claim_data: dict[str, Any]) -> bytes:
         template = env.get_template("tpa_form.html")
         html_str = template.render(**context)
 
-        # Generate PDF using WeasyPrint
+        # Generate PDF using WeasyPrint (silence verbose CSS parsing & glyph dumps)
+        logging.getLogger("weasyprint").setLevel(logging.ERROR)
+        logging.getLogger("fontTools").setLevel(logging.ERROR)
         pdf_doc = weasyprint.HTML(string=html_str, base_url=str(_TEMPLATE_DIR))
         pdf_bytes = pdf_doc.write_pdf(
             presentational_hints=True,
-            optimize_size=("fonts", "images"),
         )
         return pdf_bytes
 

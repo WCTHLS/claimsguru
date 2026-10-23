@@ -4,6 +4,7 @@ import sys
 # High-frequency, verbose third-party loggers that dump HTTP headers,
 # connection pool pings, or transport debug frames into Log Analytics
 QUIET_LOGGERS = [
+    # Azure SDK & HTTP transport
     "azure",
     "azure.core.pipeline.policies.http_logging_policy",
     "azure.core.pipeline.policies",
@@ -20,6 +21,16 @@ QUIET_LOGGERS = [
     "asyncio",
     "multipart",
     "multipart.multipart",
+    # PDF rendering & Font subsetting (glyph dumps, CSS warnings, step-by-step layout frames)
+    "weasyprint",
+    "weasyprint.progress",
+    "fontTools",
+    "fontTools.subset",
+    "fontTools.ttLib",
+    "fontTools.ttLib.ttFont",
+    "PIL",
+    "pypdf",
+    "pdfminer",
 ]
 
 class HealthCheckFilter(logging.Filter):
@@ -41,7 +52,8 @@ def configure_enterprise_logging(service_name: str = "app", log_level: str = "IN
     Ensures:
     1. Critical application milestones, claims events, and errors are visible at INFO/WARNING/ERROR.
     2. Million-line Azure SDK HTTP header and connection-pool noise is completely suppressed.
-    3. Health-check pings from ACA liveness probes are filtered out from access logs.
+    3. WeasyPrint/fontTools layout and glyph dumping noise is completely suppressed.
+    4. Health-check pings from ACA liveness probes are filtered out from access logs.
     """
     resolved_level = getattr(logging, log_level.upper(), logging.INFO)
 
@@ -56,7 +68,7 @@ def configure_enterprise_logging(service_name: str = "app", log_level: str = "IN
     # 2. Silence all noisy third-party libraries
     for name in QUIET_LOGGERS:
         quiet_logger = logging.getLogger(name)
-        quiet_logger.setLevel(logging.WARNING)
+        quiet_logger.setLevel(logging.ERROR)
         quiet_logger.propagate = False
 
     # 3. Filter routine health-check polling from uvicorn

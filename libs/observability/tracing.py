@@ -28,7 +28,7 @@ def init_tracing(service_name: str) -> None:
       - opentelemetry-instrumentation-sqlalchemy
     """
     if not _OTEL_ENABLED:
-        logger.info("OpenTelemetry tracing disabled (set OTEL_ENABLED=true to enable)")
+        logger.debug("OpenTelemetry tracing disabled (set OTEL_ENABLED=true to enable)")
         return
 
     try:
