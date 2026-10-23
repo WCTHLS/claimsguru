@@ -1942,6 +1942,88 @@ def get_user_profile(user_id_or_email: str):
             }
 
 
+class UpdateProfileIn(BaseModel):
+    user_id: str | None = None
+    email: str | None = None
+    name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
+    phone: str | None = None
+    dob: str | None = None
+    gender: str | None = None
+
+
+@router.post("/auth/profile/update", status_code=200)
+@router.post("/ingress/auth/profile/update", status_code=200)
+def update_user_profile_endpoint(payload: UpdateProfileIn):
+    """Update user mobile phone, name, dob, and gender in the database."""
+    email = (payload.email or "").strip().lower()
+    user_id = (payload.user_id or "").strip()
+    with force_master_session(), SessionLocal() as db:
+        user = None
+        if user_id:
+            parsed = _safe_parse_uuid(user_id)
+            if parsed:
+                user = db.query(User).filter(User.id == parsed).first()
+        if not user and email:
+            user = db.query(User).filter(func.lower(User.email) == email).first()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        phone_val = (payload.phone or "").strip()
+        if phone_val:
+            user.phone = phone_val
+        user.updated_at = func.now()
+
+        # Update or create patient_profiles
+        profile = db.query(PatientProfile).filter(PatientProfile.user_id == user.id).first()
+        first_name = payload.first_name
+        last_name = payload.last_name
+        if payload.name and (not first_name or not last_name):
+            parts = payload.name.strip().split(" ")
+            first_name = parts[0]
+            if len(parts) > 1:
+                last_name = " ".join(parts[1:])
+
+        dob_val = None
+        if payload.dob and str(payload.dob).strip() != "":
+            dob_str = str(payload.dob).strip()
+            for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y"):
+                try:
+                    dob_val = datetime.strptime(dob_str, fmt).date()
+                    break
+                except Exception:
+                    pass
+
+        if profile:
+            if first_name:
+                profile.first_name = first_name
+            if last_name is not None:
+                profile.last_name = last_name
+            if dob_val:
+                profile.dob = dob_val
+            if payload.gender:
+                profile.gender = payload.gender
+            profile.updated_at = func.now()
+        else:
+            new_profile = PatientProfile(
+                user_id=user.id,
+                first_name=first_name or "Patient",
+                last_name=last_name or "",
+                dob=dob_val,
+                gender=payload.gender or "Male",
+                coverage_verified=True,
+            )
+            db.add(new_profile)
+
+        db.commit()
+        return {
+            "success": True,
+            "message": "User profile and mobile number updated successfully in database",
+            "phone": user.phone,
+        }
+
+
 @router.post("/auth/sync-entra-user", status_code=200)
 def sync_entra_user(payload: SyncEntraUserIn):
     """Synchronize a Microsoft Entra External ID authenticated user with the database.
@@ -2162,10 +2244,11 @@ def sync_entra_user(payload: SyncEntraUserIn):
                                 SET last_login_at = CURRENT_TIMESTAMP,
                                     updated_at = CURRENT_TIMESTAMP,
                                     external_provider = 'entra',
-                                    external_subject_id = COALESCE(:subject_id, external_subject_id)
+                                    external_subject_id = COALESCE(:subject_id, external_subject_id),
+                                    phone = COALESCE(:phone, phone)
                                 WHERE id = :id
                             """),
-                            {"id": user_id, "subject_id": subject_id},
+                            {"id": user_id, "subject_id": subject_id, "phone": (payload.phone or "").strip() or None},
                         )
                         db.commit()
 
