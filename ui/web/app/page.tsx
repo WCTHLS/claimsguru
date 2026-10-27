@@ -576,7 +576,7 @@ export default function HomePage() {
                 <li className="lp-feat-item">
                   <div className="lp-feat-icon">4</div>
                   <div>
-                    <div className="lp-feat-title">Secure Sign In with Microsoft Entra and Google</div>
+                    <div className="lp-feat-title">Secure Sign In with Microsoft Entra External ID</div>
                     <p className="lp-feat-desc">
                       Log in smoothly with verified credentials. All health data is encrypted both in transit and at rest on Microsoft Azure.
                     </p>
@@ -608,9 +608,6 @@ export default function HomePage() {
                   </div>
                 </div>
               </div>
-              <p className="lp-store-note">
-                Mobile Apps in store review — Full web workspace accessible directly on any mobile and desktop browser today.
-              </p>
             </div>
 
             {/* Mobile Phone Mockups with user's actual screenshots */}
@@ -1013,7 +1010,7 @@ export default function HomePage() {
 
             <div className="wct-foot-social">
               <a 
-                href="https://www.linkedin.com/company/waferwire-cloud-technologies" 
+                href="https://www.linkedin.com/company/waferwire/posts/?feedView=all" 
                 target="_blank" 
                 rel="noopener noreferrer"
                 title="WCT on LinkedIn"

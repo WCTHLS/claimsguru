@@ -294,8 +294,7 @@ export function RegisterClinical() {
           {!isEntraMode && (
             <>
               <StaggerItem index={1} className="mt-6">
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <SSOButton provider="google" />
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <SSOButton provider="microsoft" />
                   <SSOButton provider="okta" />
                 </div>

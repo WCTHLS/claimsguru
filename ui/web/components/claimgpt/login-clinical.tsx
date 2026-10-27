@@ -124,15 +124,15 @@ export function LoginClinical() {
       <div className="hidden w-1/2 lg:block">
         <BrandPanel />
       </div>
-      <div className="relative flex w-full flex-col overflow-hidden lg:w-1/2">
+      <div className="relative flex w-full flex-col min-h-screen overflow-y-auto overflow-x-hidden lg:w-1/2">
         <AuroraBackground />
-        <div className="relative z-10 flex flex-1 items-center justify-center px-5 py-8 sm:px-8 lg:px-16">
-          <StaggerContainer className="w-full max-w-md">
-            <div className="mb-8 flex items-center justify-between lg:hidden">
-              <img src={fullLogo.src} className="h-8 w-auto" alt="ClaimsGuru Logo" />
-              <LanguageSwitcher variant="dark" />
+        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 sm:px-8 sm:py-10">
+          <StaggerContainer className="my-auto w-full max-w-md">
+            <div className="mb-6 flex w-full items-center justify-between lg:hidden">
+              <img src={fullLogo.src} className="h-8 w-auto object-contain" alt="ClaimsGuru Logo" />
+              <LanguageSwitcher variant="light" />
             </div>
-            <div className="mb-8 hidden justify-end lg:flex">
+            <div className="mb-6 hidden justify-end lg:flex">
               <LanguageSwitcher variant="light" />
             </div>
 
@@ -174,38 +174,38 @@ export function LoginClinical() {
               /* ========================================================================= */
               /* Microsoft Entra External ID (CIAM) Flow */
               /* ========================================================================= */
-              <StaggerItem index={1} className="mt-8 space-y-4">
+              <StaggerItem index={1} className="mt-6 sm:mt-8 space-y-3.5 sm:space-y-4">
                 {/* Continue as Patient */}
                 <button
                   type="button"
                   disabled={entraLoadingRole !== null}
                   onClick={() => handleEntraSignIn('patient')}
                   className={cn(
-                    "group relative flex w-full items-center justify-between rounded-2xl border-2 bg-card/80 p-5 text-left shadow-xs backdrop-blur-sm transition-all hover:border-teal-500 hover:bg-teal-50/20 hover:shadow-md disabled:opacity-50",
+                    "group relative flex w-full items-center justify-between rounded-2xl border-2 bg-card/80 p-4 sm:p-5 text-left shadow-xs backdrop-blur-sm transition-all hover:border-teal-500 hover:bg-teal-50/20 hover:shadow-md disabled:opacity-50",
                     errorMessage?.toLowerCase().includes('continue as patient')
                       ? 'border-teal-600 ring-2 ring-teal-500/30 bg-teal-50/30'
                       : 'border-border/80'
                   )}
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600 border border-teal-500/20 group-hover:bg-teal-500 group-hover:text-white transition-colors">
-                      <User className="h-6 w-6" />
+                  <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
+                    <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600 border border-teal-500/20 group-hover:bg-teal-500 group-hover:text-white transition-colors">
+                      <User className="h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-display text-base font-bold text-foreground">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <span className="font-display text-sm sm:text-base font-bold text-foreground">
                           Continue as Patient
                         </span>
                         <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold text-teal-800 border border-teal-200">
-                          Submitter
+                          Patient &amp; Insured
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                        Sign in to track and submit insurance claims
+                      <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                        Sign in to track and submit reimbursement claims
                       </p>
                     </div>
                   </div>
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground group-hover:bg-teal-600 group-hover:text-white transition-all">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground group-hover:bg-teal-600 group-hover:text-white transition-all ml-2">
                     {entraLoadingRole === 'patient' ? (
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     ) : (
@@ -220,31 +220,31 @@ export function LoginClinical() {
                   disabled={entraLoadingRole !== null}
                   onClick={() => handleEntraSignIn('tpa')}
                   className={cn(
-                    "group relative flex w-full items-center justify-between rounded-2xl border-2 bg-card/80 p-5 text-left shadow-xs backdrop-blur-sm transition-all hover:border-teal-600 hover:bg-teal-50/20 hover:shadow-md disabled:opacity-50",
+                    "group relative flex w-full items-center justify-between rounded-2xl border-2 bg-card/80 p-4 sm:p-5 text-left shadow-xs backdrop-blur-sm transition-all hover:border-teal-600 hover:bg-teal-50/20 hover:shadow-md disabled:opacity-50",
                     errorMessage?.toLowerCase().includes('continue as organization')
                       ? 'border-teal-600 ring-2 ring-teal-500/30 bg-teal-50/30'
                       : 'border-border/80'
                   )}
                 >
-                  <div className="flex items-start gap-4">
-                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-600/10 text-teal-700 border border-teal-600/20 group-hover:bg-teal-600 group-hover:text-white transition-colors">
-                      <Building2 className="h-6 w-6" />
+                  <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
+                    <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-teal-600/10 text-teal-700 border border-teal-600/20 group-hover:bg-teal-600 group-hover:text-white transition-colors">
+                      <Building2 className="h-5 w-5 sm:h-6 sm:w-6" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-display text-base font-bold text-foreground">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                        <span className="font-display text-sm sm:text-base font-bold text-foreground">
                           Continue as Organization
                         </span>
                         <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 border border-emerald-200">
-                          TPA & Insurer
+                          TPA &amp; Insurer
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                        Sign in to manage and review claims
+                      <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                        Sign in to review and adjudicate claims
                       </p>
                     </div>
                   </div>
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground group-hover:bg-teal-600 group-hover:text-white transition-all">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground group-hover:bg-teal-600 group-hover:text-white transition-all ml-2">
                     {entraLoadingRole === 'tpa' ? (
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     ) : (
@@ -370,7 +370,6 @@ export function LoginClinical() {
                   </div>
                 </div>
                 <div className="mt-5 grid grid-cols-2 gap-3">
-                  <SSOButton provider="google" />
                   <SSOButton provider="microsoft" />
                   <SSOButton provider="okta" />
                   <SSOButton provider="saml" />
@@ -379,28 +378,32 @@ export function LoginClinical() {
             )}
 
             {/* Bottom Links */}
-            <StaggerItem index={2} className="mt-8 space-y-4">
+            <StaggerItem index={2} className="mt-6 space-y-3">
               <div className="text-center">
                 {useEntra ? (
-                  <button
-                    type="button"
-                    onClick={() => handleEntraSignIn('patient', true)}
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-accent"
-                  >
-                    New patient to ClaimsGuru?
-                    <span className="font-semibold text-accent">Create an account</span>
-                    <ArrowRight className="h-3.5 w-3.5 text-accent" />
-                  </button>
+                  <p className="text-xs sm:text-sm text-muted-foreground">
+                    New to ClaimsGuru?{' '}
+                    <button
+                      type="button"
+                      onClick={() => handleEntraSignIn('patient', true)}
+                      className="font-semibold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1 hover:underline ml-1"
+                    >
+                      <span>Create an account</span>
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </p>
                 ) : (
                   role === 'patient' && (
-                    <Link
-                      href="/register"
-                      className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground hover:text-accent"
-                    >
-                      New to ClaimsGuru?
-                      <span className="font-semibold text-accent">Create an account</span>
-                      <ArrowRight className="h-3.5 w-3.5 text-accent" />
-                    </Link>
+                    <p className="text-xs sm:text-sm text-muted-foreground">
+                      New to ClaimsGuru?{' '}
+                      <Link
+                        href="/register"
+                        className="font-semibold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1 hover:underline ml-1"
+                      >
+                        <span>Create an account</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </Link>
+                    </p>
                   )
                 )}
               </div>
@@ -409,19 +412,23 @@ export function LoginClinical() {
         </div>
 
         {/* Footer */}
-        <div className="relative z-10 mt-auto border-t border-border/20 bg-background/50 backdrop-blur-sm px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-muted-foreground">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>All systems operational</span>
-            <span className="opacity-40">·</span>
-            <span>IRDAI · ISO 27001 · HIPAA aligned</span>
+        <footer className="relative z-10 border-t border-border/30 bg-background/60 backdrop-blur-sm px-4 py-3 sm:px-6 sm:py-4">
+          <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-1.5 text-center text-[11px] sm:text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span>All systems operational</span>
+              </span>
+              <span className="opacity-40">·</span>
+              <span>IRDAI &amp; ISO 27001 aligned</span>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-slate-500">
+              <span>&copy; {new Date().getFullYear()} WaferWire Cloud Technologies</span>
+              <span className="opacity-40">·</span>
+              <span>ClaimsGuru v1.0</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span>© 2026 WaferWire Cloud Technologies</span>
-            <span className="opacity-40">·</span>
-            <span>ClaimsGuru v1.0</span>
-          </div>
-        </div>
+        </footer>
       </div>
     </main>
   );
