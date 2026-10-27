@@ -8,6 +8,21 @@ const nextConfig = {
   },
   images: { unoptimized: true },
   output: 'standalone',
+  async redirects() {
+    return [
+      {
+        source: '/:path*',
+        has: [
+          {
+            type: 'host',
+            value: 'wct-health.com',
+          },
+        ],
+        destination: 'https://www.wct-health.com/:path*',
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {

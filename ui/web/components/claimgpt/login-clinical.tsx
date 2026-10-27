@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import fullLogo from './ClaimsGuru White PNG.png';
+import fullLogo from './ClaimsGuru Black PNG.png';
 import {
   ArrowRight,
   Building2,
@@ -55,6 +55,10 @@ export function LoginClinical() {
   const [useEntra, setUseEntra] = useState(false);
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hostname === 'wct-health.com') {
+      window.location.replace(`https://www.wct-health.com${window.location.pathname}${window.location.search}`);
+      return;
+    }
     setUseEntra(isEntraEnabled());
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);

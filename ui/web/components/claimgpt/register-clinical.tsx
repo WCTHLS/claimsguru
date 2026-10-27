@@ -55,6 +55,10 @@ export function RegisterClinical() {
   const datePickerRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hostname === 'wct-health.com') {
+      window.location.replace(`https://www.wct-health.com${window.location.pathname}${window.location.search}`);
+      return;
+    }
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       const mode = params.get('mode');

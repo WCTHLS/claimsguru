@@ -27,6 +27,19 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  if (typeof window !== 'undefined' && window.location.hostname === 'wct-health.com') {
+                    window.location.replace('https://www.wct-health.com' + window.location.pathname + window.location.search + window.location.hash);
+                  }
+                } catch (_) {}
+              })();
+            `,
+          }}
+        />
         <link rel="icon" href="/ClaimsGuru_logo_icon.png" type="image/png" />
         <link rel="shortcut icon" href="/ClaimsGuru_logo_icon.png" type="image/png" />
         <link rel="apple-touch-icon" href="/ClaimsGuru_logo_icon.png" />

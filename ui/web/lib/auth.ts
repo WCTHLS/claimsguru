@@ -129,7 +129,12 @@ export function getEntraConfig(role?: AuthRole, overrideClientId?: string): Entr
 
   const tenantId = process.env.NEXT_PUBLIC_ENTRA_TENANT_ID || 'common';
   const subdomain = process.env.NEXT_PUBLIC_ENTRA_SUBDOMAIN || '';
-  const dynamicOrigin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : origin;
+  let dynamicOrigin = typeof window !== 'undefined' && window.location.origin ? window.location.origin : origin;
+  // Canonical enterprise rule: force https://www.wct-health.com for any wct-health domain
+  // to guarantee exact match with Azure Entra Single-Page Application (SPA) redirect URI
+  if (dynamicOrigin.includes('wct-health.com')) {
+    dynamicOrigin = 'https://www.wct-health.com';
+  }
   const redirectUri = dynamicOrigin ? `${dynamicOrigin}/auth/callback` : (process.env.NEXT_PUBLIC_ENTRA_REDIRECT_URI || `${origin}/auth/callback`);
   const scopes = process.env.NEXT_PUBLIC_ENTRA_SCOPES || 'openid profile email offline_access';
 
@@ -169,7 +174,10 @@ export function getEntraEndpoints(role?: AuthRole, overrideClientId?: string) {
 }
 
 function getKeycloakConfig(): AuthConfig {
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+  let origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3001';
+  if (origin.includes('wct-health.com')) {
+    origin = 'https://www.wct-health.com';
+  }
   const url = (process.env.NEXT_PUBLIC_KEYCLOAK_URL || 'http://localhost:8080').replace(/\/+$/, '');
   const realm = process.env.NEXT_PUBLIC_KEYCLOAK_REALM || 'claimgpt';
   const clientId = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID || 'claimgpt-web';
@@ -417,6 +425,12 @@ export async function beginEntraAuthFlow({ role, isRegister = false, loginHint }
     return;
   }
 
+  // Pre-flight host normalization: If on the naked domain, bounce to canonical www first
+  if (window.location.hostname === 'wct-health.com') {
+    window.location.replace(`https://www.wct-health.com${window.location.pathname}${window.location.search}`);
+    return;
+  }
+
   const config = getEntraConfig(role);
   const state = createRandomString(24);
   const verifier = createRandomString(64);
@@ -467,6 +481,11 @@ export async function beginAuthFlow({ role, isRegister = false, loginHint }: Beg
   }
 
   if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (window.location.hostname === 'wct-health.com') {
+    window.location.replace(`https://www.wct-health.com${window.location.pathname}${window.location.search}`);
     return;
   }
 

@@ -824,13 +824,14 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
           </div>
 
           {/* User Controls, Back to Admin & Log Out */}
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
             <button
               onClick={() => router.push(`/${orgSlug}/admin`)}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 sm:px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+              title="Back to Admin"
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              <span>Back to Admin</span>
+              <span className="hidden sm:inline">Back to Admin</span>
             </button>
 
             <button
@@ -841,7 +842,9 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
               <RefreshCw className={cn('h-3.5 w-3.5', loading && 'animate-spin')} />
               <span>Refresh</span>
             </button>
-            <LanguageSwitcher variant="light" />
+            <div className="hidden sm:block">
+              <LanguageSwitcher variant="light" />
+            </div>
             <NotificationBell variant="clinical" />
 
             <div className="hidden lg:flex flex-col text-right">
@@ -851,7 +854,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
 
             <Avatar
               onClick={() => setIsProfileOpen(true)}
-              className="h-9 w-9 border border-slate-200 cursor-pointer hover:scale-105 transition-transform"
+              className="h-8 w-8 sm:h-9 sm:w-9 border border-slate-200 cursor-pointer hover:scale-105 transition-transform"
             >
               <AvatarFallback className="bg-teal-600 text-xs font-semibold text-white">
                 {(session?.user?.name || 'R').charAt(0).toUpperCase()}
@@ -863,7 +866,7 @@ export function DashboardOrgReview({ orgSlug }: { orgSlug: string }) {
                 clearAuthSession();
                 router.push('/login');
               }}
-              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+              className="flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 sm:px-3 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
               title="Log Out"
             >
               <LogOut className="h-3.5 w-3.5" />

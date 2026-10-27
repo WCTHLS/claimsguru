@@ -5,196 +5,382 @@ import ClaimChatWidget from "@/components/claimgpt/claim-chat-widget";
 import NavBrand from "@/components/claimgpt/nav-brand";
 
 export const metadata: Metadata = {
-  title: "ClaimsGuru  -  AI-Powered Healthcare Claims Intelligence by WaferWire",
+  title: "ClaimsGuru by WCT: Healthcare Claims Intake and Adjudication Platform",
   description:
-    "ClaimsGuru helps TPAs and insurers automate claims review, ICD/CPT coding, validation, fraud detection, and IRDAI submission end-to-end. Built by WaferWire Cloud Technologies.",
+    "ClaimsGuru by WaferWire Cloud Technologies (WCT) is the intelligent health insurance claims intake and review platform for India. Submit and track reimbursement dossiers on mobile, review and adjudicate on web. IRDAI Part A and B aligned.",
 };
 
 const STYLES = `
-  .lp { --ink:#0A0A0A; --ink-2:#111827; --emerald:#0d9488; --emerald-2:#0369a1; --emerald-3:#075985;
-        --bg:#F7F8FA; --surface:#FFFFFF; --muted:#6B7280; --border:#E8EBF0;
+  .lp { --ink:#0A0A0A; --ink-2:#111827; --teal:#0d9488; --teal-dark:#0f766e; --teal-light:#ccfbf1;
+        --navy:#06243f; --navy-2:#0b3a67; --navy-light:#bfe3ff;
+        --bg:#F8FAFC; --surface:#FFFFFF; --muted:#64748B; --border:#E2E8F0;
         height:100vh; overflow-y:auto; overflow-x:hidden; scroll-behavior:smooth;
-        --shadow-sm:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.10);
-        --shadow:0 10px 30px -12px rgba(16,24,40,.18); --shadow-lg:0 30px 60px -20px rgba(16,24,40,.28);
+        --shadow-xs:0 1px 2px rgba(15,23,42,.05);
+        --shadow-sm:0 1px 3px rgba(15,23,42,.08),0 1px 2px rgba(15,23,42,.04);
+        --shadow:0 10px 25px -5px rgba(15,23,42,.10),0 8px 10px -6px rgba(15,23,42,.05);
+        --shadow-lg:0 25px 50px -12px rgba(15,23,42,.22);
         background:var(--bg); color:var(--ink);
-        font-family:'Segoe UI','Segoe UI Web','Inter',system-ui,-apple-system,Helvetica,Arial,sans-serif;
+        font-family:'Segoe UI','Segoe UI Web','Inter',system-ui,-apple-system,BlinkMacSystemFont,Roboto,Helvetica,Arial,sans-serif;
         -webkit-font-smoothing:antialiased; }
   .lp a { color:inherit; text-decoration:none; }
-  .lp-wrap { max-width:1320px; margin:0 auto; padding:0 40px; }
-
-  /* Nav */
-  .lp-nav { position:sticky; top:0; z-index:40; background:rgba(255,255,255,.8);
-            backdrop-filter:saturate(160%) blur(12px); -webkit-backdrop-filter:saturate(160%) blur(12px);
-            border-bottom:1px solid var(--border); }
-  .lp-nav-inner { max-width:100%; margin:0; padding:14px 28px; display:flex; align-items:center; gap:24px; }
-  .lp-brand { display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:-.3px; font-size:17px; }
-  .lp-brand-mark { width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg,#0f4c81,#0d9488); position:relative; display:inline-block; box-shadow:var(--shadow-sm); }
-  .lp-brand-mark::after { content:""; position:absolute; inset:0; margin:auto; width:13px; height:13px; background:#fff; clip-path:polygon(45% 0,55% 0,55% 45%,100% 45%,100% 55%,55% 55%,55% 100%,45% 100%,45% 55%,0 55%,0 45%,45% 45%); }
-  .lp-nav-links { display:flex; gap:22px; margin:0 auto; font-size:14px; color:#4B5563; font-weight:500; }
-  .lp-nav-links a:hover { color:var(--ink); }
-  .lp-nav-actions { display:flex; gap:10px; align-items:center; }
-  .lp-nav-ghost { font-size:14px; font-weight:600; color:#374151; padding:8px 6px; }
-  .lp-nav-cta { padding:9px 16px; border-radius:6px; background:linear-gradient(135deg,#0f4c81,#0d9488); color:#fff !important; font-size:13.5px; font-weight:600; box-shadow:var(--shadow-sm); }
-  .lp-nav-cta:hover { filter:brightness(1.05); }
-
-  /* Hero */
-  .lp-hero { position:relative; overflow:hidden; padding:88px 0 72px; color:#fff;
-             background:
-               radial-gradient(1000px 460px at 82% 0%, rgba(13,148,136,.45), transparent 60%),
-               radial-gradient(900px 420px at 5% 10%, rgba(37,99,235,.35), transparent 55%),
-               linear-gradient(135deg,#06243f,#0b3a67 55%,#0d9488); }
-  .lp-eyebrow { display:inline-flex; align-items:center; gap:8px; font-size:12px; letter-spacing:2px; text-transform:uppercase; font-weight:700;
-                color:#cde8ff; padding:6px 12px; border:1px solid rgba(255,255,255,.28); border-radius:999px; background:rgba(255,255,255,.08); }
-  .lp-h1 { margin:18px 0 0; font-size:60px; line-height:1.05; letter-spacing:-2.4px; font-weight:800; max-width:1100px; color:#fff; }
-  .lp-h1 .em { background:linear-gradient(120deg,#7ee8da,#bfe3ff); -webkit-background-clip:text; background-clip:text; color:transparent; }
-  .lp-lede { margin:22px 0 0; font-size:19px; line-height:1.55; color:rgba(255,255,255,.85); max-width:660px; }
-  .lp-cta-row { margin-top:30px; display:flex; flex-wrap:wrap; gap:12px; }
-  .lp-btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:13px 24px; border-radius:6px;
-            font-weight:600; font-size:15px; border:1px solid transparent; transition:transform .12s, box-shadow .12s, background .12s; }
-  .lp-btn:hover { transform:translateY(-1px); }
-  .lp-btn-primary { background:linear-gradient(135deg,#0f4c81,#0d9488); color:#fff !important; box-shadow:var(--shadow); }
-  .lp-btn-primary:hover { filter:brightness(1.05); }
-  .lp-btn-ghost { background:#fff; color:var(--ink); border-color:var(--border); box-shadow:var(--shadow-sm); }
-  .lp-hero .lp-btn-ghost { background:transparent; color:#fff; border-color:rgba(255,255,255,.5); box-shadow:none; }
-  .lp-hero .lp-btn-ghost:hover { border-color:#fff; background:rgba(255,255,255,.08); }
-  .lp-hero .lp-trust-label { color:rgba(255,255,255,.6); }
-  .lp-hero .lp-trust-row span { color:rgba(255,255,255,.85); }
-  .lp-badge { display:inline-block; margin:0 0 14px; font-size:12px; font-weight:700; letter-spacing:.3px; color:#06243f; background:#bfe3ff; padding:5px 12px; border-radius:999px; }
-  .lp-btn-ghost:hover { border-color:var(--ink); }
-  .lp-microcopy { margin-top:14px; font-size:13px; color:var(--muted); }
-  .lp-hero-grid { display:grid; grid-template-columns:1.05fr .95fr; gap:48px; align-items:center; }
-  .lp-mock { background:linear-gradient(135deg,#0f4c81,#0d9488); border-radius:18px; padding:14px; box-shadow:var(--shadow-lg); position:relative; animation:lpfloat 6s ease-in-out infinite; }
-  .lp-mock-head { display:flex; align-items:center; gap:7px; padding:6px 8px 12px; }
-  .lp-mock-dot { width:10px; height:10px; border-radius:50%; background:rgba(255,255,255,.45); }
-  .lp-mock-title { margin-left:8px; color:#fff; font-size:12.5px; font-weight:600; opacity:.9; }
-  .lp-mock-body { background:#fff; border-radius:12px; padding:18px; }
-  .lp-mock-row { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--border); font-size:14px; color:var(--muted); }
-  .lp-mock-row b { color:var(--ink); }
-  .lp-mock-row b.ok { color:#0d9488; }
-  .lp-mock-bar { height:8px; background:#eef2f6; border-radius:99px; margin:14px 0 8px; overflow:hidden; }
-  .lp-mock-bar i { display:block; height:100%; background:linear-gradient(90deg,#0f4c81,#0d9488); transform-origin:left; animation:lppulse 3s ease-in-out infinite; }
-  .lp-mock-foot { font-size:13px; color:#0d9488; font-weight:600; }
-  .lp-approve { position:absolute; right:-14px; bottom:-14px; display:flex; align-items:center; gap:8px; background:#fff; border:1px solid var(--border); border-radius:12px; padding:8px 14px 8px 8px; box-shadow:var(--shadow); transform:scale(0); animation:lppop .5s cubic-bezier(.2,1.4,.4,1) 1.3s forwards; }
-  .lp-approve span { font-size:13px; font-weight:700; color:#0b3a67; }
-  @keyframes lppop { to { transform:scale(1) } }
-
-  /* Trust bar */
-  .lp-trust { margin-top:52px; }
-  .lp-trust-label { font-size:11.5px; letter-spacing:1.6px; text-transform:uppercase; color:#9CA3AF; font-weight:700; }
-  .lp-trust-row { margin-top:14px; display:flex; flex-wrap:wrap; gap:14px 30px; align-items:center; }
-  .lp-trust-row span { font-weight:700; font-size:15px; color:#9AA3AF; letter-spacing:-.2px; }
-
-  /* Metrics band */
-  .lp-band { background:#fff; color:var(--ink); padding:34px 0; border-bottom:1px solid var(--border); }
-  .lp-band-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; text-align:center; }
-  .lp-band-num { font-size:38px; font-weight:800; letter-spacing:-1.5px; color:#0b3a67; }
-  .lp-band-num small { color:#0d9488; font-size:22px; }
-  .lp-band-lbl { margin-top:4px; font-size:13.5px; color:var(--muted); }
-
-  /* Section */
-  .lp-section { padding:80px 0; }
-  .lp-section.alt { background:#fff; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
-  .lp-eye { display:inline-flex; align-items:center; gap:8px; font-size:12px; letter-spacing:2px; text-transform:uppercase; color:var(--emerald-3); font-weight:700; }
-  .lp-eye::before { content:""; width:22px; height:2px; background:var(--emerald); border-radius:2px; }
-  .lp-h2 { margin:8px 0 12px; font-size:38px; letter-spacing:-1.2px; line-height:1.12; font-weight:800; max-width:820px; }
-  .lp-sub { margin:0 0 32px; color:#374151; font-size:17px; line-height:1.55; max-width:720px; }
-
-  .lp-grid-2 { display:grid; grid-template-columns:repeat(2,1fr); gap:20px; }
-  .lp-grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
-  .lp-grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:20px; }
-  .lp-card { padding:30px 28px; min-height:170px; background:#fff; border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow-sm); transition:transform .12s, box-shadow .12s; }
-  .lp-card:hover { transform:translateY(-3px); box-shadow:var(--shadow); }
-  .lp-ic { width:40px; height:40px; border-radius:11px; background:rgba(3,105,161,.12); color:var(--emerald-3); display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; margin-bottom:13px; }
-  .lp-ico { width:22px; height:22px; }
-  .lp-ct { font-size:16px; font-weight:700; letter-spacing:-.2px; }
-  .lp-cb { margin-top:6px; font-size:14px; line-height:1.55; color:#4B5563; }
-
-  .lp-pipeline { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; position:relative; }
-  .lp-flow { width:100%; height:104px; margin:4px 0 18px; }
-  .lp-pipeline::before { content:""; position:absolute; top:50%; left:3%; right:3%; height:2px; border-radius:2px; z-index:0;
-    background:linear-gradient(90deg,#0f4c81,#0d9488,#0f4c81); background-size:200% 100%; opacity:.18; animation:lpflow 3.5s linear infinite; }
-  .lp-step { position:relative; z-index:1; padding:22px 18px; background:#fff; border:1px solid var(--border); border-radius:14px; box-shadow:var(--shadow-sm); }
-  .lp-sn { font-size:11px; font-weight:700; letter-spacing:1.5px; color:var(--emerald-3); }
-  .lp-si { width:26px; height:26px; margin-top:12px; animation:lpfloat 4s ease-in-out infinite; }
-  .lp-step:nth-child(2) .lp-si{animation-delay:.4s} .lp-step:nth-child(3) .lp-si{animation-delay:.8s} .lp-step:nth-child(4) .lp-si{animation-delay:1.2s} .lp-step:nth-child(5) .lp-si{animation-delay:1.6s}
-  @keyframes lpflow { to { background-position:200% 0 } }
-  @keyframes lpfloat { 0%,100%{ transform:translateY(0) } 50%{ transform:translateY(-5px) } }
-  @keyframes lppulse { 0%,100%{ transform:scaleX(.82); opacity:.85 } 50%{ transform:scaleX(1); opacity:1 } }
-  .lp-st { margin-top:8px; font-size:15px; font-weight:700; }
-  .lp-sb { margin-top:6px; font-size:13.5px; line-height:1.5; color:#4B5563; }
-
-  .lp-check { list-style:none; padding:0; margin:8px 0 0; display:grid; grid-template-columns:repeat(2,1fr); gap:12px 28px; }
-  .lp-check li { display:flex; gap:10px; align-items:flex-start; font-size:15px; line-height:1.5; color:#1F2937; }
-  .lp-ck { flex:0 0 auto; width:20px; height:20px; border-radius:50%; background:rgba(3,105,161,.15); color:var(--emerald-3); display:inline-flex; align-items:center; justify-content:center; font-weight:800; font-size:11px; margin-top:1px; }
-
-  /* Quote */
-  .lp-quote { padding:48px 40px; background:#fff; border:1px solid var(--border); border-radius:24px; box-shadow:var(--shadow); }
-  .lp-quote p { font-size:24px; line-height:1.4; font-weight:600; letter-spacing:-.4px; max-width:880px; color:var(--ink); }
-  .lp-quote .em { color:var(--emerald-2); }
-  .lp-quote footer { margin-top:18px; color:var(--muted); font-size:14px; }
-
-  /* CTA */
-  .lp-cta { padding:88px 0; text-align:center; }
-  .lp-cta h2 { font-size:42px; letter-spacing:-1.4px; max-width:780px; margin:0 auto; line-height:1.15; font-weight:800; }
-  .lp-cta p { margin:16px auto 28px; max-width:640px; color:#374151; font-size:17px; }
-
-  /* FAQ */
-  .lp-faq { display:grid; gap:10px; max-width:880px; }
-  .lp-faq details { background:#fff; border:1px solid var(--border); border-radius:12px; padding:18px 20px; box-shadow:var(--shadow-sm); }
-  .lp-faq summary { cursor:pointer; font-weight:600; font-size:15.5px; list-style:none; display:flex; justify-content:space-between; gap:16px; }
-  .lp-faq summary::-webkit-details-marker { display:none; }
-  .lp-faq summary::after { content:"+"; color:var(--muted); font-size:20px; }
-  .lp-faq details[open] summary::after { content:"-"; }
-  .lp-fb { margin-top:10px; color:#374151; font-size:14.5px; line-height:1.6; }
+  .lp-wrap { max-width:1300px; margin:0 auto; padding:0 36px; }
 
   /* Announcement strip */
-  .lp-strip { background:#0b3a67; color:#fff; font-size:13.5px; text-align:center; padding:9px 16px; }
-  .lp-strip a { color:#bfe3ff; font-weight:600; margin-left:8px; }
-  /* Take next step */
-  .lp-next { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; margin-top:8px; }
-  .lp-next-card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:26px; box-shadow:var(--shadow-sm); transition:transform .12s, box-shadow .12s; }
-  .lp-next-card:hover { transform:translateY(-3px); box-shadow:var(--shadow); }
-  .lp-next-card h3 { font-size:18px; font-weight:700; margin:0 0 6px; }
-  .lp-next-card p { font-size:14px; color:#4B5563; line-height:1.55; margin:0 0 14px; }
+  .lp-strip { background:#06243f; color:#e2e8f0; font-size:13px; text-align:center; padding:10px 20px; border-bottom:1px solid rgba(255,255,255,.08); }
+  .lp-strip span.pill { background:#0d9488; color:#fff; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; padding:3px 8px; border-radius:4px; margin-right:10px; }
+  .lp-strip a { color:#7ee8da; font-weight:600; margin-left:8px; text-decoration:underline; }
 
-  /* Footer */
-  .lp-footer { background:#fff; color:var(--muted); padding:56px 0 28px; border-top:1px solid var(--border); }
-  .lp-footer .lp-wrap { max-width:100%; padding:0 28px; }
-  .lp-foot-grid { display:grid; grid-template-columns:1.6fr 1fr 1fr; gap:32px; text-align:left; }
-  .lp-foot h4 { color:var(--ink); font-size:13px; letter-spacing:.4px; margin:0 0 12px; }
-  .lp-foot-desc { margin:12px 0 0; max-width:340px; font-size:14px; line-height:1.6; color:var(--muted); }
-  .lp-foot-loc h4 { color:var(--ink); font-size:13px; letter-spacing:.4px; margin:0 0 12px; }
-  .lp-foot-loc span { display:block; font-size:14px; padding:3px 0; color:#4B5563; }
-  .lp-foot-brand { color:var(--ink); font-weight:700; font-size:18px; display:flex; align-items:center; gap:10px; }
-  .lp-foot-bottom { margin-top:40px; padding-top:20px; border-top:1px solid var(--border); display:flex; flex-wrap:wrap; gap:12px; justify-content:space-between; font-size:13px; }
+  /* Nav */
+  .lp-nav { position:sticky; top:0; z-index:50; background:rgba(255,255,255,.92);
+            backdrop-filter:saturate(180%) blur(16px); -webkit-backdrop-filter:saturate(180%) blur(16px);
+            border-bottom:1px solid var(--border); }
+  .lp-nav-inner { max-width:1300px; margin:0 auto; padding:14px 36px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
+  .lp-brand-box { display:flex; align-items:center; gap:10px; flex-shrink:0; }
+  .lp-by-badge { font-size:11px; font-weight:700; color:#0f766e; background:#ccfbf1; border:1px solid #99f6e4; padding:3px 8px; border-radius:6px; white-space:nowrap; }
+  .lp-nav-links { display:flex; gap:26px; font-size:14px; color:#475569; font-weight:600; }
+  .lp-nav-links a { transition:color .15s; }
+  .lp-nav-links a:hover { color:#0f766e; }
+  .lp-nav-actions { display:flex; gap:10px; align-items:center; flex-shrink:0; }
+  .lp-nav-ghost { font-size:14px; font-weight:600; color:#1e293b; padding:8px 12px; transition:color .15s; white-space:nowrap; }
+  .lp-nav-ghost:hover { color:#0d9488; }
+  .lp-nav-cta { padding:10px 20px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; background:linear-gradient(135deg,#0b3a67,#0d9488); color:#fff !important; font-size:13.5px; font-weight:600; box-shadow:var(--shadow-sm); transition:transform .12s, box-shadow .12s, filter .12s; white-space:nowrap; text-align:center; touch-action:manipulation; }
+  .lp-nav-cta:hover { transform:translateY(-1px); filter:brightness(1.06); box-shadow:var(--shadow); }
+  .lp-strip-mobile { display:none; }
+  .lp-strip-desktop { display:inline; }
+  .lp-cta-text-mobile { display:none; }
+  .lp-cta-text-desktop { display:inline; }
 
-  .lp-btn:focus-visible, .lp-nav-cta:focus-visible, .lp-faq summary:focus-visible { outline:3px solid rgba(13,148,136,.45); outline-offset:2px; border-radius:6px; }
-  @media (prefers-reduced-motion:reduce){ .lp-mock,.lp-si,.lp-mock-bar i,.lp-pipeline::before{animation:none} .lp-approve{animation:none;transform:scale(1)} }
-  @media (max-width:960px){ .lp-h1{font-size:42px} .lp-hero-grid{grid-template-columns:1fr; gap:32px} .lp-grid-4,.lp-grid-3,.lp-grid-2,.lp-band-grid,.lp-next{grid-template-columns:1fr 1fr} .lp-pipeline{grid-template-columns:repeat(2,1fr)} .lp-check{grid-template-columns:1fr} .lp-foot-grid{grid-template-columns:1fr 1fr} }
-  @media (max-width:600px){ .lp-h1{font-size:34px;letter-spacing:-1.2px} .lp-h2{font-size:28px} .lp-section{padding:56px 0} .lp-wrap{padding:0 20px} .lp-nav-inner{padding:14px 20px} .lp-grid-4,.lp-grid-3,.lp-grid-2,.lp-band-grid{grid-template-columns:1fr} .lp-nav-links{display:none} .lp-foot-grid{grid-template-columns:1fr} .lp-cta h2{font-size:30px} }
+  /* Hero */
+  .lp-hero { position:relative; overflow:hidden; padding:76px 0 72px; color:#fff;
+             background:
+               radial-gradient(1100px 520px at 85% 0%, rgba(13,148,136,.42), transparent 60%),
+               radial-gradient(900px 480px at 8% 15%, rgba(11,58,103,.50), transparent 55%),
+               linear-gradient(135deg,#041a2e,#06243f 50%,#0b3a67 85%,#0d9488); }
+  .lp-hero-grid { display:grid; grid-template-columns:1.12fr .88fr; gap:44px; align-items:center; }
+  .lp-badge { display:inline-flex; align-items:center; gap:8px; margin:0 0 16px; font-size:12px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#ccfbf1; background:rgba(13,148,136,.22); border:1px solid rgba(13,148,136,.45); padding:6px 14px; border-radius:999px; }
+  .lp-h1 { margin:10px 0 0; font-size:52px; line-height:1.1; letter-spacing:-2px; font-weight:800; color:#fff; }
+  .lp-h1 .em { background:linear-gradient(120deg,#7ee8da 10%,#bfe3ff 90%); -webkit-background-clip:text; background-clip:text; color:transparent; }
+  .lp-lede { margin:22px 0 0; font-size:18px; line-height:1.6; color:rgba(255,255,255,.88); max-width:680px; }
+  .lp-cta-row { margin-top:32px; display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
+  .lp-btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; padding:13px 26px; min-height:48px; border-radius:10px; font-weight:600; font-size:14.5px; border:1px solid transparent; transition:transform .12s, box-shadow .12s, filter .12s; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+  .lp-btn:hover { transform:translateY(-1px); }
+  .lp-btn-primary { background:linear-gradient(135deg,#0d9488,#0b3a67); color:#fff !important; box-shadow:var(--shadow); }
+  .lp-btn-primary:hover { filter:brightness(1.08); }
+  .lp-btn-outline { background:rgba(255,255,255,.08); color:#fff; border-color:rgba(255,255,255,.32); }
+  .lp-btn-outline:hover { background:rgba(255,255,255,.16); border-color:#fff; }
+  .lp-microcopy { margin-top:18px; font-size:13px; color:rgba(255,255,255,.8); display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
+  .lp-microcopy span { display:inline-flex; align-items:center; gap:6px; }
+
+  /* Hero right card: Dual access preview */
+  .lp-hero-card { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.2); border-radius:20px; padding:24px; backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); box-shadow:var(--shadow-lg); }
+  .lp-hcard-header { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(255,255,255,.15); padding-bottom:16px; margin-bottom:18px; }
+  .lp-hcard-title { font-size:14px; font-weight:700; color:#fff; display:flex; align-items:center; gap:8px; }
+  .lp-status-live { display:inline-flex; align-items:center; gap:6px; font-size:11px; font-weight:700; color:#34d399; background:rgba(52,211,153,.15); border:1px solid rgba(52,211,153,.3); padding:3px 10px; border-radius:999px; }
+  .lp-status-live::before { content:""; width:6px; height:6px; border-radius:50%; background:#34d399; box-shadow:0 0 8px #34d399; }
+  
+  .lp-pipeline-preview { background:#fff; border-radius:14px; padding:18px; color:var(--ink); box-shadow:var(--shadow-sm); }
+  .lp-pp-head { display:flex; justify-content:space-between; font-size:13px; margin-bottom:12px; }
+  .lp-pp-head b { color:#0f766e; }
+  .lp-pp-bar { height:7px; background:#e2e8f0; border-radius:99px; overflow:hidden; margin-bottom:14px; }
+  .lp-pp-bar-fill { height:100%; width:65%; background:linear-gradient(90deg,#0d9488,#0369a1); border-radius:99px; }
+  .lp-pp-steps { display:grid; grid-template-columns:repeat(5,1fr); gap:6px; font-size:11px; text-align:center; font-weight:600; color:#64748b; }
+  .lp-pp-step.done { color:#0f766e; }
+  .lp-pp-step.active { color:#0369a1; font-weight:700; }
+  .lp-pp-step .dot { width:18px; height:18px; border-radius:50%; margin:0 auto 4px; display:flex; align-items:center; justify-content:center; font-size:10px; }
+  .lp-pp-step.done .dot { background:#ccfbf1; color:#0f766e; }
+  .lp-pp-step.active .dot { background:#e0f2fe; color:#0369a1; border:2px solid #0284c7; }
+  .lp-pp-step.pending .dot { background:#f1f5f9; color:#94a3b8; }
+
+  .lp-card-checklist-box { margin-top:16px; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.15); border-radius:12px; padding:14px; font-size:12.5px; }
+  .lp-card-checklist-box h4 { margin:0 0 8px; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:#93c5fd; }
+  .lp-check-tags { display:flex; flex-wrap:wrap; gap:6px; }
+  .lp-tag { background:rgba(255,255,255,.12); color:#fff; padding:3px 9px; border-radius:6px; font-size:11.5px; }
+
+  /* Section general */
+  .lp-section { padding:84px 0; }
+  .lp-section.alt { background:#fff; border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+  .lp-section.slate { background:#0f172a; color:#fff; }
+  .lp-eye { display:inline-flex; align-items:center; gap:8px; font-size:11.5px; letter-spacing:2px; text-transform:uppercase; color:#0f766e; font-weight:700; margin-bottom:8px; }
+  .lp-eye::before { content:""; width:20px; height:2px; background:#0d9488; border-radius:2px; }
+  .lp-h2 { margin:6px 0 14px; font-size:38px; letter-spacing:-1.2px; line-height:1.15; font-weight:800; max-width:840px; color:#0f172a; }
+  .lp-section.slate .lp-h2 { color:#fff; }
+  .lp-sub { margin:0 0 36px; color:#475569; font-size:17px; line-height:1.6; max-width:760px; }
+  .lp-section.slate .lp-sub { color:#94a3b8; }
+
+  /* Grid styles */
+  .lp-grid-2 { display:grid; grid-template-columns:repeat(2,1fr); gap:24px; }
+  .lp-grid-3 { display:grid; grid-template-columns:repeat(3,1fr); gap:22px; }
+  .lp-grid-4 { display:grid; grid-template-columns:repeat(4,1fr); gap:18px; }
+
+  /* Cards */
+  .lp-card { padding:28px; background:#fff; border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow-xs); transition:transform .14s, box-shadow .14s, border-color .14s; }
+  .lp-card:hover { transform:translateY(-3px); box-shadow:var(--shadow); border-color:#cbd5e1; }
+  .lp-card.highlight { border-color:#99f6e4; background:linear-gradient(180deg,#f0fdfa,#ffffff); }
+  .lp-card-head { display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+  .lp-ic { width:42px; height:42px; border-radius:12px; background:#f0fdfa; color:#0d9488; display:flex; align-items:center; justify-content:center; font-weight:800; }
+  .lp-ic.navy { background:#f0f9ff; color:#0369a1; }
+  .lp-ct { font-size:16.5px; font-weight:700; color:#0f172a; }
+  .lp-cb { font-size:14px; line-height:1.6; color:#475569; margin:0; }
+
+  /* ========================================================================= */
+  /* MOBILE APP SHOWCASE SECTION */
+  /* ========================================================================= */
+  .lp-mobile-showcase { padding:96px 0; background:linear-gradient(180deg,#ffffff 0%,#f1f5f9 100%); border-top:1px solid var(--border); border-bottom:1px solid var(--border); }
+  .lp-mobile-grid { display:grid; grid-template-columns:1.05fr 1fr; gap:54px; align-items:center; }
+  .lp-mockup-duo { display:flex; gap:20px; justify-content:center; position:relative; }
+  
+  /* Phone Frame Styling */
+  .lp-mockup-duo { display:flex; gap:24px; justify-content:center; align-items:flex-start; position:relative; }
+  .lp-phone-frame { 
+    width:268px; 
+    height:552px; 
+    background:#0b1120; 
+    border-radius:36px; 
+    padding:16px 8px 12px 8px; 
+    box-shadow:0 25px 60px -15px rgba(15,23,42,.35), 0 0 0 2px #334155, 0 0 0 5px #020617; 
+    position:relative; 
+    box-sizing:border-box;
+  }
+  .lp-phone-frame.offset { margin-top:32px; }
+  .lp-phone-speaker { 
+    position:absolute; 
+    top:6px; 
+    left:50%; 
+    transform:translateX(-50%); 
+    width:42px; 
+    height:3.5px; 
+    background:#334155; 
+    border-radius:3px; 
+    z-index:20; 
+  }
+  .lp-phone-screen { 
+    width:100%; 
+    height:100%; 
+    border-radius:22px; 
+    overflow:hidden; 
+    background:#f8fafc; 
+    position:relative; 
+  }
+  .lp-phone-screen img { 
+    width:100%; 
+    height:100%; 
+    object-fit:cover; 
+    object-position:top center; 
+    display:block; 
+  }
+
+  /* Store Download Badges */
+  .lp-store-row { margin-top:32px; display:flex; flex-wrap:wrap; gap:16px; align-items:center; }
+  .lp-store-badge { display:inline-flex; align-items:center; gap:12px; min-height:52px; background:#0f172a; color:#fff !important; padding:12px 20px; border-radius:12px; border:1px solid #334155; transition:transform .15s, background .15s, box-shadow .15s; box-shadow:var(--shadow-sm); touch-action:manipulation; }
+  .lp-store-badge:hover { transform:translateY(-2px); background:#1e293b; box-shadow:var(--shadow); }
+  .lp-store-badge.disabled { cursor:default; pointer-events:none; user-select:none; }
+  .lp-store-badge.disabled:hover { transform:none; background:#0f172a; box-shadow:var(--shadow-sm); }
+  .lp-store-badge svg { width:26px; height:26px; fill:currentColor; flex-shrink:0; }
+  .lp-store-badge-text { display:flex; flex-direction:column; text-align:left; line-height:1.15; }
+  .lp-store-sub { font-size:10px; font-weight:500; color:#94a3b8; text-transform:uppercase; letter-spacing:.6px; }
+  .lp-store-main { font-size:15px; font-weight:700; color:#fff; letter-spacing:-.2px; }
+  .lp-store-note { margin-top:14px; font-size:12.5px; color:#64748b; }
+
+  /* Feature list */
+  .lp-feat-list { list-style:none; padding:0; margin:24px 0 0; display:grid; gap:16px; }
+  .lp-feat-item { display:flex; gap:14px; align-items:flex-start; }
+  .lp-feat-icon { width:28px; height:28px; border-radius:8px; background:#ccfbf1; color:#0f766e; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:13px; font-weight:800; margin-top:2px; }
+  .lp-feat-title { font-size:15px; font-weight:700; color:#0f172a; margin-bottom:2px; }
+  .lp-feat-desc { font-size:13.5px; color:#64748b; line-height:1.5; margin:0; }
+
+  /* ========================================================================= */
+  /* DUAL ROLES SECTION: Patients vs TPAs */
+  /* ========================================================================= */
+  .lp-dual-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:28px; margin-top:28px; }
+  .lp-dual-card { padding:36px; border-radius:20px; border:1px solid var(--border); background:#fff; box-shadow:var(--shadow-sm); position:relative; overflow:hidden; }
+  .lp-dual-card.patient { border-top:4px solid #0d9488; }
+  .lp-dual-card.enterprise { border-top:4px solid #0369a1; background:#f8fafc; }
+  .lp-dual-badge { display:inline-block; font-size:11.5px; font-weight:700; letter-spacing:1px; text-transform:uppercase; padding:4px 10px; border-radius:6px; margin-bottom:14px; }
+  .lp-dual-card.patient .lp-dual-badge { background:#ccfbf1; color:#0f766e; }
+  .lp-dual-card.enterprise .lp-dual-badge { background:#e0f2fe; color:#0369a1; }
+  .lp-dual-title { font-size:22px; font-weight:800; color:#0f172a; margin:0 0 10px; }
+  .lp-dual-desc { font-size:14.5px; line-height:1.6; color:#475569; margin-bottom:20px; }
+  .lp-dual-features { list-style:none; padding:0; margin:0 0 24px; display:grid; gap:10px; }
+  .lp-dual-features li { display:flex; gap:10px; align-items:center; font-size:14px; color:#334155; }
+  .lp-dual-features li svg { color:#0d9488; flex-shrink:0; }
+
+  /* ========================================================================= */
+  /* CHECKLIST SECTION */
+  /* ========================================================================= */
+  .lp-checklist-card { background:#fff; border:1px solid var(--border); border-radius:18px; padding:32px; box-shadow:var(--shadow-sm); }
+  .lp-chk-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; margin-top:24px; }
+  .lp-chk-col { background:#f8fafc; border:1px solid var(--border); border-radius:12px; padding:20px; }
+  .lp-chk-col h4 { margin:0 0 12px; font-size:14px; font-weight:700; color:#0f172a; display:flex; align-items:center; gap:8px; }
+  .lp-chk-list { list-style:none; padding:0; margin:0; display:grid; gap:8px; }
+  .lp-chk-item { font-size:13px; color:#475569; display:flex; gap:8px; align-items:flex-start; line-height:1.45; }
+  .lp-chk-item svg { color:#0d9488; flex-shrink:0; margin-top:3px; }
+
+  /* 5-Step Process Pipeline */
+  .lp-process-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-top:32px; }
+  .lp-process-step { background:#fff; border:1px solid var(--border); border-radius:14px; padding:22px 18px; box-shadow:var(--shadow-xs); position:relative; }
+  .lp-pstep-num { font-size:11px; font-weight:800; letter-spacing:1px; color:#0f766e; margin-bottom:8px; }
+  .lp-pstep-title { font-size:15px; font-weight:700; color:#0f172a; margin-bottom:6px; }
+  .lp-pstep-desc { font-size:13px; line-height:1.5; color:#64748b; margin:0; }
+
+  /* FAQ */
+  .lp-faq { display:grid; gap:12px; max-width:900px; margin:0 auto; }
+  .lp-faq details { background:#fff; border:1px solid var(--border); border-radius:12px; padding:18px 22px; box-shadow:var(--shadow-xs); }
+  .lp-faq summary { cursor:pointer; font-weight:700; font-size:16px; list-style:none; display:flex; justify-content:space-between; align-items:center; color:#0f172a; }
+  .lp-faq summary::-webkit-details-marker { display:none; }
+  .lp-faq summary::after { content:"+"; font-size:22px; color:#94a3b8; font-weight:400; }
+  .lp-faq details[open] summary::after { content:"-"; }
+  .lp-faq-body { margin-top:12px; color:#475569; font-size:14.5px; line-height:1.6; }
+
+  /* CTA Banner */
+  .lp-cta-banner { padding:84px 0; background:linear-gradient(135deg,#041a2e,#06243f 50%,#0b3a67 85%,#0d9488); color:#fff; text-align:center; }
+  .lp-cta-banner h2 { font-size:42px; font-weight:800; letter-spacing:-1.2px; max-width:800px; margin:0 auto 16px; color:#fff; }
+  .lp-cta-banner p { font-size:17px; color:rgba(255,255,255,.85); max-width:640px; margin:0 auto 32px; }
+
+  /* ========================================================================= */
+  /* OFFICIAL WCT CORPORATE FOOTER (Matched to User Reference Image) */
+  /* ========================================================================= */
+  .wct-footer { background:#111827; color:#cbd5e1; padding:70px 0 28px; font-size:14px; position:relative; border-top:1px solid #1f2937; }
+  .wct-foot-top { display:grid; grid-template-columns:1.4fr repeat(5, 1fr); gap:28px; padding-bottom:50px; border-bottom:1px solid rgba(255,255,255,.1); }
+  
+  /* WCT Logo representation */
+  .wct-brand-col { display:flex; flex-direction:column; align-items:flex-start; }
+  .wct-logo-wrap { display:inline-flex; align-items:center; gap:14px; margin-bottom:16px; }
+  .wct-logo-text { font-size:32px; font-weight:800; color:#fff; letter-spacing:1px; }
+
+  .wct-foot-col h4 { color:#fff; font-size:14px; font-weight:700; margin:0 0 16px; letter-spacing:.2px; }
+  .wct-foot-col ul { list-style:none; padding:0; margin:0; display:grid; gap:10px; }
+  .wct-foot-col ul li { font-size:13.5px; color:#cbd5e1; transition:color .15s; }
+  .wct-foot-col ul li a { color:#cbd5e1; transition:color .15s; }
+  .wct-foot-col ul li a:hover { color:#38bdf8; }
+
+  .wct-foot-bottom { margin-top:30px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:18px; font-size:13px; color:#94a3b8; }
+  .wct-badge-cmmi { display:inline-flex; align-items:center; background:#fff; color:#0f172a; padding:6px 14px; border-radius:8px; font-weight:800; font-size:12px; letter-spacing:.3px; box-shadow:0 2px 4px rgba(0,0,0,.2); }
+  .wct-badge-cmmi span.blue { color:#0284c7; }
+  .wct-foot-center { text-align:center; }
+  .wct-foot-center a { color:#cbd5e1; margin:0 6px; }
+  .wct-foot-center a:hover { color:#fff; }
+  .wct-foot-social { display:inline-flex; align-items:center; gap:12px; }
+  .wct-foot-social a { color:#94a3b8; transition:color .15s; }
+  .wct-foot-social a:hover { color:#38bdf8; }
+
+  @media (max-width:1100px){
+    .wct-foot-top { grid-template-columns:1fr 1fr 1fr; gap:32px; }
+  }
+  @media (max-width:1024px){
+    .lp-hero-grid, .lp-mobile-grid { grid-template-columns:1fr; gap:40px; }
+    .lp-dual-grid { grid-template-columns:1fr; }
+    .lp-process-grid { grid-template-columns:repeat(2,1fr); }
+    .lp-chk-grid { grid-template-columns:1fr; }
+    .lp-grid-4, .lp-grid-3 { grid-template-columns:1fr 1fr; }
+  }
+  @media (max-width:768px){
+    .lp-wrap { padding:0 18px; }
+    .lp-nav-inner { padding:10px 16px; }
+    .lp-nav-links { display:none; }
+    .lp-nav-ghost { display:none; }
+    .lp-by-badge { display:none; }
+    .lp-strip-desktop { display:none; }
+    .lp-strip-mobile { display:inline; }
+    .lp-cta-text-desktop { display:none !important; }
+    .lp-cta-text-mobile { display:inline !important; color:#fff !important; }
+    .lp-nav-cta { padding:9px 16px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; border-radius:8px; touch-action:manipulation; }
+
+    .lp-strip { font-size:11.5px; padding:7px 12px; line-height:1.45; }
+    .lp-strip span.pill { font-size:10px; padding:2px 6px; margin-right:6px; }
+    .lp-strip a { margin-left:6px; white-space:nowrap; }
+
+    .lp-hero { padding:42px 0 46px; }
+    .lp-badge { font-size:11px; padding:5px 12px; max-width:100%; white-space:normal; line-height:1.3; }
+    .lp-h1 { font-size:32px; letter-spacing:-.8px; line-height:1.15; }
+    .lp-lede { font-size:15px; margin-top:14px; line-height:1.55; }
+    .lp-cta-row { flex-direction:column; width:100%; gap:10px; }
+    .lp-cta-row .lp-btn { width:100%; min-height:48px; justify-content:center; box-sizing:border-box; }
+    .lp-microcopy { font-size:12px; gap:8px 14px; justify-content:flex-start; }
+
+    .lp-hero-card { padding:16px 14px; border-radius:16px; margin-top:16px; }
+    .lp-pipeline-preview { padding:14px 12px; }
+    .lp-pp-steps { gap:4px; font-size:10px; }
+    .lp-pp-step .dot { width:16px; height:16px; font-size:9px; }
+
+    .lp-section { padding:56px 0; }
+    .lp-h2 { font-size:26px; letter-spacing:-.6px; line-height:1.2; }
+    .lp-sub { font-size:15px; margin-bottom:24px; line-height:1.5; }
+
+    .lp-mockup-duo { flex-direction:column; align-items:center; gap:28px; }
+    .lp-phone-frame { width:250px; height:514px; max-width:86vw; }
+    .lp-phone-frame.offset { margin-top:0; }
+    .lp-store-row { flex-direction:column; width:100%; gap:10px; }
+    .lp-store-badge { width:100%; min-height:52px; justify-content:center; box-sizing:border-box; }
+
+    .lp-dual-card { padding:22px 18px; border-radius:16px; }
+    .lp-dual-title { font-size:20px; }
+    .lp-dual-features li { font-size:13.5px; }
+    .lp-dual-card .lp-btn { width:100%; min-height:48px; justify-content:center; box-sizing:border-box; }
+
+    .lp-checklist-card { padding:18px 14px; border-radius:16px; }
+    .lp-chk-col { padding:16px 14px; }
+    .lp-process-grid { grid-template-columns:1fr; gap:12px; }
+    .lp-grid-4, .lp-grid-3, .lp-grid-2 { grid-template-columns:1fr; }
+
+    .lp-cta-banner { padding:52px 16px; }
+    .lp-cta-banner h2 { font-size:26px; letter-spacing:-.6px; line-height:1.2; }
+    .lp-cta-banner p { font-size:15px; margin-bottom:22px; }
+    .lp-cta-banner .lp-btn { width:100%; max-width:320px; min-height:48px; }
+
+    .wct-footer { padding:48px 0 24px; }
+    .wct-foot-top { grid-template-columns:1fr 1fr; gap:28px 16px; }
+    .wct-brand-col { grid-column:1 / -1; margin-bottom:8px; }
+    .wct-foot-bottom { flex-direction:column; text-align:center; gap:16px; }
+    .wct-badge-cmmi { margin:0 auto; }
+  }
+  @media (max-width:380px){
+    .lp-h1 { font-size:28px; }
+    .lp-phone-frame { width:226px; height:466px; }
+  }
 `;
 
+function CheckIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12" />
+    </svg>
+  );
+}
 
+function AppleStoreSvg() {
+  return (
+    <svg viewBox="0 0 384 512">
+      <path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.7C63.3 141.2 4 184.8 4 273.5q0 39.3 14.4 81.2c12.8 36.7 59 126.7 107.2 125.2 25.2-.6 43-17.9 75.8-17.9 31.8 0 48.3 17.9 76.4 17.9 48.6-.7 90.4-82.5 102.6-119.3-65.2-30.7-61.7-90-61.7-91.9zm-56.6-164.2c27.3-32.4 24.8-61.9 24-72.5-24.1 1.4-52 16.4-67.9 34.9-17.5 19.8-27.8 44.3-25.6 71.9 26.1 2 49.9-11.4 69.5-34.3z" />
+    </svg>
+  );
+}
 
-const ICONS: Record<string, React.ReactNode> = {
-  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
-  code: <><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></>,
-  eye: <><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" /><circle cx="12" cy="12" r="3" /></>,
-  shield: <><path d="M12 3l8 4v5c0 5-3.5 8-8 9-4.5-1-8-4-8-9V7z" /><path d="M9 12l2 2 4-4" /></>,
-  scan: <><rect x="4" y="4" width="16" height="16" rx="2" /><path d="M4 9h16M9 4v16" /></>,
-  fields: <><path d="M4 6h16M4 12h10M4 18h7" /></>,
-  gauge: <><path d="M12 13l4-3" /><path d="M3 13a9 9 0 0 1 18 0" /><circle cx="12" cy="13" r="1.5" /></>,
-  alert: <><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" /><path d="M12 9v4M12 17h.01" /></>,
-  send: <><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></>,
-  lock: <><rect x="4" y="11" width="16" height="9" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></>,
-  server: <><rect x="3" y="4" width="18" height="7" rx="2" /><rect x="3" y="13" width="18" height="7" rx="2" /><path d="M7 7.5h.01M7 16.5h.01" /></>,
-  users: <><circle cx="9" cy="8" r="3" /><path d="M3 20a6 6 0 0 1 12 0" /><path d="M16 6a3 3 0 0 1 0 6M21 20a6 6 0 0 0-4-5.6" /></>,
-  log: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 8h6M9 12h6M9 16h4" /></>,
-  globe: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" /></>,
-  azure: <><path d="M12 4l6 14H9l3-7-5 9h-3z" /></>,
-};
-function Icon({ n }: { n: string }) {
-  return <svg className="lp-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">{ICONS[n]}</svg>;
+function PlayStoreSvg() {
+  return (
+    <svg viewBox="0 0 512 512">
+      <path d="M325.3 234.3L104.6 13l280.8 161.2-60.1 60.1zM47 0C34 6.8 25.3 19.2 25.3 35.3v441.3c0 16.1 8.7 28.5 21.7 35.3l256.6-256L47 0zm425.2 225.6l-58.9-34.1-65.7 64.5 65.7 64.5 60.1-34.1c18-14.3 18-46.5-1.2-60.8zM104.6 499l280.8-161.2-60.1-60.1L104.6 499z" />
+    </svg>
+  );
+}
+
+function WctLogoMark() {
+  return (
+    <Image
+      src="/wct-logo-white.png"
+      alt="WCT Logo"
+      width={46}
+      height={46}
+      style={{ width: "46px", height: "46px", objectFit: "contain" }}
+    />
+  );
+}
+
+function LinkedInIcon() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/>
+    </svg>
+  );
 }
 
 export default function HomePage() {
@@ -202,246 +388,644 @@ export default function HomePage() {
     <main className="lp" id="top">
       <style dangerouslySetInnerHTML={{ __html: STYLES }} />
 
-      {/* Announcement strip */}
-      <div className="lp-strip">ClaimsGuru runs on Microsoft Azure  *  self-hosted, HIPAA-aligned claims AI for TPAs &amp; insurers<a href="#how">See how it works -&gt;</a></div>
+      {/* Top Announcement Strip */}
+      <div className="lp-strip">
+        <span className="pill">Healthcare Claims</span>
+        <span className="lp-strip-desktop">ClaimsGuru by WaferWire (WCT) | Built for Indian Health Insurance Reimbursements and TPA Adjudication</span>
+        <span className="lp-strip-mobile">ClaimsGuru by WCT | Health Reimbursement</span>
+        <a href="#pipeline">5-Step Process &rarr;</a>
+      </div>
 
-      {/* Nav */}
+      {/* Navigation */}
       <nav className="lp-nav">
         <div className="lp-nav-inner">
-          <NavBrand>
-            <Image
-              src="/image.png"
-              alt="ClaimsGuru"
-              width={160}
-              height={38}
-              priority
-              style={{ height: "36px", width: "auto", objectFit: "contain" }}
-            />
-          </NavBrand>
-          <div className="lp-nav-links"></div>
+          <div className="lp-brand-box">
+            <NavBrand>
+              <Image
+                src="/image.png"
+                alt="ClaimsGuru by WCT"
+                width={155}
+                height={36}
+                priority
+                style={{ height: "32px", width: "auto", objectFit: "contain" }}
+              />
+            </NavBrand>
+            <span className="lp-by-badge">by WaferWire (WCT)</span>
+          </div>
+
+          <div className="lp-nav-links">
+            <a href="#mobile-app">Mobile App</a>
+            <a href="#dual-access">Patients vs TPAs</a>
+            <a href="#checklist">Checklist Guide</a>
+            <a href="#pipeline">AI Pipeline</a>
+            <a href="#security">Compliance</a>
+            <a href="#faq">FAQ</a>
+          </div>
+
           <div className="lp-nav-actions">
-            <Link className="lp-nav-ghost" href="/login">Sign in</Link>
-            <Link className="lp-nav-cta" href="/login">Try ClaimsGuru Free</Link>
+            <Link className="lp-nav-ghost" href="/login">
+              Sign In
+            </Link>
+            <Link className="lp-nav-cta" href="/login">
+              <span className="lp-cta-text-desktop">Open Web Workspace</span>
+              <span className="lp-cta-text-mobile">Sign In</span>
+            </Link>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
+      {/* Hero Section */}
       <header className="lp-hero">
         <div className="lp-wrap">
           <div className="lp-hero-grid">
             <div>
-              <span className="lp-badge">* Microsoft Partner  *  Built on Azure</span>
-              <span className="lp-eyebrow">AI-Powered Healthcare Claims Intelligence</span>
-              <h1 className="lp-h1">ClaimsGuru: The enterprise platform to process claims <span className="em">in minutes, not days.</span></h1>
-              <p className="lp-lede">ClaimsGuru unifies review, ICD/CPT coding, rejection-risk scoring, fraud triage and IRDAI submission so TPAs and insurers cut turnaround, raise accuracy, and scale operations with confidence.</p>
+              <span className="lp-badge">
+                Healthcare Product by WaferWire (WCT)
+              </span>
+              <h1 className="lp-h1">
+                Smarter Claims. <br />
+                <span className="em">Faster Care.</span>
+              </h1>
+              <p className="lp-lede">
+                The smart AI intake and review layer for health insurance. Patients can submit and track reimbursement files easily on mobile or web, while TPAs and insurers review itemized bills, ICD-10 coding, and tariff limits on desktop.
+              </p>
+
               <div className="lp-cta-row">
-                <Link className="lp-btn lp-btn-primary" href="/login">Try ClaimsGuru Free</Link>
-                <a className="lp-btn lp-btn-ghost" href="#how">Book a walkthrough</a>
+                <Link className="lp-btn lp-btn-primary" href="/login">
+                  Launch Web Portal
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                    <polyline points="12 5 19 12 12 19"></polyline>
+                  </svg>
+                </Link>
+                <a className="lp-btn lp-btn-outline" href="#mobile-app">
+                  Download Mobile App
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="5" y="2" width="14" height="20" rx="2" ry="2"></rect>
+                    <line x1="12" y1="18" x2="12.01" y2="18"></line>
+                  </svg>
+                </a>
               </div>
-              <p className="lp-microcopy">Microsoft Partner  *  deploys on Azure  *  self-hosted LLM  *  zero PHI egress  *  ISO 27001  *  HIPAA-aligned</p>
+
+              <div className="lp-microcopy">
+                <span><CheckIcon /> Compatible with standard IRDAI TPA dossier formats</span>
+                <span><CheckIcon /> Zero External PHI Egress</span>
+                <span><CheckIcon /> Dedicated Azure Cloud Privacy</span>
+              </div>
             </div>
-            <div className="lp-mock" aria-hidden>
-              <div className="lp-mock-head"><span className="lp-mock-dot" /><span className="lp-mock-dot" /><span className="lp-mock-dot" /><span className="lp-mock-title">ClaimsGuru  *  CLM-10428</span></div>
-              <div className="lp-mock-body">
-                <div className="lp-mock-row"><span>Patient</span><b>Rajesh Sharma</b></div>
-                <div className="lp-mock-row"><span>Diagnosis</span><b>ICD-10  *  J18.9</b></div>
-                <div className="lp-mock-row"><span>Billed</span><b>Rs. 1,85,000</b></div>
-                <div className="lp-mock-row"><span>Rejection risk</span><b className="ok">Low  *  12%</b></div>
-                <div className="lp-mock-row"><span>Fraud</span><b className="ok">LOW</b></div>
-                <div className="lp-mock-bar"><i style={{ width: "78%" }} /></div>
-                <div className="lp-mock-foot">Validated  *  IRDAI form ready</div>
+
+            {/* Hero Live Pipeline Card */}
+            <div className="lp-hero-card">
+              <div className="lp-hcard-header">
+                <div className="lp-hcard-title">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7ee8da" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                  </svg>
+                  Live Reimbursement Dossier
+                </div>
+                <span className="lp-status-live">Claim #9043CDED · RUNNING</span>
               </div>
-              <div className="lp-approve">
-                <svg viewBox="0 0 48 48" width="40" height="40"><circle cx="24" cy="24" r="20" fill="none" stroke="#16c784" strokeWidth="4" strokeDasharray="126" strokeDashoffset="126"><animate attributeName="stroke-dashoffset" from="126" to="0" dur="0.7s" begin="0.3s" fill="freeze"/></circle><path d="M15 24l6 6 13-14" fill="none" stroke="#16c784" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="34" strokeDashoffset="34"><animate attributeName="stroke-dashoffset" from="34" to="0" dur="0.5s" begin="1s" fill="freeze"/></path></svg>
-                <span>Claim approved</span>
+
+              <div className="lp-pipeline-preview">
+                <div className="lp-pp-head">
+                  <span>Processing: <b>Final Hospital Bill and Discharge Summary</b></span>
+                  <b>55% Complete</b>
+                </div>
+                <div className="lp-pp-bar">
+                  <div className="lp-pp-bar-fill"></div>
+                </div>
+                <div className="lp-pp-steps">
+                  <div className="lp-pp-step done">
+                    <div className="dot">&#10003;</div>
+                    OCR
+                  </div>
+                  <div className="lp-pp-step active">
+                    <div className="dot">&#9679;</div>
+                    Parse
+                  </div>
+                  <div className="lp-pp-step pending">
+                    <div className="dot">3</div>
+                    Code
+                  </div>
+                  <div className="lp-pp-step pending">
+                    <div className="dot">4</div>
+                    Predict
+                  </div>
+                  <div className="lp-pp-step pending">
+                    <div className="dot">5</div>
+                    Validate
+                  </div>
+                </div>
+              </div>
+
+              <div className="lp-card-checklist-box">
+                <h4>Mandatory Checklist Documents Verified</h4>
+                <div className="lp-check-tags">
+                  <span className="lp-tag">&#10003; Final Bill Break-up</span>
+                  <span className="lp-tag">&#10003; Discharge Summary</span>
+                  <span className="lp-tag">&#10003; Payment Receipts</span>
+                  <span className="lp-tag">&#10003; Pharmacy Prescriptions</span>
+                </div>
               </div>
             </div>
-          </div>
-          <div className="lp-trust">
-            <div className="lp-trust-label">Built for India's claims ecosystem</div>
-            <div className="lp-trust-row"><span>Microsoft Azure</span><span>TPAs</span><span>Health Insurers</span><span>Hospital Desks</span><span>Fraud &amp; Audit</span></div>
           </div>
         </div>
       </header>
 
-      {/* Metrics band */}
-      <section className="lp-band"><div className="lp-wrap"><div className="lp-band-grid">
-        <div><div className="lp-band-num">&lt;120<small>ms</small></div><div className="lp-band-lbl">Risk scoring latency</div></div>
-        <div><div className="lp-band-num">11</div><div className="lp-band-lbl">Microservices, one gateway</div></div>
-        <div><div className="lp-band-num">70<small>+</small></div><div className="lp-band-lbl">IRDAI fields auto-filled</div></div>
-        <div><div className="lp-band-num">500<small>+</small></div><div className="lp-band-lbl">ICD / 180+ CPT codes</div></div>
-      </div></div></section>
+      {/* ========================================================================= */}
+      {/* MOBILE APPLICATION SHOWCASE (Requested by User with Real Screenshots) */}
+      {/* ========================================================================= */}
+      <section id="mobile-app" className="lp-mobile-showcase">
+        <div className="lp-wrap">
+          <div className="lp-mobile-grid">
+            <div>
+              <span className="lp-eye">Mobile Patient Experience</span>
+              <h2 className="lp-h2">Fast, Effortless Reimbursement in Your Pocket</h2>
+              <p className="lp-sub">
+                Avoid claim rejections caused by missing receipts. Patients and policyholders can photograph hospital bills directly from home or hospital bedside, follow live extraction progress, and check off every required document before submitting to the TPA.
+              </p>
 
-      {/* Problem */}
-      <section className="lp-section alt"><div className="lp-wrap">
-        <span className="lp-eye">The problem</span>
-        <h2 className="lp-h2">Manual claims processing is slow, costly, and leaky.</h2>
-        <div className="lp-grid-4">
-          <div className="lp-card"><div className="lp-ic"><Icon n="clock" /></div><div className="lp-ct">Manual re-keying</div><p className="lp-cb">Reviewers retype 20+ fields per claim from scanned PDFs  -  hours of effort.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="code" /></div><div className="lp-ct">Inconsistent coding</div><p className="lp-cb">Wrong ICD/CPT drives rejections, rework and lost revenue.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="alert" /></div><div className="lp-ct">Fraud slips through</div><p className="lp-cb">Over-billing escapes manual checks with no early signal.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="shield" /></div><div className="lp-ct">Compliance risk</div><p className="lp-cb">Hand-filled forms bounce; no audit trail; PHI sent to external AI.</p></div>
-        </div>
-      </div></section>
+              <ul className="lp-feat-list">
+                <li className="lp-feat-item">
+                  <div className="lp-feat-icon">1</div>
+                  <div>
+                    <div className="lp-feat-title">Camera and Document Scanner</div>
+                    <p className="lp-feat-desc">
+                      Capture multi-page final bills, doctor advice sheets, and pharmacy receipts using your camera or gallery with automatic edge detection and clarity enhancement.
+                    </p>
+                  </div>
+                </li>
+                <li className="lp-feat-item">
+                  <div className="lp-feat-icon">2</div>
+                  <div>
+                    <div className="lp-feat-title">Live Pipeline Progress</div>
+                    <p className="lp-feat-desc">
+                      Follow your claim step by step through OCR, document parsing, medical coding, rejection-risk estimation, and rule validation with full visibility.
+                    </p>
+                  </div>
+                </li>
+                <li className="lp-feat-item">
+                  <div className="lp-feat-icon">3</div>
+                  <div>
+                    <div className="lp-feat-title">Missing Paperwork Alerts</div>
+                    <p className="lp-feat-desc">
+                      Get notified right away if an essential receipt, investigation report, or payment slip is missing, saving weeks of back-and-forth query delays.
+                    </p>
+                  </div>
+                </li>
+                <li className="lp-feat-item">
+                  <div className="lp-feat-icon">4</div>
+                  <div>
+                    <div className="lp-feat-title">Secure Sign In with Microsoft Entra and Google</div>
+                    <p className="lp-feat-desc">
+                      Log in smoothly with verified credentials. All health data is encrypted both in transit and at rest on Microsoft Azure.
+                    </p>
+                  </div>
+                </li>
+              </ul>
 
-      {/* How */}
-      <section id="how" className="lp-section"><div className="lp-wrap">
-        <span className="lp-eye">How it works</span>
-        <h2 className="lp-h2">From upload to adjudication in five unified steps.</h2>
-        <p className="lp-sub">A single intelligent layer connects fragmented workflows  -  less manual effort, better accuracy, faster claims across the lifecycle.</p>
-        <svg className="lp-flow" viewBox="0 0 1000 120" role="img" aria-label="ClaimsGuru pipeline">
-          <line x1="60" y1="60" x2="940" y2="60" stroke="#dbe3ec" strokeWidth="4" strokeLinecap="round" />
-          <line x1="60" y1="60" x2="940" y2="60" stroke="url(#fg)" strokeWidth="4" strokeLinecap="round" strokeDasharray="14 14"><animate attributeName="stroke-dashoffset" from="28" to="0" dur="0.9s" repeatCount="indefinite" /></line>
-          <defs><linearGradient id="fg" x1="0" y1="0" x2="1000" y2="0" gradientUnits="userSpaceOnUse"><stop stopColor="#0f4c81" /><stop offset="1" stopColor="#0d9488" /></linearGradient></defs>
-          {[60,280,500,720,940].map((x,i)=>(<g key={i}><circle cx={x} cy="60" r="16" fill="#fff" stroke="#0d9488" strokeWidth="2.5"/><circle cx={x} cy="60" r="6" fill="#0d9488"><animate attributeName="r" values="6;9;6" dur="2s" begin={`${i*0.3}s`} repeatCount="indefinite"/></circle></g>))}
-          <circle r="7" fill="#0f4c81"><animateMotion dur="3.5s" repeatCount="indefinite" path="M60,60 L940,60"/></circle>
-        </svg>
-        <div className="lp-pipeline">
-          <div className="lp-step"><div className="lp-sn">01  *  UPLOAD</div><svg className="lp-si" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 9 12 4 17 9"/><line x1="12" y1="4" x2="12" y2="16"/></svg><div className="lp-st">Upload</div><p className="lp-sb">Drop PDFs, scans, Word, Excel. Auto-dedupe and patient matching.</p></div>
-          <div className="lp-step"><div className="lp-sn">02  *  PROCESS</div><svg className="lp-si" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15H4a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 12 4.6V4a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 3 1.51 1.65 1.65 0 0 0-.33 1.82l.06.06a2 2 0 0 1 0 2.83z"/></svg><div className="lp-st">Auto-process</div><p className="lp-sb">Extract, code, score and validate  -  automatically.</p></div>
-          <div className="lp-step"><div className="lp-sn">03  *  REVIEW</div><svg className="lp-si" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><div className="lp-st">Review &amp; ask</div><p className="lp-sb">Fix fields inline and ask questions in plain language.</p></div>
-          <div className="lp-step"><div className="lp-sn">04  *  SUBMIT</div><svg className="lp-si" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg><div className="lp-st">Reconcile &amp; Submit</div><p className="lp-sb">Itemized bill reconciliation, deduction breakdowns, and IRDAI claim forms.</p></div>
-          <div className="lp-step"><div className="lp-sn">05  *  TRACK</div><svg className="lp-si" viewBox="0 0 24 24" fill="none" stroke="#0d9488" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg><div className="lp-st">Track</div><p className="lp-sb">Visibility across queues, stages and adjudication status.</p></div>
-        </div>
-      </div></section>
+              {/* App Store and Google Play Download Badges (Disabled for now until published) */}
+              <div className="lp-store-row">
+                <div 
+                  className="lp-store-badge disabled" 
+                  title="Coming soon on Apple App Store"
+                >
+                  <AppleStoreSvg />
+                  <div className="lp-store-badge-text">
+                    <span className="lp-store-sub">Download on the</span>
+                    <span className="lp-store-main">App Store</span>
+                  </div>
+                </div>
 
-      {/* Quote */}
-      <section className="lp-section alt"><div className="lp-wrap"><div className="lp-quote">
-        <p>"Where claims operations, validation, and decisioning come together  -  <span className="em">days of manual work compressed into minutes.</span>"</p>
-        <footer>Trusted by TPAs, insurers and hospital insurance desks  -  in India and beyond.</footer>
-      </div></div></section>
-
-      {/* Company */}
-      <section id="company" className="lp-section"><div className="lp-wrap">
-        <span className="lp-eye">Company</span>
-        <h2 className="lp-h2">Engineered by WaferWire Cloud Technologies.</h2>
-        <p className="lp-sub">WaferWire (WCT) is a global cloud, data and AI engineering company and a Microsoft partner, trusted by enterprises across healthcare, finance and the public sector. With delivery teams in the US and India, we design, build and run secure, large-scale software on Azure  -  ClaimsGuru is our healthcare claims platform, built to self-host so protected data never leaves your environment.</p>
-        <div className="lp-grid-3">
-          <div className="lp-card"><div className="lp-ic"><Icon n="azure" /></div><div className="lp-ct">Microsoft partner</div><p className="lp-cb">Cloud-native apps and applied AI delivered on Microsoft Azure for regulated enterprises.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="shield" /></div><div className="lp-ct">Compliance-first</div><p className="lp-cb">IRDAI  *  ISO 27001  *  DPDP  *  HIPAA-aligned with append-only audit trails.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="globe" /></div><div className="lp-ct">US &amp; India delivery</div><p className="lp-cb">Engineering across Redmond and Hyderabad; deployable in any Azure region.</p></div>
-        </div>
-        <div className="lp-grid-4" style={{ marginTop: 20 }}>
-          <div className="lp-card"><div className="lp-band-num" style={{ color: "#0b3a67" }}>12+</div><div className="lp-ct">Years engineering</div><p className="lp-cb">Enterprise cloud, data and AI delivery.</p></div>
-          <div className="lp-card"><div className="lp-band-num" style={{ color: "#0b3a67" }}>200+</div><div className="lp-ct">Projects shipped</div><p className="lp-cb">For startups to Fortune 500 enterprises.</p></div>
-          <div className="lp-card"><div className="lp-band-num" style={{ color: "#0b3a67" }}>2</div><div className="lp-ct">Global offices</div><p className="lp-cb">Redmond, USA  *  Hyderabad, India.</p></div>
-          <div className="lp-card"><div className="lp-band-num" style={{ color: "#0b3a67" }}>AI</div><div className="lp-ct">Applied ML team</div><p className="lp-cb">Risk models, NER coding, fraud analytics.</p></div>
-        </div>
-      </div></section>
-
-      {/* Product */}
-      <section id="product" className="lp-section alt"><div className="lp-wrap">
-        <span className="lp-eye">The product</span>
-        <h2 className="lp-h2">What ClaimsGuru does for every claim.</h2>
-        <p className="lp-sub">Drop in a stack of documents and ClaimsGuru turns them into a decision-ready claim  -  extracted, coded, scored, validated and submission-ready  -  with a human reviewer always in control.</p>
-        <div className="lp-grid-2">
-          <div className="lp-card"><div className="lp-ct">Understands the paperwork</div><p className="lp-cb">Reads scanned PDFs, photos and forms, detects document types, de-duplicates pages and links them to the right patient  -  then pulls 20+ fields like diagnosis, dates, policy and expenses automatically.</p></div>
-          <div className="lp-card"><div className="lp-ct">Codes &amp; estimates cost</div><p className="lp-cb">Assigns ICD-10 diagnosis and CPT procedure codes with confidence scores across 500+ ICD / 180+ CPT, with cost estimation  -  so coding is consistent, not guesswork.</p></div>
-          <div className="lp-card"><div className="lp-ct">Scores risk &amp; fraud upfront</div><p className="lp-cb">Predicts rejection risk in under 120ms with the top contributing factors, and flags fraud as LOW / MEDIUM / HIGH before a reviewer ever opens the file.</p></div>
-          <div className="lp-card"><div className="lp-ct">Validates &amp; submits</div><p className="lp-cb">Runs 11 deterministic rules, generates fillable IRDAI forms and TPA reports, and sends FHIR / X12 to the payer  -  with a full audit trail at every step.</p></div>
-        </div>
-        <ul className="lp-check" style={{ marginTop: 16 }}>
-          <li><span className="lp-ck">OK</span> Conversational Q&amp;A on any claim  -  ask "why is this high risk?"</li>
-          <li><span className="lp-ck">OK</span> Inline field correction with before/after diff</li>
-          <li><span className="lp-ck">OK</span> Cross-document search to surface precedents</li>
-          <li><span className="lp-ck">OK</span> Reimbursement &amp; cashless flows, INR-ready</li>
-        </ul>
-      </div></section>
-
-      {/* Product deep-dive */}
-      <section className="lp-section"><div className="lp-wrap">
-        <span className="lp-eye">Inside the product</span>
-        <h2 className="lp-h2">A capability for every stage of the claim.</h2>
-        <p className="lp-sub">Eleven specialized services work together behind one workspace  -  so reviewers get a complete, decision-ready picture without switching tools.</p>
-        <div className="lp-grid-3">
-          <div className="lp-card"><div className="lp-ic"><Icon n="scan" /></div><div className="lp-ct">Document AI &amp; OCR</div><p className="lp-cb">Azure Document Intelligence + OCR parses multi-page final bills, discharge summaries, and lab reports with automatic document classification.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="fields" /></div><div className="lp-ct">Structured extraction</div><p className="lp-cb">Extracts 25+ structured fields: patient vitals, diagnosis, admission/discharge timeline, hospital details, and itemized billing lines.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="code" /></div><div className="lp-ct">ICD &amp; CPT coding</div><p className="lp-cb">Automated ICD-10 diagnosis and CPT procedure mapping with confidence scoring and clinical cost benchmarks.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="gauge" /></div><div className="lp-ct">Rejection risk scoring</div><p className="lp-cb">ML scoring predicts claim denial probability with top contributing factors and recommended pre-submission remedies.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="alert" /></div><div className="lp-ct">Fraud &amp; anomaly triage</div><p className="lp-cb">Deterministic billing rules, forensic tariff anomaly detection, and fraud flags categorized as LOW / MEDIUM / HIGH risk.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="send" /></div><div className="lp-ct">Reconciliation &amp; IRDAI</div><p className="lp-cb">Line-item bill reconciliation against discharge summary, deductions breakdown, fillable IRDAI claim forms, and FHIR / X12 exports.</p></div>
-        </div>
-      </div></section>
-
-      {/* Security */}
-      <section id="security" className="lp-section"><div className="lp-wrap">
-        <span className="lp-eye">Security &amp; privacy</span>
-        <h2 className="lp-h2">Protecting sensitive patient information by design.</h2>
-        <p className="lp-sub">Healthcare claims carry the most sensitive data there is. ClaimsGuru keeps it protected end-to-end  -  patient information stays inside your environment, scrubbed before any AI ever sees it, with every action logged.</p>
-        <div className="lp-grid-3">
-          <div className="lp-card"><div className="lp-ic"><Icon n="shield" /></div><div className="lp-ct">PHI auto-scrubbing</div><p className="lp-cb">SSN, phone, email, MRN, DOB and policy numbers are stripped before any model call.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="server" /></div><div className="lp-ct">Self-hosted LLM</div><p className="lp-cb">Run on-prem or in your cloud  -  zero PHI egress to external APIs.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="users" /></div><div className="lp-ct">Role-based access</div><p className="lp-cb">Granular RBAC so reviewers, coders and approvers see only what they should.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="log" /></div><div className="lp-ct">Append-only audit log</div><p className="lp-cb">Every view, edit and decision is recorded for HIPAA-grade traceability.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="lock" /></div><div className="lp-ct">Compliance-aligned</div><p className="lp-cb">IRDAI  *  ISO 27001  *  DPDP  *  HIPAA-aligned workflows.</p></div>
-          <div className="lp-card"><div className="lp-ic"><Icon n="globe" /></div><div className="lp-ct">Data stays in-region</div><p className="lp-cb">Deployable in your own region with isolated, encrypted storage.</p></div>
-        </div>
-      </div></section>
-
-      {/* FAQ */}
-      <section id="faq" className="lp-section alt"><div className="lp-wrap">
-        <span className="lp-eye">FAQ</span>
-        <h2 className="lp-h2">Frequently asked questions.</h2>
-        <div className="lp-faq">
-          <details><summary>What is AI-powered claims processing?</summary><p className="lp-fb">It uses AI, OCR, ML and automation to extract, validate, review and process medical claims faster and more accurately than manual workflows.</p></details>
-          <details><summary>How does ClaimsGuru help TPAs?</summary><p className="lp-fb">It automates review, ICD coding, validation, fraud checks and risk scoring to cut turnaround and workload.</p></details>
-          <details><summary>Can it integrate with existing systems?</summary><p className="lp-fb">Yes  -  integrates via FHIR R4 and X12 837P without full platform replacement.</p></details>
-          <details><summary>Does it support IRDAI compliance?</summary><p className="lp-fb">Yes  -  configurable validation, audit-ready processing, and fillable IRDAI Standard Reimbursement Claim Forms.</p></details>
-          <details><summary>Is patient data sent to external AI?</summary><p className="lp-fb">No. A self-hosted LLM with PHI scrubbing keeps protected data in your environment.</p></details>
-        </div>
-      </div></section>
-
-      {/* Impact */}
-      <section className="lp-section"><div className="lp-wrap">
-        <span className="lp-eye">Impact</span>
-        <h2 className="lp-h2">Outcomes claims teams see with ClaimsGuru.</h2>
-        <div className="lp-grid-3">
-          <div className="lp-card"><div className="lp-band-num" style={{ color: "#0b3a67" }}>30-50<small>%</small></div><div className="lp-ct">Less manual review</div><p className="lp-cb">Auto-extraction and coding remove hours of re-keying per claim.</p></div>
-          <div className="lp-card"><div className="lp-band-num" style={{ color: "#0b3a67" }}>40<small>%+</small></div><div className="lp-ct">Faster validation</div><p className="lp-cb">11 rules and risk scoring clear clean claims in seconds.</p></div>
-          <div className="lp-card"><div className="lp-band-num" style={{ color: "#0b3a67" }}>100<small>%</small></div><div className="lp-ct">Auditable decisions</div><p className="lp-cb">Every action logged for HIPAA-grade traceability.</p></div>
-        </div>
-      </div></section>
-
-      {/* Take the next step */}
-      <section className="lp-section"><div className="lp-wrap">
-        <span className="lp-eye">Take the next step</span>
-        <h2 className="lp-h2">Get started with ClaimsGuru.</h2>
-        <div className="lp-next">
-          <div className="lp-next-card"><h3>Launch the workspace</h3><p>Open ClaimsGuru and process your first claim end-to-end in minutes.</p><Link className="lp-btn lp-btn-primary" href="/login">Try ClaimsGuru Free</Link></div>
-          <div className="lp-next-card"><h3>Talk to our team</h3><p>Walk through a deployment for your TPA or insurer with our specialists.</p><a className="lp-btn lp-btn-ghost" href="mailto:contactus@waferwire.com">Contact sales</a></div>
-          <div className="lp-next-card"><h3>Deploy on Azure</h3><p>Self-host on Microsoft Azure with zero PHI egress and full audit.</p><a className="lp-btn lp-btn-ghost" href="#security">See security</a></div>
-        </div>
-      </div></section>
-
-      {/* CTA */}
-      <section className="lp-cta"><div className="lp-wrap">
-        <h2>Ready to modernize your claims operations?</h2>
-        <p>Reduce bottlenecks, improve accuracy, and accelerate decisions with AI-assisted claims workflows.</p>
-        <Link className="lp-btn lp-btn-primary" href="/login">Try ClaimsGuru Free</Link>
-      </div></section>
-
-      {/* Footer */}
-      <footer className="lp-footer"><div className="lp-wrap">
-        <div className="lp-foot-grid">
-          <div className="lp-foot-co">
-            <div className="lp-foot-brand">
-              <Image
-                src="/image.png"
-                alt="ClaimsGuru"
-                width={140}
-                height={33}
-                style={{ height: "30px", width: "auto", objectFit: "contain" }}
-              />
+                <div 
+                  className="lp-store-badge disabled" 
+                  title="Coming soon on Google Play"
+                >
+                  <PlayStoreSvg />
+                  <div className="lp-store-badge-text">
+                    <span className="lp-store-sub">Get it on</span>
+                    <span className="lp-store-main">Google Play</span>
+                  </div>
+                </div>
+              </div>
+              <p className="lp-store-note">
+                Mobile Apps in store review — Full web workspace accessible directly on any mobile and desktop browser today.
+              </p>
             </div>
-            <p className="lp-foot-desc">AI-powered healthcare claims intelligence for TPAs and insurers. Built by WaferWire Cloud Technologies.</p>
-          </div>
-          <div className="lp-foot-loc"><h4>US Office (HQ)</h4><span>4034 148th Ave NE</span><span>Redmond, WA  -  98052</span><span>+1 425-484-3430</span></div>
-          <div className="lp-foot-loc"><h4>India Office</h4><span>4th Floor, Western Aqua, Plot 1-4</span><span>Whitefields, Kondapur</span><span>Hyderabad, Telangana  -  500084</span></div>
-        </div>
-        <div className="lp-foot-bottom"><div>(c) 2026 WaferWire Cloud Technologies  *  ClaimsGuru</div><div>Redmond, USA  *  Hyderabad, India</div></div>
-      </div></footer>
 
+            {/* Mobile Phone Mockups with user's actual screenshots */}
+            <div className="lp-mockup-duo">
+              {/* Phone 1: Login Screen */}
+              <div className="lp-phone-frame">
+                <div className="lp-phone-speaker"></div>
+                <div className="lp-phone-screen">
+                  <Image
+                    src="/mobile-app-preview-1.jpg"
+                    alt="ClaimsGuru Mobile Sign In with Microsoft Entra"
+                    width={320}
+                    height={640}
+                    priority
+                    style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center" }}
+                  />
+                </div>
+              </div>
+
+              {/* Phone 2: Active Pipeline Processing Screen */}
+              <div className="lp-phone-frame offset">
+                <div className="lp-phone-speaker"></div>
+                <div className="lp-phone-screen">
+                  <Image
+                    src="/mobile-app-preview-2.jpg"
+                    alt="ClaimsGuru Real-Time Claim Processing Pipeline"
+                    width={320}
+                    height={640}
+                    priority
+                    style={{ width: "100%", height: "100%", objectFit: "cover", objectPosition: "top center" }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* DUAL WORKSPACE: Patients vs TPAs */}
+      {/* ========================================================================= */}
+      <section id="dual-access" className="lp-section">
+        <div className="lp-wrap">
+          <span className="lp-eye">Two Roles, One Platform</span>
+          <h2 className="lp-h2">Designed for Both Claimants and TPA Reviewers</h2>
+          <p className="lp-sub">
+            Reimbursement involves two main parties: patients who want quick, painless intake, and TPAs or insurers who need thorough clinical verification on desktop workstations.
+          </p>
+
+          <div className="lp-dual-grid">
+            {/* Patient Card */}
+            <div className="lp-dual-card patient">
+              <span className="lp-dual-badge">For Patients and Claimants</span>
+              <h3 className="lp-dual-title">Mobile App and Web Portal</h3>
+              <p className="lp-dual-desc">
+                Patients can submit from the hospital or home via phone or browser. ClaimsGuru acts as a smart pre-filter, organizing paper bills into a verified, complete reimbursement package.
+              </p>
+              <ul className="lp-dual-features">
+                <li><CheckIcon /> Direct photo capture of itemized bills and discharge summaries</li>
+                <li><CheckIcon /> Automatic split into pre-hospitalization, hospitalization, and post-hospitalization</li>
+                <li><CheckIcon /> Guided checklist verification before final submission</li>
+                <li><CheckIcon /> Real-time status notifications for reviews and query updates</li>
+              </ul>
+              <Link className="lp-btn lp-btn-primary" href="/login">
+                Sign In as Patient
+              </Link>
+            </div>
+
+            {/* TPA Card */}
+            <div className="lp-dual-card enterprise">
+              <span className="lp-dual-badge">For TPAs and Insurers</span>
+              <h3 className="lp-dual-title">Enterprise Desktop Workspace</h3>
+              <p className="lp-dual-desc">
+                Built for desktop and laptop adjudication. Medical reviewers and TPA claims processors can audit itemized bills, check tariff limits, cross-reference ICD codes, and spot over-billing quickly.
+              </p>
+              <ul className="lp-dual-features">
+                <li><CheckIcon /> Dual-pane bill viewer with OCR text overlays</li>
+                <li><CheckIcon /> Automated ICD-10 diagnosis and CPT procedure code mapping</li>
+                <li><CheckIcon /> Tariff anomaly detection and non-payable deduction break-up</li>
+                <li><CheckIcon /> One-click generation of IRDAI claim forms (Part A and B)</li>
+              </ul>
+              <Link className="lp-btn lp-btn-outline" style={{ background: "#0b3a67", color: "#fff", borderColor: "#0b3a67" }} href="/login?role=tpa">
+                TPA Adjuster Sign In
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* CHECKLIST SECTION (Simplified and Grounded) */}
+      {/* ========================================================================= */}
+      <section id="checklist" className="lp-section alt">
+        <div className="lp-wrap">
+          <span className="lp-eye">Document Integrity</span>
+          <h2 className="lp-h2">Essential Checklist for Claim Reimbursement</h2>
+          <p className="lp-sub">
+            ClaimsGuru guides claimants to attach all required documents upfront, helping prevent settlement delays and query cycles.
+          </p>
+
+          <div className="lp-checklist-card">
+            <div className="lp-chk-grid">
+              <div className="lp-chk-col">
+                <h4>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f766e" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  1. Hospital and Clinical Records
+                </h4>
+                <ul className="lp-chk-list">
+                  <li className="lp-chk-item"><CheckIcon /> Hospital discharge summary with admission and discharge dates</li>
+                  <li className="lp-chk-item"><CheckIcon /> Operation theatre notes and implant invoice (for surgery)</li>
+                  <li className="lp-chk-item"><CheckIcon /> Medico-legal certificate or FIR copy (for accidents)</li>
+                </ul>
+              </div>
+
+              <div className="lp-chk-col">
+                <h4>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f766e" strokeWidth="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+                  2. Bills and Payment Receipts
+                </h4>
+                <ul className="lp-chk-list">
+                  <li className="lp-chk-item"><CheckIcon /> Hospital final bill with itemized room rent break-up</li>
+                  <li className="lp-chk-item"><CheckIcon /> Payment receipts with stamped confirmation</li>
+                  <li className="lp-chk-item"><CheckIcon /> Pharmacy bills with doctor prescriptions</li>
+                  <li className="lp-chk-item"><CheckIcon /> Pre and post-hospitalization bills</li>
+                </ul>
+              </div>
+
+              <div className="lp-chk-col">
+                <h4>
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0f766e" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  3. Reports and Bank Details
+                </h4>
+                <ul className="lp-chk-list">
+                  <li className="lp-chk-item"><CheckIcon /> Lab and scan reports with doctor advice</li>
+                  <li className="lp-chk-item"><CheckIcon /> Cancelled cheque for bank account transfer</li>
+                  <li className="lp-chk-item"><CheckIcon /> PAN card or photo ID copy</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* 5-STEP PIPELINE */}
+      {/* ========================================================================= */}
+      <section id="pipeline" className="lp-section">
+        <div className="lp-wrap">
+          <span className="lp-eye">How It Works</span>
+          <h2 className="lp-h2">From Paper Pile to Settlement-Ready Claim</h2>
+          <p className="lp-sub">
+            ClaimsGuru compresses hours of document gathering and manual data entry into a fast, transparent workflow.
+          </p>
+
+          <div className="lp-process-grid">
+            <div className="lp-process-step">
+              <div className="lp-pstep-num">STEP 01</div>
+              <div className="lp-pstep-title">Intimate and Snap</div>
+              <p className="lp-pstep-desc">
+                Patient or desk coordinator snaps photos or uploads PDFs of hospital bills, discharge summaries, and payment receipts.
+              </p>
+            </div>
+
+            <div className="lp-process-step">
+              <div className="lp-pstep-num">STEP 02</div>
+              <div className="lp-pstep-title">AI OCR and Extraction</div>
+              <p className="lp-pstep-desc">
+                Automated OCR reads structured fields including diagnosis, admission timeline, room rent, and line-item charges.
+              </p>
+            </div>
+
+            <div className="lp-process-step">
+              <div className="lp-pstep-num">STEP 03</div>
+              <div className="lp-pstep-title">Coding and Bill Audit</div>
+              <p className="lp-pstep-desc">
+                Matches ICD-10 diagnosis codes and checks billing lines against discharge summaries, separating non-payable expenses.
+              </p>
+            </div>
+
+            <div className="lp-process-step">
+              <div className="lp-pstep-num">STEP 04</div>
+              <div className="lp-pstep-title">Desktop TPA Review</div>
+              <p className="lp-pstep-desc">
+                TPA adjusters inspect flagged anomalies, verify deduction categories, and validate the claim with a complete audit log.
+              </p>
+            </div>
+
+            <div className="lp-process-step">
+              <div className="lp-pstep-num">STEP 05</div>
+              <div className="lp-pstep-title">IRDAI Dossier Export</div>
+              <p className="lp-pstep-desc">
+                Generates complete IRDAI Part A and B claim forms with verified attachments, compatible with standard IRDAI TPA dossier formats.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* SECURITY & DATA PROTECTION */}
+      {/* ========================================================================= */}
+      <section id="security" className="lp-section slate">
+        <div className="lp-wrap">
+          <span className="lp-eye" style={{ color: "#7ee8da" }}>Security and Privacy</span>
+          <h2 className="lp-h2">Enterprise Healthcare Protection by Design</h2>
+          <p className="lp-sub">
+            Health insurance data contains sensitive personal details. ClaimsGuru operates on Microsoft Azure in Central India with dedicated tenant privacy.
+          </p>
+
+          <div className="lp-grid-3">
+            <div className="lp-card" style={{ background: "#1e293b", borderColor: "#334155" }}>
+              <div className="lp-ic" style={{ background: "rgba(13,148,136,.15)", color: "#7ee8da" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              </div>
+              <div className="lp-ct" style={{ color: "#fff" }}>Zero External PHI Egress</div>
+              <p className="lp-cb" style={{ color: "#94a3b8" }}>
+                Personal identifiers are scrubbed before analysis. AI models run securely within your dedicated Azure enterprise environment.
+              </p>
+            </div>
+
+            <div className="lp-card" style={{ background: "#1e293b", borderColor: "#334155" }}>
+              <div className="lp-ic" style={{ background: "rgba(13,148,136,.15)", color: "#7ee8da" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              </div>
+              <div className="lp-ct" style={{ color: "#fff" }}>DPDP Act 2023 Aligned</div>
+              <p className="lp-cb" style={{ color: "#94a3b8" }}>
+                Built-in consent controls and patient data deletion workflows in line with Indian Digital Personal Data Protection standards.
+              </p>
+            </div>
+
+            <div className="lp-card" style={{ background: "#1e293b", borderColor: "#334155" }}>
+              <div className="lp-ic" style={{ background: "rgba(13,148,136,.15)", color: "#7ee8da" }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+              </div>
+              <div className="lp-ct" style={{ color: "#fff" }}>Central India Cloud Residency</div>
+              <p className="lp-cb" style={{ color: "#94a3b8" }}>
+                All data remains within India, hosted on Azure Central India with end-to-end encryption at rest (AES-256) and in transit (TLS 1.3).
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* FAQ SECTION */}
+      {/* ========================================================================= */}
+      <section id="faq" className="lp-section">
+        <div className="lp-wrap">
+          <span className="lp-eye">Questions and Answers</span>
+          <h2 className="lp-h2" style={{ textAlign: "center", margin: "6px auto 14px" }}>Frequently Asked Questions</h2>
+          <p className="lp-sub" style={{ textAlign: "center", margin: "0 auto 36px" }}>
+            Common questions about ClaimsGuru for claimants, hospitals, and TPAs.
+          </p>
+
+          <div className="lp-faq">
+            <details>
+              <summary>Can patients use ClaimsGuru on mobile phones?</summary>
+              <div className="lp-faq-body">
+                Yes. Patients can use the ClaimsGuru Mobile Apps (iOS and Android) or open the web app on their phone browser to photograph bills, follow live progress, and submit dossiers easily.
+              </div>
+            </details>
+
+            <details>
+              <summary>How do TPAs and insurers use ClaimsGuru?</summary>
+              <div className="lp-faq-body">
+                Claims adjusters and medical reviewers access the desktop web workspace. They work with structured, pre-validated claim files with line-item bill breakdowns, ICD-10 coding confidence scores, and tariff checks ready for review.
+              </div>
+            </details>
+
+            <details>
+              <summary>Does ClaimsGuru replace the TPA or the insurer?</summary>
+              <div className="lp-faq-body">
+                No. ClaimsGuru serves as the intelligent intake, extraction, and validation gateway. It helps the claimant organize and check their papers upfront, delivering clean, organized files to the TPA or insurer for final decision and payout.
+              </div>
+            </details>
+
+            <details>
+              <summary>Does ClaimsGuru support both pre and post-hospitalization bills?</summary>
+              <div className="lp-faq-body">
+                Yes. In accordance with IRDAI rules, ClaimsGuru automatically segregates expenses into pre-hospitalization (up to 30 days prior), main hospitalization, and post-hospitalization (up to 60 or 90 days after discharge), matching pharmacy receipts with doctor prescriptions.
+              </div>
+            </details>
+
+            <details>
+              <summary>How does ClaimsGuru reduce claim rejection rates?</summary>
+              <div className="lp-faq-body">
+                A large percentage of reimbursement delays are caused by missing documents like breakdown bills or investigation slips. ClaimsGuru checks the standard checklist before submission and flags tariff discrepancies, non-payable items, and room rent caps upfront.
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* CALL TO ACTION BANNER */}
+      {/* ========================================================================= */}
+      <section className="lp-cta-banner">
+        <div className="lp-wrap">
+          <h2>Experience Modern Healthcare Claims Today</h2>
+          <p>
+            Whether you are a patient submitting a hospital bill or a TPA processing dockets, ClaimsGuru by WaferWire brings speed, accuracy, and clarity to every claim.
+          </p>
+          <div style={{ display: "flex", gap: "14px", justifyContent: "center", flexWrap: "wrap" }}>
+            <Link className="lp-btn lp-btn-primary" href="/login">
+              Open Web Workspace Free
+            </Link>
+            <a className="lp-btn lp-btn-outline" href="#mobile-app">
+              Get Mobile App
+            </a>
+          </div>
+        </div>
+      </section>
+
+      {/* ========================================================================= */}
+      {/* OFFICIAL WCT CORPORATE FOOTER (Matched to User Reference Image) */}
+      {/* ========================================================================= */}
+      <footer className="wct-footer">
+        <div className="lp-wrap">
+          <div className="wct-foot-top">
+            {/* WCT Brand column */}
+            <div className="wct-brand-col">
+              <div className="wct-logo-wrap">
+                <WctLogoMark />
+                <span className="wct-logo-text">WCT</span>
+              </div>
+            </div>
+
+            {/* Column 1: Services */}
+            <div className="wct-foot-col">
+              <h4>Services</h4>
+              <ul>
+                <li>Data Estate Modernization</li>
+                <li>Microsoft Fabric</li>
+                <li>App Modernization</li>
+                <li>Infrastructure Modernization</li>
+                <li>AI EaaS</li>
+                <li>Dynamics 365</li>
+                <li>DevSecOps Excellence</li>
+                <li>SRE</li>
+                <li>SAP</li>
+              </ul>
+            </div>
+
+            {/* Column 2: Industries */}
+            <div className="wct-foot-col">
+              <h4>Industries</h4>
+              <ul>
+                <li>Healthcare &amp; Life Sciences</li>
+                <li>Education</li>
+                <li>Utilities</li>
+              </ul>
+            </div>
+
+            {/* Column 3: Company */}
+            <div className="wct-foot-col">
+              <h4>Company</h4>
+              <ul>
+                <li>About</li>
+                <li>Microsoft Partnership</li>
+                <li>Careers</li>
+                <li>Contact Us</li>
+              </ul>
+            </div>
+
+            {/* Column 4: Resources */}
+            <div className="wct-foot-col">
+              <h4>Resources</h4>
+              <ul>
+                <li>Blogs</li>
+              </ul>
+            </div>
+
+            {/* Column 5: Our Locations */}
+            <div className="wct-foot-col">
+              <h4>Our Locations</h4>
+              <ul>
+                <li>USA (Headquarters)</li>
+                <li>India</li>
+                <li>Mexico</li>
+                <li>United Kingdom</li>
+                <li>Australia</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* Bottom row with CMMI badge, copyright, and social */}
+          <div className="wct-foot-bottom">
+            <div className="wct-badge-cmmi">
+              <span className="blue" style={{ marginRight: 6 }}>ML3</span> CMMI APPRAISED
+            </div>
+
+            <div className="wct-foot-center">
+              <div>
+                <Link href="/privacy&policy">Terms and Conditions</Link> | <Link href="/privacy&policy">Privacy Policy</Link>
+              </div>
+              <div style={{ marginTop: 4 }}>
+                &copy; 2026 WCT. All rights reserved.
+              </div>
+            </div>
+
+            <div className="wct-foot-social">
+              <a 
+                href="https://www.linkedin.com/company/waferwire-cloud-technologies" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                title="WCT on LinkedIn"
+              >
+                <LinkedInIcon />
+              </a>
+            </div>
+          </div>
+        </div>
+      </footer>
+
+      {/* Interactive AI Chat Assistant */}
       <ClaimChatWidget />
     </main>
   );
