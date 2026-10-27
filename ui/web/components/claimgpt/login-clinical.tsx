@@ -126,27 +126,27 @@ export function LoginClinical() {
       </div>
       <div className="relative flex w-full flex-col min-h-screen overflow-y-auto overflow-x-hidden lg:w-1/2">
         <AuroraBackground />
-        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-6 sm:px-8 sm:py-10">
-          <StaggerContainer className="my-auto w-full max-w-md">
-            <div className="mb-6 flex w-full items-center justify-between lg:hidden">
-              <img src={fullLogo.src} className="h-8 w-auto object-contain" alt="ClaimsGuru Logo" />
+        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-8 sm:px-10 sm:py-12">
+          <StaggerContainer className="my-auto w-full max-w-lg">
+            <div className="mb-8 flex w-full items-center justify-between lg:hidden">
+              <img src={fullLogo.src} className="h-11 sm:h-12 w-auto object-contain" alt="ClaimsGuru Logo" />
               <LanguageSwitcher variant="light" />
             </div>
-            <div className="mb-6 hidden justify-end lg:flex">
+            <div className="mb-8 hidden justify-end lg:flex">
               <LanguageSwitcher variant="light" />
             </div>
 
             <StaggerItem index={0}>
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-display text-2xl font-bold tracking-tight sm:text-3xl">
+                  <h2 className="font-display text-3xl font-extrabold tracking-tight text-slate-900 sm:text-4xl">
                     Welcome to ClaimsGuru
                   </h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
+                  <p className="mt-3 text-base sm:text-lg text-slate-600 leading-relaxed">
                     {useEntra ? (
-                      <>Select your portal to continue with <GradientText className="font-semibold">Microsoft Entra External ID</GradientText>.</>
+                      <>Select your portal to continue with <GradientText className="font-bold">Microsoft Entra External ID</GradientText>.</>
                     ) : (
-                      <>Sign in to your <GradientText className="font-semibold">ClaimsGuru</GradientText> workspace to continue.</>
+                      <>Sign in to your <GradientText className="font-bold">ClaimsGuru</GradientText> workspace to continue.</>
                     )}
                   </p>
                 </div>
@@ -174,42 +174,42 @@ export function LoginClinical() {
               /* ========================================================================= */
               /* Microsoft Entra External ID (CIAM) Flow */
               /* ========================================================================= */
-              <StaggerItem index={1} className="mt-6 sm:mt-8 space-y-3.5 sm:space-y-4">
+              <StaggerItem index={1} className="mt-8 space-y-4 sm:space-y-5">
                 {/* Continue as Patient */}
                 <button
                   type="button"
                   disabled={entraLoadingRole !== null}
                   onClick={() => handleEntraSignIn('patient')}
                   className={cn(
-                    "group relative flex w-full items-center justify-between rounded-2xl border-2 bg-card/80 p-4 sm:p-5 text-left shadow-xs backdrop-blur-sm transition-all hover:border-teal-500 hover:bg-teal-50/20 hover:shadow-md disabled:opacity-50",
+                    "group relative flex w-full items-center justify-between rounded-2xl border-2 bg-card/90 p-5 sm:p-6 text-left shadow-sm backdrop-blur-sm transition-all hover:border-teal-500 hover:bg-teal-50/30 hover:shadow-md disabled:opacity-50",
                     errorMessage?.toLowerCase().includes('continue as patient')
                       ? 'border-teal-600 ring-2 ring-teal-500/30 bg-teal-50/30'
                       : 'border-border/80'
                   )}
                 >
-                  <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
-                    <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600 border border-teal-500/20 group-hover:bg-teal-500 group-hover:text-white transition-colors">
-                      <User className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <div className="flex items-center gap-4 sm:gap-5 min-w-0">
+                    <div className="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-2xl bg-teal-500/15 text-teal-700 border border-teal-500/25 group-hover:bg-teal-600 group-hover:text-white transition-all shadow-xs">
+                      <User className="h-7 w-7 sm:h-8 sm:w-8" />
                     </div>
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                        <span className="font-display text-sm sm:text-base font-bold text-foreground">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                           Continue as Patient
                         </span>
-                        <span className="rounded-full bg-teal-100 px-2 py-0.5 text-[10px] font-semibold text-teal-800 border border-teal-200">
+                        <span className="rounded-full bg-teal-100 px-2.5 py-0.5 text-xs font-semibold text-teal-800 border border-teal-200">
                           Patient &amp; Insured
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                      <p className="mt-1 text-sm sm:text-base text-slate-600 leading-normal">
                         Sign in to track and submit reimbursement claims
                       </p>
                     </div>
                   </div>
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground group-hover:bg-teal-600 group-hover:text-white transition-all ml-2">
+                  <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 group-hover:bg-teal-600 group-hover:text-white transition-all ml-3 shadow-xs">
                     {entraLoadingRole === 'patient' ? (
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     ) : (
-                      <ArrowRight className="h-4 w-4" />
+                      <ArrowRight className="h-5 w-5 sm:h-6 sm:w-6" />
                     )}
                   </div>
                 </button>
@@ -220,35 +220,35 @@ export function LoginClinical() {
                   disabled={entraLoadingRole !== null}
                   onClick={() => handleEntraSignIn('tpa')}
                   className={cn(
-                    "group relative flex w-full items-center justify-between rounded-2xl border-2 bg-card/80 p-4 sm:p-5 text-left shadow-xs backdrop-blur-sm transition-all hover:border-teal-600 hover:bg-teal-50/20 hover:shadow-md disabled:opacity-50",
+                    "group relative flex w-full items-center justify-between rounded-2xl border-2 bg-card/90 p-5 sm:p-6 text-left shadow-sm backdrop-blur-sm transition-all hover:border-teal-600 hover:bg-teal-50/30 hover:shadow-md disabled:opacity-50",
                     errorMessage?.toLowerCase().includes('continue as organization')
                       ? 'border-teal-600 ring-2 ring-teal-500/30 bg-teal-50/30'
                       : 'border-border/80'
                   )}
                 >
-                  <div className="flex items-center gap-3.5 sm:gap-4 min-w-0">
-                    <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-xl bg-teal-600/10 text-teal-700 border border-teal-600/20 group-hover:bg-teal-600 group-hover:text-white transition-colors">
-                      <Building2 className="h-5 w-5 sm:h-6 sm:w-6" />
+                  <div className="flex items-center gap-4 sm:gap-5 min-w-0">
+                    <div className="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-2xl bg-teal-600/15 text-teal-800 border border-teal-600/25 group-hover:bg-teal-700 group-hover:text-white transition-all shadow-xs">
+                      <Building2 className="h-7 w-7 sm:h-8 sm:w-8" />
                     </div>
                     <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-                        <span className="font-display text-sm sm:text-base font-bold text-foreground">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-display text-lg sm:text-xl font-bold text-slate-900 tracking-tight">
                           Continue as Organization
                         </span>
-                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 border border-emerald-200">
+                        <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200">
                           TPA &amp; Insurer
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">
+                      <p className="mt-1 text-sm sm:text-base text-slate-600 leading-normal">
                         Sign in to review and adjudicate claims
                       </p>
                     </div>
                   </div>
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-muted/60 text-muted-foreground group-hover:bg-teal-600 group-hover:text-white transition-all ml-2">
+                  <div className="flex h-11 w-11 sm:h-12 sm:w-12 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-600 group-hover:bg-teal-600 group-hover:text-white transition-all ml-3 shadow-xs">
                     {entraLoadingRole === 'tpa' ? (
                       <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                     ) : (
-                      <ArrowRight className="h-4 w-4" />
+                      <ArrowRight className="h-5 w-5 sm:h-6 sm:w-6" />
                     )}
                   </div>
                 </button>
@@ -266,8 +266,8 @@ export function LoginClinical() {
                 )}
 
                 {/* Security Badge */}
-                <div className="flex items-center justify-center gap-2 pt-2 text-[11px] font-medium text-muted-foreground">
-                  <ShieldCheck className="h-4 w-4 text-teal-600" />
+                <div className="flex items-center justify-center gap-2 pt-3 text-sm sm:text-base font-medium text-slate-600">
+                  <ShieldCheck className="h-5 w-5 text-teal-600 shrink-0" />
                   <span>Secured by Microsoft Entra External ID (CIAM)</span>
                 </div>
               </StaggerItem>
@@ -378,51 +378,69 @@ export function LoginClinical() {
             )}
 
             {/* Bottom Links */}
-            <StaggerItem index={2} className="mt-6 space-y-3">
+            <StaggerItem index={2} className="mt-8 space-y-6">
               <div className="text-center">
                 {useEntra ? (
-                  <p className="text-xs sm:text-sm text-muted-foreground">
+                  <p className="text-base sm:text-lg text-slate-700">
                     New to ClaimsGuru?{' '}
                     <button
                       type="button"
                       onClick={() => handleEntraSignIn('patient', true)}
-                      className="font-semibold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1 hover:underline ml-1"
+                      className="font-bold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1.5 hover:underline ml-1"
                     >
                       <span>Create an account</span>
-                      <ArrowRight className="h-3.5 w-3.5" />
+                      <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
                     </button>
                   </p>
                 ) : (
                   role === 'patient' && (
-                    <p className="text-xs sm:text-sm text-muted-foreground">
+                    <p className="text-base sm:text-lg text-slate-700">
                       New to ClaimsGuru?{' '}
                       <Link
                         href="/register"
-                        className="font-semibold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1 hover:underline ml-1"
+                        className="font-bold text-teal-700 hover:text-teal-900 inline-flex items-center gap-1.5 hover:underline ml-1"
                       >
                         <span>Create an account</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
+                        <ArrowRight className="h-4 w-4 sm:h-5 sm:w-5" />
                       </Link>
                     </p>
                   )
                 )}
+              </div>
+
+              {/* Trust highlight chips - fills empty vertical space elegantly */}
+              <div className="pt-6 border-t border-slate-200/70">
+                <div className="grid grid-cols-3 gap-2.5 sm:gap-3 text-center">
+                  <div className="rounded-xl bg-white/70 backdrop-blur-xs border border-slate-200/80 p-3 shadow-2xs">
+                    <div className="text-sm sm:text-base font-bold text-teal-800">100%</div>
+                    <div className="text-xs sm:text-sm font-medium text-slate-600 mt-0.5">IRDAI Aligned</div>
+                  </div>
+                  <div className="rounded-xl bg-white/70 backdrop-blur-xs border border-slate-200/80 p-3 shadow-2xs">
+                    <div className="text-sm sm:text-base font-bold text-teal-800">&lt; 3 Min</div>
+                    <div className="text-xs sm:text-sm font-medium text-slate-600 mt-0.5">Claim Intake</div>
+                  </div>
+                  <div className="rounded-xl bg-white/70 backdrop-blur-xs border border-slate-200/80 p-3 shadow-2xs">
+                    <div className="text-sm sm:text-base font-bold text-teal-800">Zero Egress</div>
+                    <div className="text-xs sm:text-sm font-medium text-slate-600 mt-0.5">Data Privacy</div>
+                  </div>
+                </div>
               </div>
             </StaggerItem>
           </StaggerContainer>
         </div>
 
         {/* Footer */}
-        <footer className="relative z-10 border-t border-border/30 bg-background/60 backdrop-blur-sm px-4 py-3 sm:px-6 sm:py-4">
-          <div className="mx-auto flex max-w-md flex-col items-center justify-center gap-1.5 text-center text-[11px] sm:text-xs text-muted-foreground">
-            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+        <footer className="relative z-10 border-t border-slate-200/50 bg-white/40 backdrop-blur-sm px-5 py-4 w-full">
+          <div className="mx-auto flex max-w-lg flex-col items-center justify-center gap-2 text-center text-xs sm:text-sm text-slate-600">
+            <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-1">
+              <span className="inline-flex items-center gap-1.5 font-semibold text-slate-800">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span>All systems operational</span>
               </span>
               <span className="opacity-40">·</span>
-              <span>IRDAI &amp; ISO 27001 aligned</span>
+              <span className="font-medium">IRDAI &amp; ISO 27001 aligned</span>
             </div>
-            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-slate-500">
+            <div className="flex flex-wrap items-center justify-center gap-x-2.5 gap-y-0.5 text-slate-500 text-xs sm:text-sm">
               <span>&copy; {new Date().getFullYear()} WaferWire Cloud Technologies</span>
               <span className="opacity-40">·</span>
               <span>ClaimsGuru v1.0</span>
