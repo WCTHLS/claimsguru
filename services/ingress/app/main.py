@@ -4593,13 +4593,22 @@ async def add_documents_to_claim(
             upsert_workflow_state(db, claim.id, "MANUAL_REVIEW_REQUIRED", status="FAILED")
 
         from libs.shared.storage import MinioStorage
+        from sqlalchemy import text
         for doc in new_docs:
             if doc.minio_path:
                 try:
                     MinioStorage.delete_file(doc.minio_path)
                 except Exception:
                     logger.warning("Failed to delete mismatched file from MinIO: %s", doc.minio_path)
-            db.delete(doc)
+            for tbl in ["claim_field_feedback", "medical_codes", "parsed_fields", "scan_analyses", "document_validations", "ocr_results"]:
+                try:
+                    db.execute(text(f"DELETE FROM {tbl} WHERE document_id = :did"), {"did": doc.id})
+                except Exception:
+                    pass
+            try:
+                db.delete(doc)
+            except Exception as exc:
+                logger.warning("Failed to delete document row %s: %s", doc.id, exc)
         manual_review_message = (
             "Uploaded document rejected: Patient name mismatch detected in the document you added. "
             "The mismatched document was removed. Please upload documents for the correct patient."
@@ -4607,6 +4616,23 @@ async def add_documents_to_claim(
         claim.notes = manual_review_message
     else:
         claim.status = "UPLOADED"
+        if claim.canonical_json and isinstance(claim.canonical_json, dict):
+            try:
+                from sqlalchemy.orm.attributes import flag_modified
+                canon = dict(claim.canonical_json)
+                changed = False
+                for k in ("identity_mismatch_notice", "identity_mismatch_message"):
+                    if k in canon:
+                        del canon[k]
+                        changed = True
+                if "Identity Mismatch Detected" in str(canon.get("tpa_message", "")):
+                    del canon["tpa_message"]
+                    changed = True
+                if changed:
+                    claim.canonical_json = canon
+                    flag_modified(claim, "canonical_json")
+            except Exception:
+                pass
 
     try:
         db.commit()
@@ -4729,10 +4755,12 @@ def delete_document(
                 logger.warning("Failed to delete file %s", doc.minio_path)
 
     try:
-        from libs.shared.models import OcrResult, DocValidation, ScanAnalysis
-        db.query(OcrResult).filter(OcrResult.document_id == doc.id).delete(synchronize_session=False)
-        db.query(DocValidation).filter(DocValidation.document_id == doc.id).delete(synchronize_session=False)
-        db.query(ScanAnalysis).filter(ScanAnalysis.document_id == doc.id).delete(synchronize_session=False)
+        from sqlalchemy import text
+        for tbl in ["claim_field_feedback", "medical_codes", "parsed_fields", "scan_analyses", "document_validations", "ocr_results"]:
+            try:
+                db.execute(text(f"DELETE FROM {tbl} WHERE document_id = :did"), {"did": doc.id})
+            except Exception:
+                pass
     except Exception:
         pass
 

@@ -357,6 +357,25 @@ def parser_task(self, result: dict) -> dict[str, str]:
             logging.getLogger("parser-debug").warning(f"[Celery] Claim not found for parser, skipping task: {claim_id}")
             raise Ignore()
 
+        # Clear any leftover identity mismatch notice once identity gate passes
+        if claim.canonical_json:
+            try:
+                from sqlalchemy.orm.attributes import flag_modified
+                canon = dict(claim.canonical_json)
+                changed = False
+                for k in ("identity_mismatch_notice", "identity_mismatch_message"):
+                    if k in canon:
+                        del canon[k]
+                        changed = True
+                if "Identity Mismatch Detected" in str(canon.get("tpa_message", "")):
+                    del canon["tpa_message"]
+                    changed = True
+                if changed:
+                    claim.canonical_json = canon
+                    flag_modified(claim, "canonical_json")
+            except Exception as _ce:
+                logging.getLogger("parser-debug").warning(f"Could not clear identity mismatch notice on pass: {_ce}")
+
         job = ParseJob(claim_id=cid, status="QUEUED")
         db.add(job)
         try:
@@ -1241,6 +1260,25 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
     db = ParserSessionLocal()
     parse_job_id = None
     try:
+        claim = db.query(Claim).filter(Claim.id == cid).first()
+        if claim and claim.canonical_json:
+            try:
+                from sqlalchemy.orm.attributes import flag_modified
+                canon = dict(claim.canonical_json)
+                changed = False
+                for k in ("identity_mismatch_notice", "identity_mismatch_message"):
+                    if k in canon:
+                        del canon[k]
+                        changed = True
+                if "Identity Mismatch Detected" in str(canon.get("tpa_message", "")):
+                    del canon["tpa_message"]
+                    changed = True
+                if changed:
+                    claim.canonical_json = canon
+                    flag_modified(claim, "canonical_json")
+            except Exception as _ce:
+                log.warning(f"Could not clear identity mismatch notice on pass: {_ce}")
+
         job = ParseJob(claim_id=cid, status="QUEUED")
         db.add(job)
         db.commit()
@@ -1467,8 +1505,11 @@ def _purge_claim_documents(claim_id: str, reason: str = "") -> None:
     """Purge uploaded files and extracted records for a claim on critical identity failure."""
     import uuid
     import os
+    import logging
+    from sqlalchemy import text
     from services.parser.app.db import SessionLocal as ParserSessionLocal
-    from libs.shared.models import Document, OcrResult, OcrJob, ParseJob, ParsedField, DocValidation, ScanAnalysis, ClaimFieldFeedback
+    from libs.shared.models import Document
+    from libs.shared.storage import MinioStorage
     
     try:
         cid = uuid.UUID(str(claim_id))
@@ -1477,48 +1518,41 @@ def _purge_claim_documents(claim_id: str, reason: str = "") -> None:
         
     db = ParserSessionLocal()
     try:
-        # Delete dependent child records
-        try:
-            db.query(DocValidation).filter(DocValidation.claim_id == cid).delete(synchronize_session=False)
-        except Exception:
-            pass
-        try:
-            db.query(ScanAnalysis).filter(ScanAnalysis.claim_id == cid).delete(synchronize_session=False)
-        except Exception:
-            pass
-        try:
-            db.query(ParsedField).filter(ParsedField.claim_id == cid).delete(synchronize_session=False)
-        except Exception:
-            pass
-        try:
-            db.query(ClaimFieldFeedback).filter(ClaimFieldFeedback.claim_id == cid).delete(synchronize_session=False)
-        except Exception:
-            pass
-
-        # Gather documents to remove physical files and ocr results
+        # Gather documents to remove physical files
         docs = db.query(Document).filter(Document.claim_id == cid).all()
         for doc in docs:
             storage_p = getattr(doc, "minio_path", None)
-            if storage_p and os.path.exists(storage_p):
+            if storage_p:
                 try:
-                    os.remove(storage_p)
-                except Exception as e:
-                    logging.getLogger("parser-debug").warning(f"Could not remove file {storage_p}: {e}")
+                    MinioStorage.delete_file(storage_p)
+                except Exception:
+                    pass
+                if os.path.exists(storage_p):
+                    try:
+                        os.remove(storage_p)
+                    except Exception as e:
+                        logging.getLogger("parser-debug").warning(f"Could not remove file {storage_p}: {e}")
+
+        # Delete dependent child records via raw SQL for guaranteed execution in SQL Server
+        child_tables = [
+            "claim_field_feedback",
+            "medical_codes",
+            "parsed_fields",
+            "scan_analyses",
+            "document_validations",
+            "ocr_results",
+            "parse_jobs",
+            "ocr_jobs",
+            "workflow_jobs",
+        ]
+        for tbl in child_tables:
             try:
-                db.query(OcrResult).filter(OcrResult.document_id == doc.id).delete(synchronize_session=False)
+                db.execute(text(f"DELETE FROM {tbl} WHERE claim_id = :cid"), {"cid": cid})
             except Exception:
                 pass
-        
+
         try:
-            db.query(OcrJob).filter(OcrJob.claim_id == cid).delete(synchronize_session=False)
-        except Exception:
-            pass
-        try:
-            db.query(ParseJob).filter(ParseJob.claim_id == cid).delete(synchronize_session=False)
-        except Exception:
-            pass
-        try:
-            db.query(Document).filter(Document.claim_id == cid).delete(synchronize_session=False)
+            db.execute(text("DELETE FROM documents WHERE claim_id = :cid"), {"cid": cid})
         except Exception:
             pass
 
@@ -1564,8 +1598,9 @@ def _is_subsequent_claim_upload(db, claim: Any, mismatched_doc: Any) -> bool:
 
     # 4. Does the claim have canonical_json with patient details already extracted from earlier parsing?
     c_json = getattr(claim, "canonical_json", None)
-    if c_json and isinstance(c_json, dict) and len(c_json) > 0:
-        return True
+    if c_json and isinstance(c_json, dict):
+        if c_json.get("patient_name") or c_json.get("total_amount") or c_json.get("diagnosis"):
+            return True
 
     # 5. Are there other documents uploaded earlier than this mismatched document?
     if mismatched_doc:
@@ -1590,21 +1625,32 @@ def _is_subsequent_claim_upload(db, claim: Any, mismatched_doc: Any) -> bool:
 
 
 def _purge_single_document(claim_id: str | Any, doc_id: Any, reason: str = "") -> None:
-    """Purge ONLY a single mismatched document and its OCR results, leaving all other claim documents intact."""
+    """Purge ONLY a single mismatched document and its child records, leaving all other claim documents intact."""
     import os
     import logging
+    import uuid
+    from sqlalchemy import text
     from services.parser.app.db import SessionLocal as ParserSessionLocal
-    from libs.shared.models import Document, OcrResult, DocValidation
+    from libs.shared.models import Document
     from libs.shared.storage import MinioStorage
 
+    log = logging.getLogger("parser-debug")
     db = ParserSessionLocal()
     try:
-        doc = db.query(Document).filter(Document.id == doc_id).first()
+        try:
+            doc_uuid = uuid.UUID(str(doc_id))
+        except Exception:
+            doc_uuid = doc_id
+
+        doc = db.query(Document).filter(Document.id == doc_uuid).first()
         if not doc:
+            log.info(f"[Identity Gate] Document {doc_id} not found to purge.")
             return
 
-        # 1. Delete physical file
+        file_name = doc.file_name
         minio_p = getattr(doc, "minio_path", None)
+
+        # 1. Delete physical file
         if minio_p:
             try:
                 MinioStorage.delete_file(minio_p)
@@ -1616,26 +1662,35 @@ def _purge_single_document(claim_id: str | Any, doc_id: Any, reason: str = "") -
                 except Exception:
                     pass
 
-        # 2. Delete child OCR results and validation rows
-        try:
-            db.query(OcrResult).filter(OcrResult.document_id == doc_id).delete(synchronize_session=False)
-        except Exception:
-            pass
-        try:
-            db.query(DocValidation).filter(DocValidation.document_id == doc_id).delete(synchronize_session=False)
-        except Exception:
-            pass
+        # 2. Delete all child records referencing document_id in foreign key tables
+        child_tables = [
+            "claim_field_feedback",
+            "medical_codes",
+            "parsed_fields",
+            "scan_analyses",
+            "document_validations",
+            "ocr_results",
+        ]
+        for tbl in child_tables:
+            try:
+                db.execute(text(f"DELETE FROM {tbl} WHERE document_id = :did"), {"did": doc_uuid})
+            except Exception as exc:
+                log.warning(f"[Identity Gate] Could not delete from {tbl} for doc {doc_id}: {exc}")
 
         # 3. Delete document row
         try:
-            db.delete(doc)
+            db.execute(text("DELETE FROM documents WHERE id = :did"), {"did": doc_uuid})
             db.commit()
-            logging.getLogger("parser-debug").info(
-                f"[Identity Gate] Successfully purged single mismatched document {doc_id} ('{doc.file_name}') from claim {claim_id}. Reason: {reason}"
+            log.info(
+                f"[Identity Gate] Successfully purged single mismatched document {doc_id} ('{file_name}') from claim {claim_id}. Reason: {reason}"
             )
         except Exception as exc:
             db.rollback()
-            logging.getLogger("parser-debug").warning(f"[Identity Gate] Failed to delete document row {doc_id}: {exc}")
+            log.error(f"[Identity Gate] Failed to delete document row {doc_id}: {exc}")
+            raise
+    except Exception as e:
+        db.rollback()
+        log.error(f"[Identity Gate] Exception in _purge_single_document for doc {doc_id}: {e}")
     finally:
         db.close()
 
