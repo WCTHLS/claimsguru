@@ -1380,18 +1380,39 @@ def list_tpas(db: Session = Depends(get_db)):
     )
     tpa_list = []
     seen = set()
+    other_item = None
     for o in rows:
         name = (o.name or "").strip()
         norm = name.lower()
+        if "amboard" in norm:
+            continue
         if norm in seen:
             continue
         seen.add(norm)
-        tpa_list.append({
+        item = {
             "id": str(o.id),
             "org_id": str(o.id),
             "name": name,
             "logo": "",
             "type": o.type or "TPA",
+            "email": "",
+            "phone": "",
+            "website": "",
+        }
+        if norm == "other":
+            other_item = item
+        else:
+            tpa_list.append(item)
+
+    if other_item:
+        tpa_list.append(other_item)
+    elif not any(t["name"].lower() == "other" for t in tpa_list):
+        tpa_list.append({
+            "id": "39d287c5-a830-4e24-a2b1-4f5a0f7e5845",
+            "org_id": "39d287c5-a830-4e24-a2b1-4f5a0f7e5845",
+            "name": "Other",
+            "logo": "",
+            "type": "TPA",
             "email": "",
             "phone": "",
             "website": "",

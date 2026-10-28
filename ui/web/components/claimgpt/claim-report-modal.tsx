@@ -88,6 +88,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const [loadingTpas, setLoadingTpas] = useState(false);
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
   const [selectedInsurer, setSelectedInsurer] = useState<string>('');
+  const [customInsurerName, setCustomInsurerName] = useState<string>('');
   const [policyId, setPolicyId] = useState<string>('');
   const [policyFromOcr, setPolicyFromOcr] = useState<boolean>(false);
   const [isUploadingPolicyDoc, setIsUploadingPolicyDoc] = useState(false);
@@ -896,21 +897,25 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       return;
     }
 
+    const finalInsurer = (selectedInsurer === "Other" && customInsurerName.trim())
+      ? customInsurerName.trim()
+      : selectedInsurer;
+
     setIsSubmittingToPayer(true);
     try {
-      const res = await submitClaimToPayerApi(s.claimId, selectedInsurer, policyId.trim(), selectedOrgId);
+      const res = await submitClaimToPayerApi(s.claimId, finalInsurer, policyId.trim(), selectedOrgId);
       if (res.success) {
         setIsSubmittedToPayer(true);
-        setSubmittedPayer(selectedInsurer);
+        setSubmittedPayer(finalInsurer);
         try {
           if (typeof window !== 'undefined' && s.claimId) {
-            localStorage.setItem(`claimgpt_submitted_payer_${s.claimId}`, selectedInsurer);
+            localStorage.setItem(`claimgpt_submitted_payer_${s.claimId}`, finalInsurer);
           }
         } catch { }
         setShowInsurerModal(false);
         toast({
           title: "Claim Submitted Successfully",
-          description: `Dispatched to ${selectedInsurer} TPA (Linked to Policy #${policyId.trim()}).`,
+          description: `Dispatched to ${finalInsurer} TPA (Linked to Policy #${policyId.trim()}).`,
         });
         s.reloadRecentClaims();
       } else {
@@ -2152,6 +2157,20 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     <Building2 className="h-4 w-4" />
                   </div>
                 </div>
+                {(selectedInsurer === "Other" || selectedOrgId === "39d287c5-a830-4e24-a2b1-4f5a0f7e5845" || selectedInsurer?.toLowerCase() === "other") && (
+                  <div className="mt-2.5">
+                    <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                      Specify Other Insurer / TPA Name (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Bajaj Allianz, Tata AIG, Max Bupa..."
+                      value={customInsurerName}
+                      onChange={(e) => setCustomInsurerName(e.target.value)}
+                      className="w-full rounded-xl bg-slate-800/90 border border-white/15 px-3.5 py-2 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Policy ID Section: Case A (Pre-filled via OCR) vs Case B (Not Found) */}
@@ -2256,7 +2275,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-[11px] text-blue-300/90 flex items-start gap-2">
                 <Clock className="h-4 w-4 text-blue-400 flex-none mt-0.5" />
                 <span>
-                  <strong>TPA Routing:</strong> Claim documents will be submitted to the <strong>{selectedInsurer}</strong> TPA adjudication queue. The claim is permanently linked to Policy ID <strong>#{policyId.trim() || 'N/A'}</strong>.
+                  <strong>TPA Routing:</strong> Claim documents will be submitted to the <strong>{(selectedInsurer === "Other" && customInsurerName.trim()) ? customInsurerName.trim() : (selectedInsurer || "selected")}</strong> TPA adjudication queue. The claim is permanently linked to Policy ID <strong>#{policyId.trim() || 'N/A'}</strong>.
                 </span>
               </div>
 
