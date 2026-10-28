@@ -379,9 +379,27 @@ export function DashboardClinical() {
                       const liveProgress = (s as any).claimProgressMap?.[claim.id] || claim.progress;
                       const rawStatus = (claim.status || "").toUpperCase();
                       const isStalledClaim = (isSelected && s.isStalled) || liveProgress?.status === "STALLED" || rawStatus === "STALLED";
-                      const isCompletedStatus = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "FINISHED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "IDENTITY_MISMATCH" || rawStatus === "DOCUMENTS_UPLOADED" || rawStatus === "SUBMITTED";
+                      const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
+                      const cachedClaimStatus = (typeof window !== "undefined" ? localStorage.getItem(`claimgpt_claim_status_${claim.id}`) : null)?.toUpperCase();
+                      const previewStatus = (isSelected && (s.realPreview as any)?.status) ? (s.realPreview as any).status.toUpperCase() : null;
+                      const TERMINAL_STATUSES = new Set(["SETTLED", "APPROVED", "REJECTED"]);
+
+                      const effectiveClaimStatus = (
+                        previewStatus ||
+                        (cachedClaimStatus && TERMINAL_STATUSES.has(cachedClaimStatus) ? cachedClaimStatus : null) ||
+                        claim.status ||
+                        ""
+                      ).toUpperCase();
+                      const hasDocsRequested = (
+                        (isSelected && s.isDocumentsRequested) ||
+                        effectiveClaimStatus === "DOCUMENTS_REQUESTED" ||
+                        Boolean((claim as any).has_action_request) ||
+                        Boolean((claim as any).tpa_requested_docs?.length)
+                      );
+                      const isCompletedStatus = rawStatus === "COMPLETED" || rawStatus === "VALIDATED" || rawStatus === "FINISHED" || rawStatus === "APPROVED" || rawStatus === "SETTLED" || rawStatus === "REJECTED" || rawStatus === "IDENTITY_MISMATCH" || rawStatus === "DOCUMENTS_UPLOADED" || rawStatus === "SUBMITTED" || hasDocsRequested;
                       const isLiveActive = Boolean(
                         !isStalledClaim &&
+                        !hasDocsRequested &&
                         liveProgress &&
                         !liveProgress.is_complete &&
                         typeof liveProgress.percentage === "number" &&
@@ -389,7 +407,7 @@ export function DashboardClinical() {
                         liveProgress.percentage < 100 &&
                         (liveProgress.status === "RUNNING" || (!isCompletedStatus && PIPELINE_ACTIVE_STATUSES.has(rawStatus)))
                       );
-                      const isClaimProcessing = ((isSelected && s.analyzing && s.progress < 100) || (!isCompletedStatus && isLiveActive)) && !isStalledClaim;
+                      const isClaimProcessing = !hasDocsRequested && ((isSelected && s.analyzing && s.progress < 100) || (!isCompletedStatus && isLiveActive)) && !isStalledClaim;
                       const isDocFile = (val?: string | null) => Boolean(val && /\.(pdf|png|jpe?g|tiff?|docx?)$/i.test(val.trim()));
                       const hasRealPatientName = Boolean(claim.patient_name && claim.patient_name !== "N/A" && claim.patient_name !== "Processing..." && !isDocFile(claim.patient_name));
                       const claimName = hasRealPatientName
@@ -419,23 +437,6 @@ export function DashboardClinical() {
                         if (p < 85) return 'Coding';
                         return 'Scoring';
                       };
-                      const shortId = (claim.id || "").replace(/-/g, "").slice(-8).toUpperCase();
-                      const cachedClaimStatus = (typeof window !== "undefined" ? localStorage.getItem(`claimgpt_claim_status_${claim.id}`) : null)?.toUpperCase();
-                      const previewStatus = (isSelected && (s.realPreview as any)?.status) ? (s.realPreview as any).status.toUpperCase() : null;
-                      const TERMINAL_STATUSES = new Set(["SETTLED", "APPROVED", "REJECTED"]);
-
-                      const effectiveClaimStatus = (
-                        previewStatus ||
-                        (cachedClaimStatus && TERMINAL_STATUSES.has(cachedClaimStatus) ? cachedClaimStatus : null) ||
-                        claim.status ||
-                        ""
-                      ).toUpperCase();
-                      const hasDocsRequested = (
-                        (isSelected && s.isDocumentsRequested) ||
-                        effectiveClaimStatus === "DOCUMENTS_REQUESTED" ||
-                        Boolean((claim as any).has_action_request) ||
-                        Boolean((claim as any).tpa_requested_docs?.length)
-                      );
                       const resolvedInsurer = (
                         claim.insurance_company ||
                         claim.payer ||
@@ -1494,61 +1495,105 @@ export function DashboardClinical() {
                       </div>
 
                       {s.isDocumentsRequested && (
-                        <div className="mt-4 p-4 rounded-xl border border-amber-200 bg-amber-50/50 text-amber-900 animate-fade-in text-left">
-                          <div className="flex items-start gap-2.5">
-                            <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                            <div className="space-y-2 w-full">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800">
-                                {s.tpaMessage ? "Insurer Document Request" : "Mandatory Document Missing"}
-                              </h4>
-                              {s.tpaMessage ? (
-                                <div className="p-3 rounded-lg bg-amber-100/90 border border-amber-300 text-xs text-amber-950">
-                                  <span className="text-[10px] uppercase font-bold text-amber-800 block mb-0.5">
-                                    Message from Star Health Claims Reviewer:
-                                  </span>
-                                  <p className="font-semibold text-sm text-amber-900">
-                                    &ldquo;{s.tpaMessage}&rdquo;
-                                  </p>
+                        (() => {
+                          const mismatchMsg = (
+                            s.identityMismatchMessage ||
+                            (s.tpaMessage && (
+                              s.tpaMessage.toLowerCase().includes("identity mismatch") ||
+                              s.tpaMessage.toLowerCase().includes("belongs to") ||
+                              s.tpaMessage.toLowerCase().includes("instead of") ||
+                              s.tpaMessage.toLowerCase().includes("wrong patient")
+                            ) ? s.tpaMessage : null) ||
+                            ((s.realPreview as any)?.notes && (
+                              String((s.realPreview as any).notes).toLowerCase().includes("belongs to") ||
+                              String((s.realPreview as any).notes).toLowerCase().includes("instead of") ||
+                              String((s.realPreview as any).notes).toLowerCase().includes("wrong patient") ||
+                              String((s.realPreview as any).notes).toLowerCase().includes("identity mismatch")
+                            ) ? String((s.realPreview as any).notes) : null)
+                          );
+                          const isMismatch = Boolean(mismatchMsg);
+                          const pName = s.patientName || (s.realPreview as any)?.summary?.patient_name || (s.realPreview as any)?.patient_name || "the patient";
+
+                          return (
+                            <div className={cn(
+                              "mt-4 p-4 rounded-xl border animate-fade-in text-left shadow-xs",
+                              isMismatch
+                                ? "border-amber-300 bg-amber-50/90 text-amber-950"
+                                : "border-amber-200 bg-amber-50/50 text-amber-900"
+                            )}>
+                              <div className="flex items-start gap-2.5">
+                                <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                                <div className="space-y-2 w-full">
+                                  <h4 className="text-xs font-bold uppercase tracking-wider text-amber-800">
+                                    {isMismatch ? "Wrong Patient Document Uploaded (Identity Mismatch)" : (s.tpaMessage ? "Insurer Document Request" : "Requested Documents Pending")}
+                                  </h4>
+                                  {isMismatch ? (
+                                    <div className="p-3 rounded-lg bg-white/95 border border-amber-300 text-xs text-amber-950 shadow-2xs">
+                                      <span className="text-[10px] uppercase font-bold text-amber-800 block mb-0.5">
+                                        Identity Verification Notice:
+                                      </span>
+                                      <p className="font-semibold text-sm text-amber-900 leading-snug">
+                                        {mismatchMsg}
+                                      </p>
+                                    </div>
+                                  ) : s.tpaMessage ? (
+                                    <div className="p-3 rounded-lg bg-amber-100/90 border border-amber-300 text-xs text-amber-950">
+                                      <span className="text-[10px] uppercase font-bold text-amber-800 block mb-0.5">
+                                        Message from Claims Reviewer:
+                                      </span>
+                                      <p className="font-semibold text-sm text-amber-900">
+                                        &ldquo;{s.tpaMessage}&rdquo;
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <p className="text-xs text-amber-700">
+                                      {s.missingGroups.length > 0
+                                        ? "We detected incomplete information in your claim upload. Please upload the following items to resume analysis:"
+                                        : "Additional documents have been requested for your claim. Please upload the requested documents below:"}
+                                    </p>
+                                  )}
+
+                                  {isMismatch && (
+                                    <p className="text-xs text-amber-800 font-medium">
+                                      The mismatched document was automatically removed. Your existing claim and previously uploaded valid documents remain completely safe. Please upload the correct document for <strong>{pName}</strong> below.
+                                    </p>
+                                  )}
+
+                                  {!isMismatch && s.missingGroups.filter((grp: string) => grp && grp.trim() && grp.trim() !== (s.tpaMessage || "").trim()).length > 0 && (
+                                    <div>
+                                      <span className="text-[10px] uppercase font-bold text-amber-700 block mb-1">
+                                        {s.tpaMessage ? "Requested Items / Missing Categories:" : "Missing Items:"}
+                                      </span>
+                                      <ul className="list-disc list-inside pl-1.5 text-xs font-medium space-y-0.5 text-amber-900">
+                                        {s.missingGroups
+                                          .filter((grp: string) => grp && grp.trim() && grp.trim() !== (s.tpaMessage || "").trim())
+                                          .map((grp: string) => (
+                                            <li key={grp}>{grp}</li>
+                                          ))}
+                                      </ul>
+                                    </div>
+                                  )}
+
+                                  <div className="mt-3 flex items-center gap-3">
+                                    <label className="teal-gradient inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-xs font-bold text-white shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
+                                      <input
+                                        type="file"
+                                        multiple
+                                        hidden
+                                        onChange={(e) => {
+                                          if (e.target.files?.length) {
+                                            s.handleUploadFile(Array.from(e.target.files), true);
+                                          }
+                                        }}
+                                      />
+                                      <Upload className="h-3.5 w-3.5" /> {isMismatch ? `Upload Correct Document for ${pName}` : "Upload Requested Documents"}
+                                    </label>
+                                  </div>
                                 </div>
-                              ) : (
-                                <p className="text-xs text-amber-700">
-                                  {s.missingGroups.length > 0
-                                    ? "We detected incomplete information in your claim upload. Please upload the following items to resume analysis:"
-                                    : "Additional documents have been requested for your claim. Please upload the requested documents below:"}
-                                </p>
-                              )}
-                              {s.missingGroups.filter((grp: string) => grp && grp.trim() && grp.trim() !== (s.tpaMessage || "").trim()).length > 0 && (
-                                <div>
-                                  <span className="text-[10px] uppercase font-bold text-amber-700 block mb-1">
-                                    {s.tpaMessage ? "Requested Items / Missing Categories:" : "Missing Items:"}
-                                  </span>
-                                  <ul className="list-disc list-inside pl-1.5 text-xs font-medium space-y-0.5 text-amber-900">
-                                    {s.missingGroups
-                                      .filter((grp: string) => grp && grp.trim() && grp.trim() !== (s.tpaMessage || "").trim())
-                                      .map((grp: string) => (
-                                        <li key={grp}>{grp}</li>
-                                      ))}
-                                  </ul>
-                                </div>
-                              )}
-                              <div className="mt-3 flex items-center gap-3">
-                                <label className="teal-gradient inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold text-white shadow-sm cursor-pointer hover:opacity-90">
-                                  <input
-                                    type="file"
-                                    multiple
-                                    hidden
-                                    onChange={(e) => {
-                                      if (e.target.files?.length) {
-                                        s.handleUploadFile(Array.from(e.target.files), true);
-                                      }
-                                    }}
-                                  />
-                                  <Upload className="h-3.5 w-3.5" /> Upload Requested Documents
-                                </label>
                               </div>
                             </div>
-                          </div>
-                        </div>
+                          );
+                        })()
                       )}
 
                       {s.nameMismatchWarning && (

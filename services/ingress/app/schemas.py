@@ -37,6 +37,7 @@ class ClaimOut(BaseModel):
     has_action_request: bool = False
     tpa_message: str | None = None
     tpa_requested_docs: list[str] = []
+    notes: str | None = None
     current_step: str | None = None
     percentage: int | None = None
 

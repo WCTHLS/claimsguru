@@ -3529,6 +3529,9 @@ def list_claims(
             submitted_by_name = sub_info.get("name")
             submitted_by_email = sub_info.get("email")
 
+            if getattr(c, "notes", None) and not tpa_message:
+                tpa_message = str(c.notes)
+
             claim_items.append({
                 "id": c.id,
                 "org_id": getattr(c, "org_id", None),
@@ -3551,6 +3554,7 @@ def list_claims(
                 "has_action_request": has_action_request,
                 "tpa_message": tpa_message,
                 "tpa_requested_docs": tpa_requested_docs,
+                "notes": getattr(c, "notes", None),
                 "current_step": step_label,
                 "percentage": pct_val,
             })
@@ -3958,6 +3962,9 @@ def get_claim(
             pass
     claim.submitted_by_name = sub_name
     claim.submitted_by_email = sub_email
+    if getattr(claim, "notes", None):
+        if not getattr(claim, "tpa_message", None):
+            claim.tpa_message = str(claim.notes)
     
     return ClaimOut.model_validate(claim).model_dump(mode="json")
 
@@ -4141,10 +4148,9 @@ def get_claim_progress(claim_id: str):
         claim_rec = db.query(Claim).filter(Claim.id == cid).first()
         if claim_rec and hasattr(claim_rec, "notes") and getattr(claim_rec, "notes", None):
             notes_str = str(getattr(claim_rec, "notes"))
-            if ("belongs to patient" in notes_str and "instead of" in notes_str) or ("Patient name mismatch" in notes_str) or ("wrong patient" in notes_str.lower()):
+            if ("belongs to" in notes_str) or ("instead of" in notes_str) or ("Patient name mismatch" in notes_str) or ("wrong patient" in notes_str.lower()) or ("identity mismatch" in notes_str.lower()):
                 subsequent_doc_mismatch = True
-                if not error_message or status_str == "DOCUMENTS_REQUESTED":
-                    error_message = notes_str
+                error_message = notes_str
 
         result = {
             "status": status_str,

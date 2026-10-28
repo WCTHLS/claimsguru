@@ -228,7 +228,7 @@ export function useAuditorState() {
     const st = (preview.status || "").toUpperCase();
     if (st === "DOCUMENTS_REQUESTED" || st === "MODIFICATION_REQUESTED") {
       setIsDocumentsRequested(true);
-      setTpaMessage(preview.tpa_message || null);
+      setTpaMessage(preview.tpa_message || (preview as any).notes || null);
       setTpaRequestedDocs(preview.tpa_requested_docs || []);
 
       const docs = preview.documents || [];

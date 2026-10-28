@@ -303,10 +303,26 @@ def parser_task(self, result: dict) -> dict[str, str]:
 
                 claim.status = "DOCUMENTS_REQUESTED"
                 claim.notes = (
-                    f"Uploaded document '{doc_name}' belongs to patient '{mismatched_name}' "
-                    f"instead of '{anchor_name}'. This document was removed. "
-                    f"Please upload the requested document for '{anchor_name}'."
+                    f"Identity Mismatch Detected: Uploaded document '{doc_name}' belongs to '{mismatched_name}' "
+                    f"instead of '{anchor_name}'. This document was removed to protect your claim. "
+                    f"Please upload the correct requested document for '{anchor_name}'."
                 )
+                try:
+                    from libs.shared.models import AuditLog
+                    db.add(AuditLog(
+                        claim_id=claim.id,
+                        action="CLAIM_DOCUMENTS_REQUESTED",
+                        reason=claim.notes,
+                        audit_metadata={
+                            "reason": claim.notes,
+                            "mismatched_document": doc_name,
+                            "mismatched_name": mismatched_name,
+                            "anchor_name": anchor_name,
+                            "requested_documents": [f"Correct document for {anchor_name}"]
+                        }
+                    ))
+                except Exception:
+                    pass
                 db.commit()
                 _update_workflow_state(claim_id, "DOCUMENTS_REQUESTED", status="DOCUMENTS_REQUESTED")
                 raise Ignore()
@@ -1159,10 +1175,26 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
 
                     claim.status = "DOCUMENTS_REQUESTED"
                     claim.notes = (
-                        f"Uploaded document '{doc_name}' belongs to patient '{mismatched_name}' "
-                        f"instead of '{anchor_name}'. This document was removed. "
-                        f"Please upload the requested document for '{anchor_name}'."
+                        f"Identity Mismatch Detected: Uploaded document '{doc_name}' belongs to '{mismatched_name}' "
+                        f"instead of '{anchor_name}'. This document was removed to protect your claim. "
+                        f"Please upload the correct requested document for '{anchor_name}'."
                     )
+                    try:
+                        from libs.shared.models import AuditLog
+                        db.add(AuditLog(
+                            claim_id=claim.id,
+                            action="CLAIM_DOCUMENTS_REQUESTED",
+                            reason=claim.notes,
+                            audit_metadata={
+                                "reason": claim.notes,
+                                "mismatched_document": doc_name,
+                                "mismatched_name": mismatched_name,
+                                "anchor_name": anchor_name,
+                                "requested_documents": [f"Correct document for {anchor_name}"]
+                            }
+                        ))
+                    except Exception:
+                        pass
                     db.commit()
                     _update_workflow_state(claim_id, "DOCUMENTS_REQUESTED", status="DOCUMENTS_REQUESTED")
                     return {
