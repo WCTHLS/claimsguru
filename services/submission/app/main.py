@@ -1217,10 +1217,20 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
             is_pol_uuid = False
     clean_policy_id = None if (is_pol_uuid or raw_policy_id == str(claim.patient_id or "").strip() or raw_policy_id.lower() in ("n/a", "none", "null")) else raw_policy_id
 
+    canon = claim.canonical_json if isinstance(claim.canonical_json, dict) else {}
+    if not tpa_message and canon.get("identity_mismatch_notice"):
+        tpa_message = canon.get("identity_mismatch_notice")
+    if not tpa_message and canon.get("tpa_message"):
+        tpa_message = canon.get("tpa_message")
+    if not tpa_message and getattr(claim, "notes", None):
+        tpa_message = str(claim.notes)
+
     return {
         "claim_id": str(claim.id),
         "created_at": claim.created_at.isoformat() if getattr(claim, "created_at", None) else None,
         "status": claim.status,
+        "notes": tpa_message or canon.get("identity_mismatch_notice") or getattr(claim, "notes", None),
+        "identity_mismatch_message": canon.get("identity_mismatch_notice"),
         "insurance_company": getattr(claim, "insurance_company", None) or parsed.get("insurance_company") or parsed.get("insurer") or None,
         "payer": getattr(claim, "insurance_company", None) or parsed.get("insurance_company") or parsed.get("insurer") or None,
         "tpa_message": tpa_message,

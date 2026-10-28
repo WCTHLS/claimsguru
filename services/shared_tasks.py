@@ -302,27 +302,37 @@ def parser_task(self, result: dict) -> dict[str, str]:
                     _purge_single_document(claim_id, mismatched_doc.id, reason=err_msg)
 
                 claim.status = "DOCUMENTS_REQUESTED"
-                claim.notes = (
+                mismatch_note = (
                     f"Identity Mismatch Detected: Uploaded document '{doc_name}' belongs to '{mismatched_name}' "
                     f"instead of '{anchor_name}'. This document was removed to protect your claim. "
                     f"Please upload the correct requested document for '{anchor_name}'."
                 )
+                claim.notes = mismatch_note
+                try:
+                    from sqlalchemy.orm.attributes import flag_modified
+                    canon = dict(claim.canonical_json or {})
+                    canon["identity_mismatch_notice"] = mismatch_note
+                    canon["tpa_message"] = mismatch_note
+                    claim.canonical_json = canon
+                    flag_modified(claim, "canonical_json")
+                except Exception as _ce:
+                    logging.getLogger("parser-debug").warning(f"Failed to update canonical_json: {_ce}")
+
                 try:
                     from libs.shared.models import AuditLog
                     db.add(AuditLog(
                         claim_id=claim.id,
                         action="CLAIM_DOCUMENTS_REQUESTED",
-                        reason=claim.notes,
                         audit_metadata={
-                            "reason": claim.notes,
+                            "reason": mismatch_note,
                             "mismatched_document": doc_name,
                             "mismatched_name": mismatched_name,
                             "anchor_name": anchor_name,
                             "requested_documents": [f"Correct document for {anchor_name}"]
                         }
                     ))
-                except Exception:
-                    pass
+                except Exception as _ae:
+                    logging.getLogger("parser-debug").warning(f"Failed to add AuditLog: {_ae}")
                 db.commit()
                 _update_workflow_state(claim_id, "DOCUMENTS_REQUESTED", status="DOCUMENTS_REQUESTED")
                 raise Ignore()
@@ -1174,27 +1184,37 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
                         _purge_single_document(claim_id, mismatched_doc.id, reason=err_msg)
 
                     claim.status = "DOCUMENTS_REQUESTED"
-                    claim.notes = (
+                    mismatch_note = (
                         f"Identity Mismatch Detected: Uploaded document '{doc_name}' belongs to '{mismatched_name}' "
                         f"instead of '{anchor_name}'. This document was removed to protect your claim. "
                         f"Please upload the correct requested document for '{anchor_name}'."
                     )
+                    claim.notes = mismatch_note
+                    try:
+                        from sqlalchemy.orm.attributes import flag_modified
+                        canon = dict(claim.canonical_json or {})
+                        canon["identity_mismatch_notice"] = mismatch_note
+                        canon["tpa_message"] = mismatch_note
+                        claim.canonical_json = canon
+                        flag_modified(claim, "canonical_json")
+                    except Exception as _ce:
+                        log.warning(f"Failed to update canonical_json: {_ce}")
+
                     try:
                         from libs.shared.models import AuditLog
                         db.add(AuditLog(
                             claim_id=claim.id,
                             action="CLAIM_DOCUMENTS_REQUESTED",
-                            reason=claim.notes,
                             audit_metadata={
-                                "reason": claim.notes,
+                                "reason": mismatch_note,
                                 "mismatched_document": doc_name,
                                 "mismatched_name": mismatched_name,
                                 "anchor_name": anchor_name,
                                 "requested_documents": [f"Correct document for {anchor_name}"]
                             }
                         ))
-                    except Exception:
-                        pass
+                    except Exception as _ae:
+                        log.warning(f"Failed to add AuditLog: {_ae}")
                     db.commit()
                     _update_workflow_state(claim_id, "DOCUMENTS_REQUESTED", status="DOCUMENTS_REQUESTED")
                     return {

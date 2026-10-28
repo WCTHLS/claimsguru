@@ -3529,8 +3529,12 @@ def list_claims(
             submitted_by_name = sub_info.get("name")
             submitted_by_email = sub_info.get("email")
 
-            if getattr(c, "notes", None) and not tpa_message:
-                tpa_message = str(c.notes)
+            canon = c.canonical_json if isinstance(c.canonical_json, dict) else {}
+            mismatch_notice = canon.get("identity_mismatch_notice")
+            if not tpa_message:
+                tpa_message = mismatch_notice or canon.get("tpa_message") or (str(c.notes) if getattr(c, "notes", None) else None)
+            if mismatch_notice:
+                has_action_request = True
 
             claim_items.append({
                 "id": c.id,
@@ -3554,7 +3558,8 @@ def list_claims(
                 "has_action_request": has_action_request,
                 "tpa_message": tpa_message,
                 "tpa_requested_docs": tpa_requested_docs,
-                "notes": getattr(c, "notes", None),
+                "notes": mismatch_notice or tpa_message or getattr(c, "notes", None),
+                "identity_mismatch_message": mismatch_notice,
                 "current_step": step_label,
                 "percentage": pct_val,
             })
@@ -3962,7 +3967,13 @@ def get_claim(
             pass
     claim.submitted_by_name = sub_name
     claim.submitted_by_email = sub_email
-    if getattr(claim, "notes", None):
+    canon = claim.canonical_json if isinstance(claim.canonical_json, dict) else {}
+    mismatch_notice = canon.get("identity_mismatch_notice") or canon.get("tpa_message")
+    if mismatch_notice:
+        claim.notes = mismatch_notice
+        if not getattr(claim, "tpa_message", None):
+            claim.tpa_message = mismatch_notice
+    elif getattr(claim, "notes", None):
         if not getattr(claim, "tpa_message", None):
             claim.tpa_message = str(claim.notes)
     

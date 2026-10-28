@@ -227,9 +227,19 @@ export function useAuditorState() {
 
     const st = (preview.status || "").toUpperCase();
     if (st === "DOCUMENTS_REQUESTED" || st === "MODIFICATION_REQUESTED") {
-      setIsDocumentsRequested(true);
-      setTpaMessage(preview.tpa_message || (preview as any).notes || null);
+      const rawMsg = preview.tpa_message || (preview as any).notes || (preview as any).identity_mismatch_message || null;
+      setTpaMessage(rawMsg);
       setTpaRequestedDocs(preview.tpa_requested_docs || []);
+
+      if (rawMsg && (
+        rawMsg.toLowerCase().includes("identity mismatch") ||
+        rawMsg.toLowerCase().includes("belongs to") ||
+        rawMsg.toLowerCase().includes("instead of") ||
+        rawMsg.toLowerCase().includes("wrong patient") ||
+        rawMsg.toLowerCase().includes("mismatch detected")
+      )) {
+        setIdentityMismatchMessage(rawMsg);
+      }
 
       const docs = preview.documents || [];
       const kyc_types = ["aadhaar_card", "pan_card", "identity_proof"];
@@ -766,6 +776,18 @@ export function useAuditorState() {
       const prevData = await fetchClaimPreview(targetId);
       if (activeClaimIdRef.current !== targetId) return;
       if (prevData) {
+        const matchingRecent = recentClaims.find((c) => c.id === targetId);
+        if (matchingRecent) {
+          if (!prevData.tpa_message && (matchingRecent as any).tpa_message) {
+            prevData.tpa_message = (matchingRecent as any).tpa_message;
+          }
+          if (!(prevData as any).notes && (matchingRecent as any).notes) {
+            (prevData as any).notes = (matchingRecent as any).notes;
+          }
+          if (!(prevData as any).identity_mismatch_message && (matchingRecent as any).identity_mismatch_message) {
+            (prevData as any).identity_mismatch_message = (matchingRecent as any).identity_mismatch_message;
+          }
+        }
         setRealPreview(prevData);
         setPreviewVersion((v) => v + 1);
         const statusUpper = (prevData.status || "").toUpperCase();

@@ -1496,20 +1496,31 @@ export function DashboardClinical() {
 
                       {s.isDocumentsRequested && (
                         (() => {
+                          const selectedRecent = s.recentClaims?.find((c: any) => c.id === s.claimId);
+                          const recentMsg = selectedRecent?.tpa_message || (selectedRecent as any)?.notes || (selectedRecent as any)?.identity_mismatch_message;
+                          const previewMsg = (s.realPreview as any)?.identity_mismatch_message || (s.realPreview as any)?.notes || (s.realPreview as any)?.tpa_message;
+                          
+                          const checkIsMismatch = (txt: string | null | undefined): boolean => {
+                            if (!txt) return false;
+                            const low = String(txt).toLowerCase();
+                            return (
+                              low.includes("identity mismatch") ||
+                              low.includes("mismatch detected") ||
+                              low.includes("belongs to") ||
+                              low.includes("instead of") ||
+                              low.includes("wrong patient") ||
+                              low.includes("does not match")
+                            );
+                          };
+
                           const mismatchMsg = (
                             s.identityMismatchMessage ||
-                            (s.tpaMessage && (
-                              s.tpaMessage.toLowerCase().includes("identity mismatch") ||
-                              s.tpaMessage.toLowerCase().includes("belongs to") ||
-                              s.tpaMessage.toLowerCase().includes("instead of") ||
-                              s.tpaMessage.toLowerCase().includes("wrong patient")
-                            ) ? s.tpaMessage : null) ||
-                            ((s.realPreview as any)?.notes && (
-                              String((s.realPreview as any).notes).toLowerCase().includes("belongs to") ||
-                              String((s.realPreview as any).notes).toLowerCase().includes("instead of") ||
-                              String((s.realPreview as any).notes).toLowerCase().includes("wrong patient") ||
-                              String((s.realPreview as any).notes).toLowerCase().includes("identity mismatch")
-                            ) ? String((s.realPreview as any).notes) : null)
+                            (checkIsMismatch(s.tpaMessage) ? s.tpaMessage : null) ||
+                            (checkIsMismatch(recentMsg) ? recentMsg : null) ||
+                            (checkIsMismatch(previewMsg) ? previewMsg : null) ||
+                            (s.realPreview as any)?.identity_mismatch_message ||
+                            (selectedRecent as any)?.identity_mismatch_message ||
+                            null
                           );
                           const isMismatch = Boolean(mismatchMsg);
                           const pName = s.patientName || (s.realPreview as any)?.summary?.patient_name || (s.realPreview as any)?.patient_name || "the patient";
