@@ -1074,6 +1074,13 @@ export function useAuditorState() {
               setRealPreview(finalData);
               setPreviewVersion((v) => v + 1);
               setClaimId(idToQuery);
+              if (finalData.documents) {
+                setRecentClaims((prev) =>
+                  prev.map((c) =>
+                    c.id === idToQuery ? { ...c, documents: finalData.documents, status: statusInfo.status } : c
+                  )
+                );
+              }
             }
           } catch {
             /* ignore preview fetch error */
@@ -1093,7 +1100,22 @@ export function useAuditorState() {
             });
             setIdentityMismatchMessage(statusInfo.error);
             setShowIdentityMismatchModal(true);
+
+            // Immediately purge the rejected document from local state so it vanishes from the UI list
+            const rejectedDocMatch = (statusInfo.error || "").match(/'([^']+?\.(?:pdf|png|jpg|jpeg))'/i);
+            const rejectedName = rejectedDocMatch ? rejectedDocMatch[1] : null;
+            if (rejectedName) {
+              setRecentClaims((prev) =>
+                prev.map((c) =>
+                  c.id === idToQuery
+                    ? { ...c, documents: (c.documents || []).filter((d) => d.file_name !== rejectedName) }
+                    : c
+                )
+              );
+              setFiles((prev) => prev.filter((f) => f.name !== rejectedName));
+            }
           }
+          reloadRecentClaims();
           dataArrived = true;
           clearInterval(pollInterval);
           return;
