@@ -110,6 +110,8 @@ def map_step_progress(current_step: str | None, status: str | None = None) -> tu
         return "Complete", 100
     if current_step in ("FAILED", "PARSE_FAILED") or status in ("FAILED", "PARSE_FAILED"):
         return "Failed", 0
+    if current_step in ("DOCUMENTS_REQUESTED",) or status in ("DOCUMENTS_REQUESTED",):
+        return "Documents Requested", 100
     if current_step == "IDENTITY_MISMATCH" or status == "IDENTITY_MISMATCH":
         return "Identity Mismatch", 0
     return "Processing", 25

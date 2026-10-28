@@ -381,6 +381,16 @@ export async function fetchClaimProgress(claimId: string): Promise<{
           };
         }
 
+        if (statusStr === "DOCUMENTS_REQUESTED") {
+          return {
+            percentage: 100,
+            step: "Documents Requested",
+            status: "DOCUMENTS_REQUESTED",
+            is_complete: true,
+            error: data.error,
+          };
+        }
+
         if (statusStr === "FAILED") {
           return {
             percentage: 0,

@@ -1797,19 +1797,22 @@ export function DashboardClinical() {
       {s.showIdentityMismatchModal && (
         <IdentityMismatchModal
           isOpen={s.showIdentityMismatchModal}
+          isSubsequentUpload={Boolean(s.isDocumentsRequested || (s.realPreview as any)?.status === "DOCUMENTS_REQUESTED")}
           onClose={() => {
+            const isSubsequent = Boolean(s.isDocumentsRequested || (s.realPreview as any)?.status === "DOCUMENTS_REQUESTED");
             const targetId = s.claimId;
             s.setShowIdentityMismatchModal(false);
-            if (targetId) s.deleteClaim(targetId);
-            s.resetState();
+            if (targetId && !isSubsequent) s.deleteClaim(targetId);
+            if (!isSubsequent) s.resetState();
             s.reloadRecentClaims();
           }}
           message={s.identityMismatchMessage}
           onClearAndReupload={() => {
+            const isSubsequent = Boolean(s.isDocumentsRequested || (s.realPreview as any)?.status === "DOCUMENTS_REQUESTED");
             const targetId = s.claimId;
             s.setShowIdentityMismatchModal(false);
-            if (targetId) s.deleteClaim(targetId);
-            s.resetState();
+            if (targetId && !isSubsequent) s.deleteClaim(targetId);
+            if (!isSubsequent) s.resetState();
             s.reloadRecentClaims();
             s.setIsUploadOpen(true);
           }}

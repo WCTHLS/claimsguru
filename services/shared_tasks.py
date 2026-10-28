@@ -283,27 +283,45 @@ def parser_task(self, result: dict) -> dict[str, str]:
         doc_name = mismatched_doc.file_name if mismatched_doc else "Unknown"
         err_msg = mismatch_reason or (
             f"Identity mismatch detected: Document '{doc_name}' has patient name '{mismatched_name}' "
-            f"which does not match anchor patient '{anchor_name}'. Uploaded documents have been removed. "
-            f"Please re-upload the entire correct set of documents."
-        )
-        logging.getLogger("parser-debug").warning(
-            f"[Celery] Claim {claim_id}: {err_msg} Setting status to IDENTITY_MISMATCH."
+            f"which does not match anchor patient '{anchor_name}'."
         )
         db = ParserSessionLocal()
         try:
             claim = db.query(Claim).filter(Claim.id == cid).first()
-            if claim:
+            if not claim:
+                raise Ignore()
+
+            is_subsequent = _is_subsequent_claim_upload(db, claim, mismatched_doc)
+            if is_subsequent:
+                logging.getLogger("parser-debug").warning(
+                    f"[Celery] Subsequent upload mismatch on claim {claim_id}: "
+                    f"Doc '{doc_name}' ({mismatched_name}) != Anchor '{anchor_name}'. "
+                    f"Deleting ONLY the mismatched document and keeping claim in DOCUMENTS_REQUESTED."
+                )
+                if mismatched_doc:
+                    _purge_single_document(claim_id, mismatched_doc.id, reason=err_msg)
+
+                claim.status = "DOCUMENTS_REQUESTED"
+                claim.notes = (
+                    f"Uploaded document '{doc_name}' belongs to patient '{mismatched_name}' "
+                    f"instead of '{anchor_name}'. This document was removed. "
+                    f"Please upload the requested document for '{anchor_name}'."
+                )
+                db.commit()
+                _update_workflow_state(claim_id, "DOCUMENTS_REQUESTED", status="DOCUMENTS_REQUESTED")
+                raise Ignore()
+            else:
+                logging.getLogger("parser-debug").warning(
+                    f"[Celery] First-time upload mismatch on claim {claim_id}: {err_msg} Setting status to IDENTITY_MISMATCH."
+                )
                 claim.status = "IDENTITY_MISMATCH"
-                if hasattr(claim, "notes"):
-                    claim.notes = err_msg
-            db.commit()
+                claim.notes = err_msg
+                db.commit()
+                _update_workflow_state(claim_id, "IDENTITY_MISMATCH", status="FAILED")
+                _purge_claim_documents(claim_id, reason=err_msg)
+                raise Ignore()
         finally:
             db.close()
-            
-        _update_workflow_state(claim_id, "IDENTITY_MISMATCH", status="FAILED")
-        # Do not purge physical documents - preserve uploaded claim files for manual inspection & audit
-        logging.getLogger("parser-debug").warning(f"[Identity Gate] Preserving uploaded documents for claim {claim_id} despite identity mismatch.")
-        raise Ignore()
 
     db = ParserSessionLocal()
     job_id = None
@@ -1123,24 +1141,49 @@ def run_pipeline_inline(claim_id: str) -> dict[str, Any]:
         doc_name = mismatched_doc.file_name if mismatched_doc else "Unknown"
         err_msg = mismatch_reason or (
             f"Identity mismatch detected: Document '{doc_name}' has patient name '{mismatched_name}' "
-            f"which does not match anchor patient '{anchor_name}'. Uploaded documents have been removed. "
-            f"Please re-upload the entire correct set of documents."
+            f"which does not match anchor patient '{anchor_name}'."
         )
-        log.warning(f"[InlinePipeline] Claim {claim_id}: {err_msg} Setting status to IDENTITY_MISMATCH.")
         db = ParserSessionLocal()
         try:
             claim = db.query(Claim).filter(Claim.id == cid).first()
             if claim:
-                claim.status = "IDENTITY_MISMATCH"
-                if hasattr(claim, "notes"):
+                is_subsequent = _is_subsequent_claim_upload(db, claim, mismatched_doc)
+                if is_subsequent:
+                    log.warning(
+                        f"[InlinePipeline] Subsequent upload mismatch on claim {claim_id}: "
+                        f"Doc '{doc_name}' ({mismatched_name}) != Anchor '{anchor_name}'. "
+                        f"Deleting ONLY the mismatched document and keeping claim in DOCUMENTS_REQUESTED."
+                    )
+                    if mismatched_doc:
+                        _purge_single_document(claim_id, mismatched_doc.id, reason=err_msg)
+
+                    claim.status = "DOCUMENTS_REQUESTED"
+                    claim.notes = (
+                        f"Uploaded document '{doc_name}' belongs to patient '{mismatched_name}' "
+                        f"instead of '{anchor_name}'. This document was removed. "
+                        f"Please upload the requested document for '{anchor_name}'."
+                    )
+                    db.commit()
+                    _update_workflow_state(claim_id, "DOCUMENTS_REQUESTED", status="DOCUMENTS_REQUESTED")
+                    return {
+                        "claim_id": claim_id,
+                        "status": "DOCUMENTS_REQUESTED",
+                        "error": claim.notes,
+                        "subsequent_doc_mismatch": True,
+                        "rejected_doc_name": doc_name,
+                        "anchor_name": anchor_name,
+                        "mismatched_name": mismatched_name
+                    }
+                else:
+                    log.warning(f"[InlinePipeline] First-time upload mismatch on claim {claim_id}: {err_msg} Setting status to IDENTITY_MISMATCH.")
+                    claim.status = "IDENTITY_MISMATCH"
                     claim.notes = err_msg
-            db.commit()
+                    db.commit()
+                    _update_workflow_state(claim_id, "IDENTITY_MISMATCH", status="FAILED")
+                    _purge_claim_documents(claim_id, reason=err_msg)
+                    return {"claim_id": claim_id, "status": "IDENTITY_MISMATCH", "error": err_msg}
         finally:
             db.close()
-            
-        _update_workflow_state(claim_id, "IDENTITY_MISMATCH", status="FAILED")
-        _purge_claim_documents(claim_id, reason=err_msg)
-        return {"claim_id": claim_id, "status": "IDENTITY_MISMATCH", "error": err_msg}
 
     # ---------- Parser ----------
     db = ParserSessionLocal()
@@ -1432,6 +1475,115 @@ def _purge_claim_documents(claim_id: str, reason: str = "") -> None:
     except Exception as exc:
         logging.getLogger("parser-debug").error(f"Error purging claim {claim_id} documents: {exc}")
         db.rollback()
+    finally:
+        db.close()
+
+
+def _is_subsequent_claim_upload(db, claim: Any, mismatched_doc: Any) -> bool:
+    """
+    Determine if this is an incremental/subsequent upload on an existing claim
+    (e.g., TPA requested documents, or claim was previously submitted/completed/validated)
+    vs a brand new initial batch upload.
+    """
+    from libs.shared.models import Submission, Document, AuditLog
+    # 1. Was the claim already in DOCUMENTS_REQUESTED, SUBMITTED, APPROVED, SETTLED, etc.?
+    st = (getattr(claim, "status", "") or "").upper()
+    if st in ("DOCUMENTS_REQUESTED", "SUBMITTED", "APPROVED", "SETTLED", "REJECTED", "MODIFICATION_REQUESTED", "MANUAL_REVIEW_REQUIRED"):
+        return True
+
+    # 2. Does the claim have prior submissions?
+    try:
+        sub_count = db.query(Submission.id).filter(Submission.claim_id == claim.id).count()
+        if sub_count > 0:
+            return True
+    except Exception:
+        pass
+
+    # 3. Does the claim have prior audit logs indicating previous submission or document request?
+    try:
+        action_count = db.query(AuditLog.id).filter(
+            AuditLog.claim_id == claim.id,
+            AuditLog.action.in_(("CLAIM_SUBMITTED", "CLAIM_REQUEST_DOCS", "CLAIM_DOCUMENTS_REQUESTED", "CLAIM_MODIFICATION_REQUESTED"))
+        ).count()
+        if action_count > 0:
+            return True
+    except Exception:
+        pass
+
+    # 4. Does the claim have canonical_json with patient details already extracted from earlier parsing?
+    c_json = getattr(claim, "canonical_json", None)
+    if c_json and isinstance(c_json, dict) and len(c_json) > 0:
+        return True
+
+    # 5. Are there other documents uploaded earlier than this mismatched document?
+    if mismatched_doc:
+        try:
+            other_docs = db.query(Document).filter(
+                Document.claim_id == claim.id,
+                Document.id != mismatched_doc.id
+            ).all()
+            if other_docs:
+                m_up = getattr(mismatched_doc, "uploaded_at", None)
+                if m_up:
+                    earlier_doc = any(getattr(d, "uploaded_at", None) and getattr(d, "uploaded_at") < m_up for d in other_docs)
+                    if earlier_doc:
+                        return True
+                # If there are other documents and this document is a subsequent add:
+                if len(other_docs) >= 1 and (st != "UPLOADED" or claim.canonical_json):
+                    return True
+        except Exception:
+            pass
+
+    return False
+
+
+def _purge_single_document(claim_id: str | Any, doc_id: Any, reason: str = "") -> None:
+    """Purge ONLY a single mismatched document and its OCR results, leaving all other claim documents intact."""
+    import os
+    import logging
+    from services.parser.app.db import SessionLocal as ParserSessionLocal
+    from libs.shared.models import Document, OcrResult, DocValidation
+    from libs.shared.storage import MinioStorage
+
+    db = ParserSessionLocal()
+    try:
+        doc = db.query(Document).filter(Document.id == doc_id).first()
+        if not doc:
+            return
+
+        # 1. Delete physical file
+        minio_p = getattr(doc, "minio_path", None)
+        if minio_p:
+            try:
+                MinioStorage.delete_file(minio_p)
+            except Exception:
+                pass
+            if os.path.exists(minio_p):
+                try:
+                    os.remove(minio_p)
+                except Exception:
+                    pass
+
+        # 2. Delete child OCR results and validation rows
+        try:
+            db.query(OcrResult).filter(OcrResult.document_id == doc_id).delete(synchronize_session=False)
+        except Exception:
+            pass
+        try:
+            db.query(DocValidation).filter(DocValidation.document_id == doc_id).delete(synchronize_session=False)
+        except Exception:
+            pass
+
+        # 3. Delete document row
+        try:
+            db.delete(doc)
+            db.commit()
+            logging.getLogger("parser-debug").info(
+                f"[Identity Gate] Successfully purged single mismatched document {doc_id} ('{doc.file_name}') from claim {claim_id}. Reason: {reason}"
+            )
+        except Exception as exc:
+            db.rollback()
+            logging.getLogger("parser-debug").warning(f"[Identity Gate] Failed to delete document row {doc_id}: {exc}")
     finally:
         db.close()
 

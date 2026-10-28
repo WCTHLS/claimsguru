@@ -3990,6 +3990,8 @@ def _map_progress(current_step: str | None, status: str | None) -> tuple[str | N
     if current_step == "RETRYING":
         # Don't regress — keep above prior steps; monotonic guard below also protects.
         return "Retrying (transient)", 92
+    if current_step in ("DOCUMENTS_REQUESTED",) or status in ("DOCUMENTS_REQUESTED",):
+        return "Documents Requested", 100
     if current_step == "IDENTITY_MISMATCH":
         return "Identity Mismatch (Documents belong to different patients)", 0
     if current_step in ("FAILED", "PARSE_FAILED") or status in ("FAILED", "PARSE_FAILED"):
@@ -4134,6 +4136,16 @@ def get_claim_progress(claim_id: str):
         else:
             status_str = state.status
 
+        # Check if claim has notes about a rejected subsequent document
+        subsequent_doc_mismatch = False
+        claim_rec = db.query(Claim).filter(Claim.id == cid).first()
+        if claim_rec and hasattr(claim_rec, "notes") and getattr(claim_rec, "notes", None):
+            notes_str = str(getattr(claim_rec, "notes"))
+            if ("belongs to patient" in notes_str and "instead of" in notes_str) or ("Patient name mismatch" in notes_str) or ("wrong patient" in notes_str.lower()):
+                subsequent_doc_mismatch = True
+                if not error_message or status_str == "DOCUMENTS_REQUESTED":
+                    error_message = notes_str
+
         result = {
             "status": status_str,
             "step": step,
@@ -4142,6 +4154,7 @@ def get_claim_progress(claim_id: str):
             "is_stalled": is_stalled,
             "can_retry": bool(is_stalled or is_failed),
             "error": error_message,
+            "subsequent_doc_mismatch": subsequent_doc_mismatch,
         }
 
         # Cache response: 300s TTL for completed/failed terminal claims, 5s for stalled, 3s for active in-progress claims
@@ -4554,8 +4567,14 @@ async def add_documents_to_claim(
     gate_result = _apply_identity_gate(db, claim.id, new_docs)
     manual_review_message = None
     if gate_result["accepted_count"] == 0:
-        claim.status = "MANUAL_REVIEW_REQUIRED"
-        upsert_workflow_state(db, claim.id, "MANUAL_REVIEW_REQUIRED", status="FAILED")
+        prev_st = (claim.status or "").upper()
+        if prev_st in ("DOCUMENTS_REQUESTED", "SUBMITTED", "APPROVED", "SETTLED", "MODIFICATION_REQUESTED"):
+            claim.status = "DOCUMENTS_REQUESTED"
+            upsert_workflow_state(db, claim.id, "DOCUMENTS_REQUESTED", status="DOCUMENTS_REQUESTED")
+        else:
+            claim.status = "MANUAL_REVIEW_REQUIRED"
+            upsert_workflow_state(db, claim.id, "MANUAL_REVIEW_REQUIRED", status="FAILED")
+
         from libs.shared.storage import MinioStorage
         for doc in new_docs:
             if doc.minio_path:
@@ -4565,9 +4584,10 @@ async def add_documents_to_claim(
                     logger.warning("Failed to delete mismatched file from MinIO: %s", doc.minio_path)
             db.delete(doc)
         manual_review_message = (
-            "Manual review required: Patient name mismatch detected in the documents you added. "
-            "Please check that the uploaded documents have the correct patient details."
+            "Uploaded document rejected: Patient name mismatch detected in the document you added. "
+            "The mismatched document was removed. Please upload documents for the correct patient."
         )
+        claim.notes = manual_review_message
     else:
         claim.status = "UPLOADED"
 

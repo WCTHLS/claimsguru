@@ -1060,9 +1060,19 @@ export function useAuditorState() {
           setAnalyzing(false);
           isAnalyzingRef.current = false;
           setIsLiveSessionCompleted(false);
+          setIsDocumentsRequested(statusInfo.status === "DOCUMENTS_REQUESTED");
           setProgress(100);
           setActiveStage('scoring');
           setStepDescription(statusInfo.status === "DOCUMENTS_REQUESTED" ? "Documents Requested" : "Manual Review Required");
+          if (statusInfo.error) {
+            toast({
+              title: "Document Rejected (Wrong Patient)",
+              description: statusInfo.error,
+              variant: "destructive",
+            });
+            setIdentityMismatchMessage(statusInfo.error);
+            setShowIdentityMismatchModal(true);
+          }
           dataArrived = true;
           clearInterval(pollInterval);
           return;
