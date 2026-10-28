@@ -1589,17 +1589,31 @@ def _purge_single_document(claim_id: str | Any, doc_id: Any, reason: str = "") -
 
 
 def _is_doctor_or_facility_name(name: str) -> bool:
-    """Returns True if the extracted text resembles a physician, clinic, or facility name rather than a patient."""
+    """Returns True if the extracted text resembles a physician, clinic, facility, or administrative/billing term rather than a patient."""
     if not name:
         return False
     lower = str(name).lower().strip()
-    doctor_terms = [
+    non_patient_terms = [
         "dr.", "dr ", "doctor", "prof.", "prof ", "physician", "surgeon", 
         "consultant", "specialist", "hospital", "clinic", "nursing home", 
         "healthcare", "diagnostic", "laboratory", "pathology", "radiology",
-        "medical center", "institute", "pharmacy"
+        "medical center", "institute", "pharmacy",
+        "payment", "receipt", "invoice", "voucher", "cashier", "amount",
+        "total", "balance", "settlement", "summary", "bill", "details",
+        "particulars", "advance", "refund", "deposit", "patient copy",
+        "office copy", "original copy", "duplicate", "charges", "statement",
+        "collection", "transaction", "subtotal", "payable"
     ]
-    return any(t in lower for t in doctor_terms)
+    words = lower.split()
+    if any(t in lower for t in non_patient_terms):
+        return True
+    single_word_noise = {
+        "payment", "receipt", "bill", "invoice", "total", "amount", "cashier", "summary",
+        "patient", "doctor", "hospital", "statement", "refund", "deposit", "advance"
+    }
+    if len(words) == 1 and words[0] in single_word_noise:
+        return True
+    return False
 
 
 def _check_asynchronous_identity_gate(claim_id: str) -> tuple[bool, str | None, Any | None, str | None, str | None]:
