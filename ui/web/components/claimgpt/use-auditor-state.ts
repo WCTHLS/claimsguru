@@ -249,7 +249,6 @@ export function useAuditorState() {
         missing.push(...distinct);
       } else if (!msgClean) {
         if (!hasClinical && !hasFinancial) missing.push("Hospital Documents (Discharge Summary / Hospital Bill)");
-        if (!hasKyc) missing.push("Identity / KYC Proof (Aadhaar / PAN / Passport)");
       }
       setMissingGroups(missing);
     } else {

@@ -1512,7 +1512,9 @@ export function DashboardClinical() {
                                 </div>
                               ) : (
                                 <p className="text-xs text-amber-700">
-                                  We detected incomplete information in your claim upload. Please upload the following items to resume analysis:
+                                  {s.missingGroups.length > 0
+                                    ? "We detected incomplete information in your claim upload. Please upload the following items to resume analysis:"
+                                    : "Additional documents have been requested for your claim. Please upload the requested documents below:"}
                                 </p>
                               )}
                               {s.missingGroups.filter((grp: string) => grp && grp.trim() && grp.trim() !== (s.tpaMessage || "").trim()).length > 0 && (
