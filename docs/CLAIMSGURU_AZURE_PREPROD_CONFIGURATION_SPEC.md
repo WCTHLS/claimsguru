@@ -1,6 +1,5 @@
 # ClaimsGuru™ Enterprise Platform
 ## Azure Pre-Production Cloud Infrastructure & Configuration Specification
-**Target Audience:** Enterprise Architecture, DevOps, Security Reviewers, Executive & Marketing Teams  
 **Cloud Provider:** Microsoft Azure  
 **Environment:** Enterprise Pre-Production (`cg-preprod`)  
 **Resource Group:** `claimsGuru`  

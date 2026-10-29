@@ -49,7 +49,7 @@ class NumberedCanvas(canvas.Canvas):
         # Footer (all pages)
         self.setFont("Helvetica", 7.5)
         self.setFillColor(colors.HexColor("#64748B"))
-        self.drawString(54, 34, "CONFIDENTIAL — FOR MARKETING, SALES ENABLEMENT & ENTERPRISE AUDIT REVIEW")
+        self.drawString(54, 34, "ClaimsGuru™ Enterprise Platform — Microsoft Azure Infrastructure Specification")
         footer_text = f"Page {self._pageNumber} of {page_count}"
         self.drawRightString(558, 34, footer_text)
         self.setStrokeColor(colors.HexColor("#E2E8F0"))
@@ -187,16 +187,16 @@ def create_azure_config_pdf(output_paths):
 
     meta_data = [
         [
-            Paragraph("<b>Target Audience:</b>", meta_key),
-            Paragraph("Marketing, Enterprise Sales, Executive & IT Review", meta_val),
             Paragraph("<b>Cloud Provider:</b>", meta_key),
-            Paragraph("Microsoft Azure (Commercial Cloud)", meta_val)
+            Paragraph("Microsoft Azure (Commercial Cloud)", meta_val),
+            Paragraph("<b>Resource Group:</b>", meta_key),
+            Paragraph("<code>claimsGuru</code> (Central India)", meta_val)
         ],
         [
             Paragraph("<b>Live Domains:</b>", meta_key),
             Paragraph("https://www.wct-health.com | wct-health.com", meta_val),
-            Paragraph("<b>Resource Group:</b>", meta_key),
-            Paragraph("<code>claimsGuru</code> (Central India)", meta_val)
+            Paragraph("<b>Environment:</b>", meta_key),
+            Paragraph("Enterprise Pre-Production (cg-preprod)", meta_val)
         ],
         [
             Paragraph("<b>Primary Region:</b>", meta_key),
@@ -208,7 +208,7 @@ def create_azure_config_pdf(output_paths):
             Paragraph("<b>Verification Date:</b>", meta_key),
             Paragraph("October 2026 (Live CLI & Portal Verified)", meta_val),
             Paragraph("<b>Classification:</b>", meta_key),
-            Paragraph("Enterprise Technical & Cloud Architecture Brief", meta_val)
+            Paragraph("Enterprise Cloud Architecture Specification", meta_val)
         ]
     ]
 
