@@ -45,13 +45,23 @@ export async function POST(request: NextRequest) {
     }
 
     const detail = data?.detail;
-    const errorMessage = typeof detail === 'string'
+    let errorMessage = typeof detail === 'string'
       ? detail
       : typeof detail?.message === 'string'
         ? detail.message
         : typeof data?.error === 'string'
           ? data.error
           : 'Login failed.';
+
+    if (
+      /pyodbc|OperationalError|08S01|TCP Provider|SQLExec|database synchronization error|SQL Server|SELECT id/i.test(
+        errorMessage
+      )
+    ) {
+      errorMessage =
+        'We are experiencing a temporary connection delay. Please tap Sign In again in a moment.';
+    }
+
     const actualRole = typeof detail?.actual_role === 'string'
       ? detail.actual_role
       : typeof data?.actual_role === 'string'

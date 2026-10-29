@@ -790,12 +790,23 @@ export async function completeAuthCallback() {
     const syncData = await syncRes.json().catch(() => ({}));
     if (!syncRes.ok) {
       clearAuthSession();
-      const denialMessage =
+      let denialMessage =
         syncData?.error ||
         syncData?.detail ||
         (hintedRole === 'tpa'
           ? 'Access denied. You are not registered as organization staff.'
           : 'Authentication verification failed.');
+
+      if (
+        typeof denialMessage === 'string' &&
+        /pyodbc|OperationalError|08S01|TCP Provider|SQLExec|database synchronization error|SQL Server|SELECT id/i.test(
+          denialMessage
+        )
+      ) {
+        denialMessage =
+          'We are experiencing a temporary connection delay. Please tap Sign In again in a moment.';
+      }
+
       throw new Error(typeof denialMessage === 'string' ? denialMessage : 'Access denied.');
     }
 

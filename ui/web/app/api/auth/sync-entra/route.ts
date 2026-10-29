@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (!res.ok) {
-      const msg =
+      let msg =
         typeof data?.detail === 'string'
           ? data.detail
           : typeof data?.detail?.message === 'string'
@@ -81,6 +81,16 @@ export async function POST(request: NextRequest) {
             : typeof data?.error === 'string'
               ? data.error
               : 'Failed to synchronize Entra identity with database.';
+
+      if (
+        /pyodbc|OperationalError|08S01|TCP Provider|SQLExec|database synchronization error|SQL Server|SELECT id/i.test(
+          msg
+        )
+      ) {
+        msg =
+          'We are experiencing a temporary database connection delay. Please tap Sign In again in a moment.';
+      }
+
       return NextResponse.json({ error: msg }, { status: res.status });
     }
 

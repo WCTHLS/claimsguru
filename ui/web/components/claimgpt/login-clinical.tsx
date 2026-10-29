@@ -41,6 +41,17 @@ import { cn } from '@/lib/utils';
 
 type Role = 'patient' | 'tpa';
 
+function formatFriendlyAuthError(msg: string): string {
+  if (
+    /pyodbc|OperationalError|08S01|TCP Provider|SQLExec|database synchronization error|SQL Server|SELECT id/i.test(
+      msg
+    )
+  ) {
+    return 'We are experiencing a temporary connection delay. Please tap Sign In again in a moment.';
+  }
+  return msg;
+}
+
 export function LoginClinical() {
   const router = useRouter();
   const [role, setRole] = useState<Role>('patient');
@@ -67,7 +78,7 @@ export function LoginClinical() {
       }
       const err = params.get('error');
       if (err) {
-        const decoded = decodeURIComponent(err);
+        const decoded = formatFriendlyAuthError(decodeURIComponent(err));
         setErrorMessage(decoded);
         setAuthErrorField(getAuthErrorField(decoded));
       }
@@ -84,7 +95,7 @@ export function LoginClinical() {
     try {
       await beginEntraAuthFlow({ role: targetRole, isRegister });
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Unable to connect to Microsoft Entra External ID.');
+      setErrorMessage(formatFriendlyAuthError(err instanceof Error ? err.message : 'Unable to connect to Microsoft Entra External ID.'));
       setEntraLoadingRole(null);
     }
   };
@@ -112,7 +123,7 @@ export function LoginClinical() {
         router.replace(getAuthRedirectPath(session));
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unable to sign in.';
+      const message = formatFriendlyAuthError(error instanceof Error ? error.message : 'Unable to sign in.');
       setErrorMessage(message);
       setAuthErrorField(getAuthErrorField(message));
       setSubmitting(false);

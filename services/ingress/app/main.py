@@ -49,6 +49,7 @@ from services.shared_tasks import (
 from libs.shared.celery_app import celery_app
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import text, func, cast, String, or_, and_
+from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session, selectinload
 
 from .config import settings
@@ -1113,6 +1114,43 @@ def _ensure_tables_and_columns(db: Session) -> None:
     _schema_columns_checked = True
 
 
+def _execute_with_db_retry(fn, max_retries: int = 2):
+    """Execute a database function with automatic retry on transient connection drops (e.g. 08S01, 104, 10054)."""
+    import time
+    from sqlalchemy.exc import DBAPIError, OperationalError
+
+    last_exc = None
+    for attempt in range(max_retries):
+        try:
+            return fn()
+        except HTTPException:
+            raise
+        except (OperationalError, DBAPIError) as exc:
+            last_exc = exc
+            err_msg = str(exc)
+            is_connection_drop = any(
+                code in err_msg
+                for code in ("08S01", "104", "10054", "Connection reset", "Communication link failure", "closed", "reset by peer")
+            )
+            if is_connection_drop and attempt < max_retries - 1:
+                logger.warning(
+                    f"Transient database connection drop encountered (attempt {attempt + 1}/{max_retries}). Disposing pool and retrying in 0.5s..."
+                )
+                try:
+                    engine.dispose()
+                except Exception:
+                    pass
+                time.sleep(0.5)
+                continue
+            break
+        except Exception as exc:
+            last_exc = exc
+            break
+
+    if last_exc:
+        raise last_exc
+
+
 def _ensure_users_password_hash_column() -> None:
     pass
 
@@ -1446,8 +1484,11 @@ def register_local_user(payload: RegisterUserIn):
             raise
         except Exception as exc:
             db.rollback()
-            logger.exception("Failed to register user locally in database")
-            raise HTTPException(status_code=500, detail=f"Database registration error: {str(exc)}") from exc
+            logger.exception("Failed to register user locally in database: %s", exc)
+            raise HTTPException(
+                status_code=500,
+                detail="Unable to complete registration due to a temporary database issue. Please try again in a moment.",
+            ) from exc
 
 
 import re
@@ -1977,9 +2018,9 @@ def sync_entra_user(payload: SyncEntraUserIn):
     is_org_login = role_str in ("tpa", "admin", "reviewer", "organization", "org_admin")
     subject_id = payload.external_subject_id or email
 
-    try:
-        with force_master_session():
-            with SessionLocal() as db:
+    for attempt in range(2):
+        try:
+            with force_master_session(), SessionLocal() as db:
                 _ensure_tables_and_columns(db)
 
                 user_row = db.execute(
@@ -2302,11 +2343,37 @@ def sync_entra_user(payload: SyncEntraUserIn):
                             "needs_onboarding": new_needs_onboarding,
                             "message": "New patient registered in database successfully",
                         }
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Error during sync_entra_user: %s", exc)
-        raise HTTPException(status_code=500, detail=f"Database synchronization error: {str(exc)}")
+        except HTTPException:
+            raise
+        except (OperationalError, DBAPIError) as exc:
+            err_msg = str(exc)
+            is_connection_drop = any(
+                code in err_msg
+                for code in ("08S01", "104", "10054", "Connection reset", "Communication link failure", "closed", "reset by peer")
+            )
+            if is_connection_drop and attempt == 0:
+                logger.warning(
+                    "Transient database connection drop in sync_entra_user. Disposing connection pool and retrying..."
+                )
+                try:
+                    engine.dispose()
+                except Exception:
+                    pass
+                import time
+                time.sleep(0.5)
+                continue
+
+            logger.exception("Database operational error during sync_entra_user: %s", exc)
+            raise HTTPException(
+                status_code=503,
+                detail="The database connection is temporarily unavailable. Please try signing in again in a moment.",
+            )
+        except Exception as exc:
+            logger.exception("Error during sync_entra_user: %s", exc)
+            raise HTTPException(
+                status_code=500,
+                detail="Unable to complete login synchronization. Please try signing in again.",
+            )
 
 
 
