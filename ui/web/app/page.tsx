@@ -171,9 +171,9 @@ const STYLES = `
 
   /* Store Download Badges */
   .lp-store-row { margin-top:32px; display:flex; flex-wrap:wrap; gap:16px; align-items:center; }
-  .lp-store-badge { display:inline-flex; align-items:center; gap:12px; min-height:52px; background:#0f172a; color:#fff !important; padding:12px 20px; border-radius:12px; border:1px solid #334155; transition:transform .15s, background .15s, box-shadow .15s; box-shadow:var(--shadow-sm); touch-action:manipulation; }
-  .lp-store-badge:hover { transform:translateY(-2px); background:#1e293b; box-shadow:var(--shadow); }
-  .lp-store-badge.disabled { cursor:default; pointer-events:none; user-select:none; }
+  .lp-store-badge { display:inline-flex; align-items:center; gap:12px; min-height:52px; background:#0f172a; color:#fff !important; padding:12px 20px; border-radius:12px; border:1px solid #334155; transition:transform .15s, background .15s, box-shadow .15s; box-shadow:var(--shadow-sm); touch-action:manipulation; text-decoration:none !important; cursor:pointer; }
+  .lp-store-badge:hover { transform:translateY(-2px); background:#1e293b; box-shadow:var(--shadow); color:#fff !important; }
+  .lp-store-badge.disabled { cursor:default; pointer-events:none; user-select:none; opacity:0.75; }
   .lp-store-badge.disabled:hover { transform:none; background:#0f172a; box-shadow:var(--shadow-sm); }
   .lp-store-badge svg { width:26px; height:26px; fill:currentColor; flex-shrink:0; }
   .lp-store-badge-text { display:flex; flex-direction:column; text-align:left; line-height:1.15; }
@@ -584,7 +584,7 @@ export default function HomePage() {
                 </li>
               </ul>
 
-              {/* App Store and Google Play Download Badges (Disabled for now until published) */}
+              {/* App Store and Google Play Download Badges */}
               <div className="lp-store-row">
                 <div 
                   className="lp-store-badge disabled" 
@@ -597,16 +597,19 @@ export default function HomePage() {
                   </div>
                 </div>
 
-                <div 
-                  className="lp-store-badge disabled" 
-                  title="Coming soon on Google Play"
+                <a 
+                  href="https://play.google.com/store/apps/details?id=com.claimsguru.app"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="lp-store-badge" 
+                  title="Download ClaimsGuru on Google Play"
                 >
                   <PlayStoreSvg />
                   <div className="lp-store-badge-text">
                     <span className="lp-store-sub">Get it on</span>
                     <span className="lp-store-main">Google Play</span>
                   </div>
-                </div>
+                </a>
               </div>
             </div>
 
