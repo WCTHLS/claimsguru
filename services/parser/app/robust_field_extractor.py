@@ -177,7 +177,7 @@ class RobustFieldExtractor:
 
         "policy_number": [
             # Priority 0: Explicit "Policy Number: 12345678", "Policy No: POL-998812", etc.
-            r"(?im)\b(?:policy\s*(?:no\.?|num|number|#|id)|policy\s*/\s*certificate\s*no\.?|certificate\s*no\.?|policy\s*/\s*health\s*card\s*no\.?|health\s*card\s*(?:no\.?|id)|card\s*no\.?|uhid|insurance\s*(?:id|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
+            r"(?im)\b(?:policy\s*(?:no\.?|num|number|#|id)|policy\s*/\s*certificate\s*no\.?|certificate\s*no\.?|policy\s*/\s*health\s*card\s*no\.?|health\s*card\s*(?:no\.?|id)|card\s*no\.?|insurance\s*(?:id|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
             # Priority 1: Multi-line policy number
             r"(?im)\b(?:policy\s*(?:no\.?|num|number|#|id))\s*[:\-=\/|#]?\s*\n\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
             # Priority 2: Member / TPA ID
@@ -868,7 +868,17 @@ class RobustFieldExtractor:
                 val_lower = value.lower()
                 reject_terms = {"number", "policy", "card", "insurance", "hospital", "patient", "valid", "from", "date", "none", "null", "n/a", "amount", "rupees", "total", "details", "scheme", "claim"}
                 is_uuid = bool(re.match(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", val_lower))
-                if val_lower in reject_terms or len(value) < 4 or is_uuid:
+                is_hospital_id = bool(re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", val_lower))
+                
+                # Check preceding context window for hospital encounter labels
+                ctx_start = max(0, start_pos - 40)
+                preceding_text = full_text[ctx_start:start_pos].lower()
+                is_preceded_by_hospital_label = any(lbl in preceding_text for lbl in [
+                    "uhid", "ip no", "ip number", "ipd no", "ipd number", "mrn", "mrno", 
+                    "opd no", "bill no", "invoice no", "reg no", "registration no"
+                ])
+
+                if val_lower in reject_terms or len(value) < 4 or is_uuid or is_hospital_id or is_preceded_by_hospital_label:
                     continue
                 valid_candidates.append((p_idx, start_pos, value))
 

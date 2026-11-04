@@ -592,6 +592,11 @@ def parse_document(
             if m:
                 text = m.group(1)
 
+        if field_name in {"policy_number", "insurance_policy_number", "member_id"}:
+            if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", text.lower()):
+                return
+            if any(kw in text.lower() for kw in ["uhid", "mrn", "ip no", "ipd no", "bill no", "invoice"]):
+                return
         if field_name == "patient_name":
             text = _clean_patient_name(text)
         # Avoid exact-duplicate canonical fields (case-insensitive value match)
@@ -694,6 +699,9 @@ def parse_document(
                         if field_value:
                             break
 
+            if field_name in ("policy_number", "insurance_policy_number", "member_id") and field_value:
+                if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", str(field_value).strip().lower()):
+                    field_value = None
             if field_value:
                 _append_local_field(field_name, field_value, confidence=0.85)
                 logger.info(f"[ROBUST_EXTRACTION] Backfilled {field_name}: {field_value}")
@@ -754,6 +762,10 @@ def parse_document(
 
         elif field_name in {"insurance_policy_number", "policy_number"}:
             if len(v) > 35 or any(term in v_lower for term in ["aadhaar", "pan card", "sum insured", "tpa name", "insurer name", "declare"]):
+                return True
+            if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", v_lower):
+                return True
+            if any(term in v_lower for term in ["uhid", "mrn", "ip no", "ipd no", "bill no", "invoice"]):
                 return True
 
         elif field_name in {"patient_id", "uhid"}:

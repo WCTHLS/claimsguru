@@ -103,10 +103,14 @@ def _validate_policy_number(val: str) -> bool:
     if s.startswith(('&', '-', '/', ':', ';', '.', '+', '@')):
         return False
     s_lower = s.lower()
+    # Reject hospital encounter identifiers (UHID, IP Number, MRN, OPD, Reg No, Bill No)
+    if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", s_lower):
+        return False
     reject_words = {
         'insured', 'details', 'policy', 'number', 'name', 'insurance', 'hospital', 
         'patient', 'valid', 'amount', 'total', 'tpa', 'pvt', 'ltd', 'co', 'claim', 
-        'status', 'scheme', 'date', 'birth', 'signature', 'address'
+        'status', 'scheme', 'date', 'birth', 'signature', 'address', 'uhid', 'mrn',
+        'ipno', 'encounter', 'bill', 'invoice'
     }
     words = [w.strip(' ,;:-_') for w in s_lower.split() if w.strip(' ,;:-_')]
     if len(words) > 1 and any(w in reject_words for w in words):

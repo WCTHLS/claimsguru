@@ -313,10 +313,16 @@ def _pick_best_field_value(field_name: str, values: list[tuple[str, str]]) -> st
         cleaned_pols = []
         for v, _mv in clean:
             pm = re.search(r"\b([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]+(?:-[A-Z0-9]+){1,4})\b", v)
-            if pm:
-                cleaned_pols.append(pm.group(1))
-            elif len(v) <= 30 and not any(kw in v.lower() for kw in ["aadhaar", "pan", "sum insured", "tpa", "declare"]):
-                cleaned_pols.append(v.strip())
+            cand = pm.group(1) if pm else (v.strip() if len(v) <= 30 and not any(kw in v.lower() for kw in ["aadhaar", "pan", "sum insured", "tpa", "declare"]) else None)
+            if cand:
+                cand_clean = cand.strip()
+                cand_lower = cand_clean.lower()
+                # Reject hospital identifiers (UHID, IP No, MRN, OPD, Reg No, Bill No, Invoice No)
+                if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", cand_lower):
+                    continue
+                if any(kw in cand_lower for kw in ["uhid", "mrn", "ip no", "ipd no", "bill no", "invoice"]):
+                    continue
+                cleaned_pols.append(cand_clean)
         if cleaned_pols:
             return sorted(cleaned_pols, key=lambda x: -len(x))[0]
         return ""
@@ -708,7 +714,19 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
                             pass
 
     # Predictions — ensure prediction reflects current policy_number & parsed fields
-    has_cur_pol = bool((claim.policy_id and str(claim.policy_id).strip() and not str(claim.policy_id).startswith("ee8031ed")) or any(pf.field_name in ("policy_number", "policy_id") and pf.field_value for pf in pf_rows))
+    def _is_valid_pol_preview(val: Any) -> bool:
+        if not val:
+            return False
+        s = str(val).strip()
+        if not s or s.lower() in ("none", "null", "n/a", "not specified"):
+            return False
+        if s.startswith("ee8031ed"):
+            return False
+        if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", s.lower()):
+            return False
+        return len(s) >= 4
+
+    has_cur_pol = _is_valid_pol_preview(claim.policy_id) or any(pf.field_name in ("policy_number", "policy_id") and _is_valid_pol_preview(pf.field_value) for pf in pf_rows)
     preds = db.query(Prediction).filter(Prediction.claim_id == claim.id).order_by(Prediction.created_at.desc()).limit(3).all()
     
     # If prediction is missing or has stale 'Missing policy number' when policy is present, refresh it live
@@ -806,9 +824,36 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
                     continue
                 pol_m = re.search(r"(?im)(?:policy\s*(?:no|number|id)|policy)\s*[:\-=–—|]?[ \t]*([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]{3,8}-[A-Z0-9]{2,6}-[A-Z0-9]{4,12})\b", dtext)
                 if pol_m:
-                    parsed["insurance_policy_number"] = pol_m.group(1).strip()
-                    parsed["policy_number"] = pol_m.group(1).strip()
-                    break
+                    cand = pol_m.group(1).strip()
+                    if not re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", cand.lower()):
+                        parsed["insurance_policy_number"] = cand
+                        parsed["policy_number"] = cand
+                        break
+        except Exception:
+            pass
+
+    # If parser didn't populate rich policy details, check OCR text for policy clauses
+    if not parsed.get("room_rent_limit") or not parsed.get("copay_percent") or not parsed.get("sum_insured"):
+        try:
+            for did, dtext in doc_ocr_map.items():
+                if not dtext:
+                    continue
+                if any(kw in dtext.lower() for kw in ["policy", "sum insured", "room rent", "co-pay", "copay", "insurance"]):
+                    rich_p = _extract_rich_policy_data(dtext)
+                    if rich_p.get("policy_id") and not parsed.get("policy_number"):
+                        parsed["policy_number"] = rich_p["policy_id"]
+                    if rich_p.get("insurer") and not parsed.get("insurance_company"):
+                        parsed["insurance_company"] = rich_p["insurer"]
+                    if rich_p.get("sum_insured") and not parsed.get("sum_insured"):
+                        parsed["sum_insured"] = str(rich_p["sum_insured"])
+                    if rich_p.get("room_rent_limit") and not parsed.get("room_rent_limit"):
+                        parsed["room_rent_limit"] = rich_p["room_rent_limit"]
+                    if rich_p.get("copay_percent") and not parsed.get("copay_percent"):
+                        parsed["copay_percent"] = str(rich_p["copay_percent"])
+                    if rich_p.get("ped_waiting_months") and not parsed.get("ped_waiting_months"):
+                        parsed["ped_waiting_months"] = str(rich_p["ped_waiting_months"])
+                    if rich_p.get("plan_name") and not parsed.get("plan_name"):
+                        parsed["plan_name"] = rich_p["plan_name"]
         except Exception:
             pass
 
@@ -1494,7 +1539,7 @@ def _extract_rich_policy_data(text: str, filename: str = "") -> dict[str, Any]:
 
     # Policy ID patterns
     patterns = [
-        r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id)|policy\s*/\s*certificate\s*(?:number|no\.?|id)|certificate\s*(?:number|no\.?|id)|policy\s*/\s*health\s*card\s*(?:number|no\.?|id)|health\s*card\s*(?:number|no\.?|id)|card\s*(?:number|no\.?)|member\s*id|membership\s*(?:number|no\.?|id)|uhid|insurance\s*(?:id|number|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_\s]{2,35})",
+        r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id)|policy\s*/\s*certificate\s*(?:number|no\.?|id)|certificate\s*(?:number|no\.?|id)|policy\s*/\s*health\s*card\s*(?:number|no\.?|id)|health\s*card\s*(?:number|no\.?|id)|card\s*(?:number|no\.?)|member\s*id|membership\s*(?:number|no\.?|id)|insurance\s*(?:id|number|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_\s]{2,35})",
         r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id))\s*[:\-=\/|#]?\s*\n\s*([A-Za-z0-9][A-Za-z0-9\/\-_\s]{2,35})",
         r"\b([A-Z]{2,5}[0-9]{7,14})\b",
         r"\b([A-Z]{2,5}\s+[0-9]{7,14})\b",
@@ -1517,6 +1562,9 @@ def _extract_rich_policy_data(text: str, filename: str = "") -> dict[str, Any]:
                 val = re.sub(r"\s+", "", raw)
             else:
                 val = re.sub(r"\s*/\s*", "/", re.sub(r"\s*-\s*", "-", raw.strip()))
+            # Reject hospital encounter identifiers
+            if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", val.lower()):
+                continue
             if val and val.lower() not in reject_terms and len(val) >= 4:
                 detected_policy = val
                 break
@@ -1544,8 +1592,7 @@ def _extract_rich_policy_data(text: str, filename: str = "") -> dict[str, Any]:
             candidate_rr = rr_m.group(1).strip()
             if candidate_rr.lower() not in reject_terms and len(candidate_rr) >= 2:
                 room_rent_limit = candidate_rr
-        if not room_rent_limit:
-            room_rent_limit = "No Capping / As per Terms"
+        # Zero synthetic fallback: if not stated in policy schedule, preserve as None
 
     # Co-Pay Extraction
     copay_percent = None
@@ -1738,7 +1785,7 @@ async def extract_policy_document(
                     "tpa_name": insurer,
                     "sum_insured": str(sum_insured) if sum_insured else None,
                     "room_rent_limit": room_rent_limit,
-                    "copay_percent": str(copay_percent) if copay_percent is not None else "0",
+                    "copay_percent": str(copay_percent) if copay_percent is not None else None,
                     "ped_waiting_months": str(ped_waiting_months) if ped_waiting_months else None,
                     "plan_name": plan_name,
                 }

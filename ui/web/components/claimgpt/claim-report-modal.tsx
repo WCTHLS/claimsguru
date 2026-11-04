@@ -219,7 +219,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     const isCleanPol = (v: any) => Boolean(
       v && typeof v === 'string' && v.trim().length >= 4 &&
       v.toUpperCase() !== 'N/A' && v.toLowerCase() !== 'null' &&
-      v.toLowerCase() !== 'rohan' && !isUuid(v)
+      v.toLowerCase() !== 'rohan' && !isUuid(v) &&
+      !/^(?:IP|UH|MRN|BL|INV|OPD|REG)\d+/i.test(v.trim())
     );
     const isCleanIns = (v: any) => Boolean(
       v && typeof v === 'string' && v.trim().length >= 3 &&
@@ -236,7 +237,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     const cleanIns = isCleanIns(rawIns) ? rawIns.trim() : '';
 
     const detectedSI = parsedFields.sum_insured ? Number(parsedFields.sum_insured) : null;
-    const detectedRR = parsedFields.room_rent_limit || (detectedSI ? `1% of SI (₹${Math.round(detectedSI * 0.01).toLocaleString('en-IN')}/day)` : null);
+    const detectedRR = parsedFields.room_rent_limit ? String(parsedFields.room_rent_limit) : null;
     const detectedCopay = parsedFields.copay_percent !== undefined && parsedFields.copay_percent !== null ? Number(parsedFields.copay_percent) : null;
     const detectedPed = parsedFields.ped_waiting_months ? Number(parsedFields.ped_waiting_months) : null;
     const detectedPlan = parsedFields.plan_name || null;
@@ -605,7 +606,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   const isCleanPolVal = (v: any) => Boolean(
     v && typeof v === 'string' && v.trim().length >= 4 &&
     v.toUpperCase() !== 'N/A' && v.toLowerCase() !== 'null' &&
-    v.toLowerCase() !== 'rohan' && !isUuid(v)
+    v.toLowerCase() !== 'rohan' && !isUuid(v) &&
+    !/^(?:IP|UH|MRN|BL|INV|OPD|REG)\d+/i.test(v.trim())
   );
   const isCleanInsVal = (v: any) => Boolean(
     v && typeof v === 'string' && v.trim().length >= 3 &&
@@ -1184,33 +1186,37 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
                 <div className="rounded-xl border border-white/5 bg-slate-800/50 p-2.5">
                   <span className="text-[10px] font-medium text-slate-400">Room Rent Limit</span>
-                  <p className="text-xs sm:text-sm font-bold text-white mt-0.5 truncate" title={policyDetails?.roomRentLimit || 'No Capping'}>
-                    {policyDetails?.roomRentLimit || 'No Capping / As per Terms'}
+                  <p className="text-xs sm:text-sm font-bold text-white mt-0.5 truncate" title={policyDetails?.roomRentLimit || 'Not specified in document'}>
+                    {policyDetails?.roomRentLimit || 'Not specified in document'}
                   </p>
                   <span className="text-[9px] text-teal-300">
-                    {policyDetails?.roomRentLimit?.toLowerCase().includes('capping') || !policyDetails?.roomRentLimit
-                      ? 'No Proportionate Cut'
-                      : 'Policy Clause'}
+                    {policyDetails?.roomRentLimit
+                      ? (policyDetails.roomRentLimit.toLowerCase().includes('capping')
+                          ? 'No Proportionate Cut'
+                          : 'Policy Clause')
+                      : 'Refer Policy Schedule'}
                   </span>
                 </div>
 
                 <div className="rounded-xl border border-white/5 bg-slate-800/50 p-2.5">
                   <span className="text-[10px] font-medium text-slate-400">Co-Payment Clause</span>
                   <p className="text-xs sm:text-sm font-bold text-white mt-0.5">
-                    {policyDetails?.copayPercent !== undefined && policyDetails?.copayPercent !== null ? `${policyDetails.copayPercent}%` : '0% (Standard)'}
+                    {policyDetails?.copayPercent !== undefined && policyDetails?.copayPercent !== null ? `${policyDetails.copayPercent}%` : 'Not specified in document'}
                   </p>
                   <span className="text-[9px] text-emerald-400">
-                    {policyDetails?.copayPercent ? 'Co-pay Applicable' : '100% Admissible'}
+                    {policyDetails?.copayPercent !== undefined && policyDetails?.copayPercent !== null
+                      ? (policyDetails.copayPercent > 0 ? 'Co-pay Applicable' : 'Nil Co-pay (100% Admissible)')
+                      : 'Refer Policy Schedule'}
                   </span>
                 </div>
 
                 <div className="rounded-xl border border-white/5 bg-slate-800/50 p-2.5">
                   <span className="text-[10px] font-medium text-slate-400">PED Waiting Period</span>
                   <p className="text-xs sm:text-sm font-bold text-white mt-0.5">
-                    {policyDetails?.pedMonths ? `${policyDetails.pedMonths} Months` : 'As per Policy Terms'}
+                    {policyDetails?.pedMonths ? `${policyDetails.pedMonths} Months` : 'Not specified in document'}
                   </p>
                   <span className="text-[9px] text-slate-400">
-                    {policyDetails?.pedMonths ? 'Clause Extracted' : 'IRDAI Master Term'}
+                    {policyDetails?.pedMonths ? 'Clause Extracted' : 'Refer Policy Schedule'}
                   </span>
                 </div>
               </div>

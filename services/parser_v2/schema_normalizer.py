@@ -213,14 +213,19 @@ def normalize_fields(fields: List[FormField]) -> List[Dict[str, Any]]:
             # Hospital MRNO/IPNO/UHID/RegNo/Bill numbers must never be misclassified as insurance policy numbers
             if re.search(r"\b(?:MRN|MRNO|IPNO|OPNO|UHID|REGNO|REG\.?|BILL|INVOICE|SH000|SSH/)\b", val_str, flags=re.IGNORECASE):
                 continue
+            if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", val_str.strip().lower()):
+                continue
             policy_match = re.search(r"\b([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]{3,8}-[A-Z0-9]{2,6}-[A-Z0-9]{4,12})\b", val_str)
             if policy_match:
-                val_str = policy_match.group(1)
+                candidate_token = policy_match.group(1)
+                if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", candidate_token.lower()):
+                    continue
+                val_str = candidate_token
             else:
                 cleaned_pol = re.sub(r"\b(?:Aadhaar|Aadhar|PAN|Card|India|General|Insurance|TPA|Co\.?|Ltd\.?|Name|Number|Sum|Insured|Type|Tata|AIG|Genins|Top-?Up|declare|terms|All|was)\b", "", val_str, flags=re.IGNORECASE).strip()
                 cleaned_pol = re.sub(r"[\s:\-–—,|/()\[\]]+", " ", cleaned_pol).strip()
                 tokens = cleaned_pol.split()
-                digit_tokens = [t for t in tokens if any(c.isdigit() for c in t) and len(t) >= 6]
+                digit_tokens = [t for t in tokens if any(c.isdigit() for c in t) and len(t) >= 6 and not re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", t.lower())]
                 if digit_tokens:
                     val_str = digit_tokens[0]
                 elif len(val_str) > 30:
@@ -1579,6 +1584,8 @@ def normalize_table_fields(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                     if canonical_key == "insurance_policy_number":
                         val_str = str(value).strip()
                         val_lower = val_str.lower()
+                        if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", val_lower):
+                            continue
                         reject_terms = {"insured", "details", "policy", "number", "name", "insurance", "hospital", "patient", "tpa", "pvt", "ltd", "claim"}
                         if (
                             len(val_str) < 4
@@ -1591,7 +1598,10 @@ def normalize_table_fields(tables: List[TableRegion]) -> List[Dict[str, Any]]:
                         if len(tokens_in_val) > 1:
                             m = re.search(r"\b([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b", val_str)
                             if m and m.group(1).lower() not in reject_terms and any(ch.isdigit() for ch in m.group(1)):
-                                value = m.group(1)
+                                cand_pol = m.group(1)
+                                if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", cand_pol.lower()):
+                                    continue
+                                value = cand_pol
                             else:
                                 continue
 
