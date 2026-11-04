@@ -784,7 +784,7 @@ class RobustFieldExtractor:
                 
                 # Remove unwanted trailing fragments like "| Claim Ref", "| Member", Date of Admission, etc.
                 value = re.sub(r"\s*\|.*$", "", value).strip()
-                value = re.sub(r"\s+\b(?:Date\s+of|Date|Dt|Time|Ph|Tel|GSTIN|Bill\s*No|UHID|IP\s*No|IPD|Department)\b.*$", "", value, flags=re.IGNORECASE).strip()
+                value = re.sub(r"\s+\b(?:Report\s*Date|Report|Date\s+of|Date|Dt|Time|Ph|Tel|GSTIN|Bill\s*No|UHID|IP\s*No|IPD|Department)\b.*$", "", value, flags=re.IGNORECASE).strip()
                 
                 if len(value) >= 5:
                     trailing_tokens: list[str] = []

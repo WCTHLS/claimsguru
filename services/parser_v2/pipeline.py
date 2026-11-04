@@ -39,7 +39,7 @@ def _clean_patient_name(val: str) -> str:
     text = re.sub(r"\s*[\(\[]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"\s*[\(\[]\s*(?:age|sex|gender|dob|ipd|opd|uhid)\b.*?[\)\]].*$", "", text, flags=re.IGNORECASE).strip()
     # Strip trailing form labels / age / sex / gen markers (e.g. "Age / Gen", "Age / Sex", "Blood Group ...", "Occupation ...", "Relation ...", "DOB ...", "IPD ...")
-    text = re.sub(r"\s+(?:Blood\s*Group\b|Blood\b|Occupation\b|Aadhaar\b|PAN\b|Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
+    text = re.sub(r"\s+(?:Report\s*Date\b|Report\b|Blood\s*Group\b|Blood\b|Occupation\b|Aadhaar\b|PAN\b|Age\b|Sex\b|Gen\b|Gender\b|Relation\b|Relative\b|DOB\b|Date\b|IPD\b|OPD\b|UHID\b|Reg\b|Bill\b|Bed\b|Room\b|Ward\b|Consultant\b|Doctor\b|Dr\b|Contact\b|Phone\b|Mobile\b|Address\b).*$", "", text, flags=re.IGNORECASE).strip()
     # Strip trailing unparenthesized demographic tokens like "52/F", "31/M", "/F", "/M"
     text = re.sub(r"\s+(?:\d{1,3}\s*(?:years?|yrs?|yr|y)?\s*)?[\/\-|,:]\s*(?:female|male|[MF])\b.*$", "", text, flags=re.IGNORECASE).strip()
     text = re.sub(r"\s+(?:female|male|[MF])\s*[\/\-|,:]\s*\d{1,3}\s*(?:years?|yrs?|yr|y)?\b.*$", "", text, flags=re.IGNORECASE).strip()

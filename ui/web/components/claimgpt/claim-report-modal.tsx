@@ -109,7 +109,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
   } | null>(null);
 
   // Editable Form State
-  const [patientName, setPatientName] = useState(s.patientName || 'N/A');
+  const cleanPatientDisplay = (n: any) => {
+    if (!n || typeof n !== 'string') return 'N/A';
+    return n.replace(/\s+(?:Report\s*Date|Report)\b.*$/i, '').trim() || 'N/A';
+  };
+  const sanitizePolDisplay = (p: any) => {
+    if (!p || typeof p !== 'string') return '';
+    return p.replace(/(?:tpaname|insurername|policyno|policytype).*/i, '').trim();
+  };
+  const [patientName, setPatientName] = useState(cleanPatientDisplay(s.patientName || 'N/A'));
   const [hospitalName, setHospitalName] = useState(s.hospitalName || 'N/A');
   const [admissionDate, setAdmissionDate] = useState(s.admissionDate || 'N/A');
   const [dischargeDate, setDischargeDate] = useState(s.dischargeDate || 'N/A');
@@ -187,7 +195,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     }
 
     if (!isDetailsDirty) {
-      setPatientName(summary?.patient_name || s.patientName || 'Patient');
+      setPatientName(cleanPatientDisplay(summary?.patient_name || s.patientName || 'Patient'));
       setHospitalName(summary?.hospital || s.hospitalName || 'Hospital');
       setAdmissionDate(summary?.admission_date || s.admissionDate || '');
       setDischargeDate(summary?.discharge_date || s.dischargeDate || '');
@@ -231,7 +239,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
     const parsedFields = (preview?.parsed_fields as any) || {};
     const rawPol = parsedFields.policy_number || parsedFields.policy_id || (summary as any)?.policy_number || '';
-    const cleanPol = isCleanPol(rawPol) ? rawPol.trim() : '';
+    const cleanPol = isCleanPol(rawPol) ? sanitizePolDisplay(rawPol) : '';
 
     const rawIns = parsedFields.insurance_company || parsedFields.insurer || parsedFields.tpa_name || (summary as any)?.insurer || (s as any)?.enrolledTpa || '';
     const cleanIns = isCleanIns(rawIns) ? rawIns.trim() : '';
@@ -830,7 +838,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
       const res = await extractPolicyFromDocApi(s.claimId, file);
       if (res.success && (res.policy_id || res.insurer || res.sum_insured)) {
         if (res.policy_id) {
-          setPolicyId(res.policy_id);
+          setPolicyId(sanitizePolDisplay(res.policy_id));
           setPolicyFromOcr(true);
         }
         if (res.insurer) {
@@ -1143,7 +1151,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-400">
-                      Policy No: <span className="font-mono text-teal-300 font-semibold">{policyId || 'Active'}</span>
+                      Policy No: <span className="font-mono text-teal-300 font-semibold">{sanitizePolDisplay(policyId) || 'Active'}</span>
                       {policyDetails?.planName ? ` • ${policyDetails.planName}` : ''}
                     </p>
                   </div>

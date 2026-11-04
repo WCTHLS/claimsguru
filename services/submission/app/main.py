@@ -312,10 +312,10 @@ def _pick_best_field_value(field_name: str, values: list[tuple[str, str]]) -> st
     if field_name in {"insurance_policy_number", "policy_number", "policy_id"}:
         cleaned_pols = []
         for v, _mv in clean:
-            pm = re.search(r"\b([A-Z]{2,6}\d{6,15}|\d{8,20}|[A-Z0-9]+(?:-[A-Z0-9]+){1,4})\b", v)
+            pm = re.search(r"\b([A-Z]{1,6}\d{6,15}|\d{8,20}|[A-Z0-9]+(?:-[A-Z0-9]+){1,4})\b", v)
             cand = pm.group(1) if pm else (v.strip() if len(v) <= 30 and not any(kw in v.lower() for kw in ["aadhaar", "pan", "sum insured", "tpa", "declare"]) else None)
             if cand:
-                cand_clean = cand.strip()
+                cand_clean = re.sub(r'(?i)(?:tpa\s*name|tpaname|insurer\s*name|insurername|policy\s*type|policytype).*$', '', cand).strip()
                 cand_lower = cand_clean.lower()
                 # Reject hospital identifiers (UHID, IP No, MRN, OPD, Reg No, Bill No, Invoice No)
                 if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", cand_lower):
@@ -781,6 +781,10 @@ def _gather_claim_data_full(db: Session, claim: Claim) -> dict[str, Any]:
         if (c_info.get("claimed_total") or c_info.get("total_amount")) and not parsed.get("total_amount"):
             parsed["total_amount"] = str(c_info.get("claimed_total") or c_info.get("total_amount")).strip()
             parsed["claimed_total"] = parsed["total_amount"]
+        if parsed.get("policy_number"):
+            parsed["policy_number"] = re.sub(r'(?i)(?:tpa\s*name|tpaname|insurer\s*name|insurername|policy\s*type|policytype).*$', '', str(parsed["policy_number"])).strip()
+        if parsed.get("patient_name"):
+            parsed["patient_name"] = re.sub(r'\s+(?:Report\s*Date|Report|Blood\s*Group|Blood|Occupation|Aadhaar|PAN|Age|Sex|Gen|Gender|Relation|Relative|DOB|Date|IPD|OPD|UHID|Reg|Bill|Bed|Room|Ward|Consultant|Doctor|Dr|Contact|Phone|Mobile|Address).*$', '', str(parsed["patient_name"]), flags=re.I).strip()
         if (p_info.get("policy_number") or i_info.get("policy_number")) and not parsed.get("policy_number"):
             parsed["policy_number"] = str(p_info.get("policy_number") or i_info.get("policy_number")).strip()
         if (i_info.get("company") or i_info.get("tpa_name")) and not parsed.get("insurance_company"):
@@ -1539,10 +1543,10 @@ def _extract_rich_policy_data(text: str, filename: str = "") -> dict[str, Any]:
 
     # Policy ID patterns
     patterns = [
-        r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id)|policy\s*/\s*certificate\s*(?:number|no\.?|id)|certificate\s*(?:number|no\.?|id)|policy\s*/\s*health\s*card\s*(?:number|no\.?|id)|health\s*card\s*(?:number|no\.?|id)|card\s*(?:number|no\.?)|member\s*id|membership\s*(?:number|no\.?|id)|insurance\s*(?:id|number|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_\s]{2,35})",
-        r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id))\s*[:\-=\/|#]?\s*\n\s*([A-Za-z0-9][A-Za-z0-9\/\-_\s]{2,35})",
-        r"\b([A-Z]{2,5}[0-9]{7,14})\b",
-        r"\b([A-Z]{2,5}\s+[0-9]{7,14})\b",
+        r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id)|policy\s*/\s*certificate\s*(?:number|no\.?|id)|certificate\s*(?:number|no\.?|id)|policy\s*/\s*health\s*card\s*(?:number|no\.?|id)|health\s*card\s*(?:number|no\.?|id)|card\s*(?:number|no\.?)|member\s*id|membership\s*(?:number|no\.?|id)|insurance\s*(?:id|number|no\.?))\s*[:\-=\/|#]?\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
+        r"(?im)\b(?:policy\s*(?:number|no\.?|num|#|id))\s*[:\-=\/|#]?\s*\n\s*([A-Za-z0-9][A-Za-z0-9\/\-_]{3,35})\b",
+        r"\b([A-Z]{1,5}[0-9]{7,14})\b",
+        r"\b([A-Z]{1,5}\s+[0-9]{7,14})\b",
         r"\b([A-Z]{1,4}/[0-9]{4,8}/[0-9]{1,4}/[0-9]{2,4}/[0-9]{4,8})\b",
         r"\b([A-Z0-9]{2,5}-[A-Z0-9]{4,10}-[A-Z0-9]{4,10})\b",
     ]
@@ -1558,10 +1562,14 @@ def _extract_rich_policy_data(text: str, filename: str = "") -> dict[str, Any]:
         matches = re.finditer(pat, text)
         for m in matches:
             raw = m.group(1).split("\n")[0].strip(" .;:,-_#/")
+            stop_kw = re.search(r"\b(?:tpa|name|insurer|insured|valid|date|sum|hospital|patient|from|to|till|issued|type|code)\b", raw, flags=re.I)
+            if stop_kw:
+                raw = raw[:stop_kw.start()].strip(" .;:,-_#/")
             if "/" not in raw and "-" not in raw:
                 val = re.sub(r"\s+", "", raw)
             else:
                 val = re.sub(r"\s*/\s*", "/", re.sub(r"\s*-\s*", "-", raw.strip()))
+            val = re.sub(r"(?i)(?:tpa\s*name|tpaname|insurer\s*name|insurername|policy\s*type|policytype).*$", "", val).strip(" .;:,-_#/")
             # Reject hospital encounter identifiers
             if re.match(r"^(?:uh|ip|ipd|mrn|opd|reg|bl|inv)\d+", val.lower()):
                 continue
@@ -1741,6 +1749,12 @@ async def extract_policy_document(
 
     # 2. Extract comprehensive policy data
     policy_data = _extract_rich_policy_data(extracted_text, filename)
+    extracted_patient_name = None
+    pat_m = re.search(r"(?im)\b(?:patient\s*name|name\s+of\s+(?:the\s+)?patient|insured\s*person\s*hospitalized)\s*[:\-]?\s*(?:Mr\.?\s*|Mrs\.?\s*|Ms\.?\s*|Miss)?\s*([A-Za-z\s]{3,35})(?:\n|\b(?:blood|age|gender|sex|uhid|ip|dob|report|insurer|policy|tpa)\b|$)", extracted_text)
+    if pat_m:
+        cand_p = re.sub(r"\s+(?:Report\s*Date\b|Report\b|Blood\s*Group\b|Blood\b|Age\b|Sex\b|Date\b).*$", "", pat_m.group(1), flags=re.I).strip()
+        if cand_p and len(cand_p) >= 3 and cand_p.lower() not in ["number", "policy", "patient", "none", "null"]:
+            extracted_patient_name = cand_p
     policy_id = policy_data.get("policy_id")
     insurer = policy_data.get("insurer")
     sum_insured = policy_data.get("sum_insured")
@@ -1775,6 +1789,9 @@ async def extract_policy_document(
                 if clean_pol:
                     claim.policy_id = clean_pol
 
+                if extracted_patient_name:
+                    if not claim.patient_name or "report" in str(claim.patient_name).lower():
+                        claim.patient_name = extracted_patient_name
                 fields_to_save = {
                     "policy_number": clean_pol,
                     "policy_id": clean_pol,
