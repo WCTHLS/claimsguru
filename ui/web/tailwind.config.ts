@@ -19,8 +19,8 @@ const config: Config = {
         'gradient-conic':
           'conic-gradient(from 180deg at 50% 50%, var(--tw-gradient-stops))',
         'brand-panel':
-          'linear-gradient(160deg, #0f4c81 0%, #134e7a 50%, #0d9488 100%)',
-        'brand-teal': 'linear-gradient(135deg, #0d9488 0%, #10b981 100%)',
+          'linear-gradient(160deg, #0F4C81 0%, #0F3A60 50%, #082844 100%)',
+        'brand-teal': '#0F766E',
       },
       boxShadow: {
         elevation: '0 24px 60px -12px rgba(15, 23, 42, 0.18)',

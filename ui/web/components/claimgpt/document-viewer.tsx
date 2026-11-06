@@ -40,6 +40,33 @@ const isUUID = (str: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab
 
 const cleanFallback = 'original_claim_document.pdf';
 
+const formatDocumentTitle = (doc: any, index: number): string => {
+  const rawType = (doc.doc_type || doc.type || '').toUpperCase();
+  if (rawType.includes('DISCHARGE')) return 'Discharge Summary';
+  if (rawType.includes('FINAL_BILL') || rawType.includes('HOSPITAL_BILL')) return 'Hospital Final Bill';
+  if (rawType.includes('PHARMACY') || rawType.includes('PRESCRIPTION')) return 'Pharmacy Bill';
+  if (rawType.includes('LAB') || rawType.includes('DIAGNOSTIC') || rawType.includes('INVESTIGATION')) return 'Lab / Diagnostic';
+  if (rawType.includes('POLICY') || rawType.includes('INSURANCE')) return 'Policy Document';
+  if (rawType.includes('KYC') || rawType.includes('AADHAAR') || rawType.includes('PAN')) return 'KYC Document';
+  if (rawType.includes('RECEIPT') || rawType.includes('ADVANCE')) return 'Payment Receipt';
+
+  const fn = doc.original_filename || doc.file_name || doc.display_title || '';
+  if (fn && !isUUID(fn)) {
+    const fnUpper = fn.toUpperCase();
+    if (fnUpper.includes('DISCHARGE')) return 'Discharge Summary';
+    if (fnUpper.includes('BILL') || fnUpper.includes('INVOICE')) return 'Hospital Final Bill';
+    if (fnUpper.includes('PHARMACY') || fnUpper.includes('MEDICINE')) return 'Pharmacy Bill';
+    if (fnUpper.includes('LAB') || fnUpper.includes('REPORT') || fnUpper.includes('TEST')) return 'Lab / Diagnostic';
+    if (fnUpper.includes('POLICY')) return 'Policy Document';
+    const clean = fn.replace(/^\d+[-_]/, '').replace(/\.(pdf|png|jpe?g)$/i, '').replace(/[-_]/g, ' ').trim();
+    if (clean.length > 2) {
+      return clean.slice(0, 24) + (clean.length > 24 ? '...' : '');
+    }
+  }
+  return `Document ${index + 1}`;
+};
+
+
 const getDocIcon = (docType?: string | null) => {
   if (!docType) return FileText;
   const lower = docType.toLowerCase();
@@ -138,12 +165,20 @@ export function DocumentViewer({
     lastClaimIdRef.current = claimId;
   }, [claimId]);
 
+  // References for smooth scrolling document tabs
+  const tabButtonsRef = useRef<Record<string, HTMLButtonElement | null>>({});
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
+
   // Serialize document IDs to avoid resetting tab selections during parent background polling ticks
   const serializedDocIds = effectiveDocs.map((d, index) => getDocKey(d, index)).join(',');
 
-  // Sync selected document state when the list of document IDs actually changes
+  // Sync selected document state when the list of document IDs actually changes or parent selects a doc
   useEffect(() => {
-    setSelectedDocId(activeDocumentId || getDocKey(effectiveDocs[0], 0));
+    if (activeDocumentId) {
+      setSelectedDocId(activeDocumentId);
+    } else {
+      setSelectedDocId(getDocKey(effectiveDocs[0], 0));
+    }
     setImgError(false);
     setPageIndex(0);
   }, [activeDocumentId, serializedDocIds]);
@@ -152,7 +187,17 @@ export function DocumentViewer({
     setImgError(false);
   }, [claimId, activeDocumentId, selectedDocId, pageIndex]);
 
-  const selectedKey = activeDocumentId || selectedDocId;
+  const selectedKey = selectedDocId || activeDocumentId || getDocKey(effectiveDocs[0], 0);
+
+  // Automatically scroll newly selected document tab button into view
+  useEffect(() => {
+    if (selectedKey) {
+      const btn = tabButtonsRef.current[selectedKey];
+      if (btn) {
+        btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      }
+    }
+  }, [selectedKey]);
   const activeDoc = effectiveDocs.find((d, index) => getDocKey(d, index) === selectedKey) || effectiveDocs[0];
   const pageUrls = activeDoc?.pages || [];
   const currentPageUrl = pageUrls[pageIndex] ? `${INGRESS_API}${pageUrls[pageIndex]}` : null;
@@ -351,49 +396,123 @@ export function DocumentViewer({
     setPageIndex(0);
     setImgError(false);
     if (onSelectDocument) onSelectDocument(docId);
+
+    // Auto-scroll the tab button into visible area immediately
+    setTimeout(() => {
+      const btn = tabButtonsRef.current[docId];
+      if (btn && tabsContainerRef.current) {
+        const container = tabsContainerRef.current;
+        const btnLeft = btn.offsetLeft;
+        const btnRight = btnLeft + btn.offsetWidth;
+        if (btnLeft < container.scrollLeft) {
+          container.scrollTo({ left: Math.max(0, btnLeft - 12), behavior: 'smooth' });
+        } else if (btnRight > container.scrollLeft + container.clientWidth) {
+          container.scrollTo({ left: btnRight - container.clientWidth + 12, behavior: 'smooth' });
+        }
+      }
+    }, 30);
   };
 
   return (
     <div className={cn('flex flex-col h-full min-h-[480px] max-h-[640px]', className)}>
       {/* Multi-Document Carousel Bar */}
-      <div
-        className={cn(
-          'flex items-center gap-2 overflow-x-auto px-4 py-2.5 scrollbar-thin',
-          dark ? 'border-b border-white/10 bg-slate-900/80' : 'border-b border-border bg-slate-50/60'
-        )}
-      >
-        <span className="text-[10px] font-semibold tracking-wider text-muted-foreground uppercase">Documents ({effectiveDocs.length}):</span>
-        {effectiveDocs.map((doc, index) => {
-          const docId = getDocKey(doc, index);
-          const fileName = doc.original_filename || doc.file_name || 'Document';
-          const isSelected = selectedKey === docId;
-          const DocBadgeIcon = getDocIcon(doc.doc_type);
-          let titleText = doc.display_title || fileName;
-          if (isUUID(titleText)) titleText = 'Claim Document';
+      {(() => {
+        const activeDocIndex = effectiveDocs.findIndex((d, index) => getDocKey(d, index) === selectedKey);
+        const currentDocIdx = activeDocIndex >= 0 ? activeDocIndex : 0;
 
-          return (
-            <button
-              key={docId}
-              type="button"
-              onClick={() => handleDocChange(docId)}
-              data-doc-id={docId}
-              data-selected-doc-id={selectedDocId}
-              data-is-selected={isSelected ? "true" : "false"}
-              className={cn(
-                'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition-all cursor-pointer whitespace-nowrap',
-                isSelected
-                  ? 'border-teal-500 bg-teal-500/10 text-teal-700 dark:text-teal-300 shadow-xs ring-1 ring-teal-500/30 font-bold'
-                  : dark
-                    ? 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:text-slate-200'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900'
+        return (
+          <div
+            className={cn(
+              'flex items-center justify-between gap-2 px-3 sm:px-4 py-2 border-b select-none flex-none',
+              dark ? 'border-white/10 bg-slate-900/80' : 'border-b border-border bg-slate-50/70'
+            )}
+          >
+            {/* Left: Label and Doc Counter */}
+            <div className="flex items-center gap-1.5 flex-none">
+              <span className="text-[10px] font-bold tracking-wider text-muted-foreground uppercase">
+                Documents ({effectiveDocs.length}):
+              </span>
+              {effectiveDocs.length > 1 && (
+                <span className={cn(
+                  "text-[10px] font-semibold px-2 py-0.5 rounded-full border",
+                  dark ? "bg-slate-950 border-white/10 text-teal-300" : "bg-slate-100 border-slate-200 text-slate-700 font-medium"
+                )}>
+                  Doc {currentDocIdx + 1} of {effectiveDocs.length}
+                </span>
               )}
+            </div>
+
+            {/* Center: Scrollable Tabs without native scrollbars */}
+            <div
+              ref={tabsContainerRef}
+              className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5 flex-1 min-w-0"
             >
-              <DocBadgeIcon className="h-3.5 w-3.5" />
-              <span>{titleText}</span>
-            </button>
-          );
-        })}
-      </div>
+              {effectiveDocs.map((doc, index) => {
+                const docId = getDocKey(doc, index);
+                const isSelected = index === currentDocIdx || selectedKey === docId;
+                const DocBadgeIcon = getDocIcon(doc.doc_type);
+                const titleText = formatDocumentTitle(doc, index);
+
+                return (
+                  <button
+                    key={docId}
+                    ref={(el) => { tabButtonsRef.current[docId] = el; }}
+                    type="button"
+                    onClick={() => handleDocChange(docId)}
+                    data-doc-id={docId}
+                    data-selected-doc-id={selectedDocId}
+                    data-is-selected={isSelected ? "true" : "false"}
+                    title={doc.original_filename || doc.file_name || titleText}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-all cursor-pointer whitespace-nowrap flex-none',
+                      isSelected
+                        ? 'border-[#047857] bg-[#ECFDF5] text-[#047857] font-bold shadow-2xs ring-1 ring-[#047857]/30'
+                        : dark
+                          ? 'border-slate-800 bg-slate-950/60 text-slate-400 hover:border-slate-700 hover:text-slate-200 font-medium'
+                          : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900 font-medium'
+                    )}
+                  >
+                    <DocBadgeIcon className={cn("h-3.5 w-3.5 flex-none", isSelected ? "text-[#047857]" : "text-slate-400")} />
+                    <span className="truncate max-w-[150px] sm:max-w-[200px]">{titleText}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right: Previous / Next Document Controls */}
+            {effectiveDocs.length > 1 && (
+              <div className="flex items-center gap-1 flex-none pl-1">
+                <button
+                  type="button"
+                  disabled={currentDocIdx <= 0}
+                  onClick={() => handleDocChange(getDocKey(effectiveDocs[currentDocIdx - 1], currentDocIdx - 1))}
+                  className={cn(
+                    "p-1 rounded-md transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed",
+                    dark ? "hover:bg-white/10 text-slate-300" : "hover:bg-slate-200 text-slate-700"
+                  )}
+                  title="Previous Document"
+                  aria-label="Previous Document"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </button>
+                <button
+                  type="button"
+                  disabled={currentDocIdx >= effectiveDocs.length - 1}
+                  onClick={() => handleDocChange(getDocKey(effectiveDocs[currentDocIdx + 1], currentDocIdx + 1))}
+                  className={cn(
+                    "p-1 rounded-md transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed",
+                    dark ? "hover:bg-white/10 text-slate-300" : "hover:bg-slate-200 text-slate-700"
+                  )}
+                  title="Next Document"
+                  aria-label="Next Document"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* PDF-like Control Toolbar for Page Image Viewer (Shown when document is revealed) */}
       {isDocRevealed && currentPageUrl && !imgError && (
@@ -569,7 +688,7 @@ export function DocumentViewer({
               </span>
             </div>
 
-            <div className="space-y-1.5 max-w-sm">
+            <div className="space-y-1.5 w-full max-w-[300px] sm:max-w-md px-2 text-center mx-auto overflow-hidden">
               <div
                 className={cn(
                   'inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-[11px] font-bold',
@@ -583,13 +702,18 @@ export function DocumentViewer({
               </div>
               <h4
                 className={cn(
-                  'font-bold text-base sm:text-lg truncate px-2',
+                  'font-bold text-sm sm:text-base px-2 max-w-full break-words text-center line-clamp-2',
                   dark ? 'text-white' : 'text-slate-900'
                 )}
                 title={displayTitle}
               >
-                {displayTitle}
+                {formatDocumentTitle(activeDoc, 0)}
               </h4>
+              {displayTitle && displayTitle !== formatDocumentTitle(activeDoc, 0) && (
+                <p className="text-[11px] font-medium text-slate-500 truncate max-w-full px-2" title={displayTitle}>
+                  {displayTitle}
+                </p>
+              )}
               <p className={cn('text-xs font-medium', dark ? 'text-slate-400' : 'text-emerald-800/70')}>
                 {pageCount} {pageCount === 1 ? 'Page' : 'Pages'} · Document OCR parsed &amp; verified
               </p>
@@ -603,7 +727,7 @@ export function DocumentViewer({
                   'inline-flex items-center justify-center gap-2 rounded-xl text-white font-semibold text-xs sm:text-sm px-6 py-3 shadow-md active:scale-95 transition-all cursor-pointer min-w-[190px]',
                   dark
                     ? 'bg-teal-600 hover:bg-teal-700 shadow-teal-600/25'
-                    : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 shadow-emerald-600/20'
+                    : 'bg-[#0F766E] hover:bg-[#0D655E] text-white shadow-sm'
                 )}
               >
                 <Eye className="h-4.5 w-4.5" />

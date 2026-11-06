@@ -71,6 +71,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 }) => {
   const router = useRouter();
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
@@ -92,6 +93,30 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Lock background scroll and listen for Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showDeleteConfirm) {
+          setShowDeleteConfirm(false);
+        } else if (!isSaving) {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, showDeleteConfirm, isSaving, onClose]);
+
 
   const session = getStoredAuthSession();
   const isTpa = session?.role === 'tpa' || session?.accountRole === 'admin' || session?.accountRole === 'reviewer';
@@ -800,25 +825,30 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
               </button>
             </div>
 
-            {/* Danger Zone: Delete Account */}
-            <div className="px-3 py-2 border-t border-rose-500/20 bg-rose-500/5 flex items-center justify-between flex-none">
-              <div className="flex items-center gap-1.5 text-[11px] text-rose-600 dark:text-rose-400 font-medium">
-                <ShieldAlert className="h-3.5 w-3.5 flex-none text-rose-500" />
-                <span>Danger Zone</span>
+            {/* Account Settings & Security (Separated from Sign Out to prevent accidental taps) */}
+            <details className="px-3 py-2 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/40 flex-none group">
+              <summary className="flex items-center justify-between text-[11px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-medium cursor-pointer select-none list-none">
+                <span className="flex items-center gap-1.5">
+                  <ShieldAlert className="h-3.5 w-3.5 text-slate-400 group-open:text-rose-500" />
+                  <span>Account Management &amp; Security</span>
+                </span>
+                <span className="text-[10px] text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="pt-2.5 pb-1 flex items-center justify-between gap-2">
+                <p className="text-[10px] text-slate-500 max-w-[200px] leading-tight">Permanently delete your profile and claim submission records</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteError(null);
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="rounded-lg py-1 px-2.5 text-[11px] font-semibold bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-xs flex-none"
+                >
+                  <Trash2 className="h-3 w-3 text-rose-500" />
+                  <span>Delete Account</span>
+                </button>
               </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setDeleteError(null);
-                  setShowDeleteConfirm(true);
-                }}
-                className="rounded-lg py-1 px-2.5 text-[11px] font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-600 dark:text-rose-400 border border-rose-500/30 transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-xs"
-              >
-                <Trash2 className="h-3 w-3 text-rose-500" />
-                <span>Delete Account</span>
-              </button>
-            </div>
+            </details>
           </>
         )}
 

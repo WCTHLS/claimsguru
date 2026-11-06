@@ -23,7 +23,7 @@ export const LANGUAGES = [
   { code: 'te', label: 'తెలుగు' },
   { code: 'mr', label: 'मराठी' },
   { code: 'gu', label: 'ગુજરાતી' },
-  { code: 'kn', label: '<ctrl42>ಕನ್ನಡ' },
+  { code: 'kn', label: 'ಕನ್ನಡ' },
   { code: 'ml', label: 'മലയാളം' },
   { code: 'pa', label: 'ਪੰਜਾਬੀ' },
   { code: 'or', label: 'ଓଡ଼ିଆ' },
@@ -36,10 +36,10 @@ export type Stage = 'staged' | 'ocr' | 'parsing' | 'coding' | 'scoring';
 
 export const PIPELINE: { key: Stage; label: string }[] = [
   { key: 'staged', label: 'Claim Attached' },
-  { key: 'ocr', label: 'OCR Text Capture' },
-  { key: 'parsing', label: 'Parsing (LLM agent)' },
-  { key: 'coding', label: 'ICD-10 / CPT Coding' },
-  { key: 'scoring', label: 'Compliance & Risk Scoring' },
+  { key: 'ocr', label: 'Document Reading' },
+  { key: 'parsing', label: 'AI Document Analysis' },
+  { key: 'coding', label: 'Medical Coding (ICD-10)' },
+  { key: 'scoring', label: 'Audit & Risk Scoring' },
 ];
 
 export const STAGED_FILES = [

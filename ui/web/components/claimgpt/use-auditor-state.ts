@@ -39,12 +39,12 @@ export function scrollToPipeline() {
 }
 
 export function useAuditorState() {
-  const getDocumentKey = (doc?: { document_id?: string; id?: string } | null) =>
-    doc?.document_id || doc?.id || null;
+  const getDocumentKey = (doc?: any, index: number = 0) =>
+    doc?.document_id || doc?.id || doc?.file_name || doc?.original_filename || `doc-${index}`;
 
   const getPreviewDocumentKeys = (preview: RealClaimPreview | null) =>
     (preview?.documents || [])
-      .map((doc) => getDocumentKey(doc))
+      .map((doc, idx) => getDocumentKey(doc, idx))
       .filter((docId): docId is string => Boolean(docId));
 
   const [progress, setProgress] = useState(0);
@@ -674,6 +674,15 @@ export function useAuditorState() {
     }
     loadInitial();
   }, [userName]);
+
+  // Auto-select latest processed claim on initial load if no claim is currently active
+  const hasAutoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (!claimId && !analyzing && !uploading && files.length === 0 && recentClaims && recentClaims.length > 0 && !hasAutoSelectedRef.current) {
+      hasAutoSelectedRef.current = true;
+      selectClaim(recentClaims[0].id);
+    }
+  }, [claimId, analyzing, uploading, files.length, recentClaims]);
 
   /* Remove a claim from local UI state and delete it from Docker backend */
   const deleteClaim = async (idToDelete: string, e?: React.MouseEvent) => {

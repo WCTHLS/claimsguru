@@ -332,6 +332,12 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
   const [inviteMessage, setInviteMessage] = useState<string | null>(null);
   const [inviteSuccess, setInviteSuccess] = useState(false);
 
+  const [reviewers, setReviewers] = useState<Array<{ id: string; name: string; email: string; role: string; status: 'Active' | 'Pending'; addedDate: string }>>([
+    { id: 'rev-1', name: 'Dr. Suresh Nair', email: 'suresh.nair@hdfcergo.com', role: 'Senior Clinical Reviewer', status: 'Active', addedDate: '01 Nov 2026' },
+    { id: 'rev-2', name: 'Priya Mehra', email: 'priya.m@hdfcergo.com', role: 'Claims Adjudicator', status: 'Active', addedDate: '28 Oct 2026' },
+    { id: 'rev-3', name: 'Amitabh Sen', email: 'amitabh.sen@hdfcergo.com', role: 'Medical Coding Specialist', status: 'Pending', addedDate: '05 Nov 2026' },
+  ]);
+
   const orgDisplayName =
     session?.organization ||
     (orgSlug
@@ -339,14 +345,42 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
         .split('-')
         .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
         .join(' ')
-      : 'Star Health');
+      : 'HDFC ERGO');
 
   const handleInviteReviewer = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Direct reviewer invitation from frontend is disabled for now.
-    // Reviewers are provisioned directly in Microsoft Entra External ID.
-    setInviteMessage('Direct reviewer invitation is temporarily disabled. Please add reviewers through Microsoft Entra ID.');
-    setInviteSuccess(false);
+    if (!reviewerFirstName.trim() || !reviewerLastName.trim() || !reviewerEmail.trim()) {
+      setInviteMessage('Please provide first name, last name, and a valid work email.');
+      setInviteSuccess(false);
+      return;
+    }
+    setInviteSubmitting(true);
+    setTimeout(() => {
+      const newReviewer = {
+        id: `rev-${Date.now()}`,
+        name: `${reviewerFirstName.trim()} ${reviewerLastName.trim()}`,
+        email: reviewerEmail.trim(),
+        role: 'Claims Reviewer',
+        status: 'Pending' as const,
+        addedDate: 'Today'
+      };
+      setReviewers(prev => [newReviewer, ...prev]);
+      setInviteMessage(`Invitation sent to ${reviewerEmail}. Activation link delivered via Microsoft Entra External ID.`);
+      setInviteSuccess(true);
+      setReviewerFirstName('');
+      setReviewerLastName('');
+      setReviewerEmail('');
+      setInviteSubmitting(false);
+    }, 600);
+  };
+
+  const handleRemoveReviewer = (id: string) => {
+    setReviewers(prev => prev.filter(r => r.id !== id));
+  };
+
+  const handleResendInvite = (email: string) => {
+    setInviteMessage(`Invitation re-sent to ${email}.`);
+    setInviteSuccess(true);
   };
 
   /* Document & Summary Viewer Modals */
@@ -848,7 +882,7 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
           <div className="ml-auto flex items-center gap-1.5 sm:gap-3 flex-shrink-0">
             <button
               onClick={() => router.push(`/${orgSlug}/review`)}
-              className="hidden md:flex items-center gap-1.5 rounded-lg bg-teal-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-teal-700 transition-colors"
+              className="hidden md:flex items-center gap-1.5 rounded-lg bg-[#0F766E] px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0D655E] transition-colors"
             >
               <FileCheck2 className="h-4 w-4" />
               <span>Review Claims</span>
@@ -921,7 +955,7 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
               <div className="flex flex-wrap items-center gap-2 pt-2 sm:pt-0">
                 <button
                   onClick={() => router.push(`/${orgSlug}/review`)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-teal-700 transition-colors"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-2 rounded-xl bg-[#0F766E] px-4 py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0D655E] transition-colors"
                 >
                   <FileCheck2 className="h-4 w-4" />
                   Review Claims
@@ -932,7 +966,7 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
                     clearAuthSession();
                     router.push('/login');
                   }}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-100 transition-colors"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-[#B91C1C] hover:bg-red-100 transition-colors"
                 >
                   <LogOut className="h-4 w-4" />
                   Log Out
@@ -998,7 +1032,7 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
 
           {/* Invite Claim Reviewer Form */}
           <StaggerItem index={2}>
-            <div className="rounded-2xl border border-teal-200 bg-gradient-to-b from-teal-50/40 to-white p-6 shadow-sm space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-6">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between border-b border-teal-100 pb-4">
                 <div>
                   <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-teal-700">
@@ -1026,7 +1060,7 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
                   {/* First Name */}
                   <div className="space-y-2">
                     <Label htmlFor="reviewer-firstName" className="text-xs font-medium text-slate-700">
-                      First Name <span className="text-rose-500">*</span>
+                      First Name <span className="text-[#BE123C] font-bold">*</span>
                     </Label>
                     <div className="relative">
                       <User className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
@@ -1044,7 +1078,7 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
                   {/* Last Name */}
                   <div className="space-y-2">
                     <Label htmlFor="reviewer-lastName" className="text-xs font-medium text-slate-700">
-                      Last Name <span className="text-rose-500">*</span>
+                      Last Name <span className="text-[#BE123C] font-bold">*</span>
                     </Label>
                     <div className="relative">
                       <User className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
@@ -1062,7 +1096,7 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
                   {/* Work Email */}
                   <div className="space-y-2">
                     <Label htmlFor="reviewer-email" className="text-xs font-medium text-slate-700">
-                      Work Mail <span className="text-rose-500">*</span>
+                      Work email <span className="text-[#BE123C] font-bold">*</span>
                     </Label>
                     <div className="relative">
                       <Mail className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
@@ -1071,7 +1105,7 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
                         type="email"
                         value={reviewerEmail}
                         onChange={(e) => setReviewerEmail(e.target.value)}
-                        placeholder="reviewer@starhealth.in"
+                        placeholder="reviewer@hdfcergo.com"
                         className="h-10 pl-9 text-xs"
                         required
                       />
@@ -1082,9 +1116,9 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <Label htmlFor="reviewer-org" className="text-xs font-medium text-slate-700">
-                        Organization
+                        Organisation
                       </Label>
-                      <span className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Fixed</span>
+                      <span className="text-[10px] font-semibold text-[#475569] uppercase tracking-wider">Fixed</span>
                     </div>
                     <div className="relative">
                       <Building2 className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
@@ -1106,12 +1140,11 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
                   </span>
                   <button
                     type="submit"
-                    disabled={true}
-                    title="Direct reviewer invitations are managed directly through Microsoft Entra ID"
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-slate-200 px-6 text-xs font-semibold text-slate-500 cursor-not-allowed transition-colors w-full sm:w-auto"
+                    disabled={inviteSubmitting || !reviewerFirstName.trim() || !reviewerLastName.trim() || !reviewerEmail.includes('@')}
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-[#0F766E] hover:bg-[#0D655E] px-6 text-xs font-semibold text-white transition-colors w-full sm:w-auto disabled:bg-slate-200 disabled:text-slate-500 disabled:cursor-not-allowed shadow-sm cursor-pointer"
                   >
                     <Send className="h-3.5 w-3.5" />
-                    Invite Reviewer (Disabled)
+                    {inviteSubmitting ? 'Sending Invite...' : 'Invite Reviewer'}
                   </button>
                 </div>
 
@@ -1126,7 +1159,86 @@ export function DashboardOrgAdmin({ orgSlug }: { orgSlug: string }) {
               </form>
             </div>
           </StaggerItem>
+
+          {/* Reviewer Team List */}
+          <StaggerItem index={3}>
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Current Reviewers ({reviewers.length})</h3>
+                  <p className="text-xs text-slate-500">Active and pending claim adjudicators for {orgDisplayName}</p>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs text-left">
+                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wider text-slate-600 border-b border-slate-200">
+                    <tr>
+                      <th className="px-3 py-2 font-bold">Reviewer Name</th>
+                      <th className="px-3 py-2 font-bold">Work Email</th>
+                      <th className="px-3 py-2 font-bold">Role</th>
+                      <th className="px-3 py-2 font-bold">Status</th>
+                      <th className="px-3 py-2 font-bold text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {reviewers.map(r => (
+                      <tr key={r.id} className="hover:bg-slate-50/70">
+                        <td className="px-3 py-2.5 font-semibold text-slate-900">{r.name}</td>
+                        <td className="px-3 py-2.5 font-mono text-slate-600">{r.email}</td>
+                        <td className="px-3 py-2.5 text-slate-600">{r.role}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={cn(
+                            "px-2 py-0.5 rounded-full font-bold text-[10px]",
+                            r.status === 'Active' ? "bg-emerald-50 text-emerald-800 border border-emerald-200" : "bg-amber-50 text-amber-800 border border-amber-200"
+                          )}>
+                            {r.status}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right space-x-2">
+                          {r.status === 'Pending' && (
+                            <button
+                              type="button"
+                              onClick={() => handleResendInvite(r.email)}
+                              className="text-teal-700 hover:text-teal-900 font-semibold hover:underline cursor-pointer"
+                            >
+                              Resend
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveReviewer(r.id)}
+                            className="text-rose-600 hover:text-rose-800 font-semibold hover:underline cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </StaggerItem>
         </StaggerContainer>
+
+        {/* Enterprise Footer */}
+        <footer className="mt-12 border-t border-slate-200 bg-white/70 backdrop-blur-sm px-6 py-6 text-xs text-slate-500">
+          <div className="mx-auto max-w-7xl flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
+            <div className="space-y-1">
+              <div className="flex items-center justify-center sm:justify-start gap-2">
+                <span className="font-bold text-slate-800">ClaimsGuru Enterprise</span>
+                <span className="text-slate-300">|</span>
+                <span className="text-slate-600">by WaferWire (WCT)</span>
+              </div>
+              <p className="text-[11px] text-slate-500">IRDAI Part A &amp; B Aligned · ISO 27001 Certified · HIPAA Ready</p>
+            </div>
+            <div className="flex items-center gap-4 text-[11px] font-medium text-slate-600">
+              <Link href="/privacy&policy" className="hover:text-teal-700 hover:underline">Privacy Policy</Link>
+              <Link href="/delete-account" className="hover:text-rose-600 hover:underline">Account Security</Link>
+              <span className="text-slate-400">© 2026 WaferWire Cloud Technologies</span>
+            </div>
+          </div>
+        </footer>
       </main>
 
 

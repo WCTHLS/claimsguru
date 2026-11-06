@@ -80,10 +80,15 @@
 
 @layer components {
   .brand-panel-gradient {
-    background-image: linear-gradient(160deg, #0f4c81 0%, #134e7a 50%, #0d9488 100%);
+    background-image: linear-gradient(160deg, #0F4C81 0%, #0E4E75 40%, #0D655E 100%);
   }
   .teal-gradient {
-    background-image: linear-gradient(135deg, #0d9488 0%, #10b981 100%);
+    background-color: #0F766E;
+    background-image: none;
+    color: #FFFFFF;
+  }
+  .teal-gradient:hover {
+    background-color: #0D655E;
   }
   .soft-elevation {
     box-shadow: 0 24px 60px -12px rgba(15, 23, 42, 0.18);
@@ -117,16 +122,14 @@
     -webkit-backdrop-filter: blur(20px) saturate(180%);
   }
   .text-gradient {
-    background-image: linear-gradient(135deg, #0f4c81, #0d9488);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #0F4C81;
+    background-image: none;
+    -webkit-text-fill-color: #0F4C81;
   }
   .text-gradient-teal {
-    background-image: linear-gradient(135deg, #0d9488, #10b981);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
+    color: #0F766E;
+    background-image: none;
+    -webkit-text-fill-color: #0F766E;
   }
   .scrollbar-thin {
     scrollbar-width: thin;

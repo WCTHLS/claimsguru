@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef, useMemo } from 'react';
-import logoMark from './ClaimsGuru White PNG.png';
+import logoMark from './ClaimsGuru Black PNG.png';
+import { AlertCircle } from 'lucide-react';
 import {
   CheckCircle2,
   Eye,
@@ -629,8 +630,6 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     (policyDetails?.sumInsured && policyDetails.sumInsured > 0)
   );
 
-  if (!s.showReportModal) return null;
-
   const tpaUrl = s.tpaPdfViewUrl || s.tpaPdfUrl;
   const irdaUrl = s.irdaPdfViewUrl || s.irdaPdfUrl;
 
@@ -669,13 +668,25 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     }
   };
 
+  const scrollToPolicyUpload = () => {
+    const el = document.getElementById("policy-upload-card-modal");
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-2", "ring-amber-400", "animate-pulse");
+      setTimeout(() => {
+        el.classList.remove("ring-2", "ring-amber-400", "animate-pulse");
+      }, 2500);
+    }
+  };
+
   const handleViewTpaReport = () => {
     if (!hasValidPolicy) {
       toast({
         title: "Policy Document Required",
-        description: "Please upload the patient's Policy Schedule or Health Card first to generate the TPA audit report.",
-        variant: "destructive",
+        description: "Please upload the patient's Policy Schedule or Health Card above to unlock the TPA audit report.",
+        className: "bg-amber-950 border-amber-500/50 text-amber-100",
       });
+      scrollToPolicyUpload();
       return;
     }
     if (tpaUrl) openInlinePdfViewer(tpaUrl, 'tpa');
@@ -685,9 +696,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     if (!hasValidPolicy) {
       toast({
         title: "Policy Document Required",
-        description: "Please upload the patient's Policy Schedule or Health Card first to generate the IRDAI claim form.",
-        variant: "destructive",
+        description: "Please upload the patient's Policy Schedule or Health Card above to unlock the IRDAI claim form.",
+        className: "bg-amber-950 border-amber-500/50 text-amber-100",
       });
+      scrollToPolicyUpload();
       return;
     }
     if (irdaUrl) openInlinePdfViewer(irdaUrl, 'irdai');
@@ -755,13 +767,46 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     setIsExpensesDirty(true);
   };
 
+  // Lock background scroll and listen for Escape key
+  useEffect(() => {
+    if (!s.showReportModal) return;
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showInsurerModal) {
+          setShowInsurerModal(false);
+        } else if (inlinePdf) {
+          closeInlinePdf();
+        } else {
+          s.closeReportModal();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [s.showReportModal, showInsurerModal, inlinePdf, s.closeReportModal]);
+
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
   const handleOpenInsurerModal = async () => {
     if (!hasValidPolicy) {
       toast({
         title: "Policy Document Required",
-        description: "Please upload the patient's Policy Schedule or Health Card first before submitting the claim.",
-        variant: "destructive",
+        description: "Please upload the patient's Policy Schedule or Health Card above before submitting the claim.",
+        className: "bg-amber-950 border-amber-500/50 text-amber-100",
       });
+      scrollToPolicyUpload();
       return;
     }
 
@@ -946,42 +991,62 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-fade-in">
-      {/* Main B2C Mobile-Optimized Report Modal */}
-      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl border border-white/10 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden">
+  const passedValidationCount = validations.filter(v => v.passed).length;
+  const totalValidationCount = validations.length;
 
-        {/* Modal Header Bar */}
-        <div className="flex-none flex items-center justify-between border-b border-white/10 bg-slate-900/95 px-3.5 sm:px-6 py-3 backdrop-blur-md">
+  if (!s.showReportModal) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm p-2 sm:p-4 overflow-y-auto animate-fade-in">
+      {/* Main B2C Mobile-Optimized Report Modal - Light Theme */}
+      <div className="relative w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden">
+
+        {/* Modal Header Bar - Clean Light Theme */}
+        <div className="flex-none flex items-center justify-between border-b border-slate-200 bg-white/95 px-3.5 sm:px-6 py-3 backdrop-blur-md">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <img src={logoMark.src} className="h-6 sm:h-7 w-auto object-contain flex-none" alt="ClaimsGuru" />
-            <div className="h-4 w-px bg-white/20 flex-none hidden xs:block" />
+            <div className="h-4 w-px bg-slate-300 flex-none hidden xs:block" />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <h2 className="text-xs sm:text-base font-bold text-white tracking-tight">AI Audit &amp; Claim Report</h2>
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 text-[9px] sm:text-[10px] font-medium text-emerald-400/90">
-                  <CheckCircle2 className="h-2.5 w-2.5" /> Verified
-                </span>
+                <h2 className="text-xs sm:text-base font-bold text-slate-900 tracking-tight">AI Audit &amp; Claim Report</h2>
+                {/* Dynamic Status Badge (Replaces false 'Verified' badge) */}
+                {!hasValidPolicy ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-amber-800">
+                    <AlertTriangle className="h-2.5 w-2.5 text-amber-600" /> Policy Required
+                  </span>
+                ) : riskScoreNum > 50 ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 border border-rose-200 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-rose-800">
+                    <AlertTriangle className="h-2.5 w-2.5 text-rose-600" /> High Rejection Risk
+                  </span>
+                ) : passedValidationCount < totalValidationCount ? (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-amber-800">
+                    <AlertCircle className="h-2.5 w-2.5 text-amber-600" /> Review Required
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold text-[#047857]">
+                    <CheckCircle2 className="h-2.5 w-2.5 text-[#047857]" /> Audit Verified
+                  </span>
+                )}
               </div>
-              <div className="flex items-center gap-x-2 gap-y-1 flex-wrap text-[10px] sm:text-xs text-slate-400 mt-0.5">
+              <div className="flex items-center gap-x-2 gap-y-1 flex-wrap text-[10px] sm:text-xs text-slate-500 mt-0.5">
                 <button
                   type="button"
                   onClick={handleCopyClaimId}
-                  className="inline-flex items-center gap-1 rounded bg-blue-500/15 hover:bg-blue-500/25 active:scale-95 text-blue-400 font-mono font-bold px-1.5 py-0.5 text-[9px] sm:text-[10px] border border-blue-500/30 transition-all cursor-pointer flex-none"
+                  className="inline-flex items-center gap-1 rounded bg-slate-100 hover:bg-slate-200 active:scale-95 text-slate-700 font-mono font-bold px-1.5 py-0.5 text-[9px] sm:text-[10px] border border-slate-300 transition-all cursor-pointer flex-none"
                   title={`Full Claim ID: ${s.claimId || 'N/A'}\n(Click to copy)`}
                 >
                   <span>#{shortId || "CLM001"}</span>
                   {copiedId ? (
-                    <Check className="h-2.5 w-2.5 text-emerald-400 flex-none" />
+                    <Check className="h-2.5 w-2.5 text-[#047857] flex-none" />
                   ) : (
-                    <Copy className="h-2.5 w-2.5 opacity-60 hover:opacity-100 flex-none" />
+                    <Copy className="h-2.5 w-2.5 text-slate-400 hover:text-slate-600 flex-none" />
                   )}
                 </button>
                 {uploadExactTime && (
-                  <div className="inline-flex items-center gap-1 text-slate-400 text-[10px] sm:text-xs whitespace-nowrap" title={uploadCreatedAt || uploadExactTime}>
-                    <span className="text-slate-600 font-semibold hidden sm:inline">•</span>
-                    <Clock className="h-3 w-3 text-slate-500 flex-none" />
-                    <span>Uploaded: <strong className="font-medium text-slate-300">{uploadExactTime}</strong></span>
+                  <div className="inline-flex items-center gap-1 text-slate-500 text-[10px] sm:text-xs whitespace-nowrap" title={uploadCreatedAt || uploadExactTime}>
+                    <span className="text-slate-300 font-semibold hidden sm:inline">•</span>
+                    <Clock className="h-3 w-3 text-slate-400 flex-none" />
+                    <span>Uploaded: <strong className="font-medium text-slate-700">{uploadExactTime}</strong></span>
                   </div>
                 )}
               </div>
@@ -991,124 +1056,141 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
           <button
             type="button"
             onClick={s.closeReportModal}
-            className="flex h-8 w-8 sm:h-8 sm:w-8 flex-none items-center justify-center rounded-lg border border-white/10 bg-white/5 hover:bg-white/15 active:scale-95 text-slate-300 hover:text-white transition-all cursor-pointer"
+            className="flex h-8 w-8 sm:h-8 sm:w-8 flex-none items-center justify-center rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 active:scale-95 text-slate-500 hover:text-slate-900 transition-all cursor-pointer"
             aria-label="Close Modal"
+            title="Close Report (Esc)"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
+        {/* Section Navigation Quick Shortcuts Strip */}
+        <div className="flex-none flex items-center gap-1.5 px-3.5 sm:px-6 py-2 border-b border-slate-200 bg-slate-50/80 overflow-x-auto text-[11px] font-medium text-slate-600 scrollbar-none">
+          <span className="text-slate-400 text-[10px] uppercase font-bold mr-1 flex items-center gap-1 shrink-0">Jump to:</span>
+          <button type="button" onClick={() => scrollToSection('section-metrics')} className="px-2 py-0.5 rounded-md hover:bg-slate-200/70 transition-colors shrink-0 cursor-pointer">Metrics</button>
+          <button type="button" onClick={() => scrollToSection('section-risk')} className="px-2 py-0.5 rounded-md hover:bg-slate-200/70 transition-colors shrink-0 cursor-pointer">Risk Drivers</button>
+          <button type="button" onClick={() => scrollToSection('policy-upload-card-modal')} className="px-2 py-0.5 rounded-md hover:bg-slate-200/70 transition-colors shrink-0 cursor-pointer">Policy Doc</button>
+          <button type="button" onClick={() => scrollToSection('section-patient-details')} className="px-2 py-0.5 rounded-md hover:bg-slate-200/70 transition-colors shrink-0 cursor-pointer">Patient Details</button>
+          <button type="button" onClick={() => scrollToSection('section-expenses')} className="px-2 py-0.5 rounded-md hover:bg-slate-200/70 transition-colors shrink-0 cursor-pointer">Itemized Expenses</button>
+          <button type="button" onClick={() => scrollToSection('section-intelligence')} className="px-2 py-0.5 rounded-md hover:bg-slate-200/70 transition-colors shrink-0 cursor-pointer">Documents</button>
+          <button type="button" onClick={() => scrollToSection('section-codes')} className="px-2 py-0.5 rounded-md hover:bg-slate-200/70 transition-colors shrink-0 cursor-pointer">Medical Codes</button>
+          <button type="button" onClick={() => scrollToSection('section-rules')} className="px-2 py-0.5 rounded-md hover:bg-slate-200/70 transition-colors shrink-0 cursor-pointer">IRDAI Rules</button>
+        </div>
+
         {/* Scrollable Body Content */}
         <div className="p-3 sm:p-6 space-y-4 sm:space-y-6 overflow-y-auto flex-1 scrollbar-thin">
 
-          {/* 1. ⚡ 5-KPI METRIC CARDS STRIP */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 px-1 uppercase tracking-wider">
+          {/* 1. ⚡ 5-KPI METRIC CARDS STRIP - Light Theme */}
+          <div id="section-metrics" className="space-y-1.5 scroll-mt-4">
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 px-1 uppercase tracking-wider">
               <span>Claim Audit Metrics</span>
-              <span className="text-[9px] text-teal-400 sm:hidden">Swipe →</span>
+              <span className="text-[9px] text-slate-500 sm:hidden">Swipe →</span>
             </div>
             <div className="flex sm:grid sm:grid-cols-5 gap-2.5 overflow-x-auto snap-x pb-1 sm:pb-0 scrollbar-none">
               {/* Risk Score */}
               <div 
                 className={`flex-none w-[130px] sm:w-auto snap-start rounded-xl border p-2.5 sm:p-3 transition-colors ${
                   riskScoreNum <= 25 
-                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400' 
+                    ? 'border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]' 
                     : riskScoreNum <= 50 
-                      ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' 
-                      : 'border-rose-500/30 bg-rose-500/10 text-rose-400'
+                      ? 'border-amber-200 bg-amber-50 text-amber-800' 
+                      : 'border-rose-200 bg-rose-50 text-rose-800'
                 }`}
                 title={topRiskReasons[0]?.reason ? `Top Risk Reason: ${topRiskReasons[0].reason}` : undefined}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-slate-400">Risk Score</span>
+                  <span className="text-[10px] font-medium text-slate-500">Risk Score</span>
                   <Activity className={`h-3.5 w-3.5 ${
-                    riskScoreNum <= 25 ? 'text-emerald-400' : riskScoreNum <= 50 ? 'text-amber-400' : 'text-rose-400'
+                    riskScoreNum <= 25 ? 'text-[#047857]' : riskScoreNum <= 50 ? 'text-amber-600' : 'text-rose-600'
                   }`} />
                 </div>
                 <p className="text-base sm:text-lg font-extrabold mt-1">{riskScoreNum}%</p>
                 <span className={`text-[9px] font-bold uppercase ${
-                  riskScoreNum <= 25 ? 'text-emerald-300' : riskScoreNum <= 50 ? 'text-amber-300' : 'text-rose-300'
+                  riskScoreNum <= 25 ? 'text-[#047857]' : riskScoreNum <= 50 ? 'text-amber-700' : 'text-rose-700'
                 }`}>
                   {riskScoreNum <= 25 ? 'Low Risk' : riskScoreNum <= 50 ? 'Moderate Risk' : 'High Risk'}
                 </span>
               </div>
 
               {/* Medical Codes */}
-              <div className="flex-none w-[130px] sm:w-auto snap-start rounded-xl border border-white/10 bg-slate-800/60 p-2.5 sm:p-3">
+              <div className="flex-none w-[130px] sm:w-auto snap-start rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-slate-400">Medical Codes</span>
-                  <Stethoscope className="h-3.5 w-3.5 text-sky-400" />
+                  <span className="text-[10px] font-medium text-slate-500">Medical Codes</span>
+                  <Stethoscope className="h-3.5 w-3.5 text-sky-600" />
                 </div>
-                <p className="text-base sm:text-lg font-extrabold text-white mt-1">{icdCodes.length + cptCodes.length}</p>
-                <span className="text-[9px] font-semibold text-slate-400">ICD &amp; CPT</span>
+                <p className="text-base sm:text-lg font-extrabold text-slate-900 mt-1">{icdCodes.length + cptCodes.length}</p>
+                <span className="text-[9px] font-semibold text-slate-500">ICD &amp; CPT</span>
               </div>
 
-              {/* Rules Passed */}
-              <div className="flex-none w-[130px] sm:w-auto snap-start rounded-xl border border-white/10 bg-slate-800/60 p-2.5 sm:p-3">
+              {/* Rules Passed - Responsive warning state if not 100% */}
+              <div className="flex-none w-[130px] sm:w-auto snap-start rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3 transition-colors">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-slate-400">Rules Passed</span>
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <span className="text-[10px] font-medium text-slate-600">Rules Passed</span>
+                  <CheckCircle2 className={`h-3.5 w-3.5 ${
+                    passedValidationCount === totalValidationCount ? 'text-[#047857]' : 'text-amber-600'
+                  }`} />
                 </div>
-                <p className="text-base sm:text-lg font-extrabold text-emerald-400 mt-1">{validations.filter(v => v.passed).length}/{validations.length}</p>
-                <span className="text-[9px] font-semibold text-slate-400">IRDAI Validated</span>
+                <p className={`text-base sm:text-lg font-extrabold mt-1 ${
+                  passedValidationCount === totalValidationCount ? 'text-[#047857]' : 'text-amber-700'
+                }`}>
+                  {passedValidationCount}/{totalValidationCount}
+                </p>
+                <span className={`text-[9px] font-semibold ${
+                  passedValidationCount === totalValidationCount ? 'text-[#047857]' : 'text-amber-800'
+                }`}>
+                  {passedValidationCount === totalValidationCount ? 'IRDAI Validated' : `${passedValidationCount} of ${totalValidationCount} passed`}
+                </span>
               </div>
 
               {/* Billed Total */}
-              <div className="flex-none w-[140px] sm:w-auto snap-start rounded-xl border border-white/10 bg-slate-800/60 p-2.5 sm:p-3">
+              <div className="flex-none w-[140px] sm:w-auto snap-start rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-slate-400">Billed Total</span>
-                  <span className="text-xs font-bold text-teal-400">₹</span>
+                  <span className="text-[10px] font-medium text-slate-500">Billed Total</span>
+                  <span className="text-xs font-bold text-slate-600">₹</span>
                 </div>
-                <p className="text-sm sm:text-base font-extrabold text-teal-300 mt-1 truncate">{formatINR(billedAmount)}</p>
-                <span className="text-[9px] font-semibold text-slate-400">Claim Amount</span>
+                <p className="text-sm sm:text-base font-extrabold text-slate-900 mt-1 truncate">{formatINR(billedAmount)}</p>
+                <span className="text-[9px] font-semibold text-slate-500">Claim Amount</span>
               </div>
 
               {/* Fields Extracted */}
-              <div className="flex-none w-[130px] sm:w-auto snap-start rounded-xl border border-white/10 bg-slate-800/60 p-2.5 sm:p-3">
+              <div className="flex-none w-[130px] sm:w-auto snap-start rounded-xl border border-slate-200 bg-slate-50 p-2.5 sm:p-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-medium text-slate-400">Extracted Fields</span>
-                  <FileText className="h-3.5 w-3.5 text-purple-400" />
+                  <span className="text-[10px] font-medium text-slate-500">Extracted Fields</span>
+                  <FileText className="h-3.5 w-3.5 text-purple-600" />
                 </div>
-                <p className="text-base sm:text-lg font-extrabold text-white mt-1">{totalParsedFields || '—'}</p>
-                <span className="text-[9px] font-semibold text-slate-400">OCR AI Verified</span>
+                <p className="text-base sm:text-lg font-extrabold text-slate-900 mt-1">{totalParsedFields || '—'}</p>
+                <span className="text-[9px] font-semibold text-slate-500">OCR AI Verified</span>
               </div>
             </div>
           </div>
 
-          {/* AI REJECTION RISK & AUDIT DRIVERS SECTION */}
+          {/* AI REJECTION RISK & AUDIT DRIVERS SECTION - Light Theme */}
           {topRiskReasons && topRiskReasons.length > 0 && (
-            <div className={cn(
-              "rounded-2xl border p-3.5 sm:p-4 space-y-2.5 transition-all shadow-md",
-              riskScoreNum <= 25
-                ? "border-emerald-500/30 bg-gradient-to-r from-emerald-950/30 via-slate-900/50 to-slate-900/30 shadow-emerald-950/10"
-                : riskScoreNum <= 50
-                  ? "border-amber-500/30 bg-gradient-to-r from-amber-950/30 via-slate-900/50 to-slate-900/30 shadow-amber-950/10"
-                  : "border-rose-500/30 bg-gradient-to-r from-rose-950/30 via-slate-900/50 to-slate-900/30 shadow-rose-950/10"
-            )}>
+            <div id="section-risk" className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-4 space-y-2.5 transition-all shadow-2xs scroll-mt-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div className="flex items-center gap-2">
                   <Activity className={cn(
                     "h-4 w-4",
-                    riskScoreNum <= 25 ? "text-emerald-400" : riskScoreNum <= 50 ? "text-amber-400" : "text-rose-400"
+                    riskScoreNum <= 25 ? "text-[#047857]" : riskScoreNum <= 50 ? "text-amber-600" : "text-rose-600"
                   )} />
-                  <h4 className="text-xs sm:text-sm font-bold text-white">
+                  <h4 className="text-xs sm:text-sm font-bold text-slate-900">
                     AI Rejection Prediction &amp; Audit Drivers
                   </h4>
                 </div>
                 <span className={cn(
                   "rounded-full px-2.5 py-0.5 text-[10px] font-bold border",
                   riskScoreNum <= 25
-                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                    ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]"
                     : riskScoreNum <= 50
-                      ? "bg-amber-500/15 border-amber-500/30 text-amber-300"
-                      : "bg-rose-500/15 border-rose-500/30 text-rose-300"
+                      ? "bg-[#FFFBEB] border-amber-200 text-amber-800"
+                      : "bg-[#FFF1F2] border-rose-200 text-rose-800"
                 )}>
                   {riskScoreNum}% Rejection Risk • {riskScoreNum <= 25 ? 'Low Risk' : riskScoreNum <= 50 ? 'Moderate Risk' : 'High Risk'}
                 </span>
               </div>
 
               <div className="space-y-1.5 pt-1">
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">
+                <p className="text-[10px] font-semibold text-slate-600 uppercase tracking-wider">
                   Key Risk Drivers Identified ({topRiskReasons.length}):
                 </p>
                 <div className="space-y-1.5">
@@ -1118,11 +1200,11 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     return (
                       <div
                         key={idx}
-                        className="flex items-start gap-2 rounded-xl bg-slate-900/70 border border-white/5 p-2 text-xs text-slate-200"
+                        className="flex items-start gap-2 rounded-xl bg-white border border-slate-200 p-2.5 text-xs text-slate-800 shadow-2xs"
                       >
                         <AlertTriangle className={cn(
                           "h-3.5 w-3.5 flex-none mt-0.5",
-                          riskScoreNum <= 25 ? "text-emerald-400" : riskScoreNum <= 50 ? "text-amber-400" : "text-rose-400"
+                          riskScoreNum <= 25 ? "text-[#047857]" : riskScoreNum <= 50 ? "text-amber-600" : "text-rose-600"
                         )} />
                         <span className="leading-snug">{text}</span>
                       </div>
@@ -1133,25 +1215,25 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             </div>
           )}
 
-          {/* ⚡ POLICY COVERAGE & CLAUSE INTELLIGENCE */}
+          {/* ⚡ POLICY COVERAGE & CLAUSE INTELLIGENCE - Light Theme */}
           {hasValidPolicy ? (
-            <div className="rounded-2xl border border-teal-500/30 bg-gradient-to-r from-teal-950/40 via-slate-900/60 to-slate-900/40 p-3.5 sm:p-5 space-y-3 shadow-lg shadow-teal-950/20">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-white/10 pb-3">
+            <div id="policy-upload-card-modal" className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-5 space-y-3 shadow-2xs scroll-mt-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200 pb-3">
                 <div className="flex items-center gap-2.5">
-                  <div className="h-8 w-8 rounded-lg bg-teal-500/20 border border-teal-500/30 flex items-center justify-center text-teal-300">
+                  <div className="h-8 w-8 rounded-lg bg-[#ECFDF5] border border-[#A7F3D0] flex items-center justify-center text-[#047857]">
                     <ShieldCheck className="h-4 w-4" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs sm:text-sm font-bold text-white">
+                      <span className="text-xs sm:text-sm font-bold text-slate-900">
                         {selectedInsurer || 'Insurance Policy Adjudication'}
                       </span>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-semibold text-emerald-400">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] px-2 py-0.5 text-[10px] font-semibold text-[#047857]">
                         <CheckCircle2 className="h-3 w-3" /> Policy Verified
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400">
-                      Policy No: <span className="font-mono text-teal-300 font-semibold">{sanitizePolDisplay(policyId) || 'Active'}</span>
+                    <p className="text-[11px] text-slate-600">
+                      Policy No: <span className="font-mono text-slate-900 font-bold">{sanitizePolDisplay(policyId) || 'Active'}</span>
                       {policyDetails?.planName ? ` • ${policyDetails.planName}` : ''}
                     </p>
                   </div>
@@ -1168,12 +1250,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     type="button"
                     onClick={() => policyFileInputRef.current?.click()}
                     disabled={isUploadingPolicyDoc}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 px-2.5 py-1.5 text-xs font-semibold text-slate-300 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors shadow-2xs cursor-pointer"
                   >
                     {isUploadingPolicyDoc ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-teal-400" />
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-[#0F766E]" />
                     ) : (
-                      <UploadCloud className="h-3.5 w-3.5 text-teal-400" />
+                      <UploadCloud className="h-3.5 w-3.5 text-[#0F766E]" />
                     )}
                     <span>{isUploadingPolicyDoc ? 'Extracting...' : 'Update Policy Doc'}</span>
                   </button>
@@ -1182,22 +1264,22 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
               {/* Policy Clause Breakdown Grid */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
-                <div className="rounded-xl border border-white/5 bg-slate-800/50 p-2.5">
-                  <span className="text-[10px] font-medium text-slate-400">Sum Insured (SI)</span>
-                  <p className="text-xs sm:text-sm font-bold text-white mt-0.5">
-                    {policyDetails?.sumInsured ? formatINR(policyDetails.sumInsured) : 'Not specified'}
+                <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-medium text-slate-500">Sum Insured (SI)</span>
+                  <p className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5">
+                    {policyDetails?.sumInsured ? formatINR(policyDetails.sumInsured) : 'Not found'}
                   </p>
-                  <span className="text-[9px] text-emerald-400">
+                  <span className="text-[9px] text-[#047857] font-semibold">
                     {policyDetails?.sumInsured ? 'Verified Coverage' : 'Pending Verification'}
                   </span>
                 </div>
 
-                <div className="rounded-xl border border-white/5 bg-slate-800/50 p-2.5">
-                  <span className="text-[10px] font-medium text-slate-400">Room Rent Limit</span>
-                  <p className="text-xs sm:text-sm font-bold text-white mt-0.5 truncate" title={policyDetails?.roomRentLimit || 'Not specified in document'}>
-                    {policyDetails?.roomRentLimit || 'Not specified in document'}
+                <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-medium text-slate-500">Room Rent Limit</span>
+                  <p className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5 truncate" title={policyDetails?.roomRentLimit || 'Not found'}>
+                    {policyDetails?.roomRentLimit || 'Not found'}
                   </p>
-                  <span className="text-[9px] text-teal-300">
+                  <span className="text-[9px] text-[#047857] font-semibold">
                     {policyDetails?.roomRentLimit
                       ? (policyDetails.roomRentLimit.toLowerCase().includes('capping')
                           ? 'No Proportionate Cut'
@@ -1206,46 +1288,46 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   </span>
                 </div>
 
-                <div className="rounded-xl border border-white/5 bg-slate-800/50 p-2.5">
-                  <span className="text-[10px] font-medium text-slate-400">Co-Payment Clause</span>
-                  <p className="text-xs sm:text-sm font-bold text-white mt-0.5">
-                    {policyDetails?.copayPercent !== undefined && policyDetails?.copayPercent !== null ? `${policyDetails.copayPercent}%` : 'Not specified in document'}
+                <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-medium text-slate-500">Co-Payment Clause</span>
+                  <p className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5">
+                    {policyDetails?.copayPercent !== undefined && policyDetails?.copayPercent !== null ? `${policyDetails.copayPercent}%` : 'Not found'}
                   </p>
-                  <span className="text-[9px] text-emerald-400">
+                  <span className="text-[9px] text-[#047857] font-semibold">
                     {policyDetails?.copayPercent !== undefined && policyDetails?.copayPercent !== null
                       ? (policyDetails.copayPercent > 0 ? 'Co-pay Applicable' : 'Nil Co-pay (100% Admissible)')
                       : 'Refer Policy Schedule'}
                   </span>
                 </div>
 
-                <div className="rounded-xl border border-white/5 bg-slate-800/50 p-2.5">
-                  <span className="text-[10px] font-medium text-slate-400">PED Waiting Period</span>
-                  <p className="text-xs sm:text-sm font-bold text-white mt-0.5">
-                    {policyDetails?.pedMonths ? `${policyDetails.pedMonths} Months` : 'Not specified in document'}
+                <div className="rounded-xl border border-slate-200 bg-white p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-medium text-slate-500">PED Waiting Period</span>
+                  <p className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5">
+                    {policyDetails?.pedMonths ? `${policyDetails.pedMonths} Months` : 'Not found'}
                   </p>
-                  <span className="text-[9px] text-slate-400">
+                  <span className="text-[9px] text-slate-500">
                     {policyDetails?.pedMonths ? 'Clause Extracted' : 'Refer Policy Schedule'}
                   </span>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl border border-amber-500/30 bg-gradient-to-r from-amber-950/30 via-slate-900/50 to-slate-900/30 p-3.5 sm:p-4 shadow-lg shadow-amber-950/10">
+            <div id="policy-upload-card-modal" className="rounded-2xl border border-amber-300 bg-amber-50/90 p-3.5 sm:p-4 shadow-sm transition-all duration-300 scroll-mt-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-start sm:items-center gap-2.5">
-                  <div className="h-8 w-8 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 flex-none mt-0.5 sm:mt-0">
+                  <div className="h-8 w-8 rounded-lg bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 flex-none mt-0.5 sm:mt-0">
                     <AlertTriangle className="h-4 w-4" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-xs sm:text-sm font-bold text-amber-200">
+                      <span className="text-xs sm:text-sm font-bold text-amber-950">
                         Policy Document / Health Card Missing
                       </span>
-                      <span className="rounded-full bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 text-[9px] font-semibold text-amber-300">
+                      <span className="rounded-full bg-amber-100 border border-amber-300 px-2 py-0.5 text-[9px] font-semibold text-amber-800">
                         Required for TPA &amp; IRDAI Reports
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
+                    <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
                       Upload the patient&apos;s Policy Schedule or Health Card to unlock personalized Room Rent capping, Co-Pay, and PED clause analysis, and enable TPA / IRDAI claim submission.
                     </p>
                   </div>
@@ -1262,12 +1344,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     type="button"
                     onClick={() => policyFileInputRef.current?.click()}
                     disabled={isUploadingPolicyDoc}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-bold px-3.5 py-2 text-xs shadow-md shadow-amber-500/20 transition-all active:scale-95 cursor-pointer"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold px-3.5 py-2 text-xs shadow-sm transition-all active:scale-95 cursor-pointer"
                   >
                     {isUploadingPolicyDoc ? (
-                      <Loader2 className="h-4 w-4 animate-spin text-slate-950" />
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
                     ) : (
-                      <UploadCloud className="h-4 w-4 text-slate-950" />
+                      <UploadCloud className="h-4 w-4 text-white" />
                     )}
                     <span>{isUploadingPolicyDoc ? 'Scanning Document...' : 'Upload Policy / Health Card'}</span>
                   </button>
@@ -1276,24 +1358,24 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             </div>
           )}
 
-          {/* 2. 📝 EDITABLE PATIENT & CLAIM DETAILS FORM */}
-          <div className="rounded-2xl border border-white/10 bg-slate-800/40 p-3.5 sm:p-5 space-y-3.5">
+          {/* 2. 📝 EDITABLE PATIENT & CLAIM DETAILS FORM - Light Theme */}
+          <div id="section-patient-details" className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-5 space-y-3.5 shadow-2xs scroll-mt-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-teal-400" />
-                <h3 className="text-xs sm:text-sm font-bold text-white">Patient &amp; Claim Details</h3>
+                <FileText className="h-4 w-4 text-[#0F766E]" />
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900">Patient &amp; Claim Details</h3>
               </div>
               <button
                 type="button"
                 onClick={handleSaveDetails}
                 disabled={!isDetailsDirty && !detailsSaved}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold transition-all shadow-sm",
+                  "inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all shadow-sm",
                   detailsSaved
-                    ? "bg-emerald-500 text-slate-950 cursor-default"
+                    ? "bg-[#047857] text-white cursor-default"
                     : isDetailsDirty
-                      ? "bg-teal-500 hover:bg-teal-400 text-slate-950 cursor-pointer shadow-teal-500/20 ring-1 ring-teal-400/50"
-                      : "bg-slate-800 text-slate-500 border border-white/5 cursor-not-allowed opacity-60"
+                      ? "bg-[#0F766E] hover:bg-[#0D655E] text-white cursor-pointer shadow-sm"
+                      : "bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60"
                 )}
               >
                 <Save className="h-3 w-3" />
@@ -1303,7 +1385,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               <div>
-                <label className="text-[10px] font-semibold text-slate-400 block mb-1">Patient Name</label>
+                <label className="text-[10px] font-semibold text-slate-600 block mb-1">Patient Name</label>
                 <input
                   type="text"
                   value={patientName}
@@ -1311,12 +1393,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     setPatientName(e.target.value);
                     setIsDetailsDirty(true);
                   }}
-                  className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:border-teal-400 transition-colors"
+                  className="w-full rounded-xl bg-white border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] transition-colors shadow-2xs"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-400 block mb-1">Hospital / Medical Center</label>
+                <label className="text-[10px] font-semibold text-slate-600 block mb-1">Hospital / Medical Center</label>
                 <input
                   type="text"
                   value={hospitalName}
@@ -1324,14 +1406,14 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     setHospitalName(e.target.value);
                     setIsDetailsDirty(true);
                   }}
-                  className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 focus:outline-none focus:border-teal-400 transition-colors"
+                  className="w-full rounded-xl bg-white border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] transition-colors shadow-2xs"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-400 block mb-1">Billed Claim Amount (INR)</label>
+                <label className="text-[10px] font-semibold text-slate-600 block mb-1">Billed Claim Amount (INR)</label>
                 <div className="relative">
-                  <span className="absolute left-3 top-2 text-xs font-bold text-teal-400">₹</span>
+                  <span className="absolute left-3 top-2 text-xs font-bold text-[#0F766E]">₹</span>
                   <input
                     type="number"
                     value={billedAmount}
@@ -1339,13 +1421,13 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                       setBilledAmount(Number(e.target.value) || 0);
                       setIsDetailsDirty(true);
                     }}
-                    className="w-full rounded-xl bg-slate-900 border border-white/10 pl-7 pr-3 py-2 text-xs font-bold text-emerald-400 focus:outline-none focus:border-teal-400 transition-colors"
+                    className="w-full rounded-xl bg-white border border-slate-300 pl-7 pr-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] transition-colors shadow-2xs"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-400 block mb-1">Admission Date</label>
+                <label className="text-[10px] font-semibold text-slate-600 block mb-1">Admission Date</label>
                 <input
                   type="text"
                   value={admissionDate}
@@ -1353,12 +1435,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     setAdmissionDate(e.target.value);
                     setIsDetailsDirty(true);
                   }}
-                  className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 focus:outline-none focus:border-teal-400 transition-colors"
+                  className="w-full rounded-xl bg-white border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] transition-colors shadow-2xs"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-400 block mb-1">Discharge Date</label>
+                <label className="text-[10px] font-semibold text-slate-600 block mb-1">Discharge Date</label>
                 <input
                   type="text"
                   value={dischargeDate}
@@ -1366,12 +1448,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     setDischargeDate(e.target.value);
                     setIsDetailsDirty(true);
                   }}
-                  className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-300 focus:outline-none focus:border-teal-400 transition-colors"
+                  className="w-full rounded-xl bg-white border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] transition-colors shadow-2xs"
                 />
               </div>
 
               <div>
-                <label className="text-[10px] font-semibold text-slate-400 block mb-1">Primary Clinical Diagnosis</label>
+                <label className="text-[10px] font-semibold text-slate-600 block mb-1">Primary Clinical Diagnosis</label>
                 <input
                   type="text"
                   value={diagnosis}
@@ -1379,26 +1461,26 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     setDiagnosis(e.target.value);
                     setIsDetailsDirty(true);
                   }}
-                  className="w-full rounded-xl bg-slate-900 border border-white/10 px-3 py-2 text-xs font-semibold text-teal-300 focus:outline-none focus:border-teal-400 transition-colors"
+                  className="w-full rounded-xl bg-white border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#0F766E] focus:ring-1 focus:ring-[#0F766E] transition-colors shadow-2xs"
                 />
               </div>
             </div>
           </div>
 
-          {/* 3. 🏥 EDITABLE HOSPITAL EXPENSES & MISMATCH WARNING */}
-          <div className="rounded-2xl border border-white/10 bg-slate-800/40 p-3.5 sm:p-5 space-y-3.5">
+          {/* 3. 🏥 EDITABLE HOSPITAL EXPENSES & MISMATCH WARNING - Light Theme */}
+          <div id="section-expenses" className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-5 space-y-3.5 shadow-2xs scroll-mt-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
-                <FileCheck className="h-4 w-4 text-teal-400" />
-                <h3 className="text-xs sm:text-sm font-bold text-white">Itemized Hospital Expenses</h3>
+                <FileCheck className="h-4 w-4 text-[#0F766E]" />
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900">Itemized Hospital Expenses</h3>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={handleAddExpense}
-                  className="inline-flex items-center gap-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-white/10 px-2.5 py-1 text-[11px] font-semibold text-slate-200 transition-all"
+                  className="inline-flex items-center gap-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-300 px-2.5 py-1 text-[11px] font-semibold text-slate-700 transition-all shadow-2xs cursor-pointer"
                 >
-                  <Plus className="h-3 w-3 text-teal-400" /> Add Row
+                  <Plus className="h-3 w-3 text-[#0F766E]" /> Add Row
                 </button>
                 <button
                   type="button"
@@ -1407,10 +1489,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   className={cn(
                     "inline-flex items-center gap-1 rounded-lg px-3 py-1 text-[11px] font-bold transition-all shadow-sm",
                     expensesSaved
-                      ? "bg-emerald-500 text-slate-950 cursor-default"
+                      ? "bg-[#047857] text-white cursor-default"
                       : isExpensesDirty
-                        ? "bg-teal-500 hover:bg-teal-400 text-slate-950 cursor-pointer shadow-teal-500/20 ring-1 ring-teal-400/50"
-                        : "bg-slate-800 text-slate-500 border border-white/5 cursor-not-allowed opacity-60"
+                        ? "bg-[#0F766E] hover:bg-[#0D655E] text-white cursor-pointer shadow-sm"
+                        : "bg-slate-200 text-slate-400 border border-slate-300 cursor-not-allowed opacity-60"
                   )}
                 >
                   <Save className="h-3 w-3" />
@@ -1424,7 +1506,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               {expenses.map((item, idx) => (
                 <div
                   key={item.id}
-                  className="flex items-center gap-2 bg-slate-900/80 p-2.5 rounded-xl border border-white/5 text-xs flex-wrap sm:flex-nowrap"
+                  className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-slate-200 text-xs flex-wrap sm:flex-nowrap shadow-2xs"
                 >
                   <span className="font-mono text-[10px] text-slate-500 w-5 flex-none text-center">#{idx + 1}</span>
                   <input
@@ -1432,15 +1514,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     value={item.category}
                     onChange={e => handleExpenseChange(item.id, 'category', e.target.value)}
                     placeholder="Expense Description"
-                    className="flex-1 min-w-[140px] bg-transparent border-b border-white/10 px-1 py-1 text-xs font-semibold text-slate-200 focus:outline-none focus:border-teal-400"
+                    className="flex-1 min-w-[140px] bg-transparent border-b border-slate-200 px-1 py-1 text-xs font-semibold text-slate-900 focus:outline-none focus:border-[#0F766E]"
                   />
                   <div className="relative w-28 flex-none">
-                    <span className="absolute left-1.5 top-1 text-xs font-bold text-teal-400">₹</span>
+                    <span className="absolute left-1.5 top-1 text-xs font-bold text-slate-500">₹</span>
                     <input
                       type="number"
                       value={item.amount}
                       onChange={e => handleExpenseChange(item.id, 'amount', e.target.value)}
-                      className="w-full bg-transparent border-b border-white/10 pl-5 pr-1 py-1 text-xs font-bold text-emerald-400 text-right focus:outline-none focus:border-teal-400"
+                      className="w-full bg-transparent border-b border-slate-200 pl-5 pr-1 py-1 text-xs font-bold text-slate-900 text-right focus:outline-none focus:border-[#0F766E]"
                     />
                   </div>
                   <button
@@ -1455,59 +1537,69 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               ))}
             </div>
 
-            {/* 3-Part Financial Reconciliation Summary */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-white/10 text-center">
-              <div className="rounded-xl bg-slate-900/60 border border-white/5 p-2.5 flex flex-col justify-center">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Gross Billed Total</span>
-                <span className="text-xs sm:text-sm font-bold text-slate-200 mt-0.5">
+            {/* 3-Part Financial Reconciliation Summary - Light Theme */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200 text-center">
+              <div className="rounded-xl bg-white border border-slate-200 p-2.5 flex flex-col justify-center shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-slate-500 tracking-wider">Gross Billed Total</span>
+                <span className="text-xs sm:text-sm font-bold text-slate-900 mt-0.5">
                   {formatINR(preview?.gross_total && preview.gross_total > 0 ? preview.gross_total : (preview?.billed_total || billedAmount))}
                 </span>
               </div>
-              <div className="rounded-xl bg-rose-500/10 border border-rose-500/20 p-2.5 flex flex-col justify-center">
-                <span className="text-[10px] uppercase font-bold text-rose-400/90 tracking-wider">Non-Payable / Deductions</span>
-                <span className="text-xs sm:text-sm font-bold text-rose-300 mt-0.5">
+              <div className="rounded-xl bg-rose-50 border border-rose-200 p-2.5 flex flex-col justify-center shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-rose-700 tracking-wider">Non-Payable / Deductions</span>
+                <span className="text-xs sm:text-sm font-bold text-rose-800 mt-0.5">
                   {formatINR(preview?.deductions ?? (preview?.potential_non_medical_total ?? 0))}
                 </span>
               </div>
-              <div className="rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-2.5 flex flex-col justify-center">
-                <span className="text-[10px] uppercase font-bold text-emerald-400/90 tracking-wider">Net Admissible Amount</span>
-                <span className="text-xs sm:text-sm font-bold text-emerald-400 mt-0.5">
+              <div className="rounded-xl bg-[#ECFDF5] border border-[#A7F3D0] p-2.5 flex flex-col justify-center shadow-2xs">
+                <span className="text-[10px] uppercase font-bold text-[#047857] tracking-wider">Net Admissible Amount</span>
+                <span className="text-xs sm:text-sm font-bold text-[#047857] mt-0.5">
                   {formatINR(preview?.net_payable && preview.net_payable > 0 ? preview.net_payable : ((preview?.gross_total || billedAmount) - (preview?.deductions || 0)))}
                 </span>
               </div>
             </div>
 
-            {/* Policy & Admissibility Guidance Box */}
-            <div className="rounded-xl border border-sky-500/20 bg-sky-950/30 p-3 text-xs text-sky-200/90 space-y-1.5">
-              <div className="flex items-center gap-1.5 text-sky-400 font-bold text-[11px] uppercase tracking-wider">
+            {/* Policy & Admissibility Guidance Box - Dynamically reacts to 0 line items */}
+            <div className="rounded-xl border border-sky-200 bg-sky-50/80 p-3 text-xs text-sky-900 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-sky-800 font-bold text-[11px] uppercase tracking-wider">
                 <Info className="h-3.5 w-3.5 flex-none" />
                 <span>Policy &amp; Admissibility Guidance</span>
               </div>
-              <p className="text-[11px] leading-relaxed text-slate-300">
-                {preview?.admissibility_guidance || (
-                  preview?.potential_non_medical_total && preview.potential_non_medical_total > 0
-                    ? `Non-medical expenses (e.g., admin, food, or visitor charges totaling ${formatINR(preview.potential_non_medical_total)}) are covered in full if your insurance policy includes a Non-Medical / Consumables Rider or corporate 100% GMC cover. The final settlement decision and deduction approval rest with your Insurer / TPA.`
-                    : "All line items qualify as legitimate medical expenses under IRDAI guidelines with zero non-medical deductions. Final settlement is subject to your policy sum insured and sub-limits."
+              <p className="text-[11px] leading-relaxed text-slate-700">
+                {expenses.length === 0 ? (
+                  "No itemized expenses found. Please upload your hospital final itemized bill or add expense rows above."
+                ) : (
+                  preview?.admissibility_guidance || (
+                    preview?.potential_non_medical_total && preview.potential_non_medical_total > 0
+                      ? `Non-medical expenses (e.g., admin, food, or visitor charges totaling ${formatINR(preview.potential_non_medical_total)}) are covered in full if your insurance policy includes a Non-Medical / Consumables Rider or corporate 100% GMC cover. The final settlement decision and deduction approval rest with your Insurer / TPA.`
+                      : "All line items qualify as legitimate medical expenses under IRDAI guidelines with zero non-medical deductions. Final settlement is subject to your policy sum insured and sub-limits."
+                  )
                 )}
               </p>
             </div>
 
             {/* Total Summary Row / Verification Status */}
             <div className="flex items-center justify-between text-xs font-bold px-1 pt-1">
-              <span className="text-slate-400">Itemized Audit Breakdown:</span>
-              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-400">
-                <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
-                {formatINR(totalItemizedExpenses)} {expenseMismatch <= 100 ? '(Verified Itemization ✓)' : `(${expenses.length} Items Extracted)`}
-              </span>
+              <span className="text-slate-600">Itemized Audit Breakdown:</span>
+              {expenses.length === 0 ? (
+                <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+                  ₹0 (No expenses recorded)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-xs text-[#047857] font-semibold">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#047857]"></span>
+                  {formatINR(totalItemizedExpenses)} {expenseMismatch <= 100 ? '(Verified Itemization ✓)' : `(${expenses.length} Items Extracted)`}
+                </span>
+              )}
             </div>
 
             {/* Informational Guidance Note when user has active unsaved edits */}
             {isExpensesDirty && expenseMismatch > 100 && (
-              <div className="flex items-start gap-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 p-2.5 text-xs text-cyan-300">
-                <Info className="h-4 w-4 text-cyan-400 flex-none mt-0.5" />
+              <div className="flex items-start gap-2.5 rounded-xl bg-[#EFF6FF] border border-[#BFDBFE] p-2.5 text-xs text-[#1D4ED8]">
+                <Info className="h-4 w-4 text-[#1D4ED8] flex-none mt-0.5" />
                 <div>
-                  <p className="font-semibold text-white">Custom Expense Edits Active</p>
-                  <p className="text-[11px] text-cyan-200/90 mt-0.5">
+                  <p className="font-semibold text-slate-900">Custom Expense Edits Active</p>
+                  <p className="text-[11px] text-[#1E40AF] mt-0.5">
                     Your modified itemized total of {formatINR(totalItemizedExpenses)} will be saved to this claim.
                   </p>
                 </div>
@@ -1517,13 +1609,13 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
           </div>
 
           {/* 4. 🔗 CROSS-DOCUMENT REIMBURSEMENT INTELLIGENCE */}
-          <div className="rounded-2xl border border-white/10 bg-slate-800/40 p-3.5 sm:p-5 space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-5 space-y-4">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <div className="flex items-center gap-2">
-                <Layers className="h-4 w-4 text-teal-400" />
-                <h3 className="text-xs sm:text-sm font-bold text-white">Cross-Document Reimbursement Intelligence</h3>
+                <Layers className="h-4 w-4 text-[#0F766E]" />
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900">Cross-Document Reimbursement Intelligence</h3>
               </div>
-              <span className="inline-flex items-center gap-1 rounded-full bg-teal-500/20 border border-teal-500/40 px-2.5 py-0.5 text-xs font-bold text-teal-300">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] px-2.5 py-0.5 text-xs font-bold text-[#047857]">
                 {verificationReadiness}% Reimbursement Ready
               </span>
             </div>
@@ -1532,10 +1624,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             <div className="space-y-1">
               <div className="flex justify-between text-[10px] font-semibold text-slate-400">
                 <span>Verification Readiness Progress</span>
-                <span className="text-teal-400 font-bold">{verificationReadiness}%</span>
+                <span className="text-[#0F766E] font-bold">{verificationReadiness}%</span>
               </div>
-              <div className="h-2 w-full rounded-full bg-slate-900 overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-teal-500 to-emerald-400 rounded-full" style={{ width: `${verificationReadiness}%` }} />
+              <div className="h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                <div className="h-full bg-[#0F766E] rounded-full" style={{ width: `${verificationReadiness}%` }} />
               </div>
             </div>
 
@@ -1547,20 +1639,28 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   documents.map((doc: any, idx) => {
                     const docType = (doc.doc_type || doc.type || 'DOCUMENT').toUpperCase();
                     const docName = doc.file_name || doc.original_filename || doc.display_title || doc.name || `Document ${idx + 1}`;
+                    const isUnidentified = !doc.doc_type || docType.includes('UNKNOWN');
                     return (
-                      <div key={idx} className="rounded-xl bg-slate-900/70 p-2.5 border border-white/5 text-xs">
-                        <span className="rounded bg-teal-500/20 px-1.5 py-0.5 text-[9px] font-bold text-teal-300">{docType}</span>
-                        <p className="font-semibold text-white mt-1.5 truncate" title={docName}>{docName}</p>
-                        <p className="text-[10px] text-slate-400 mt-0.5">
-                          {doc.fields_extracted !== undefined ? `${doc.fields_extracted} fields extracted` : 'OCR Parsed & Verified'}
+                      <div key={idx} className="rounded-xl bg-white p-2.5 border border-slate-200 text-xs shadow-2xs">
+                        <span className={cn(
+                          "rounded px-1.5 py-0.5 text-[9px] font-bold",
+                          isUnidentified ? "bg-[#FFFBEB] text-amber-800 border border-amber-200" : "bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0]"
+                        )}>
+                          {isUnidentified ? 'Unidentified Document' : docType}
+                        </span>
+                        <p className="font-semibold text-slate-900 mt-1.5 truncate" title={docName}>{docName}</p>
+                        <p className={cn("text-[10px] mt-0.5", isUnidentified ? "text-amber-700 font-medium" : "text-slate-500")}>
+                          {isUnidentified
+                            ? "Could not identify this document — please verify type"
+                            : (doc.fields_extracted !== undefined ? `${doc.fields_extracted} fields extracted` : 'OCR Parsed & Verified')}
                         </p>
                       </div>
                     );
                   })
                 ) : s.claimId ? (
-                  <div className="rounded-xl bg-slate-900/70 p-2.5 border border-white/5 text-xs">
-                    <span className="rounded bg-teal-500/20 px-1.5 py-0.5 text-[9px] font-bold text-teal-300">CLAIM</span>
-                    <p className="font-semibold text-white mt-1.5 truncate">{s.claimId}</p>
+                  <div className="rounded-xl bg-white p-2.5 border border-slate-200 text-xs">
+                    <span className="rounded bg-slate-100 border border-slate-200 px-1.5 py-0.5 text-[9px] font-bold text-[#0F766E]">CLAIM</span>
+                    <p className="font-semibold text-slate-900 mt-1.5 truncate">{s.claimId}</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">{totalParsedFields} fields extracted</p>
                   </div>
                 ) : (
@@ -1579,16 +1679,16 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 {verifiedFields.map((field) => (
-                  <div key={field.key} className="flex items-center justify-between p-2.5 rounded-xl bg-slate-900/50 border border-white/5 gap-3">
-                    <span className="font-medium text-slate-300 flex-none text-[11px]">{field.label}</span>
+                  <div key={field.key} className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200 gap-3">
+                    <span className="font-medium text-slate-600 flex-none text-[11px]">{field.label}</span>
                     {field.isVerified ? (
-                      <span className="font-bold text-emerald-400 flex items-center gap-1 text-[11px] text-right truncate">
-                        <CheckCircle2 className="h-3.5 w-3.5 flex-none text-emerald-400" />
+                      <span className="font-bold text-slate-900 flex items-center gap-1.5 text-[11px] text-right truncate">
+                        <CheckCircle2 className="h-3.5 w-3.5 flex-none text-[#047857]" />
                         <span className="truncate" title={field.value}>{field.value}</span>
                       </span>
                     ) : (
                       <span className="font-medium text-slate-500 text-[10px] italic">
-                        {field.key === 'policy_number' ? 'N/A' : 'Not in document'}
+                        {'Not found'}
                       </span>
                     )}
                   </div>
@@ -1598,7 +1698,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
             {/* Dynamic Reimbursement Checklist */}
             <div className="space-y-2">
-              <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">✅ Required Checklist Items</p>
+              <p className="text-[11px] font-bold text-slate-600 uppercase tracking-wider">✅ Required Checklist Items</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
                 {checklistItems.map((item) => {
                   const isVerified = item.state === 'verified' || item.state === 'extracted';
@@ -1608,36 +1708,28 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     <div
                       key={item.id}
                       className={cn(
-                        "flex items-center justify-between p-2.5 rounded-xl border gap-2",
-                        isMissing
-                          ? "bg-rose-500/5 border-rose-500/20 text-rose-300"
-                          : item.state === 'verified'
-                            ? "bg-emerald-500/5 border-emerald-500/20 text-slate-200"
-                            : item.state === 'extracted'
-                              ? "bg-teal-500/5 border-teal-500/20 text-slate-200"
-                              : "bg-slate-900/50 border-white/5 text-slate-400"
+                        "flex items-center justify-between p-2.5 rounded-xl border border-slate-200 bg-white gap-2 shadow-2xs",
+                        isMissing && "bg-rose-50/50 border-rose-200"
                       )}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         {isVerified ? (
-                          <CheckSquare className="h-4 w-4 text-emerald-400 flex-none" />
+                          <CheckSquare className="h-4 w-4 text-[#047857] flex-none" />
                         ) : isMissing ? (
-                          <AlertTriangle className="h-4 w-4 text-rose-400 flex-none" />
+                          <AlertTriangle className="h-4 w-4 text-rose-600 flex-none" />
                         ) : (
-                          <Square className="h-4 w-4 text-slate-500 flex-none" />
+                          <Square className="h-4 w-4 text-slate-400 flex-none" />
                         )}
-                        <span className="font-semibold truncate text-[11px]">{item.title}</span>
+                        <span className="font-semibold text-slate-800 truncate text-[11px]">{item.title}</span>
                       </div>
                       <span
                         className={cn(
-                          "text-[9px] font-bold px-2 py-0.5 rounded flex-none uppercase tracking-wide",
-                          item.color === 'emerald'
-                            ? "text-emerald-400 bg-emerald-500/10 border border-emerald-500/25"
-                            : item.color === 'teal'
-                              ? "text-teal-400 bg-teal-500/10 border border-teal-500/25"
-                              : item.color === 'rose'
-                                ? "text-rose-400 bg-rose-500/10 border border-rose-500/25"
-                                : "text-slate-400 bg-slate-800 border border-white/5"
+                          "text-[9px] font-bold px-2 py-0.5 rounded flex-none uppercase tracking-wide border",
+                          isVerified
+                            ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]"
+                            : isMissing
+                              ? "bg-[#FFF1F2] border-rose-200 text-rose-700"
+                              : "bg-slate-100 border-slate-200 text-slate-600"
                         )}
                       >
                         {item.label}
@@ -1649,11 +1741,11 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             </div>
           </div>
 
-          {/* 5. 🔬 ICD-10 & CPT MEDICAL CODING (NON-OVERLAPPING MOBILE-FRIENDLY LAYOUT) */}
-          <div className="rounded-2xl border border-white/10 bg-slate-800/40 p-3.5 sm:p-5 space-y-3">
+          {/* 5. 🔬 ICD-10 & CPT MEDICAL CODING - Light Theme */}
+          <div id="section-codes" className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-5 space-y-3 shadow-2xs scroll-mt-4">
             <div className="flex items-center gap-2">
-              <Stethoscope className="h-4 w-4 text-teal-400" />
-              <h3 className="text-xs sm:text-sm font-bold text-white">ICD-10 &amp; CPT Medical Codes</h3>
+              <Stethoscope className="h-4 w-4 text-[#0F766E]" />
+              <h3 className="text-xs sm:text-sm font-bold text-slate-900">ICD-10 &amp; CPT Medical Codes</h3>
             </div>
             <div className="space-y-2.5">
               {icdCodes.length > 0 ? icdCodes.map((item, parentIdx) => {
@@ -1671,7 +1763,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 const otherMatches: any[] = isExplicit ? [] : (item.other_matches || []);
 
                 return (
-                  <div key={`icd-${item.code}-${parentIdx}`} className="bg-slate-900/70 p-3.5 rounded-xl border border-white/5 space-y-3">
+                  <div key={`icd-${item.code}-${parentIdx}`} className="bg-white p-3.5 rounded-xl border border-slate-200 space-y-3">
                     {/* Top 1 Active Matched Code */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between gap-2">
@@ -1680,13 +1772,13 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                             "font-mono font-bold px-2 py-0.5 rounded text-[11px]",
                             isLowMatch
                               ? "text-amber-300 bg-amber-500/10 border border-amber-500/25"
-                              : "text-teal-300 bg-teal-500/10 border border-teal-500/25"
+                              : "text-[#0F766E] bg-slate-100 border border-slate-200"
                           )}>
                             {item.code}
                           </span>
                           {isExplicit ? (
-                            <span className="text-[10px] font-semibold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded flex items-center gap-1">
-                              <CheckCircle2 className="h-3 w-3 text-emerald-400" />
+                            <span className="text-[10px] font-semibold text-[#047857] bg-[#ECFDF5] border border-[#A7F3D0] px-2 py-0.5 rounded flex items-center gap-1">
+                              <CheckCircle2 className="h-3 w-3 text-[#047857]" />
                               ICD code present in document
                             </span>
                           ) : isLowMatch ? (
@@ -1695,7 +1787,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                               Low Matched Code
                             </span>
                           ) : (
-                            <span className="text-[10px] font-semibold text-teal-400/80 bg-teal-400/10 px-1.5 py-0.5 rounded">
+                            <span className="text-[10px] font-semibold text-[#047857] bg-[#ECFDF5] px-1.5 py-0.5 rounded">
                               Matched Code
                             </span>
                           )}
@@ -1704,7 +1796,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                           "font-bold text-[10px] px-2 py-0.5 rounded-full flex-none",
                           isLowMatch
                             ? "text-amber-400 bg-amber-500/15 border border-amber-500/30"
-                            : "text-emerald-400 font-bold text-[10px] bg-emerald-500/15 border border-emerald-500/30"
+                            : "text-[#047857] font-bold text-[10px] bg-[#ECFDF5] border border-[#A7F3D0]"
                         )}>
                           {isExplicit
                             ? '100% Match'
@@ -1719,7 +1811,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                         </div>
                       )}
                       
-                      <p className="text-slate-200 text-xs leading-relaxed font-semibold">
+                      <p className="text-slate-800 text-xs leading-relaxed font-semibold">
                         {item.description}
                       </p>
 
@@ -1728,10 +1820,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                         <button
                           type="button"
                           onClick={() => toggleCodeDesc(`top-${parentIdx}-${item.code}`)}
-                          className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 hover:text-teal-300 transition-colors py-0.5"
+                          className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400 hover:text-[#0F766E] transition-colors py-0.5"
                         >
                           {isTopDescOpen ? (
-                            <ChevronDown className="h-3.5 w-3.5 text-teal-400" />
+                            <ChevronDown className="h-3.5 w-3.5 text-[#0F766E]" />
                           ) : (
                             <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
                           )}
@@ -1739,15 +1831,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                         </button>
 
                         {isTopDescOpen && (
-                          <div className="mt-1.5 pl-3 border-l-2 border-teal-500/30 py-1.5 space-y-1.5 bg-slate-950/40 rounded-r-lg p-2.5 text-[11px]">
+                          <div className="mt-1.5 pl-3 border-l-2 border-slate-300/30 py-1.5 space-y-1.5 bg-slate-50 border border-slate-200 rounded-r-lg p-2.5 text-[11px]">
                             <div>
                               <span className="text-slate-400 font-medium">Description: </span>
-                              <span className="text-slate-200">{item.description}</span>
+                              <span className="text-slate-800">{item.description}</span>
                             </div>
                             {item.code_includes && (
                               <div>
-                                <span className="text-teal-400 font-medium">What code covers: </span>
-                                <span className="text-slate-300 leading-relaxed">{item.code_includes.replace(/^Code covers:\s*/i, '')}</span>
+                                <span className="text-slate-600 font-medium">What code covers: </span>
+                                <span className="text-slate-700 leading-relaxed">{item.code_includes.replace(/^Code covers:\s*/i, '')}</span>
                               </div>
                             )}
                           </div>
@@ -1757,20 +1849,20 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
                     {/* Disclosure Button: Other Closest Matches (Other 2 Codes) */}
                     {!isExplicit && otherMatches.length > 0 && (
-                      <div className="pt-1 border-t border-white/5">
+                      <div className="pt-1 border-t border-slate-200">
                         <button
                           type="button"
                           onClick={() => toggleOtherMatches(item.code)}
-                          className="flex items-center justify-between w-full text-[11px] font-medium text-slate-400 hover:text-slate-200 transition-colors py-1 px-1 rounded hover:bg-slate-800/40"
+                          className="flex items-center justify-between w-full text-[11px] font-medium text-slate-400 hover:text-slate-800 transition-colors py-1 px-1 rounded hover:bg-slate-100"
                         >
                           <div className="flex items-center gap-1.5">
                             {isOtherOpen ? (
-                              <ChevronDown className="h-3.5 w-3.5 text-sky-400" />
+                              <ChevronDown className="h-3.5 w-3.5 text-sky-700" />
                             ) : (
                               <ChevronRight className="h-3.5 w-3.5 text-slate-500" />
                             )}
                             <span className="text-slate-300 font-medium">Other Closest Matches</span>
-                            <span className="bg-slate-800 text-slate-400 text-[10px] px-1.5 py-0.2 rounded-full border border-white/5">
+                            <span className="bg-slate-100 text-slate-600 text-[10px] px-1.5 py-0.2 rounded-full border border-slate-200">
                               {otherMatches.length}
                             </span>
                           </div>
@@ -1798,7 +1890,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                               return (
                                 <div
                                   key={`alt-${alt.code}-${altIdx}`}
-                                  className="bg-slate-950/60 p-2.5 rounded-lg border border-white/5 space-y-1.5"
+                                  className="bg-slate-50 p-2.5 rounded-lg border border-slate-200 space-y-1.5"
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <div className="flex items-center gap-2">
@@ -1806,7 +1898,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                                         "font-mono font-bold px-1.5 py-0.5 rounded text-[10px]",
                                         altIsLow
                                           ? "text-amber-300 bg-amber-500/10 border border-amber-500/25"
-                                          : "text-sky-300 bg-sky-500/10 border border-sky-500/25"
+                                          : "text-sky-800 bg-sky-50 border border-sky-200"
                                       )}>
                                         {alt.code}
                                       </span>
@@ -1822,7 +1914,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                                     <button
                                       type="button"
                                       onClick={() => swapIcdCandidate(parentIdx, altIdx)}
-                                      className="flex items-center gap-1 text-[10px] font-bold text-teal-300 hover:text-teal-200 bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 px-2 py-0.5 rounded transition-all shadow-sm"
+                                      className="flex items-center gap-1 text-[10px] font-bold text-[#0F766E] hover:text-[#0D655E] bg-slate-100 hover:bg-slate-200 border border-slate-300 px-2 py-0.5 rounded transition-all shadow-sm"
                                       title="Select this code to replace top matched code"
                                     >
                                       <ArrowUpDown className="h-3 w-3" />
@@ -1837,7 +1929,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                                     </div>
                                   )}
 
-                                  <p className="text-slate-300 text-[11px] leading-relaxed">
+                                  <p className="text-slate-700 text-[11px] leading-relaxed">
                                     {alt.description}
                                   </p>
 
@@ -1846,10 +1938,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                                     <button
                                       type="button"
                                       onClick={() => toggleCodeDesc(altDescKey)}
-                                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-sky-300 transition-colors py-0.5"
+                                      className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-sky-700 transition-colors py-0.5"
                                     >
                                       {isAltDescOpen ? (
-                                        <ChevronDown className="h-3 w-3 text-sky-400" />
+                                        <ChevronDown className="h-3 w-3 text-sky-700" />
                                       ) : (
                                         <ChevronRight className="h-3 w-3 text-slate-500" />
                                       )}
@@ -1857,15 +1949,15 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                                     </button>
 
                                     {isAltDescOpen && (
-                                      <div className="mt-1 pl-2.5 border-l border-sky-500/30 py-1 space-y-1 text-[10px] bg-slate-900/40 rounded p-2">
+                                      <div className="mt-1 pl-2.5 border-l border-sky-500/30 py-1 space-y-1 text-[10px] bg-slate-50 border border-slate-200 rounded p-2">
                                         <div>
                                           <span className="text-slate-400 font-medium">Description: </span>
-                                          <span className="text-slate-200">{alt.description}</span>
+                                          <span className="text-slate-800">{alt.description}</span>
                                         </div>
                                         {alt.code_includes && (
                                           <div>
-                                            <span className="text-sky-400 font-medium">What code covers: </span>
-                                            <span className="text-slate-300 leading-relaxed">{alt.code_includes.replace(/^Code covers:\s*/i, '')}</span>
+                                            <span className="text-sky-700 font-medium">What code covers: </span>
+                                            <span className="text-slate-700 leading-relaxed">{alt.code_includes.replace(/^Code covers:\s*/i, '')}</span>
                                           </div>
                                         )}
                                       </div>
@@ -1884,16 +1976,16 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 <p className="text-xs text-muted-foreground italic text-slate-500">No ICD codes extracted</p>
               )}
               {cptCodes.length > 0 ? cptCodes.map(item => (
-                <div key={item.code} className="bg-slate-900/70 p-3 rounded-xl border border-white/5 space-y-1.5">
+                <div key={item.code} className="bg-white p-3 rounded-xl border border-slate-200 space-y-1.5">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="font-mono font-bold text-sky-300 bg-sky-500/10 border border-sky-500/25 px-2 py-0.5 rounded text-[11px]">
+                    <span className="font-mono font-bold text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded text-[11px]">
                       CPT {item.code}
                     </span>
-                    <span className="text-emerald-400 font-bold text-[10px] bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full flex-none">
+                    <span className="text-[#047857] font-bold text-[10px] bg-[#ECFDF5] border border-[#A7F3D0] px-2 py-0.5 rounded-full flex-none">
                       {(item.confidence * 100).toFixed(0)}% Match
                     </span>
                   </div>
-                  <p className="text-slate-300 text-xs leading-relaxed font-medium">
+                  <p className="text-slate-800 text-xs leading-relaxed font-semibold">
                     {item.description}
                   </p>
                 </div>
@@ -1903,24 +1995,28 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             </div>
           </div>
 
-          {/* 6. ✅ IRDAI VALIDATION RULES (MOVED TO VERY LAST SECTION AS REQUESTED!) */}
-          <div className="rounded-2xl border border-white/10 bg-slate-800/40 p-3.5 sm:p-5 space-y-3">
+          {/* 6. ✅ IRDAI VALIDATION RULES - Light Theme */}
+          <div id="section-rules" className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-5 space-y-3 shadow-2xs scroll-mt-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-emerald-400" />
-                <h3 className="text-xs sm:text-sm font-bold text-white">IRDAI Rule Validations</h3>
+                <ShieldCheck className="h-4 w-4 text-[#047857]" />
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900">IRDAI Rule Validations</h3>
               </div>
-              <span className="rounded-full bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
-                {validations.filter(v => v.passed).length}/{validations.length} Passed
+              <span className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                passedValidationCount === totalValidationCount
+                  ? 'bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]'
+                  : 'bg-[#FFFBEB] border-amber-200 text-amber-800'
+              }`}>
+                {passedValidationCount}/{totalValidationCount} Passed
               </span>
             </div>
 
             <div className="space-y-2">
               {validations.length > 0 ? validations.map((val, i) => (
-                <div key={i} className="flex items-start gap-2.5 text-xs bg-slate-900/60 p-2.5 rounded-xl border border-white/5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-none mt-0.5" />
+                <div key={i} className="flex items-start gap-2.5 text-xs bg-white p-2.5 rounded-xl border border-slate-200">
+                  <CheckCircle2 className="h-4 w-4 text-[#047857] flex-none mt-0.5" />
                   <div>
-                    <p className="font-semibold text-slate-200">{val.rule_name}</p>
+                    <p className="font-semibold text-slate-800">{val.rule_name}</p>
                     <p className="text-slate-400 text-[11px] mt-0.5">{val.message}</p>
                   </div>
                 </div>
@@ -1932,8 +2028,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
         </div>
 
-        {/* 7. 🎯 B2C MOBILE-OPTIMIZED FOOTER ACTION BAR */}
-        <div className="flex-none border-t border-white/10 bg-slate-900/95 px-3 sm:px-6 py-3 sm:py-3.5 backdrop-blur-md">
+        {/* 7. 🎯 B2C MOBILE-OPTIMIZED FOOTER ACTION BAR - Light Theme */}
+        <div className="flex-none border-t border-slate-200 bg-white px-3 sm:px-6 py-3 sm:py-3.5">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
             {/* View Reports Group */}
             <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
@@ -1942,14 +2038,22 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   type="button"
                   onClick={handleViewTpaReport}
                   disabled={loadingPdf === 'tpa'}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 min-h-[40px] sm:min-h-[44px] px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+                  title={!hasValidPolicy ? "Upload Policy Document first to unlock TPA report" : "View TPA Audit Report"}
+                  className={cn(
+                    "inline-flex items-center justify-center gap-1.5 rounded-xl min-h-[40px] sm:min-h-[44px] px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap",
+                    hasValidPolicy
+                      ? "bg-[#0F766E] hover:bg-[#0D655E] text-white shadow-2xs"
+                      : "bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900"
+                  )}
                 >
                   {loadingPdf === 'tpa' ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
+                  ) : hasValidPolicy ? (
                     <Eye className="h-3.5 w-3.5" />
+                  ) : (
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-400" />
                   )}
-                  View TPA Report
+                  View TPA Report {!hasValidPolicy && <span className="hidden sm:inline text-[9px] opacity-75 font-normal">(Policy Req)</span>}
                 </button>
               ) : null}
 
@@ -1958,14 +2062,20 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                   type="button"
                   onClick={handleViewIrdaReport}
                   disabled={loadingPdf === 'irdai'}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-white/10 disabled:opacity-50 min-h-[40px] sm:min-h-[44px] px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold text-slate-200 transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap"
+                  title={!hasValidPolicy ? "Upload Policy Document first to unlock IRDAI form" : "View IRDAI Claim Form"}
+                  className={cn(
+                    "inline-flex items-center justify-center gap-1.5 rounded-xl min-h-[40px] sm:min-h-[44px] px-2.5 sm:px-4 text-[11px] sm:text-xs font-bold transition-all shadow-md active:scale-95 cursor-pointer whitespace-nowrap",
+                    hasValidPolicy
+                      ? "bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 shadow-2xs"
+                      : "bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-900"
+                  )}
                 >
                   {loadingPdf === 'irdai' ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Eye className="h-3.5 w-3.5 text-amber-400" />
                   )}
-                  View IRDAI Form
+                  View IRDAI Form {!hasValidPolicy && <span className="hidden sm:inline text-[9px] opacity-75 font-normal">(Policy Req)</span>}
                 </button>
               ) : null}
             </div>
@@ -1988,44 +2098,58 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                     className={cn(
                       "flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 rounded-xl min-h-[42px] sm:min-h-[44px] px-4 text-xs font-bold text-white transition-all shadow-md active:scale-95",
                       isSettled
-                        ? "bg-emerald-600 border border-emerald-400 opacity-95 cursor-default shadow-emerald-900/30"
+                        ? "bg-[#047857] border border-[#A7F3D0] opacity-95 cursor-default"
                         : isApproved
-                        ? "bg-teal-600 border border-teal-400 opacity-95 cursor-default shadow-teal-900/30"
+                        ? "bg-[#0F766E] border border-[#0D655E] opacity-95 cursor-default"
                         : isRejected
                         ? "bg-rose-600 border border-rose-400 opacity-95 cursor-default shadow-rose-900/30"
                         : isDocsReq
                         ? "bg-amber-600 border border-amber-400 opacity-95 cursor-default shadow-amber-900/30"
                         : isSubmittedToPayer
                         ? "bg-sky-600 border border-sky-400 opacity-95 cursor-default shadow-sky-900/30"
-                        : "bg-emerald-600 hover:bg-emerald-500 cursor-pointer"
+                        : !hasValidPolicy
+                        ? "bg-amber-600 hover:bg-amber-500 border border-amber-400 text-white cursor-pointer shadow-amber-900/30"
+                        : "bg-[#0F766E] hover:bg-[#0D655E] cursor-pointer shadow-sm"
                     )}
+                    title={!hasValidPolicy ? "Upload Policy Document to enable submission" : "Submit Claim to Insurer / TPA"}
                   >
-                    {isSubmittingToPayer ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : isSettled ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-200" />
-                    ) : isApproved ? (
-                      <CheckCircle2 className="h-4 w-4 text-teal-200" />
-                    ) : isRejected ? (
-                      <AlertTriangle className="h-4 w-4 text-rose-200" />
-                    ) : isDocsReq ? (
-                      <AlertTriangle className="h-4 w-4 text-amber-200" />
-                    ) : isSubmittedToPayer ? (
-                      <CheckCircle2 className="h-4 w-4 text-white" />
+                    {!hasValidPolicy && !isSettled && !isApproved && !isRejected && !isDocsReq && !isSubmittedToPayer ? (
+                      <>
+                        <UploadCloud className="h-4 w-4 text-white" />
+                        <span>Upload Policy to Submit</span>
+                      </>
                     ) : (
-                      <Send className="h-4 w-4" />
+                      <>
+                        {isSubmittingToPayer ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : isSettled ? (
+                          <CheckCircle2 className="h-4 w-4 text-[#ECFDF5]" />
+                        ) : isApproved ? (
+                          <CheckCircle2 className="h-4 w-4 text-[#ECFDF5]" />
+                        ) : isRejected ? (
+                          <AlertTriangle className="h-4 w-4 text-rose-200" />
+                        ) : isDocsReq ? (
+                          <AlertTriangle className="h-4 w-4 text-amber-200" />
+                        ) : isSubmittedToPayer ? (
+                          <CheckCircle2 className="h-4 w-4 text-white" />
+                        ) : (
+                          <Send className="h-4 w-4" />
+                        )}
+                        <span>
+                          {isSettled
+                            ? (submittedPayer ? `Settled & Paid (${submittedPayer})` : "Claim Settled & Paid")
+                            : isApproved
+                            ? (submittedPayer ? `Approved by ${submittedPayer}` : "Claim Approved")
+                            : isRejected
+                            ? (submittedPayer ? `Rejected by ${submittedPayer}` : "Claim Rejected")
+                            : isDocsReq
+                            ? (submittedPayer ? `Docs Requested by ${submittedPayer}` : "Documents Requested")
+                            : isSubmittedToPayer
+                            ? (submittedPayer ? `Submitted to ${submittedPayer}` : "Submitted to Insurer")
+                            : "Submit Claim to Insurer"}
+                        </span>
+                      </>
                     )}
-                    {isSettled
-                      ? (submittedPayer ? `Settled & Paid (${submittedPayer})` : "Claim Settled & Paid")
-                      : isApproved
-                      ? (submittedPayer ? `Approved by ${submittedPayer}` : "Claim Approved")
-                      : isRejected
-                      ? (submittedPayer ? `Rejected by ${submittedPayer}` : "Claim Rejected")
-                      : isDocsReq
-                      ? (submittedPayer ? `Docs Requested by ${submittedPayer}` : "Documents Requested")
-                      : isSubmittedToPayer
-                      ? (submittedPayer ? `Submitted to ${submittedPayer}` : "Submitted to Insurer")
-                      : "Submit Claim to Insurer"}
                   </button>
                 );
               })()}
@@ -2033,7 +2157,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               <button
                 type="button"
                 onClick={s.closeReportModal}
-                className="flex-none rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 min-h-[42px] sm:min-h-[44px] px-3.5 sm:px-4 text-xs font-semibold text-white transition-all cursor-pointer"
+                className="flex-none rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 min-h-[42px] sm:min-h-[44px] px-3.5 sm:px-4 text-xs font-semibold text-slate-700 transition-all cursor-pointer"
               >
                 Close Report
               </button>
@@ -2045,25 +2169,25 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
       {/* 8. 📄 ON-SCREEN EMBEDDED PDF VIEWER (Opens directly on screen, NO separate tab opened) */}
       {inlinePdf ? (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-1.5 sm:p-4 animate-fade-in">
-          <div className="relative w-full max-w-5xl h-[96vh] sm:h-[94vh] flex flex-col rounded-2xl border border-white/15 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-1.5 sm:p-4 animate-fade-in">
+          <div className="relative w-full max-w-5xl h-[96vh] sm:h-[94vh] flex flex-col rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden">
             {/* Header */}
-            <div className="flex-none flex items-center justify-between border-b border-white/10 bg-slate-900/95 px-3 sm:px-6 py-2.5 sm:py-3 backdrop-blur-md">
+            <div className="flex-none flex items-center justify-between border-b border-slate-200 bg-white px-3 sm:px-6 py-2.5 sm:py-3">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
                 <button
                   type="button"
                   onClick={closeInlinePdf}
-                  className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-all active:scale-95 cursor-pointer"
+                  className="flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 transition-all active:scale-95 cursor-pointer"
                   title="Back to Audit Report"
                 >
                   <ArrowLeft className="h-4 w-4" />
                 </button>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-xs sm:text-base font-bold text-white truncate">
+                    <h3 className="text-xs sm:text-base font-bold text-slate-900 truncate">
                       {inlinePdf.title}
                     </h3>
-                    <span className="hidden sm:inline-flex items-center rounded-full bg-teal-500/20 border border-teal-500/30 px-2 py-0.5 text-[10px] font-semibold text-teal-300 flex-none">
+                    <span className="hidden sm:inline-flex items-center rounded-full bg-slate-100 border border-slate-300 text-[#0F766E]/30 px-2 py-0.5 text-[10px] font-semibold text-[#0F766E] flex-none">
                       PREVIEW
                     </span>
                   </div>
@@ -2076,7 +2200,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 <a
                   href={inlinePdf.url}
                   download={`${inlinePdf.type === 'tpa' ? 'TPA_Report' : 'IRDAI_Form'}_${s.claimId || 'claim'}.pdf`}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-white transition-all cursor-pointer"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-2xs transition-all cursor-pointer"
                   title="Download PDF Copy"
                 >
                   <Download className="h-3.5 w-3.5" />
@@ -2087,7 +2211,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 <button
                   type="button"
                   onClick={closeInlinePdf}
-                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-white transition-colors cursor-pointer"
+                  className="flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-900 transition-colors cursor-pointer"
                   aria-label="Close Preview"
                 >
                   <X className="h-5 w-5" />
@@ -2096,7 +2220,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             </div>
 
             {/* Embedded PDF container with 100% native vector crispness */}
-            <div className="flex-1 w-full h-full bg-slate-950 relative overflow-hidden p-2 sm:p-4 flex flex-col items-center justify-center min-w-0">
+            <div className="flex-1 w-full h-full bg-slate-100 relative overflow-hidden p-2 sm:p-4 flex flex-col items-center justify-center min-w-0">
               <div className="w-full max-w-4xl h-full flex flex-col items-center justify-center">
                 <iframe
                   src={`${inlinePdf.url}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`}
@@ -2111,17 +2235,17 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
       {/* 9. 🏛️ SUBMIT CLAIM TO INSURER / TPA MODAL */}
       {showInsurerModal && (
-        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-4 animate-fade-in">
-          <div className="relative w-full max-w-lg rounded-2xl border border-white/15 bg-slate-900 text-slate-100 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+        <div className="fixed inset-0 z-[130] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-3 sm:p-4 animate-fade-in">
+          <div className="relative w-full max-w-lg rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
 
             {/* Header */}
-            <div className="flex items-center justify-between border-b border-white/10 bg-slate-800/80 px-4 sm:px-6 py-4">
+            <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 sm:px-6 py-4">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0]">
                   <ShieldCheck className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-base sm:text-lg font-bold text-white leading-tight">
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
                     Submit Claim to Insurer / TPA
                   </h3>
                   <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5">
@@ -2132,7 +2256,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
               <button
                 type="button"
                 onClick={() => setShowInsurerModal(false)}
-                className="rounded-lg p-1.5 text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                className="rounded-lg p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-200 transition-colors cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -2143,7 +2267,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
               {/* Insurer Dropdown Section */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Select Insurance Company / TPA <span className="text-rose-400">*</span>
                 </label>
                 <div className="relative">
@@ -2159,10 +2283,10 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                         setSelectedInsurer(val);
                       }
                     }}
-                    className="w-full rounded-xl bg-slate-800/90 border border-white/15 px-3.5 py-2.5 text-xs sm:text-sm text-white font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500/50 appearance-none cursor-pointer pr-10"
+                    className="w-full rounded-xl bg-white border border-slate-300 px-3.5 py-2.5 text-xs sm:text-sm text-slate-900 font-medium focus:outline-none focus:ring-2 focus:ring-[#0F766E] appearance-none cursor-pointer pr-10 shadow-2xs"
                   >
                     {tpaList.map((org) => (
-                      <option key={org.id} value={org.id} className="bg-slate-900 text-white">
+                      <option key={org.id} value={org.id} className="bg-white text-slate-900">
                         {org.name}
                       </option>
                     ))}
@@ -2173,7 +2297,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 </div>
                 {(selectedInsurer === "Other" || selectedOrgId === "39d287c5-a830-4e24-a2b1-4f5a0f7e5845" || selectedInsurer?.toLowerCase() === "other") && (
                   <div className="mt-2.5">
-                    <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                    <label className="block text-[11px] font-medium text-slate-600 mb-1">
                       Specify Other Insurer / TPA Name (Optional)
                     </label>
                     <input
@@ -2181,20 +2305,20 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                       placeholder="e.g. Bajaj Allianz, Tata AIG, Max Bupa..."
                       value={customInsurerName}
                       onChange={(e) => setCustomInsurerName(e.target.value)}
-                      className="w-full rounded-xl bg-slate-800/90 border border-white/15 px-3.5 py-2 text-xs sm:text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      className="w-full rounded-xl bg-white border border-slate-300 px-3.5 py-2 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0F766E] shadow-2xs"
                     />
                   </div>
                 )}
               </div>
 
               {/* Policy ID Section: Case A (Pre-filled via OCR) vs Case B (Not Found) */}
-              <div className="rounded-xl border border-white/10 bg-slate-800/40 p-3.5 sm:p-4 space-y-3">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5 sm:p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-semibold text-slate-200 flex items-center gap-1.5">
+                  <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
                     Policy Number / Health Card ID <span className="text-rose-400">*</span>
                   </label>
                   {policyFromOcr && (
-                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-bold text-emerald-300">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#ECFDF5] border border-[#A7F3D0] px-2 py-0.5 text-[10px] font-bold text-[#047857]">
                       <CheckCircle2 className="h-3 w-3" /> Auto-detected via OCR
                     </span>
                   )}
@@ -2208,7 +2332,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                       value={policyId}
                       onChange={(e) => setPolicyId(e.target.value)}
                       placeholder="e.g. POL-99882310"
-                      className="w-full rounded-xl bg-slate-800/90 border border-emerald-500/40 px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      className="w-full rounded-xl bg-white border border-slate-300 px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0F766E] shadow-2xs"
                     />
                     <p className="text-[11px] text-slate-400">
                       Pre-filled from your uploaded claim documents. You can review or edit if necessary.
@@ -2222,13 +2346,13 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                       value={policyId}
                       onChange={(e) => setPolicyId(e.target.value)}
                       placeholder="Enter policy number e.g. P/161114/01/2024/002345"
-                      className="w-full rounded-xl bg-slate-800/90 border border-white/15 px-3.5 py-2.5 text-xs sm:text-sm font-mono text-white focus:outline-none focus:ring-2 focus:ring-emerald-500/50"
+                      className="w-full rounded-xl bg-white border border-slate-300 px-3.5 py-2.5 text-xs sm:text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0F766E] shadow-2xs"
                     />
 
                     {/* Divider */}
                     <div className="relative flex items-center justify-center">
-                      <div className="border-t border-white/10 w-full" />
-                      <span className="bg-slate-900 px-2 text-[10px] font-bold tracking-wider text-slate-400 uppercase absolute">
+                      <div className="border-t border-slate-200 w-full" />
+                      <span className="bg-slate-50 px-2 text-[10px] font-bold tracking-wider text-slate-500 uppercase absolute">
                         OR Auto-Extract
                       </span>
                     </div>
@@ -2239,8 +2363,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                       className={cn(
                         "rounded-xl border-2 border-dashed p-3.5 text-center cursor-pointer transition-all",
                         isUploadingPolicyDoc
-                          ? "border-emerald-500/50 bg-emerald-500/10"
-                          : "border-white/20 bg-slate-800/60 hover:bg-slate-800/90 hover:border-emerald-400/50"
+                          ? "border-[#047857] bg-[#ECFDF5]"
+                          : "border-slate-300 bg-white hover:bg-slate-50 hover:border-slate-300"
                       )}
                     >
                       <input
@@ -2253,8 +2377,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
                       {isUploadingPolicyDoc ? (
                         <div className="flex flex-col items-center justify-center py-1">
-                          <Loader2 className="h-6 w-6 animate-spin text-emerald-400 mb-1.5" />
-                          <span className="text-xs font-semibold text-white">
+                          <Loader2 className="h-6 w-6 animate-spin text-[#047857] mb-1.5" />
+                          <span className="text-xs font-semibold text-slate-900">
                             Running Fast OCR &amp; Extracting Policy ID...
                           </span>
                           <span className="text-[10px] text-slate-400 mt-0.5">
@@ -2263,8 +2387,8 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                         </div>
                       ) : (
                         <div className="flex flex-col items-center justify-center py-1">
-                          <UploadCloud className="h-6 w-6 text-slate-400 mb-1 group-hover:text-emerald-400" />
-                          <span className="text-xs font-semibold text-slate-200">
+                          <UploadCloud className="h-6 w-6 text-slate-400 mb-1 group-hover:text-[#047857]" />
+                          <span className="text-xs font-semibold text-slate-800">
                             Upload Health Card / Policy Document
                           </span>
                           <span className="text-[10px] text-slate-400 mt-0.5">
@@ -2278,16 +2402,16 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
 
                 {/* Banner when extracted via OCR */}
                 {ocrSuccessBanner && (
-                  <div className="rounded-lg bg-emerald-500/15 border border-emerald-500/30 p-2.5 flex items-center gap-2 text-xs text-emerald-300 animate-fade-in">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-400 flex-none" />
+                  <div className="rounded-lg bg-[#ECFDF5] border border-[#A7F3D0] p-2.5 flex items-center gap-2 text-xs text-[#047857] animate-fade-in">
+                    <CheckCircle2 className="h-4 w-4 text-[#047857] flex-none" />
                     <span className="font-medium truncate">{ocrSuccessBanner}</span>
                   </div>
                 )}
               </div>
 
               {/* TPA Routing Disclaimer */}
-              <div className="rounded-xl bg-blue-500/10 border border-blue-500/20 p-3 text-[11px] text-blue-300/90 flex items-start gap-2">
-                <Clock className="h-4 w-4 text-blue-400 flex-none mt-0.5" />
+              <div className="rounded-xl bg-[#EFF6FF] border border-[#BFDBFE] p-3 text-[11px] text-[#1E40AF] flex items-start gap-2">
+                <Clock className="h-4 w-4 text-[#1D4ED8] flex-none mt-0.5" />
                 <span>
                   <strong>TPA Routing:</strong> Claim documents will be submitted to the <strong>{(selectedInsurer === "Other" && customInsurerName.trim()) ? customInsurerName.trim() : (selectedInsurer || "selected")}</strong> TPA adjudication queue. The claim is permanently linked to Policy ID <strong>#{policyId.trim() || 'N/A'}</strong>.
                 </span>
@@ -2296,12 +2420,12 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
             </div>
 
             {/* Footer Buttons */}
-            <div className="flex items-center justify-end gap-2.5 border-t border-white/10 bg-slate-900/90 px-4 sm:px-6 py-3.5">
+            <div className="flex items-center justify-end gap-2.5 border-t border-slate-200 bg-white px-4 sm:px-6 py-3.5">
               <button
                 type="button"
                 onClick={() => setShowInsurerModal(false)}
                 disabled={isSubmittingToPayer}
-                className="rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 px-4 py-2.5 text-xs font-semibold text-white transition-all cursor-pointer"
+                className="rounded-xl border border-slate-300 bg-slate-100 hover:bg-slate-200 px-4 py-2.5 text-xs font-semibold text-slate-700 transition-all cursor-pointer"
               >
                 Cancel
               </button>
@@ -2309,7 +2433,7 @@ export function ClaimReportModal({ s }: { s: AuditorState }) {
                 type="button"
                 onClick={handleConfirmSubmitToTpa}
                 disabled={isSubmittingToPayer || !policyId.trim() || !selectedInsurer}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 px-5 py-2.5 text-xs font-bold text-white transition-all shadow-md active:scale-95 cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#0F766E] hover:bg-[#0D655E] disabled:opacity-50 px-5 py-2.5 text-xs font-bold text-white transition-all shadow-sm active:scale-95 cursor-pointer"
               >
                 {isSubmittingToPayer ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

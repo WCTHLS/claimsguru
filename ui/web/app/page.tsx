@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 };
 
 const STYLES = `
-  .lp { --ink:#0A0A0A; --ink-2:#111827; --teal:#0d9488; --teal-dark:#0f766e; --teal-light:#ccfbf1;
+  .lp { --ink:#0A0A0A; --ink-2:#111827; --teal:#0F766E; --teal-dark:#0f766e; --teal-light:#ccfbf1;
         --navy:#06243f; --navy-2:#0b3a67; --navy-light:#bfe3ff;
         --bg:#F8FAFC; --surface:#FFFFFF; --muted:#64748B; --border:#E2E8F0;
         height:100vh; overflow-y:auto; overflow-x:hidden; scroll-behavior:smooth;
@@ -43,7 +43,7 @@ const STYLES = `
   .lp-nav-actions { display:flex; gap:10px; align-items:center; flex-shrink:0; }
   .lp-nav-ghost { font-size:14px; font-weight:600; color:#1e293b; padding:8px 12px; transition:color .15s; white-space:nowrap; }
   .lp-nav-ghost:hover { color:#0d9488; }
-  .lp-nav-cta { padding:10px 20px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; background:linear-gradient(135deg,#0b3a67,#0d9488); color:#fff !important; font-size:13.5px; font-weight:600; box-shadow:var(--shadow-sm); transition:transform .12s, box-shadow .12s, filter .12s; white-space:nowrap; text-align:center; touch-action:manipulation; }
+  .lp-nav-cta { padding:10px 20px; min-height:44px; display:inline-flex; align-items:center; justify-content:center; border-radius:8px; background:#0F766E; color:#fff !important; font-size:13.5px; font-weight:600; box-shadow:var(--shadow-sm); transition:transform .12s, box-shadow .12s, filter .12s; white-space:nowrap; text-align:center; touch-action:manipulation; }
   .lp-nav-cta:hover { transform:translateY(-1px); filter:brightness(1.06); box-shadow:var(--shadow); }
   .lp-strip-mobile { display:none; }
   .lp-strip-desktop { display:inline; }
@@ -55,7 +55,7 @@ const STYLES = `
              background:
                radial-gradient(1100px 520px at 85% 0%, rgba(13,148,136,.42), transparent 60%),
                radial-gradient(900px 480px at 8% 15%, rgba(11,58,103,.50), transparent 55%),
-               linear-gradient(135deg,#041a2e,#06243f 50%,#0b3a67 85%,#0d9488); }
+               linear-gradient(135deg,#041a2e,#06243f 50%,#0b3a67 85%,#0F766E); }
   .lp-hero-grid { display:grid; grid-template-columns:1.12fr .88fr; gap:44px; align-items:center; }
   .lp-badge { display:inline-flex; align-items:center; gap:8px; margin:0 0 16px; font-size:12px; font-weight:700; letter-spacing:.5px; text-transform:uppercase; color:#ccfbf1; background:rgba(13,148,136,.22); border:1px solid rgba(13,148,136,.45); padding:6px 14px; border-radius:999px; }
   .lp-h1 { margin:10px 0 0; font-size:52px; line-height:1.1; letter-spacing:-2px; font-weight:800; color:#fff; }
@@ -64,7 +64,7 @@ const STYLES = `
   .lp-cta-row { margin-top:32px; display:flex; flex-wrap:wrap; gap:14px; align-items:center; }
   .lp-btn { display:inline-flex; align-items:center; justify-content:center; gap:9px; padding:13px 26px; min-height:48px; border-radius:10px; font-weight:600; font-size:14.5px; border:1px solid transparent; transition:transform .12s, box-shadow .12s, filter .12s; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
   .lp-btn:hover { transform:translateY(-1px); }
-  .lp-btn-primary { background:linear-gradient(135deg,#0d9488,#0b3a67); color:#fff !important; box-shadow:var(--shadow); }
+  .lp-btn-primary { background:#0F766E; color:#fff !important; box-shadow:var(--shadow); }
   .lp-btn-primary:hover { filter:brightness(1.08); }
   .lp-btn-outline { background:rgba(255,255,255,.08); color:#fff; border-color:rgba(255,255,255,.32); }
   .lp-btn-outline:hover { background:rgba(255,255,255,.16); border-color:#fff; }
@@ -232,7 +232,7 @@ const STYLES = `
   .lp-faq-body { margin-top:12px; color:#475569; font-size:14.5px; line-height:1.6; }
 
   /* CTA Banner */
-  .lp-cta-banner { padding:84px 0; background:linear-gradient(135deg,#041a2e,#06243f 50%,#0b3a67 85%,#0d9488); color:#fff; text-align:center; }
+  .lp-cta-banner { padding:84px 0; background:linear-gradient(135deg,#041a2e,#06243f 50%,#0b3a67 85%,#0F766E); color:#fff; text-align:center; }
   .lp-cta-banner h2 { font-size:42px; font-weight:800; letter-spacing:-1.2px; max-width:800px; margin:0 auto 16px; color:#fff; }
   .lp-cta-banner p { font-size:17px; color:rgba(255,255,255,.85); max-width:640px; margin:0 auto 32px; }
 

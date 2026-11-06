@@ -72,25 +72,25 @@ export default function ClaimChatWidget() {
 
 const CW_CSS = `
   .cw-fab { position:fixed; right:24px; bottom:24px; z-index:60; width:56px; height:56px; border:none; border-radius:50%;
-    background:linear-gradient(135deg,#0f4c81,#0d9488); box-shadow:0 12px 30px -8px rgba(13,148,136,.6); cursor:pointer;
+    background:#0F766E; box-shadow:0 12px 30px -8px rgba(13,148,136,.6); cursor:pointer;
     display:flex; align-items:center; justify-content:center; transition:transform .15s; }
   .cw-fab:hover { transform:scale(1.06); }
   .cw-panel { position:fixed; right:24px; bottom:92px; z-index:60; width:340px; max-width:calc(100vw - 36px);
     background:#fff; border:1px solid #E8EBF0; border-radius:16px; box-shadow:0 30px 60px -20px rgba(16,24,40,.4); overflow:hidden;
     font-family:'Segoe UI',system-ui,sans-serif; animation:cwup .2s ease; display:flex; flex-direction:column; }
   @keyframes cwup { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
-  .cw-head { background:linear-gradient(135deg,#0f4c81,#0d9488); color:#fff; padding:14px 16px; font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px; }
+  .cw-head { background:#0F766E; color:#fff; padding:14px 16px; font-weight:700; font-size:15px; display:flex; align-items:center; gap:8px; }
   .cw-dot { width:8px; height:8px; border-radius:50%; background:#7ee8da; animation:cwpulse 1.6s infinite; }
   @keyframes cwpulse { 0%{box-shadow:0 0 0 0 rgba(126,232,218,.6)} 70%{box-shadow:0 0 0 7px rgba(126,232,218,0)} }
   .cw-x { margin-left:auto; background:none; border:none; color:#fff; font-size:20px; cursor:pointer; line-height:1; }
   .cw-body { padding:14px; max-height:340px; overflow-y:auto; display:flex; flex-direction:column; gap:8px; }
   .cw-bot { background:#F1F5F9; color:#1f2937; padding:10px 12px; border-radius:10px 10px 10px 2px; font-size:13.5px; line-height:1.5; max-width:88%; align-self:flex-start; }
-  .cw-user { background:linear-gradient(135deg,#0f4c81,#0d9488); color:#fff; padding:10px 12px; border-radius:10px 10px 2px 10px; font-size:13.5px; line-height:1.5; max-width:88%; align-self:flex-end; }
+  .cw-user { background:#0F766E; color:#fff; padding:10px 12px; border-radius:10px 10px 2px 10px; font-size:13.5px; line-height:1.5; max-width:88%; align-self:flex-end; }
   .cw-qs { display:flex; flex-direction:column; gap:7px; margin-top:4px; }
   .cw-q { text-align:left; background:#fff; border:1px solid #d8e0ea; color:#0b3a67; padding:8px 11px; border-radius:9px; font-size:13px; font-weight:600; cursor:pointer; }
   .cw-q:hover { border-color:#0d9488; background:rgba(13,148,136,.06); }
   .cw-input { display:flex; gap:8px; padding:10px; border-top:1px solid #E8EBF0; }
   .cw-input input { flex:1; border:1px solid #d8e0ea; border-radius:9px; padding:10px 12px; font-size:13.5px; outline:none; }
   .cw-input input:focus { border-color:#0d9488; }
-  .cw-input button { border:none; background:linear-gradient(135deg,#0f4c81,#0d9488); border-radius:9px; width:40px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+  .cw-input button { border:none; background:#0F766E; border-radius:9px; width:40px; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 `;

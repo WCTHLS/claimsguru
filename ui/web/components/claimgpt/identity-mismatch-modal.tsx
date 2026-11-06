@@ -63,7 +63,7 @@ export function IdentityMismatchModal({
             <Button
               type="button"
               onClick={onClose}
-              className="w-full h-11 text-xs font-semibold rounded-xl bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-500 hover:to-emerald-500 text-white shadow-lg shadow-teal-900/40 flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full h-11 text-xs font-semibold rounded-xl bg-[#0F766E] hover:bg-[#0D655E] text-white shadow-sm flex items-center justify-center gap-2 cursor-pointer transition-colors"
             >
               Understood, Upload Correct Document
             </Button>
@@ -80,7 +80,7 @@ export function IdentityMismatchModal({
               <Button
                 type="button"
                 onClick={handleClear}
-                className="w-full sm:flex-1 h-11 text-xs font-semibold rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white shadow-lg shadow-rose-900/40 order-1 sm:order-2 flex items-center justify-center gap-2"
+                className="w-full sm:flex-1 h-11 text-xs font-semibold rounded-xl bg-rose-700 hover:bg-rose-800 text-white shadow-sm order-1 sm:order-2 flex items-center justify-center gap-2 transition-colors"
               >
                 <RotateCcw className="h-4 w-4" />
                 Clear & Re-Upload Documents

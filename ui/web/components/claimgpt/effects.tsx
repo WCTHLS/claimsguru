@@ -286,7 +286,7 @@ export function GradientText({
   children,
   className,
   from = '#0f4c81',
-  to = '#0d9488',
+  to = '#0f766e',
 }: {
   children: ReactNode;
   className?: string;
